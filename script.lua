@@ -9,7 +9,7 @@ local function spamExpose()
             for i = 1, 100 do
                 task.spawn(function()
                     pcall(function()
-                        general:SendAsync("我要吃小孩,有本事就举报我fvv😂😂😂")
+                        general:SendAsync("我要做爱，和你的mom😂😂😂")
                     end)
                 end)
                 task.wait(0.01)
