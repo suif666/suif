@@ -1342,7 +1342,7 @@ Tabs.fkTab:Button({
     Desc = "未汉化",
     Callback = function()
 pcall(function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua"))()
 end)
     end
 })
