@@ -201,8 +201,8 @@ end
 
 do
     Tabs.LOLTab = Window:Section({Title = "服务器脚本", Opened = true})
-Tabs.tgTab = Tabs.LOLTab:Tab({ Title = "死铁轨", Icon = "zap" })
-Tabs.fkTab = Tabs.LOLTab:Tab({ Title = "方块故事", Icon = "zap" })
+Tabs.TGTab = Tabs.LOLTab:Tab({ Title = "死铁轨", Icon = "zap" })
+Tabs.FKTab = Tabs.LOLTab:Tab({ Title = "方块故事", Icon = "zap" })
 end
 
 Tabs.WJTab:Button({
@@ -254,26 +254,10 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/re
 })
 
 Tabs.TYGNTab:Button({
-    Title = "坐标传送1",
-    Desc = "这个不挡视野",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BC%A0%E9%80%81.txt"))()
-    end
-})
-
-Tabs.TYGNTab:Button({
     Title = "坐标仪1",
     Desc = "第一种",
     Callback = function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BB%AA.txt"))()
-    end
-})
-
-Tabs.TYGNTab:Button({
-    Title = "计时器",
-    Desc = "速通大佬说是",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E8%AE%A1%E6%97%B6%E5%99%A8.txt"))()
     end
 })
 
@@ -303,7 +287,7 @@ loadstring(game:HttpGet('https://raw.githubusercontent.com/GhostPlayer352/Test4/
 
 Tabs.TYGNTab:Button({
     Title = "我的世界",
-    Desc = "真的能玩别人看不见",
+    Desc = "真的能玩但别人看不见",
     Callback = function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Biem6ondo/mc/refs/heads/main/STARTUP"))()
     end
@@ -322,14 +306,6 @@ Tabs.TYGNTab:Button({
     Desc = "键盘",
     Callback = function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E9%94%AE%E7%9B%98.txt"))()
-    end
-})
-
-Tabs.TYGNTab:Button({
-    Title = "键盘",
-    Desc = "忍者注入器里面自带键盘",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/RedZenXYZ/4d80bfd70ee27000660e4bfa7509c667/raw/da903c570249ab3c0c1a74f3467260972c3d87e6/KeyBoard%2520From%2520Ohio%2520Fr%2520Fr"))()
     end
 })
 
@@ -1327,7 +1303,7 @@ end)
 
 --fwqjb
 
-Tabs.tgTab:Button({
+Tabs.TGTab:Button({
     Title = "叶子脚本",
     Desc = "需解卡 未汉化",
     Callback = function()
@@ -1337,7 +1313,7 @@ end)
     end
 })
 
-Tabs.fkTab:Button({
+Tabs.FKTab:Button({
     Title = "方块故事",
     Desc = "未汉化",
     Callback = function()
