@@ -1,96 +1,6 @@
----必看：这个源码是我自己要开源的如果能对其他人有帮助的话也是值了关注我的b站吧UID:1531514159脚本这么久没更新是因为我上学太忙了之后会重新搞一个版本
----我看了很多付费脚本功能都是挺垃圾的建议不要去买付费脚本除非他们有什么特别牛逼的功能可以找老外的脚本平替不会找老外脚本的可以来找我我帮你们找
----关注我然后私信免费汉化脚本
-local TextChatService = game:GetService("TextChatService") local ReplicatedStorage = game:GetService("ReplicatedStorage") local function SendChatMessage(message) if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then local textChannel = TextChatService.TextChannels.RBXGeneral textChannel:SendAsync(message) else ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(message, "All") end end SendChatMessage("The Dark Side of the Moon月之暗面。") SendChatMessage("Speak To Me和我对白。")
-local LP = game:GetService("Players").LocalPlayer
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
-local customNotificationGui = Instance.new("ScreenGui")
-customNotificationGui.Name = "CustomNotificationGui"
-customNotificationGui.Parent = playerGui
-
-local notificationFrame = Instance.new("Frame")
-notificationFrame.Size = UDim2.new(0, 300, 0, 100)
-notificationFrame.Position = UDim2.new(1, 0, 1, -110) 
-notificationFrame.BackgroundColor3 = Color3.new(0, 0, 0) 
-notificationFrame.BackgroundTransparency = 0.2 
-notificationFrame.BorderSizePixel = 0 
-notificationFrame.Parent = customNotificationGui
-
-local loadingRing = Instance.new("ImageLabel")
-loadingRing.Size = UDim2.new(1.2, 0, 1.2, 0) 
-loadingRing.Position = UDim2.new(-0.1, 0, -0.1, 0) 
-loadingRing.BackgroundTransparency = 1 
-loadingRing.Image = "rbxassetid://1011584077" 
-loadingRing.ImageColor3 = Color3.new(1, 1, 1) 
-loadingRing.Parent = notificationFrame
-
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0, 30)
-titleLabel.Position = UDim2.new(0, 10, 0, 10)
-titleLabel.BackgroundTransparency = 1 
-titleLabel.TextColor3 = Color3.new(1, 1, 1) 
-titleLabel.Text = "Kenny脚本" 
-titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.TextSize = 18
-titleLabel.Parent = notificationFrame
-
-local contentLabel = Instance.new("TextLabel")
-contentLabel.Size = UDim2.new(1, -20, 0, 40)
-contentLabel.Position = UDim2.new(0, 10, 0, 45)
-contentLabel.BackgroundTransparency = 1
-contentLabel.TextColor3 = Color3.new(1, 1, 1)
-contentLabel.Text = "Kenny脚本加载完成开始享受吧。" 
-contentLabel.Font = Enum.Font.SourceSans
-contentLabel.TextSize = 16
-contentLabel.Parent = notificationFrame
-
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 20, 0, 20)
-closeButton.Position = UDim2.new(1, -30, 0, 10)
-closeButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-closeButton.Text = "X"
-closeButton.TextColor3 = Color3.new(1, 1, 1)
-closeButton.Parent = notificationFrame
-
-closeButton.MouseButton1Click:Connect(function()
-    customNotificationGui:Destroy()
-end)
-
-local rotateTweenInfo = TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1)
-local rotateTween = TweenService:Create(loadingRing, rotateTweenInfo, {Rotation = 360})
-rotateTween:Play()
-
-local targetPosition = UDim2.new(1, -310, 1, -110)
-local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local tween = TweenService:Create(notificationFrame, tweenInfo, {Position = targetPosition})
-tween:Play()
-
-wait(5)
-customNotificationGui:Destroy()
-
-local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/bailib/Roblox/refs/heads/main/main/ESP.lua"))()
-ESP.AddFolder("HiderESPFolder")
-ESP.AddFolder("HunterESPFolder")
-ESP.AddFolder("GlassESPFolder")
-
 local WindUISuccess, WindUI = pcall(function()
     return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 end)
-
-if not WindUISuccess then
-    error("❌ WindUI加载失败: "..tostring(WindUI))
-    return
-end
 
 function gradient(text, startColor, endColor)
     if not text or #text == 0 then return "" end
@@ -119,9 +29,9 @@ end
 local Confirmed = false
 local popupSuccess, popupResult = pcall(function()
     WindUI:Popup({
-        Title = "欢迎使用Kenny脚本",
+        Title = "欢迎使用suif脚本",
         Icon = "rbxassetid://88797484203913",
-        Content = "ken"..gradient("Kenny", Color3.fromHex("#00FF87"), Color3.fromHex("#60EFFF")).."Speak To Me",
+        Content = "ken"..gradient("suif", Color3.fromHex("#00FF87"), Color3.fromHex("#60EFFF")).."出发！",
         Buttons = {
             {
                 Title = "取消",
@@ -148,9 +58,9 @@ repeat task.wait() until Confirmed
 local Window
 local windowSuccess, windowResult = pcall(function()
     return WindUI:CreateWindow({
-        Title = "Kenny脚本V1.5正式版",
+        Title = "suif脚本V1.0测试版",
         Icon = "rbxassetid://88797484203913",
-        Author = "比任何时候都更好",
+        Author = "二改",
         Folder = "ColdSilence",
         Size = UDim2.fromOffset(300, 350),
         Theme = "Dark",
@@ -160,8 +70,8 @@ local windowSuccess, windowResult = pcall(function()
             Anonymous = false
         },
         KeySystem = {
-            Key = { "月之暗面", "月之暗面" },
-            Note = "请输入有效密钥\n\n官方群:1057168892",
+            Key = { "suif", "1" },
+            Note = "请输入有效密钥\n密钥[suif]\n[1]",
             SaveKey = false
         }
     })
@@ -193,20 +103,15 @@ print("🎉 Kenny脚本加载完成!")
 local Tabs = {}
 
 do
-    Tabs.MainTab = Window:Section({Title = "通用脚本", Opened = true})   
-   Tabs.CSJTab = Tabs.MainTab:Tab({ Title = "创世纪FE", Icon = "zap" })
-   Tabs.MLTab = Tabs.MainTab:Tab({ Title = "melonFE", Icon = "zap" })
-   Tabs.FWTab = Tabs.MainTab:Tab({ Title = "服务器漏洞", Icon = "zap" }) 
+    Tabs.MainTab = Window:Section({Title = "通用脚本", Opened = true})            
    Tabs.HDTab = Tabs.MainTab:Tab({ Title = "黑洞大全", Icon = "zap" })
-   Tabs.KFTab = Tabs.MainTab:Tab({ Title = "开发工具", Icon = "zap" })  
-   Tabs.ZRTab = Tabs.MainTab:Tab({ Title = "其他注入器", Icon = "zap" }) 
+   Tabs.KFTab = Tabs.MainTab:Tab({ Title = "开发工具", Icon = "zap" })     
    Tabs.HZTab = Tabs.MainTab:Tab({ Title = "画质光影类", Icon = "zap" }) 
    Tabs.SFTab = Tabs.MainTab:Tab({ Title = "甩飞类", Icon = "zap" })
    Tabs.DZTab = Tabs.MainTab:Tab({ Title = "表情和动作类", Icon = "zap" })
    Tabs.TYGNTab = Tabs.MainTab:Tab({ Title = "通用", Icon = "zap" })
    Tabs.WJTab = Tabs.MainTab:Tab({ Title = "玩家类", Icon = "zap" })
-   Tabs.PVPTab = Tabs.MainTab:Tab({ Title = "PVP类", Icon = "zap" })
-   Tabs.CBTab = Tabs.MainTab:Tab({ Title = "18+动作专区", Icon = "zap" })
+   Tabs.PVPTab = Tabs.MainTab:Tab({ Title = "PVP类", Icon = "zap" })   
 end
 
 do
@@ -274,94 +179,6 @@ Tabs.MSTab:Button({
     Desc = "已汉化",
     Callback = function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E6%B1%89%E5%8C%96%E5%A2%A8%E6%B0%B4Ringta.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "r6撸鸡吧",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-jerk-off-25958"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "r15撸鸡吧",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/YZoglOyJ/raw"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "操人GUI",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://pastebin.com/raw/hkyuHQ7Y"))();
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "r15被操",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/%E8%A2%AB%E6%93%8DR15.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "R6被操",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/r6%E8%A2%AB%E6%93%8D.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "R6让别人给你口",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/R6%E8%AE%A9%E5%88%AB%E4%BA%BA%E7%BB%99%E4%BD%A0%E5%8F%A3.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "R15让别人给你口",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/R15%E8%AE%A9%E5%88%AB%E4%BA%BA%E7%BB%99%E4%BD%A0%E5%8F%A3.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "R15口别人",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/R15%E8%B5%A4%E5%A3%81%E6%88%96%E9%9B%86.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "R6口别人",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/R6%E8%B5%A4%E5%A3%81%E6%88%96%E9%B8%A1.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "R6后入",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/R6%E5%90%8E%E5%85%A5.txt"))()
-    end
-})
-
-Tabs.CBTab:Button({
-    Title = "r15后入",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/kenk/refs/heads/main/R15%E5%90%8E%E5%85%A5.txt"))()
     end
 })
 
@@ -1427,30 +1244,6 @@ loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-FE-SILLY-CA
     end
 })
 
-Tabs.ZRTab:Button({
-    Title = "阿尔宙斯V3",
-    Desc = "Kenny汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/Arceus%20X%20V3.txt"))()
-    end
-})
-
-Tabs.ZRTab:Button({
-    Title = "突触X改进版",
-    Desc = "Kenny汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E7%AA%81%E8%A7%A6X%E6%94%B9%E8%BF%9B.lua.txt"))()
-    end
-})
-
-Tabs.ZRTab:Button({
-    Title = "突触X重置版",
-    Desc = "Kenny汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E7%AA%81%E8%A7%A6X%E9%87%8D%E7%BD%AE%E7%89%88%E6%B1%89%E5%8C%96.txt"))()
-    end
-})
-
 Tabs.ZQTab:Button({
     Title = "Sung Suho",
     Desc = "使用英雄猎人",
@@ -1821,182 +1614,6 @@ end)
     end
 })
 
-Tabs.FWTab:Button({
-    Title = "AC6",
-    Desc = "这个漏洞和车有关系",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/AC6.txt"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "RC7",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/CoreGui/Scripts/main/RC7"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "FE旁路",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/bVbm4o1L/raw"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "FE旁路2",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/username12scripting/CloxoSS/refs/heads/main/Cloxo%20Server%20Side"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "ssp",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://pastebin.com/raw/1h26sk16"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "鬼怪后门执行器",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://pastebin.com/raw/adceDwMv"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "cmd",
-    Desc = "cmd",
-    Callback = function()
-loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Cool-10379"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "prizz",
-    Desc = "cmd",
-    Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/elliexmln/PrizzLife/main/pladmin.lua'))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "QuirkyCMD",
-    Desc = "cmd",
-    Callback = function()
-loadstring(game: HttpGet("https://gist.github.com/someunknowndude /38cecea5be9d75cb743eac8b1eaf6758 /raw"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "backdoorv6",
-    Desc = "后门执行器",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/iK4oS/backdoor.exe/v6x/source.lua"))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "LALOL",
-    Desc = "后门执行器",
-    Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/Its-LALOL/LALOL-Hub/main/Backdoor-Scanner/script'))()
-    end
-})
-
-Tabs.FWTab:Button({
-    Title = "CET",
-    Desc = "扫描服务器",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/InfernusScripts/Executor-Tests/refs/heads/main/Environment/Test.lua"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "不朽领主",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/342631416698bc733c93dbce1fc43371/raw/5b506412e72fbc1b9e9730ae7f096d33bf06e128/ImmortalityLord.lua"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "大锤近战",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/bc7a020c542be0b7f528a5d8fda5ad52/raw/0db8993dc638613bd91b10fdbceb5c2d0754711e/SledgeHammer.lua"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "杰森",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/6203b323781cfb0a7ad35e4e9f60e026/raw/222815c2a4f6ffe38f8ae3965f6b3640c180ab4c/Jason.lua"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "反派本色",
-    Desc = "无碰撞甩飞",
-    Callback = function()
-loadstring(game:HttpGet(('https://gist.githubusercontent.com/axelinharlem182/1ee425c9d850af697f8c3cb108a9d816/raw/c4660b01faf4db266e8031e310121a65836f98a7/The%2520Villain'),true))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "内部战台",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/20eeb7c97303b19d6079b35de1e71df4/raw/129bb5c45933671097386bcd9d944ab4e7ecc55b/InternalWar.lua"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "速度之星",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/e75f359fee8f18a171962df8c020ed95/raw/7106700d10ec2efc084b8879048dca72f86a10e7/KyusEnder.lua"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "地平线加农炮",
-    Desc = "无碰撞甩飞",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/34653df65434cbbbc36b3ec51d03e7a3/raw/8bd9ef0ad4495baa06f435629b562a103eaf2bf8/HorizonLC"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "机枪手",
-    Desc = "无碰撞甩飞",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/e7b408abcb813525d37e9b7a6bf301c9/raw/6421f9000e90e8a4c2ed57052208acbd6f9648dd/Minigun.txt"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "消色差",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/1e606bc885a3c12fd50bc8f29ae6ac49/raw/6f2e187cc59818d2a308bdd055ae2a93bf2fcb64/Achromatic.lua"))()
-    end
-})
-
-Tabs.MLTab:Button({
-    Title = "虚空领主怪物",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/MelonsStuff/679dc6167ec854831759f495b970cc71/raw/9663b65e4df1fa491f1227aee8cbea43cbfe04d8/VoidBoss.lua"))()
-    end
-})
-
 Tabs.BZTab:Button({
     Title = "一键全徽章手套",
     Desc = "",
@@ -2292,150 +1909,6 @@ Tabs.ZQTab:Button({
     Desc = "装备英雄猎人",
     Callback = function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/S1gmaGuy/MinosPrimeFixed/refs/heads/main/ThefixIsSoSigma"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "AK47",
-    Desc = "AK47",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/AK-47"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "封禁之锤",
-    Desc = "ban",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Ban%20Hammer"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "放逐者",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Banisher"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "亲爱的姐妹",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Dearsister"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "大风战士",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Gale%20Fighter"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "死",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Goner"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "好警察坏警察",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Good%20Cop%20Bad%20Cop"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "卡兰比特",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Karambit"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "闪电炮",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Lightning%20Cannon"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "连身剑",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Linked%20Sword"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "转轮机枪",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Minigun"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "摩托车",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Motorcycle"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "海王星五号",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Neptunian%20V"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "傀儡师",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Puppet%20Master"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "虐待狂种族灭绝",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Sadist%20Genocider"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "罪恶龙",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Sin%20Dragon"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "狙击手",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Sniper"))()
-    end
-})
-
-Tabs.CSJTab:Button({
-    Title = "工作室假人",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/GenesisFE/Genesis/main/Obfuscations/Studio%20Dummy"))()
     end
 })
 
