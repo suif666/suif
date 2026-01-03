@@ -31,7 +31,7 @@ local popupSuccess, popupResult = pcall(function()
     WindUI:Popup({
         Title = "欢迎使用suif脚本",
         Icon = "rbxassetid://88797484203913",
-        Content = "ken"..gradient("suif", Color3.fromHex("#00FF87"), Color3.fromHex("#60EFFF")).."出发！",
+        Content = "❤️"..gradient("suif", Color3.fromHex("#00FF87"), Color3.fromHex("#60EFFF")).."❤️",
         Buttons = {
             {
                 Title = "取消",
@@ -84,24 +84,7 @@ else
     Window = windowResult
 end
 
-local function safeCreateButton(name, icon, callback, order)
-    pcall(function()
-        Window:CreateTopbarButton(name, icon, callback, order)
-    end)
-end
-
-safeCreateButton("MyButton1", "bird", function() print("按钮1") end, 990)
-safeCreateButton("MyButton2", "settings", function() Window:ToggleFullscreen() end, 989)
-
-task.defer(function()
-    collectgarbage("")
-    print("✅ 内存优化完成 | 当前用量:", math.floor((collectgarbage("count")/1024)).."MB")
-end)
-
-print("🎉 Kenny脚本加载完成!")
-
-local Tabs = {}
-
+--通用脚本
 do
     Tabs.MainTab = Window:Section({Title = "通用脚本", Opened = true})            
    Tabs.HDTab = Tabs.MainTab:Tab({ Title = "黑洞大全", Icon = "zap" })
@@ -113,74 +96,11 @@ do
    Tabs.WJTab = Tabs.MainTab:Tab({ Title = "玩家类", Icon = "zap" })
    Tabs.PVPTab = Tabs.MainTab:Tab({ Title = "PVP类", Icon = "zap" })   
 end
-
+--服务器脚本
 do
-    Tabs.LOLTab = Window:Section({Title = "服务器脚本", Opened = true})
-Tabs.BZTab = Tabs.LOLTab:Tab({ Title = "巴掌模拟器", Icon = "zap" })
-Tabs.ZQTab = Tabs.LOLTab:Tab({ Title = "最强战场", Icon = "zap" })
-Tabs.FZTab = Tabs.LOLTab:Tab({ Title = "犯罪", Icon = "zap" })
-Tabs.MSTab = Tabs.LOLTab:Tab({ Title = "墨水游戏", Icon = "zap" })
-Tabs.JJTab = Tabs.LOLTab:Tab({ Title = "99夜", Icon = "zap" })
-Tabs.TKTab = Tabs.LOLTab:Tab({ Title = "天空战争", Icon = "zap" })
-Tabs.SCTab = Tabs.LOLTab:Tab({ Title = "生存战争", Icon = "zap" })
-Tabs.CJTab = Tabs.LOLTab:Tab({ Title = "三叉戟生存", Icon = "zap" })
+    Tabs.FWQTab = Window:Section({Title = "服务器脚本", Opened = true})
+    Tabs.TGTab = Tabs.FWQTab:Tab({ Title = "死铁轨", Icon = "zap" })
 end
-
-Tabs.TKTab:Button({
-    Title = "vapev4",
-    Desc = "已汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E6%B1%89%E5%8C%96vapev4.txt"))()
-    end
-})
-
-Tabs.SCTab:Button({
-    Title = "vapev4",
-    Desc = "已汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E6%B1%89%E5%8C%96vapev4.txt"))()
-    end
-})
-
-Tabs.CJTab:Button({
-    Title = "vapev4",
-    Desc = "已汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E6%B1%89%E5%8C%96vapev4.txt"))()
-    end
-})
-
-Tabs.JJTab:Button({
-    Title = "虚空脚本",
-    Desc = "已汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/99%E5%A4%9C%E8%99%9A%E7%A9%BA.txt"))()
-    end
-})
-
-Tabs.FZTab:Button({
-    Title = "犯罪脚本",
-    Desc = "已汉化加载两次过检测",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/Kenny%E6%B1%89%E5%8C%96%E7%8A%AF%E7%BD%AA%E8%84%9A%E6%9C%AC.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "VexonHub已汉化",
-    Desc = "超级强的脚本如果有卡密卡密是VexonHub_3",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/VexonHub%E6%B1%89%E5%8C%96.txt"))()
-    end
-})
-
-Tabs.MSTab:Button({
-    Title = "Ringta",
-    Desc = "已汉化",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/%E6%B1%89%E5%8C%96%E5%A2%A8%E6%B0%B4Ringta.txt"))()
-    end
-})
 
 Tabs.PVPTab:Button({
     Title = "无后座快速射击",
@@ -1244,62 +1164,6 @@ loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-FE-SILLY-CA
     end
 })
 
-Tabs.ZQTab:Button({
-    Title = "Sung Suho",
-    Desc = "使用英雄猎人",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/sparksnaps/Sung-Suho/refs/heads/main/Lua"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "秤金次",
-    Desc = "使用琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/R9YJF35g/raw"))();
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "反向闪光",
-    Desc = "使用琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/HwE5XJof/raw"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "吉连",
-    Desc = "使用英雄猎人",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/sparksnaps/Jiren-Moveset-V2/refs/heads/main/Lua"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "沃利·韦斯特",
-    Desc = "使用琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Nova2ezz/west/refs/heads/main/Protected_4638864115822087.lua.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "无敌少侠",
-    Desc = "使用琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/BtDQqi2c/raw"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "希德·卡盖诺",
-    Desc = "使用琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/sparksnaps/Lord-Shadow-Beta/refs/heads/main/Lua"))()
-    end
-})
-
 Tabs.HDTab:Button({
     Title = "黑洞V1（黑洞中心同款）",
     Desc = "黑洞中心偷过来的。。。",
@@ -1614,304 +1478,17 @@ end)
     end
 })
 
-Tabs.BZTab:Button({
-    Title = "一键全徽章手套",
-    Desc = "",
+Tabs.TGTab:Button({
+    Title = "叶子",
+    Desc = "未汉化 需解卡",
     Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/Pro666Pro/UltimateBadgeHub/main/main.lua'))()
+pcall(function()
+loadstring(game:HttpGet("https://getnative.cc/script/loader"))()
+end)
     end
 })
 
-Tabs.BZTab:Button({
-    Title = "boos战脚本",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Articles-Hub/ROBLOXScript/refs/heads/main/File-Script/Slap_Battles.lua"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "死神手套",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Yuna-ux/Slap-battles/refs/heads/main/Death_glove_V4.lua"))();
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "全自动刷巴掌",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/CelerityRBLX/Roblox/refs/heads/main/Slap%20Battles/Slap%20Farm%20Loader.lua"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "能力gui",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/TheLostStar7/Scripts/refs/heads/main/Slap%20battles%20ability%20gui"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "米诺斯",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/KietVN02202/KietVN02202/refs/heads/main/MinosPrimeFanMade2.0.lua"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "弥诺斯",
-    Desc = "超级牛逼",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Crossattic/SBS/refs/heads/main/Minos%20Prime%20v1%20BETA"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "监督者",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/KietVN02202/KietVN02202/refs/heads/main/OVERSEERGlove.txt"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "戴夫手套",
-    Desc = "可叠加别的",
-    Callback = function()
-loadstring(game:HttpGet('https://pastefy.app/Tau7Gnno/raw'))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "超本能",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/DonjoScripts/Public-Scripts/refs/heads/Slap-Battles/MUI%5BGloveCustom%5D.lua'))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "边缘领主",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/IncognitoScripts/SlapBattles/refs/heads/main/Edgelord"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "边缘领主v2",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/KietVN02202/KietVN02202/refs/heads/main/FeEdgelord2.0.lua"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "远程杀戮+巴西",
-    Desc = "超级牛逼装备rob手套",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/KietVN02202/KietVN02202/refs/heads/main/SlapBattlesIdkWhatToNameIt.lua"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "超级人类",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/IncognitoScripts/SlapBattles/main/GodHuman", true))()
-    end
-})  
-
-Tabs.BZTab:Button({
-    Title = "查拉技能组",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/CelerityRBLX/Roblox/refs/heads/main/Slap%20Battles/Chara.lua"))();
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "冰霜神",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/LYJzX6un/raw"))();
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "表情动作",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/KietVN02202/KietVN02202/refs/heads/main/FeEmote.lua"))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "sans手套",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/IncognitoScripts/SlapBattles/main/SansComeback", true))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "哨声",
-    Desc = "可以炸服",
-    Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/Umbrella-Scripter/Slap-Battles/refs/heads/main/F.L.O.W.E.R.lua'))()
-    end
-})
-
-Tabs.BZTab:Button({
-    Title = "500连杀",
-    Desc = "",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/KietVN02202/KietVN02202/refs/heads/main/FEcustom500killstreak.lua"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "索尼克",
-    Desc = "使用英雄猎人",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/4zLt8a2P/raw"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "悟空",
-    Desc = "动画",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/IdkRandomUsernameok/PublicAssets/refs/heads/main/Releases/MUI.lua"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "超强",
-    Desc = "忍者注入器才能用",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Reapvitalized/TSB/refs/heads/main/SG_DEMO.lua"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "月光",
-    Desc = "用格斗家",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/SlimJimShady/sungjin/refs/heads/main/Protected_7329509552810618.lua.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "须久那",
-    Desc = "装备琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://pastefy.app/3dQB5Mv5/raw"))();
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "加百列",
-    Desc = "装备英雄猎人",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/damir512/youinsinificants/main/insignificantFuck.txt",true))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "狼牙",
-    Desc = "装备琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/GoldenHeads2/f66279000c58a020e894a6db44914838/raw/62e53e1acacec0b38b43cd0f594292c32e09c39b/gistfile1.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "黄金",
-    Desc = "使用琦玉",
-    Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/Kenjihin69/Kenjihin69/refs/heads/main/Saitama%20to%20golden%20sigma'))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "狼牙",
-    Desc = "装备琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/GoldenHeads2/f66279000c58a020e894a6db44914838/raw/62e53e1acacec0b38b43cd0f594292c32e09c39b/gistfile1.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "光的速度",
-    Desc = "装备琦玉",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Nova2ezz/west/refs/heads/main/Protected_4638864115822087.lua.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "夜神月",
-    Desc = "装备英雄猎人",
-    Callback = function()
-loadstring(game:HttpGet("https://gist.githubusercontent.com/GoldenHeads2/35ca43410a2e96102f73dca904137973/raw/c4cb113194c35e0439151b06ea82dcc8053ff2c3/gistfile1.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "火车头",
-    Desc = "装备英雄猎人",
-    Callback = function()
-getgenv().settings = {
-    ["morph"] = {
-        ["enabled"] = false,
-        ["dontchangeskincolor"] = false,
-    },
-    ["ult_forcewalkspeed"] = true, -- forces walkspeed even if set to 0
-    ["ult_walkspeed"] = 64, -- how fast you walk in ult
-    ["tp_duration"] = 0.15 -- how long it takes to tp
-} 
-
-loadstring(game:HttpGet("https://raw.githubusercontent.com/skibiditoiletfan2007/ATrainSounds/refs/heads/main/ATrain.lua"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "45%",
-    Desc = "装备英雄猎人",
-    Callback = function()
-loadstring(game:HttpGet("https://pastebin.com/raw/xKextYP5"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "真人",
-    Desc = "装备琦玉",
-    Callback = function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/Kenjihin69/Kenjihin69/refs/heads/main/Mahito%20v2%20sigma%20tp%20exploit'))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "火影忍者",
-    Desc = "三个角色",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/LolnotaKid/SCRIPTSBYVEUX/refs/heads/main/BoombasticLol.lua.txt"))()
-    end
-})
-
-Tabs.ZQTab:Button({
-    Title = "米诺斯",
-    Desc = "装备英雄猎人",
-    Callback = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/S1gmaGuy/MinosPrimeFixed/refs/heads/main/ThefixIsSoSigma"))()
-    end
-})
-
+--主题设置
 do
     Tabs.MainTab = Window:Section({Title = "主题设置", Opened = true})
     Tabs.WindowTab = Tabs.MainTab:Tab({ Title = "选择主题", Icon = "zap" })
