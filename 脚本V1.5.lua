@@ -26,40 +26,11 @@ function gradient(text, startColor, endColor)
     return result
 end
 
-local Confirmed = false
-local popupSuccess, popupResult = pcall(function()
-    WindUI:Popup({
-        Title = "欢迎使用suif脚本",
-        Icon = "rbxassetid://88797484203913",
-        Content = "❤️"..gradient("suif", Color3.fromHex("#00FF87"), Color3.fromHex("#60EFFF")).."❤️",
-        Buttons = {
-            {
-                Title = "取消",
-                Callback = function() end,
-                Variant = "Secondary"
-            },
-            {
-                Title = "继续",
-                Icon = "arrow-right",
-                Callback = function() Confirmed = true end,
-                Variant = "Primary"
-            }
-        }
-    })
-end)
-
-if not popupSuccess then
-    warn("⚠️ 弹窗创建失败: "..tostring(popupResult))
-    Confirmed = true
-end
-
-repeat task.wait() until Confirmed
-
 local Window
 local windowSuccess, windowResult = pcall(function()
     return WindUI:CreateWindow({
         Title = "suif脚本V1.0测试版",
-        Icon = "rbxassetid://88797484203913",
+        Icon = "lucide:Boxes",
         Author = "二改",
         Folder = "ColdSilence",
         Size = UDim2.fromOffset(300, 350),
@@ -71,7 +42,7 @@ local windowSuccess, windowResult = pcall(function()
         },
         KeySystem = {
             Key = { "suif", "1" },
-            Note = "请输入有效密钥\n密钥[suif]\n[1]",
+            Note = "卡密系统你是活爹我不删你了你行了吧\n密钥[suif]\n密钥[1]\n两个卡密爱用哪个用哪个",
             SaveKey = false
         }
     })
@@ -84,7 +55,14 @@ else
     Window = windowResult
 end
 
---通用脚本
+local function safeCreateButton(name, icon, callback, order)
+    pcall(function()
+        Window:CreateTopbarButton(name, icon, callback, order)
+    end)
+end
+
+local Tabs = {}
+
 do
     Tabs.MainTab = Window:Section({Title = "通用脚本", Opened = true})            
    Tabs.HDTab = Tabs.MainTab:Tab({ Title = "黑洞大全", Icon = "zap" })
@@ -96,11 +74,25 @@ do
    Tabs.WJTab = Tabs.MainTab:Tab({ Title = "玩家类", Icon = "zap" })
    Tabs.PVPTab = Tabs.MainTab:Tab({ Title = "PVP类", Icon = "zap" })   
 end
---服务器脚本
+
 do
-    Tabs.FWQTab = Window:Section({Title = "服务器脚本", Opened = true})
-    Tabs.TGTab = Tabs.FWQTab:Tab({ Title = "死铁轨", Icon = "zap" })
+    Tabs.LOLTab = Window:Section({Title = "服务器脚本", Opened = true})
+Tabs.FKTab = Tabs.LOLTab:Tab({ Title = "方块故事", Icon = "zap" })
 end
+
+do
+   Tabs.GDTab = Window:Section({Title = "更多", Opened = true})
+   Tabs.DHTab = Tabs.GDTab:Tab({ Title = "导航", Icon = "zap" })
+   Tabs.MXTab = Tabs.GDTab:Tab({ Title = "鸣谢", Icon = "zap" })
+end
+
+Tabs.FKTab:Button({
+    Title = "[E]方块故事TexRBLX脚本",
+    Desc = "外网比较好用的",
+    Callback = function()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua"))()
+    end
+})
 
 Tabs.PVPTab:Button({
     Title = "无后座快速射击",
@@ -1478,17 +1470,54 @@ end)
     end
 })
 
-Tabs.TGTab:Button({
-    Title = "叶子",
-    Desc = "未汉化 需解卡",
-    Callback = function()
-pcall(function()
-loadstring(game:HttpGet("https://getnative.cc/script/loader"))()
-end)
-    end
+Tabs.DHTTab:Paragraph({
+    Title = "windui官网",
+    Desc = "这还用解释吗",
+    Image = "lucide:AppWindowMac",
+    ImageSize = 20,
+    Color = "Grey",
+    Buttons = {
+        {
+            Title = "点击复制",
+            Icon = "copy",
+            Variant = "Tertiary",
+            Callback = function()
+                setclipboard("https://footagesus.github.io/WindUI-Docs//")
+                WindUI:Notify({
+                    Title = "复制!",
+                    Content = "群1057168892",
+                    Duration = 2
+                })
+            end
+        }
+    }
 })
 
---主题设置
+Tabs.MXTab:Paragraph({
+    Title = "我",
+    Desc = "二改拿来自己用",
+    Image = "lucide:Annoyed",
+    ImageSize = 20,
+    Color = "Grey",
+    Buttons = {
+        {
+            Title = "点击复制",
+            Icon = "copy",
+            Variant = "Tertiary",
+            Callback = function()
+                setclipboard("彩蛋吗?")
+                WindUI:Notify({
+                    Title = "复制!",
+                    Content = "群1057168892",
+                    Duration = 2
+                })
+            end
+        }
+    }
+})
+
+
+
 do
     Tabs.MainTab = Window:Section({Title = "主题设置", Opened = true})
     Tabs.WindowTab = Tabs.MainTab:Tab({ Title = "选择主题", Icon = "zap" })
@@ -1651,426 +1680,4 @@ Tabs.CreateThemeTab:Button({
     Callback = function()
         updateTheme()
     end
-})
-
-do
-   Tabs.MainTab = Window:Section({Title = "导航", Opened = true})
-   Tabs.kkkTab = Tabs.MainTab:Tab({ Title = "簧片导航", Icon = "zap" })
-   Tabs.MXTab = Tabs.MainTab:Tab({ Title = "鸣谢名单", Icon = "zap" })
-   Tabs.YPTab = Tabs.MainTab:Tab({ Title = "约炮热线", Icon = "zap" })
-   Tabs.JBTab = Tabs.MainTab:Tab({ Title = "脚本", Icon = "zap" })
-end
-
-Tabs.kkkTab:Paragraph({
-    Title = "p站",
-    Desc = "全球最大成人网站",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://cn.pornhub.com/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "xvideos",
-    Desc = "第二大",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://www.xvideos.com/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "51吃瓜",
-    Desc = "骚",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://www.jdxafwa.cc/category/rdsj/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "51爆料",
-    Desc = "和51吃瓜不是一个",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://album.abmdihw.cc/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "成人韩漫网站",
-    Desc = "这个是真的好看",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://manhwa-raw.com/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "acg黄油",
-    Desc = "撸撸撸",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://www.2gouacg.com/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "xhamster",
-    Desc = "第三大",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://xhamster.com/?ref=porndude")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "onlyfans",
-    Desc = "不用多说",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://onlyfans.com/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "r34",
-    Desc = "基本啥都有",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://rule34.xxx/")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.kkkTab:Paragraph({
-    Title = "COSplay",
-    Desc = "基本上都是糖心的",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("https://rapidtai.com/cn/tag/Cosplay")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.MXTab:Paragraph({
-    Title = "冷寂",
-    Desc = "大红眼睛的恩情还不完",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("2893403284")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.MXTab:Paragraph({
-    Title = "唐尧",
-    Desc = "提供了自动发言和坐标仪",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("唐尧")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.MXTab:Paragraph({
-    Title = "我",
-    Desc = "Kenny",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("1531514159")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.YPTab:Paragraph({
-    Title = "死爹烂妈傻逼少羽",
-    Desc = "为了维护自己狗懒子刷屏狗兄弟背刺我现在还在搬运我的脚本搜不到用强制搜索",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制QQ",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("3021581385")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.YPTab:Paragraph({
-    Title = "死爹烂妈瞎骂狗",
-    Desc = "傻逼护卫犬",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制QQ",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("2763820948")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.YPTab:Paragraph({
-    Title = "死爹烂妈瞎骂狗2",
-    Desc = "傻逼护卫犬",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制QQ",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("318590080")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.JBTab:Paragraph({
-    Title = "创世纪官方频道",
-    Desc = "genesis",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("http://www.youtube.com/@GENESIS-FE")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
-})
-
-Tabs.JBTab:Paragraph({
-    Title = "melon官方频道",
-    Desc = "melon",
-    Image = "github",
-    ImageSize = 20,
-    Color = "Grey",
-    Buttons = {
-        {
-            Title = "点击复制",
-            Icon = "copy",
-            Variant = "Tertiary",
-            Callback = function()
-                setclipboard("http://www.youtube.com/@MelonScripter")
-                WindUI:Notify({
-                    Title = "复制!",
-                    Content = "群1057168892",
-                    Duration = 2
-                })
-            end
-        }
-    }
 })
