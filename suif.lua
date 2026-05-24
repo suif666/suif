@@ -93,7 +93,7 @@ local ToolTab = FunctionSection:Tab({
 local VisualSection = Window:Section({
     Title = "视觉",
     Icon = "folder",
-    Opened = true,
+    Opened = false,
 })
 
 local VisualTab = VisualSection:Tab({
