@@ -375,7 +375,7 @@ local function ApplyFullbright()
     end
 end
 
-VisualTab:Toggle({
+gllTab:Toggle({
     Title = "高亮环境",
     Desc = "开启后使用下面的亮度设置",
     Icon = "sun",
@@ -384,11 +384,10 @@ VisualTab:Toggle({
     Callback = function(state)
         FullbrightSettings.Enabled = state
         ApplyFullbright()
-        Notify("高亮环境", state and "已开启" or "已关闭", "sun", 3)
     end
 })
 
-VisualTab:Slider({
+glTab:Slider({
     Title = "亮度大小",
     Desc = "控制 Lighting.Brightness",
     Step = 0.1,
@@ -403,7 +402,7 @@ VisualTab:Slider({
     end
 })
 
-VisualTab:Slider({
+glTab:Slider({
     Title = "世界时间",
     Desc = "控制 ClockTime",
     Step = 0.5,
@@ -418,7 +417,7 @@ VisualTab:Slider({
     end
 })
 
-VisualTab:Slider({
+glTab:Slider({
     Title = "雾气距离",
     Desc = "数值越高，雾气越少",
     Step = 1000,
@@ -433,7 +432,7 @@ VisualTab:Slider({
     end
 })
 
-VisualTab:Toggle({
+glTab:Toggle({
     Title = "保留阴影",
     Desc = "关闭后画面会更亮",
     Icon = "cloud-sun",
@@ -445,7 +444,7 @@ VisualTab:Toggle({
     end
 })
 
-VisualTab:Button({
+glTab:Button({
     Title = "删除本地雾气",
     Desc = "只影响本地画面",
     Locked = false,
@@ -457,7 +456,7 @@ VisualTab:Button({
     end
 })
 
-VisualTab:Button({
+glTab:Button({
     Title = "恢复默认光照",
     Desc = "关闭高亮并恢复默认光照",
     Locked = false,
