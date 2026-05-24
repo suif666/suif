@@ -355,7 +355,25 @@ ToolTab:Button({
     end
 })
 --// 脚本类
+scripttab:Button({
+    Title = "执行脚本",
+    Desc = "点击后执行指定脚本",
+    Icon = "chart-line",
+    Locked = false,
+    Callback = function()
+        getgenv().Config = {
+            MinContainers = 10,
+            MinCoins = 50,
+            UseLockpick = false,
+            UseRobuxKnobsBoost = false
+        }
 
+        RunScript(
+            "https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua",
+            "脚本 1"
+        )
+    end
+})
 --// UI 设置
 
 local ThemeMap = {
