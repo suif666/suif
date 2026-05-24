@@ -120,7 +120,7 @@ local VisualTab = VisualSection:Tab({
 local ScriptSection = Window:Section({
     Title = "脚本",
     Icon = "folder",
-    Opened = true,
+    Opened = false,
 })
 
 local ScriptTab = ScriptSection:Tab({
