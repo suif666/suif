@@ -56,8 +56,6 @@ local Window = WindUI:CreateWindow({
     SideBarWidth = UISettings.SideBarWidth,
     HideSearchBar = UISettings.HideSearchBar,
     ScrollBarEnabled = true,
-    NewElements = true,
-})
 
     User = {
         Enabled = true,
