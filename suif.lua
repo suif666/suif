@@ -120,7 +120,7 @@ task.delay(1, function()
     Notice:Show()
 end)
 
---// Tabs
+--// Window:Tab 独立页面
 
 local MainTab = Window:Tab({
     Title = "主页",
@@ -128,12 +128,40 @@ local MainTab = Window:Tab({
     Locked = false,
 })
 
+local AboutTab = Window:Tab({
+    Title = "关于",
+    Icon = "info",
+    Locked = false,
+})
+
+--// Window:Section 分组
+
 local FunctionSection = Window:Section({
     Title = "功能",
     Icon = "folder",
     Opened = false,
 })
 
+local VisualSection = Window:Section({
+    Title = "视觉",
+    Icon = "folder",
+    Opened = false,
+})
+
+local ScriptSection = Window:Section({
+    Title = "脚本",
+    Icon = "folder",
+    Opened = false,
+})
+
+local SettingsSection = Window:Section({
+    Title = "设置",
+    Icon = "settings",
+    Opened = false,
+})
+
+
+--// 脚本 Tab
 local PlayerTab = FunctionSection:Tab({
     Title = "玩家",
     Icon = "user",
@@ -146,23 +174,18 @@ local ToolTab = FunctionSection:Tab({
     Locked = false,
 })
 
-local VisualSection = Window:Section({
-    Title = "视觉",
-    Icon = "folder",
-    Opened = false,
-})
-
 local VisualTab = VisualSection:Tab({
     Title = "高亮",
     Icon = "eye",
     Locked = false,
 })
 
-local ScriptSection = Window:Section({
-    Title = "脚本",
-    Icon = "folder",
-    Opened = false,
+local SettingsTab = SettingsSection:Tab({
+    Title = "UI设置",
+    Icon = "sliders-horizontal",
+    Locked = false,
 })
+
 
 local doorsTab = ScriptSection:Tab({
     Title = "doors/门",
@@ -213,23 +236,6 @@ local wqkTab = ScriptSection:Tab({
 })
 
 
-local SettingsSection = Window:Section({
-    Title = "设置",
-    Icon = "settings",
-    Opened = false,
-})
-
-local SettingsTab = SettingsSection:Tab({
-    Title = "UI设置",
-    Icon = "sliders-horizontal",
-    Locked = false,
-})
-
-local AboutTab = SettingsSection:Tab({
-    Title = "关于",
-    Icon = "info",
-    Locked = false,
-})
 
 --// 主页
 
