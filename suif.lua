@@ -135,6 +135,31 @@ local byqTab = ScriptSection:Tab({
     Locked = false,
 })
 
+local stgTab = ScriptSection:Tab({
+    Title = "死铁轨",
+    Icon = "shell",
+    Locked = false,
+})
+
+local slTab = ScriptSection:Tab({
+    Title = "扫雷",
+    Icon = "shell",
+    Locked = false,
+})
+
+local fkgsTab = ScriptSection:Tab({
+    Title = "方块故事",
+    Icon = "shell",
+    Locked = false,
+})
+
+local zrzhTab = ScriptSection:Tab({
+    Title = "自然灾害",
+    Icon = "shell",
+    Locked = false,
+})
+
+
 local SettingsSection = Window:Section({
     Title = "设置",
     Icon = "settings",
@@ -376,12 +401,12 @@ ToolTab:Button({
     end
 })
 
---// 脚本类 / Doors
+--// 脚本类
 
 doorsTab:Button({
     Title = "全自动刷旋钮",
     Desc = "字面意思 执行后什么都不用管了",
-    Icon = "door-closed",
+    Icon = "shell",
     Locked = false,
     Callback = function()
         getgenv().Config = {
@@ -398,6 +423,28 @@ doorsTab:Button({
     end
 })
 
+doorsTab:Button({
+    Title = "mspaint",
+    Desc = "需卡密 超好用",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        local keyLink = "https://www.mspaint.cc/key"
+
+        if setclipboard then
+            setclipboard(keyLink)
+            Notify("mspaint", "已自动复制mspaint解卡链接到粘贴板", "check", 5)
+        else
+            Notify("复制失败", "当前环境不支持复制链接", "triangle-alert", 3)
+        end
+
+        RunScript(
+            "https://api.luarmor.net/files/v3/loaders/002c19202c9946e6047b0c6e0ad51f84.lua",
+            "Doors msp"
+        )
+    end
+})
+
 byqTab:Button({
     Title = "fa",
     Desc = "无卡密 个人感觉很好用",
@@ -407,6 +454,84 @@ byqTab:Button({
         RunScript(
             "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua",
             "被遗弃脚本"
+        )
+    end
+})
+
+stgTab:Button({
+    Title = "叶子",
+    Desc = "需卡密 好长时间都没有更新了...",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        RunScript(
+            "https://getnative.cc/script/loader",
+            "死铁轨叶子"
+        )
+    end
+})
+
+stgTab:Button({
+    Title = "ringta",
+    Desc = "无卡密 老朋友了 更新速度还算可以",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        RunScript(
+            "https://raw.githubusercontent.com/erewe23/deadrailsring.github.io/refs/heads/main/ringta.lua",
+            "死铁轨ringta"
+        )
+    end
+})
+
+slTab:Button({
+    Title = "扫雷",
+    Desc = "无卡密 支持服务器bLockerman's Minesweeper",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        RunScript(
+            "https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download",
+            "扫雷"
+        )
+    end
+})
+
+slTab:Button({
+    Title = "扫雷02",
+    Desc = "无卡密 支持服务器bLockerman's Minesweeper",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        RunScript(
+            "https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='",
+            "扫雷"
+        )
+    end
+})
+
+fkgsTab:Button({
+    Title = "方块故事",
+    Desc = "无卡密 超好用",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        RunScript(
+            "https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua",
+            "方块故事"
+        )
+    end
+})
+
+zrzhTab:Button({
+    Title = "自然灾害 龙卷风",
+    Desc = "无卡密 大风车呀滴溜溜的转...",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        RunScript(
+            "https://pastebin.com/raw/JR7RBh2a",
+            "自然灾害"
         )
     end
 })
