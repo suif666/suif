@@ -445,6 +445,88 @@ doorsTab:Button({
     end
 })
 
+--// Doors 复活复制脚本生成器
+
+local ReviveCopyConfig = {
+    MainAccount = "",
+    AltAccount = "",
+    DuplicationAmount = 6666,
+}
+
+local function LuaString(str)
+    return string.format("%q", tostring(str or ""))
+end
+
+doorsTab:Input({
+    Title = "主号用户名",
+    Desc = "填写 MainAccount",
+    Placeholder = "这里填主号用户名",
+    Value = "",
+    Callback = function(value)
+        ReviveCopyConfig.MainAccount = value
+    end
+})
+
+doorsTab:Input({
+    Title = "小号用户名",
+    Desc = "填写 AltAccount",
+    Placeholder = "这里填小号用户名",
+    Value = "",
+    Callback = function(value)
+        ReviveCopyConfig.AltAccount = value
+    end
+})
+
+doorsTab:Dropdown({
+    Title = "复制数量",
+    Desc = "高性能设备建议 8888，低性能设备建议 6666",
+    Values = {
+        "6666",
+        "8888"
+    },
+    Value = "6666",
+    Callback = function(value)
+        ReviveCopyConfig.DuplicationAmount = tonumber(value)
+    end
+})
+
+doorsTab:Paragraph({
+    Title = "数量提示",
+    Desc = "低性能设备请选择 6666\n高性能设备可以选择 8888"
+})
+
+doorsTab:Button({
+    Title = "复制复活脚本",
+    Desc = "根据上面的参数生成脚本并复制",
+    Icon = "copy",
+    Locked = false,
+    Callback = function()
+        if ReviveCopyConfig.MainAccount == "" then
+            Notify("缺少参数", "请先填写主号用户名", "triangle-alert", 3)
+            return
+        end
+
+        if ReviveCopyConfig.AltAccount == "" then
+            Notify("缺少参数", "请先填写小号用户名", "triangle-alert", 3)
+            return
+        end
+
+        local scriptText =
+            'MainAccount = ' .. LuaString(ReviveCopyConfig.MainAccount) .. ' -- 主号用户名\n' ..
+            'AltAccount = ' .. LuaString(ReviveCopyConfig.AltAccount) .. ' -- 小号用户名\n\n' ..
+            'DuplicationAmount = ' .. tostring(ReviveCopyConfig.DuplicationAmount) .. '\n' ..
+            'loadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/refs/heads/main/doors/revives.lua"))()'
+
+        if setclipboard then
+            setclipboard(scriptText)
+            Notify("复制成功", "复活脚本已复制到剪贴板", "check", 3)
+        else
+            Notify("复制失败", "当前环境不支持 setclipboard，脚本已输出到控制台", "triangle-alert", 3)
+            print(scriptText)
+        end
+    end
+})
+
 byqTab:Button({
     Title = "fa",
     Desc = "无卡密 个人感觉很好用",
