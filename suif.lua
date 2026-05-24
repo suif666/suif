@@ -123,9 +123,15 @@ local ScriptSection = Window:Section({
     Opened = false,
 })
 
-local ScriptTab = ScriptSection:Tab({
+local doorsTab = ScriptSection:Tab({
     Title = "doors/门",
     Icon = "door-closed",
+    Locked = false,
+})
+
+local byqTab = ScriptSection:Tab({
+    Title = "被遗弃",
+    Icon = "shell",
     Locked = false,
 })
 
@@ -372,7 +378,7 @@ ToolTab:Button({
 
 --// 脚本类 / Doors
 
-ScriptTab:Button({
+doorsTab:Button({
     Title = "全自动刷旋钮",
     Desc = "字面意思 执行后什么都不用管了",
     Icon = "door-closed",
@@ -388,6 +394,17 @@ ScriptTab:Button({
         RunScript(
             "https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua",
             "Doors 脚本"
+        )
+    end
+})
+
+byqTab:Button({
+    Title = "fa",
+    Desc = "无卡密 个人感觉很好用",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"))()
         )
     end
 })
