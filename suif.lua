@@ -102,10 +102,16 @@ local VisualTab = VisualSection:Tab({
     Locked = false,
 })
 
-local FunctionSection = Window:Section({
+local scriptSection = Window:Section({
     Title = "脚本",
     Icon = "folder",
     Opened = false,
+})
+
+local scripttab = scriptSection:Tab({
+    Title = "doors/门",
+    Icon = "door-closed",
+    Locked = false,
 })
 
 local SettingsSection = Window:Section({
@@ -346,6 +352,23 @@ ToolTab:Button({
     Locked = false,
     Callback = function()
         TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end
+})
+--// 脚本类
+
+scripttab:Button({
+    Title = "刷旋钮",
+    Desc = "大厅执行就行",
+    Icon = "chart-line",
+    Locked = false,
+    Callback = function()
+        RunScript("getgenv().Config = {
+    MinContainers = 10,
+    MinCoins = 50,
+    UseLockpick = false,
+    UseRobuxKnobsBoost = false
+}
+loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua"))()", "脚本 1")
     end
 })
 
