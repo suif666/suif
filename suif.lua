@@ -1,5 +1,3 @@
---// Suture Hub
-
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Players = game:GetService("Players")
@@ -41,7 +39,7 @@ local UISettings = {
 
 local Window = WindUI:CreateWindow({
     Title = "Suture Hub",
-    Icon = "box",
+    Icon = "aperture",
     Author = "by suif",
     Folder = "SutureHub",
 
@@ -70,14 +68,14 @@ local Window = WindUI:CreateWindow({
 
 local MainTab = Window:Tab({
     Title = "主页",
-    Icon = "home",
+    Icon = "house",
     Locked = false,
 })
 
 local FunctionSection = Window:Section({
     Title = "功能",
     Icon = "folder",
-    Opened = true,
+    Opened = false,
 })
 
 local PlayerTab = FunctionSection:Tab({
@@ -104,10 +102,16 @@ local VisualTab = VisualSection:Tab({
     Locked = false,
 })
 
+local FunctionSection = Window:Section({
+    Title = "脚本",
+    Icon = "folder",
+    Opened = false,
+})
+
 local SettingsSection = Window:Section({
     Title = "设置",
     Icon = "settings",
-    Opened = true,
+    Opened = false,
 })
 
 local SettingsTab = SettingsSection:Tab({
