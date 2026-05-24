@@ -100,7 +100,7 @@ local PlayerTab = FunctionSection:Tab({
 })
 
 local ToolTab = FunctionSection:Tab({
-    Title = "工具",
+    Title = "通用/工具",
     Icon = "wrench",
     Locked = false,
 })
@@ -410,6 +410,21 @@ ToolTab:Button({
     Locked = false,
     Callback = function()
         TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end
+})
+
+ToolTab:Button({
+    Title = "即时互动",
+    Desc = "字面意思 所有交互均为秒互动",
+    Icon = "zap",
+    Callback = function()
+        for _, v in pairs(game:GetDescendants()) do
+            if v:IsA("ProximityPrompt") then
+                v.HoldDuration = 0
+            end
+        end
+
+        Notify("快速互动", "已开启", "zap", 3)
     end
 })
 
