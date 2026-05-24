@@ -5,7 +5,6 @@ local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 
-
 local function Notify(title, content, icon, duration)
     WindUI:Notify({
         Title = title,
@@ -175,14 +174,8 @@ local ToolTab = FunctionSection:Tab({
     Locked = false,
 })
 
-local glTab = VisualSection:Tab({
-    Title = "高亮类",
-    Icon = "eye",
-    Locked = false,
-})
-
-local wjtsTab = VisualSection:Tab({
-    Title = "玩家类",
+local VisualTab = VisualSection:Tab({
+    Title = "高亮",
     Icon = "eye",
     Locked = false,
 })
@@ -317,40 +310,6 @@ PlayerTab:Button({
 
 --// 视觉 / 高亮
 
---// 玩家 ESP 配置放这里
-local PlayerESP = {
-    Enabled = false,
-    Highlights = {}
-}
-
-local function ClearPlayerESP()
-    for _, highlight in pairs(PlayerESP.Highlights) do
-        if highlight then
-            highlight:Destroy()
-        end
-    end
-
-    table.clear(PlayerESP.Highlights)
-end
-
-local function CreatePlayerESP()
-    ClearPlayerESP()
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local highlight = Instance.new("Highlight")
-            highlight.Name = "PlayerESP"
-            highlight.FillTransparency = 0.5
-            highlight.OutlineTransparency = 0
-            highlight.Adornee = player.Character
-            highlight.Parent = player.Character
-
-            PlayerESP.Highlights[player] = highlight
-        end
-    end
-end
-
-
 local FullbrightSettings = {
     Enabled = false,
     Brightness = 2,
@@ -375,7 +334,7 @@ local function ApplyFullbright()
     end
 end
 
-gllTab:Toggle({
+VisualTab:Toggle({
     Title = "高亮环境",
     Desc = "开启后使用下面的亮度设置",
     Icon = "sun",
@@ -384,10 +343,11 @@ gllTab:Toggle({
     Callback = function(state)
         FullbrightSettings.Enabled = state
         ApplyFullbright()
+        Notify("高亮环境", state and "已开启" or "已关闭", "sun", 3)
     end
 })
 
-glTab:Slider({
+VisualTab:Slider({
     Title = "亮度大小",
     Desc = "控制 Lighting.Brightness",
     Step = 0.1,
@@ -402,7 +362,7 @@ glTab:Slider({
     end
 })
 
-glTab:Slider({
+VisualTab:Slider({
     Title = "世界时间",
     Desc = "控制 ClockTime",
     Step = 0.5,
@@ -417,7 +377,7 @@ glTab:Slider({
     end
 })
 
-glTab:Slider({
+VisualTab:Slider({
     Title = "雾气距离",
     Desc = "数值越高，雾气越少",
     Step = 1000,
@@ -432,7 +392,7 @@ glTab:Slider({
     end
 })
 
-glTab:Toggle({
+VisualTab:Toggle({
     Title = "保留阴影",
     Desc = "关闭后画面会更亮",
     Icon = "cloud-sun",
@@ -444,7 +404,7 @@ glTab:Toggle({
     end
 })
 
-glTab:Button({
+VisualTab:Button({
     Title = "删除本地雾气",
     Desc = "只影响本地画面",
     Locked = false,
@@ -456,7 +416,7 @@ glTab:Button({
     end
 })
 
-glTab:Button({
+VisualTab:Button({
     Title = "恢复默认光照",
     Desc = "关闭高亮并恢复默认光照",
     Locked = false,
@@ -474,24 +434,6 @@ glTab:Button({
         Lighting.GlobalShadows = true
 
         Notify("恢复成功", "已关闭高亮并恢复默认光照", "check", 3)
-    end
-})
-
-wjtsTab:Button({
-    Title = "玩家高亮",
-    Desc = "点击开启/关闭玩家高亮",
-    Icon = "eye",
-    Locked = false,
-    Callback = function()
-        PlayerESP.Enabled = not PlayerESP.Enabled
-
-        if PlayerESP.Enabled then
-            CreatePlayerESP()
-            Notify("玩家高亮", "已开启", "eye", 3)
-        else
-            ClearPlayerESP()
-            Notify("玩家高亮", "已关闭", "x", 3)
-        end
     end
 })
 
