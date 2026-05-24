@@ -42,7 +42,7 @@ local function GetHumanoid()
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
-Notify("Suture Hub", "Suture Hub 正在加载...", "bird", 5)
+Notify("Suture Hub", "Suture Hub 正在加载...", "bird", 2)
 
 local UISettings = {
     Theme = "Dark",
@@ -424,6 +424,25 @@ doorsTab:Button({
 })
 
 doorsTab:Button({
+    Title = "半自动刷旋钮",
+    Desc = "字面意思 大厅执行后进游戏里收集金币就可以了",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        getgenv().Config = {
+            MinContainers = 10,
+            MinCoins = 50,
+            UseLockpick = false,
+            UseRobuxKnobsBoost = false
+        }
+
+        RunScript("https://api.jnkie.com/api/v1/luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download",
+            "Doors 脚本"
+        )
+    end
+})
+
+doorsTab:Button({
     Title = "mspaint",
     Desc = "需卡密 超好用",
     Icon = "shell",
@@ -445,7 +464,6 @@ doorsTab:Button({
     end
 })
 
---// Doors 刷复活脚本生成器
 
 doorsTab:Divider({
     Title = "Doors 刷复活"
