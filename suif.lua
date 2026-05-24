@@ -159,6 +159,18 @@ local zrzhTab = ScriptSection:Tab({
     Locked = false,
 })
 
+local xesqTab = ScriptSection:Tab({
+    Title = "将会发生些邪恶事情",
+    Icon = "shell",
+    Locked = false,
+})
+
+local wqkTab = ScriptSection:Tab({
+    Title = "武器库",
+    Icon = "shell",
+    Locked = false,
+})
+
 
 local SettingsSection = Window:Section({
     Title = "设置",
@@ -644,6 +656,34 @@ zrzhTab:Button({
         )
     end
 })
+
+xesqTab:Button({
+    Title = "将会发生些邪恶事情",
+    Desc = "无卡密 无限体力",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+        RunScript(
+            "https://rawscripts.net/raw/UPD-something-evil-will-happen-Inf-stamina-57438",
+            "邪恶事情"
+        )
+    end
+})
+
+wqkTab:Button({
+    Title = "武器库 静默瞄准",
+    Desc = "无卡密 没有esp..",
+    Icon = "shell",
+    Locked = false,
+    Callback = function()
+            getgenv().bypass_adonis = true
+        RunScript(
+            "https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua",
+            "武器库"
+        )
+    end
+})
+
 
 --// UI 设置
 
