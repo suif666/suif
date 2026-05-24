@@ -95,6 +95,13 @@ local Window = WindUI:CreateWindow({
     },
 })
 
+Window:Tag({
+    Title = "v1.0.0",
+    Icon = "github",
+    Color = Color3.fromHex("#30ff6a"),
+    Radius = 0, -- from 0 to 13
+})
+
 -- 公告放这里
 local Notice
 Notice = Window:Dialog({
