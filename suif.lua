@@ -125,7 +125,7 @@ local ScriptSection = Window:Section({
 
 local doorsTab = ScriptSection:Tab({
     Title = "doors/门",
-    Icon = "door-closed",
+    Icon = "shell",
     Locked = false,
 })
 
@@ -445,7 +445,16 @@ doorsTab:Button({
     end
 })
 
---// Doors 复活复制脚本生成器
+--// Doors 刷复活脚本生成器
+
+doorsTab:Divider({
+    Title = "Doors 刷复活"
+})
+
+doorsTab:Paragraph({
+    Title = "Doors 刷复活",
+    Desc = "填写主号、小号和数量后，点击按钮复制生成好的脚本。\n低性能设备建议 6666，高性能设备建议 8888。"
+})
 
 local ReviveCopyConfig = {
     MainAccount = "",
@@ -496,7 +505,7 @@ doorsTab:Paragraph({
 })
 
 doorsTab:Button({
-    Title = "复制复活脚本",
+    Title = "复制 Doors 刷复活脚本",
     Desc = "根据上面的参数生成脚本并复制",
     Icon = "copy",
     Locked = false,
@@ -519,7 +528,7 @@ doorsTab:Button({
 
         if setclipboard then
             setclipboard(scriptText)
-            Notify("复制成功", "复活脚本已复制到剪贴板", "check", 3)
+            Notify("复制成功", "Doors 刷复活脚本已复制到剪贴板", "check", 3)
         else
             Notify("复制失败", "当前环境不支持 setclipboard，脚本已输出到控制台", "triangle-alert", 3)
             print(scriptText)
