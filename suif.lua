@@ -94,6 +94,36 @@ local Window = WindUI:CreateWindow({
         end,
     },
 })
+-- 标签
+Window:Tag({
+    Title = "v1.0.0",
+    Icon = "github",
+    Color = Color3.fromHex("#30ff6a"),
+    Radius = 2, -- from 0 to 13
+})
+
+local Window = WindUI:CreateWindow({
+    -- 你的窗口配置
+})
+
+-- 公告放这里
+local Notice = Window:Dialog({
+    Icon = "megaphone",
+    Title = "公告",
+    Content = "写什么。。是个问题",
+    Buttons = {
+        {
+            Title = "朕已阅",
+            Callback = function()
+                Notice:Close()
+            end
+        }
+    }
+})
+
+task.delay(1, function()
+    Notice:Show()
+end)
 
 --// Tabs
 
