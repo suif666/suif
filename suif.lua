@@ -55,9 +55,7 @@ if not getgenv().SutureHubAntiAFK then
         VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
     end)
 
-    Notify("防挂机", "防 AFK 已自动开启", "clock", 2)
-else
-    Notify("防挂机", "防 AFK 正在运行", "info", 2)
+    Notify("防挂机", "防 AFK 正在运行", "info", 4)
 end
 
 local UISettings = {
