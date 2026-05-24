@@ -405,7 +405,6 @@ byqTab:Button({
     Locked = false,
     Callback = function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"))()
-        )
     end
 })
 
