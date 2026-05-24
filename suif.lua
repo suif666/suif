@@ -95,12 +95,9 @@ local Window = WindUI:CreateWindow({
     },
 })
 
-local Window = WindUI:CreateWindow({
-    -- 你的窗口配置
-})
-
 -- 公告放这里
-local Notice = Window:Dialog({
+local Notice
+Notice = Window:Dialog({
     Icon = "megaphone",
     Title = "公告",
     Content = "写什么。。是个问题",
