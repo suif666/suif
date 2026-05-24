@@ -5,6 +5,7 @@ local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 
+
 local function Notify(title, content, icon, duration)
     WindUI:Notify({
         Title = title,
@@ -310,6 +311,40 @@ PlayerTab:Button({
 
 --// 视觉 / 高亮
 
+--// 玩家 ESP 配置放这里
+local PlayerESP = {
+    Enabled = false,
+    Highlights = {}
+}
+
+local function ClearPlayerESP()
+    for _, highlight in pairs(PlayerESP.Highlights) do
+        if highlight then
+            highlight:Destroy()
+        end
+    end
+
+    table.clear(PlayerESP.Highlights)
+end
+
+local function CreatePlayerESP()
+    ClearPlayerESP()
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "PlayerESP"
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.Adornee = player.Character
+            highlight.Parent = player.Character
+
+            PlayerESP.Highlights[player] = highlight
+        end
+    end
+end
+
+
 local FullbrightSettings = {
     Enabled = false,
     Brightness = 2,
@@ -434,6 +469,24 @@ VisualTab:Button({
         Lighting.GlobalShadows = true
 
         Notify("恢复成功", "已关闭高亮并恢复默认光照", "check", 3)
+    end
+})
+
+VisualTab:Button({
+    Title = "玩家高亮",
+    Desc = "点击开启/关闭玩家高亮",
+    Icon = "eye",
+    Locked = false,
+    Callback = function()
+        PlayerESP.Enabled = not PlayerESP.Enabled
+
+        if PlayerESP.Enabled then
+            CreatePlayerESP()
+            Notify("玩家高亮", "已开启", "eye", 3)
+        else
+            ClearPlayerESP()
+            Notify("玩家高亮", "已关闭", "x", 3)
+        end
     end
 })
 
