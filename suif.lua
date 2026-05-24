@@ -244,6 +244,39 @@ MainTab:Paragraph({
     Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. LocalPlayer.Name
 })
 
+--// 全网执行次数统计
+local CountText = MainTab:Paragraph({
+    Title = "全网执行次数",
+    Desc = "正在获取..."
+})
+
+local function UpdateGlobalCount()
+    local api = "https://suture-hub-counter.sfbdsl666.workers.dev/count"
+
+    local success, result = pcall(function()
+        return game:HttpGet(api)
+    end)
+
+    if success then
+        result = tostring(result)
+
+        if CountText.SetDesc then
+            CountText:SetDesc("当前全网执行次数：" .. result)
+        end
+
+        Notify("执行统计", "全网执行次数：" .. result, "activity", 3)
+    else
+        if CountText.SetDesc then
+            CountText:SetDesc("获取失败")
+        end
+
+        Notify("执行统计", "获取全网次数失败", "triangle-alert", 3)
+        warn("全网执行次数获取失败:", result)
+    end
+end
+
+UpdateGlobalCount()
+
 --// 玩家
 
 PlayerTab:Slider({
