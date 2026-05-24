@@ -343,7 +343,6 @@ VisualTab:Toggle({
     Callback = function(state)
         FullbrightSettings.Enabled = state
         ApplyFullbright()
-        Notify("高亮环境", state and "已开启" or "已关闭", "sun", 3)
     end
 })
 
