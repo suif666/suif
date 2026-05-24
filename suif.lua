@@ -373,8 +373,8 @@ ToolTab:Button({
 --// 脚本类 / Doors
 
 ScriptTab:Button({
-    Title = "执行 Doors 脚本",
-    Desc = "点击后执行 Doors 脚本",
+    Title = "全自动刷旋钮",
+    Desc = "字面意思 执行后什么都不用管了",
     Icon = "door-closed",
     Locked = false,
     Callback = function()
