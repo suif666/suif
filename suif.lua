@@ -94,13 +94,6 @@ local Window = WindUI:CreateWindow({
         end,
     },
 })
--- 标签
-Window:Tag({
-    Title = "v1.0.0",
-    Icon = "github",
-    Color = Color3.fromHex("#30ff6a"),
-    Radius = 2, -- from 0 to 13
-})
 
 local Window = WindUI:CreateWindow({
     -- 你的窗口配置
