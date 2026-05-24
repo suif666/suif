@@ -404,7 +404,10 @@ byqTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"))()
+        RunScript(
+            "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua",
+            "被遗弃脚本"
+        )
     end
 })
 
