@@ -175,8 +175,14 @@ local ToolTab = FunctionSection:Tab({
     Locked = false,
 })
 
-local VisualTab = VisualSection:Tab({
-    Title = "高亮",
+local glTab = VisualSection:Tab({
+    Title = "高亮类",
+    Icon = "eye",
+    Locked = false,
+})
+
+local wjtsTab = VisualSection:Tab({
+    Title = "玩家类",
     Icon = "eye",
     Locked = false,
 })
@@ -472,7 +478,7 @@ VisualTab:Button({
     end
 })
 
-VisualTab:Button({
+wjtsTab:Button({
     Title = "玩家高亮",
     Desc = "点击开启/关闭玩家高亮",
     Icon = "eye",
