@@ -44,6 +44,22 @@ end
 
 Notify("Suture Hub", "Suture Hub 正在加载...", "bird", 2)
 
+if not getgenv().SutureHubAntiAFK then
+    getgenv().SutureHubAntiAFK = true
+
+    local VirtualUser = game:GetService("VirtualUser")
+
+    LocalPlayer.Idled:Connect(function()
+        VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+        task.wait(1)
+        VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+    end)
+
+    Notify("防挂机", "防 AFK 已自动开启", "clock", 2)
+else
+    Notify("防挂机", "防 AFK 正在运行", "info", 2)
+end
+
 local UISettings = {
     Theme = "Dark",
     Transparent = true,
