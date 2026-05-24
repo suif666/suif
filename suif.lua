@@ -23,6 +23,20 @@ local function CopyText(text, successMsg)
     end
 end
 
+--// 修复点：补上 RunScript 函数
+local function RunScript(url, name)
+    local success, result = pcall(function()
+        loadstring(game:HttpGet(url))()
+    end)
+
+    if success then
+        Notify("执行成功", (name or "脚本") .. " 已运行", "check", 3)
+    else
+        Notify("执行失败", tostring(result), "triangle-alert", 5)
+        warn(result)
+    end
+end
+
 local function GetHumanoid()
     local char = LocalPlayer.Character
     return char and char:FindFirstChildOfClass("Humanoid")
@@ -54,6 +68,7 @@ local Window = WindUI:CreateWindow({
     SideBarWidth = UISettings.SideBarWidth,
     HideSearchBar = UISettings.HideSearchBar,
     ScrollBarEnabled = true,
+    NewElements = true,
 
     User = {
         Enabled = true,
@@ -102,13 +117,13 @@ local VisualTab = VisualSection:Tab({
     Locked = false,
 })
 
-local scriptSection = Window:Section({
+local ScriptSection = Window:Section({
     Title = "脚本",
     Icon = "folder",
-    Opened = false,
+    Opened = true,
 })
 
-local scripttab = scriptSection:Tab({
+local ScriptTab = ScriptSection:Tab({
     Title = "doors/门",
     Icon = "door-closed",
     Locked = false,
@@ -354,11 +369,13 @@ ToolTab:Button({
         TeleportService:Teleport(game.PlaceId, LocalPlayer)
     end
 })
---// 脚本类
-scripttab:Button({
-    Title = "执行脚本",
-    Desc = "点击后执行指定脚本",
-    Icon = "chart-line",
+
+--// 脚本类 / Doors
+
+ScriptTab:Button({
+    Title = "执行 Doors 脚本",
+    Desc = "点击后执行 Doors 脚本",
+    Icon = "door-closed",
     Locked = false,
     Callback = function()
         getgenv().Config = {
@@ -370,10 +387,11 @@ scripttab:Button({
 
         RunScript(
             "https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua",
-            "脚本 1"
+            "Doors 脚本"
         )
     end
 })
+
 --// UI 设置
 
 local ThemeMap = {
