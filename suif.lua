@@ -1,514 +1,209 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
-local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
-local TeleportService = game:GetService("TeleportService")
-local LocalPlayer = Players.LocalPlayer
+local plrs = game:GetService("Players")
+local lighting = game:GetService("Lighting")
+local teleport = game:GetService("TeleportService")
+local lp = plrs.LocalPlayer
 
-local function Notify(title, content, icon, duration)
-    WindUI:Notify({
-        Title = title,
-        Content = content,
-        Duration = duration or 3,
-        Icon = icon or "bell",
-    })
+local function notify(title, content, icon, duration)
+    WindUI:Notify({ Title = title, Content = content, Duration = duration or 3, Icon = icon or "bell" })
 end
 
-local function CopyText(text, successMsg)
+local function copy(text, msg)
     if setclipboard then
         setclipboard(text)
-        Notify("复制成功", successMsg or "内容已复制到剪贴板", "check", 3)
+        notify("复制成功", msg or "内容已复制到剪贴板", "check", 3)
     else
-        Notify("复制失败", "当前环境不支持 setclipboard", "triangle-alert", 3)
+        warn("复制失败：当前环境不支持 setclipboard")
     end
 end
 
---// 修复点：补上 RunScript 函数
-local function RunScript(url, name)
-    local success, result = pcall(function()
-        loadstring(game:HttpGet(url))()
-    end)
-
-    if success then
-        Notify("执行成功", (name or "脚本") .. " 已运行", "check", 3)
+local function run(url, name)
+    local ok, err = pcall(function() loadstring(game:HttpGet(url))() end)
+    if ok then
+        notify("执行成功", (name or "脚本") .. " 已运行", "check", 3)
     else
-        Notify("执行失败", tostring(result), "triangle-alert", 5)
-        warn(result)
+        warn("执行失败: " .. tostring(err))
     end
 end
 
-local function GetHumanoid()
-    local char = LocalPlayer.Character
-    return char and char:FindFirstChildOfClass("Humanoid")
+local function getHum()
+    local c = lp.Character
+    return c and c:FindFirstChildOfClass("Humanoid")
 end
 
-Notify("Suture Hub", "Suture Hub 正在加载...", "bird", 2)
+notify("Suture Hub", "Suture Hub 正在加载...", "bird", 2)
 
 if not getgenv().SutureHubAntiAFK then
     getgenv().SutureHubAntiAFK = true
-
-    local VirtualUser = game:GetService("VirtualUser")
-
-    LocalPlayer.Idled:Connect(function()
-        VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+    local vu = game:GetService("VirtualUser")
+    lp.Idled:Connect(function()
+        vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
         task.wait(1)
-        VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+        vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
     end)
-
-    Notify("防挂机", "防 AFK 正在运行", "info", 4)
+    notify("防挂机", "防 AFK 正在运行", "info", 4)
 end
 
-local UISettings = {
-    Theme = "Dark",
-    Transparent = true,
-    HideSearchBar = false,
-    SideBarWidth = 180,
-}
+local uiSet = { Theme = "Dark", Transparent = true, HideSearchBar = false, SideBarWidth = 180 }
 
-local Window = WindUI:CreateWindow({
-    Title = "Suture Hub",
-    Icon = "aperture",
-    Author = "by suif",
-    Folder = "SutureHub",
-
-    Size = UDim2.fromOffset(620, 460),
-    MinSize = Vector2.new(560, 350),
-    MaxSize = Vector2.new(900, 600),
-
-    ToggleKey = Enum.KeyCode.RightShift,
-    Transparent = UISettings.Transparent,
-    Theme = UISettings.Theme,
-    Resizable = true,
-    SideBarWidth = UISettings.SideBarWidth,
-    HideSearchBar = UISettings.HideSearchBar,
-    ScrollBarEnabled = true,
-    NewElements = true,
-
-    User = {
-        Enabled = true,
-        Anonymous = false,
-        Callback = function()
-            print("当前用户:", LocalPlayer.Name)
-        end,
-    },
+local win = WindUI:CreateWindow({
+    Title = "Suture Hub", Icon = "aperture", Author = "by suif", Folder = "SutureHub",
+    Size = UDim2.fromOffset(620, 460), MinSize = Vector2.new(560, 350), MaxSize = Vector2.new(900, 600),
+    ToggleKey = Enum.KeyCode.RightShift, Transparent = uiSet.Transparent, Theme = uiSet.Theme,
+    Resizable = true, SideBarWidth = uiSet.SideBarWidth, HideSearchBar = uiSet.HideSearchBar,
+    ScrollBarEnabled = true, NewElements = true,
+    User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-Window:Tag({
-    Title = "v1.0.0",
-    Icon = "github",
-    Color = Color3.fromHex("#30ff6a"),
-    Radius = 0, -- from 0 to 13
+win:Tag({ Title = "v1.0.0", Icon = "github", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+
+local dialog = win:Dialog({
+    Icon = "megaphone", Title = "公告", Content = "写什么。。是个问题",
+    Buttons = { { Title = "朕已阅", Callback = function() dialog:Close() end } }
 })
+task.delay(1, function() dialog:Show() end)
 
--- 公告放这里
-local Notice
-Notice = Window:Dialog({
-    Icon = "megaphone",
-    Title = "公告",
-    Content = "写什么。。是个问题",
-    Buttons = {
-        {
-            Title = "朕已阅",
-            Callback = function()
-                Notice:Close()
-            end
-        }
-    }
-})
+-- tabs
+local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
+local aboutTab = win:Tab({ Title = "关于", Icon = "info", Locked = false })
 
-task.delay(1, function()
-    Notice:Show()
-end)
+-- sections
+local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
+local visSec = win:Section({ Title = "视觉", Icon = "folder", Opened = false })
+local scriptSec = win:Section({ Title = "脚本", Icon = "folder", Opened = false })
+local setSec = win:Section({ Title = "设置", Icon = "settings", Opened = false })
 
---// Window:Tab 独立页面
+local playerTab = funcSec:Tab({ Title = "玩家", Icon = "user", Locked = false })
+local toolTab = funcSec:Tab({ Title = "通用/工具", Icon = "wrench", Locked = false })
+local visualTab = visSec:Tab({ Title = "高亮", Icon = "eye", Locked = false })
+local settingsTab = setSec:Tab({ Title = "UI设置", Icon = "sliders-horizontal", Locked = false })
 
-local MainTab = Window:Tab({
-    Title = "主页",
-    Icon = "house",
-    Locked = false,
-})
+local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
+local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
+local stgTab = scriptSec:Tab({ Title = "死铁轨", Icon = "shell", Locked = false })
+local slTab = scriptSec:Tab({ Title = "扫雷", Icon = "shell", Locked = false })
+local fkgsTab = scriptSec:Tab({ Title = "方块故事", Icon = "shell", Locked = false })
+local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked = false })
+local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
+local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
 
-local AboutTab = Window:Tab({
-    Title = "关于",
-    Icon = "info",
-    Locked = false,
-})
-
---// Window:Section 分组
-
-local FunctionSection = Window:Section({
-    Title = "功能",
-    Icon = "folder",
-    Opened = false,
-})
-
-local VisualSection = Window:Section({
-    Title = "视觉",
-    Icon = "folder",
-    Opened = false,
-})
-
-local ScriptSection = Window:Section({
-    Title = "脚本",
-    Icon = "folder",
-    Opened = false,
-})
-
-local SettingsSection = Window:Section({
-    Title = "设置",
-    Icon = "settings",
-    Opened = false,
-})
-
-
---// 脚本 Tab
-local PlayerTab = FunctionSection:Tab({
-    Title = "玩家",
-    Icon = "user",
-    Locked = false,
-})
-
-local ToolTab = FunctionSection:Tab({
-    Title = "通用/工具",
-    Icon = "wrench",
-    Locked = false,
-})
-
-local VisualTab = VisualSection:Tab({
-    Title = "高亮",
-    Icon = "eye",
-    Locked = false,
-})
-
-local SettingsTab = SettingsSection:Tab({
-    Title = "UI设置",
-    Icon = "sliders-horizontal",
-    Locked = false,
-})
-
-
-local doorsTab = ScriptSection:Tab({
-    Title = "doors/门",
-    Icon = "shell",
-    Locked = false,
-})
-
-local byqTab = ScriptSection:Tab({
-    Title = "被遗弃",
-    Icon = "shell",
-    Locked = false,
-})
-
-local stgTab = ScriptSection:Tab({
-    Title = "死铁轨",
-    Icon = "shell",
-    Locked = false,
-})
-
-local slTab = ScriptSection:Tab({
-    Title = "扫雷",
-    Icon = "shell",
-    Locked = false,
-})
-
-local fkgsTab = ScriptSection:Tab({
-    Title = "方块故事",
-    Icon = "shell",
-    Locked = false,
-})
-
-local zrzhTab = ScriptSection:Tab({
-    Title = "自然灾害",
-    Icon = "shell",
-    Locked = false,
-})
-
-local xesqTab = ScriptSection:Tab({
-    Title = "将会发生些邪恶事情",
-    Icon = "shell",
-    Locked = false,
-})
-
-local wqkTab = ScriptSection:Tab({
-    Title = "武器库",
-    Icon = "shell",
-    Locked = false,
-})
-
-
-
---// 主页
-
-MainTab:Paragraph({
-    Title = "Suture Hub",
-    Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. LocalPlayer.Name
-})
-
---// 全网执行次数统计
-local CountText = MainTab:Paragraph({
-    Title = "全网执行次数",
-    Desc = "正在获取..."
-})
-
-local function UpdateGlobalCount()
-    local api = "https://suture-hub-counter.sfbdsl666.workers.dev/count"
-
-    local success, result = pcall(function()
-        return game:HttpGet(api)
-    end)
-
-    if success then
-        result = tostring(result)
-
-        if CountText.SetDesc then
-            CountText:SetDesc("当前全网执行次数：" .. result)
-        end
-
-        Notify("执行统计", "全网执行次数：" .. result, "activity", 3)
+-- 主页
+mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
+local countText = mainTab:Paragraph({ Title = "全网执行次数", Desc = "正在获取..." })
+local function updateCount()
+    local ok, res = pcall(function() return game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/count") end)
+    if ok then
+        res = tostring(res)
+        if countText.SetDesc then countText:SetDesc("当前全网执行次数：" .. res) end
+        notify("执行统计", "全网执行次数：" .. res, "activity", 3)
     else
-        if CountText.SetDesc then
-            CountText:SetDesc("获取失败")
-        end
-
-        Notify("执行统计", "获取全网次数失败", "triangle-alert", 3)
-        warn("全网执行次数获取失败:", result)
+        if countText.SetDesc then countText:SetDesc("获取失败") end
+        warn("全网执行次数获取失败:", res)
     end
 end
+updateCount()
 
-UpdateGlobalCount()
-
---// 玩家
-
-PlayerTab:Slider({
-    Title = "移动速度",
-    Desc = "修改 WalkSpeed",
-    Step = 1,
-    Value = {
-        Min = 16,
-        Max = 100,
-        Default = 16,
-    },
-    Callback = function(value)
-        local hum = GetHumanoid()
-        if hum then
-            hum.WalkSpeed = value
-        end
-    end
+-- 玩家
+playerTab:Slider({
+    Title = "移动速度", Desc = "修改 WalkSpeed", Step = 1,
+    Value = { Min = 16, Max = 100, Default = 16 },
+    Callback = function(v) local h = getHum() if h then h.WalkSpeed = v end end
 })
-
-PlayerTab:Slider({
-    Title = "跳跃高度",
-    Desc = "修改 JumpPower",
-    Step = 1,
-    Value = {
-        Min = 50,
-        Max = 200,
-        Default = 50,
-    },
-    Callback = function(value)
-        local hum = GetHumanoid()
-        if hum then
-            hum.UseJumpPower = true
-            hum.JumpPower = value
-        end
-    end
+playerTab:Slider({
+    Title = "跳跃高度", Desc = "修改 JumpPower", Step = 1,
+    Value = { Min = 50, Max = 200, Default = 50 },
+    Callback = function(v) local h = getHum() if h then h.UseJumpPower = true h.JumpPower = v end end
 })
-
-PlayerTab:Button({
-    Title = "恢复默认属性",
-    Desc = "恢复默认速度和跳跃",
-    Locked = false,
+playerTab:Button({
+    Title = "恢复默认属性", Desc = "恢复默认速度和跳跃",
     Callback = function()
-        local hum = GetHumanoid()
-        if hum then
-            hum.WalkSpeed = 16
-            hum.UseJumpPower = true
-            hum.JumpPower = 50
-            Notify("恢复成功", "已恢复默认属性", "check", 3)
+        local h = getHum()
+        if h then
+            h.WalkSpeed = 16
+            h.UseJumpPower = true
+            h.JumpPower = 50
         end
+        notify("恢复成功", "已恢复默认属性", "check", 3)
     end
 })
-
-PlayerTab:Button({
-    Title = "重置角色",
-    Desc = "让自己的角色重生",
-    Locked = false,
-    Callback = function()
-        local hum = GetHumanoid()
-        if hum then
-            hum.Health = 0
-        end
-    end
+playerTab:Button({
+    Title = "重置角色", Desc = "让自己的角色重生",
+    Callback = function() local h = getHum() if h then h.Health = 0 end end
 })
 
---// 视觉 / 高亮
-
-local FullbrightSettings = {
-    Enabled = false,
-    Brightness = 2,
-    ClockTime = 14,
-    FogEnd = 100000,
-    Shadows = false,
-}
-
-local function ApplyFullbright()
-    Lighting.FogStart = 0
-
-    if FullbrightSettings.Enabled then
-        Lighting.Brightness = FullbrightSettings.Brightness
-        Lighting.ClockTime = FullbrightSettings.ClockTime
-        Lighting.FogEnd = FullbrightSettings.FogEnd
-        Lighting.GlobalShadows = FullbrightSettings.Shadows
+-- 视觉
+local fb = { Enabled = false, Brightness = 2, ClockTime = 14, FogEnd = 100000, Shadows = false }
+local function applyFB()
+    lighting.FogStart = 0
+    if fb.Enabled then
+        lighting.Brightness = fb.Brightness
+        lighting.ClockTime = fb.ClockTime
+        lighting.FogEnd = fb.FogEnd
+        lighting.GlobalShadows = fb.Shadows
     else
-        Lighting.Brightness = 1
-        Lighting.ClockTime = 12
-        Lighting.FogEnd = 100000
-        Lighting.GlobalShadows = true
+        lighting.Brightness = 1
+        lighting.ClockTime = 12
+        lighting.FogEnd = 100000
+        lighting.GlobalShadows = true
     end
 end
-
-VisualTab:Toggle({
-    Title = "高亮环境",
-    Desc = "开启后使用下面的亮度设置",
-    Icon = "sun",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(state)
-        FullbrightSettings.Enabled = state
-        ApplyFullbright()
-    end
+visualTab:Toggle({
+    Title = "高亮环境", Desc = "开启后使用下面的亮度设置", Icon = "sun", Type = "Checkbox", Value = false,
+    Callback = function(s) fb.Enabled = s applyFB() end
 })
-
-VisualTab:Slider({
-    Title = "亮度大小",
-    Desc = "控制 Lighting.Brightness",
-    Step = 0.1,
-    Value = {
-        Min = 0,
-        Max = 10,
-        Default = FullbrightSettings.Brightness,
-    },
-    Callback = function(value)
-        FullbrightSettings.Brightness = value
-        ApplyFullbright()
-    end
+visualTab:Slider({
+    Title = "亮度大小", Step = 0.1, Value = { Min = 0, Max = 10, Default = fb.Brightness },
+    Callback = function(v) fb.Brightness = v applyFB() end
 })
-
-VisualTab:Slider({
-    Title = "世界时间",
-    Desc = "控制 ClockTime",
-    Step = 0.5,
-    Value = {
-        Min = 0,
-        Max = 24,
-        Default = FullbrightSettings.ClockTime,
-    },
-    Callback = function(value)
-        FullbrightSettings.ClockTime = value
-        ApplyFullbright()
-    end
+visualTab:Slider({
+    Title = "世界时间", Step = 0.5, Value = { Min = 0, Max = 24, Default = fb.ClockTime },
+    Callback = function(v) fb.ClockTime = v applyFB() end
 })
-
-VisualTab:Slider({
-    Title = "雾气距离",
-    Desc = "数值越高，雾气越少",
-    Step = 1000,
-    Value = {
-        Min = 100,
-        Max = 100000,
-        Default = FullbrightSettings.FogEnd,
-    },
-    Callback = function(value)
-        FullbrightSettings.FogEnd = value
-        ApplyFullbright()
-    end
+visualTab:Slider({
+    Title = "雾气距离", Step = 1000, Value = { Min = 100, Max = 100000, Default = fb.FogEnd },
+    Callback = function(v) fb.FogEnd = v applyFB() end
 })
-
-VisualTab:Toggle({
-    Title = "保留阴影",
-    Desc = "关闭后画面会更亮",
-    Icon = "cloud-sun",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(state)
-        FullbrightSettings.Shadows = state
-        ApplyFullbright()
-    end
+visualTab:Toggle({
+    Title = "保留阴影", Desc = "关闭后画面会更亮", Icon = "cloud-sun", Type = "Checkbox", Value = false,
+    Callback = function(s) fb.Shadows = s applyFB() end
 })
-
-VisualTab:Button({
-    Title = "删除本地雾气",
-    Desc = "只影响本地画面",
-    Locked = false,
+visualTab:Button({
+    Title = "删除本地雾气", Desc = "只影响本地画面",
     Callback = function()
-        Lighting.FogStart = 0
-        Lighting.FogEnd = 100000
-        FullbrightSettings.FogEnd = 100000
-        Notify("雾气", "已删除本地雾气", "check", 3)
+        lighting.FogStart = 0
+        lighting.FogEnd = 100000
+        fb.FogEnd = 100000
+        notify("雾气", "已删除本地雾气", "check", 3)
     end
 })
-
-VisualTab:Button({
-    Title = "恢复默认光照",
-    Desc = "关闭高亮并恢复默认光照",
-    Locked = false,
+visualTab:Button({
+    Title = "恢复默认光照", Desc = "关闭高亮并恢复默认光照",
     Callback = function()
-        FullbrightSettings.Enabled = false
-        FullbrightSettings.Brightness = 2
-        FullbrightSettings.ClockTime = 14
-        FullbrightSettings.FogEnd = 100000
-        FullbrightSettings.Shadows = false
-
-        Lighting.Brightness = 1
-        Lighting.ClockTime = 12
-        Lighting.FogStart = 0
-        Lighting.FogEnd = 100000
-        Lighting.GlobalShadows = true
-
-        Notify("恢复成功", "已关闭高亮并恢复默认光照", "check", 3)
+        fb.Enabled = false; fb.Brightness = 2; fb.ClockTime = 14; fb.FogEnd = 100000; fb.Shadows = false
+        lighting.Brightness = 1; lighting.ClockTime = 12; lighting.FogStart = 0; lighting.FogEnd = 100000; lighting.GlobalShadows = true
+        notify("恢复成功", "已关闭高亮并恢复默认光照", "check", 3)
     end
 })
 
---// 工具
-
-ToolTab:Button({
-    Title = "复制玩家信息",
-    Desc = "复制自己的用户名和 UserId",
-    Locked = false,
+-- 工具
+toolTab:Button({
+    Title = "复制玩家信息", Desc = "复制自己的用户名和 UserId",
+    Callback = function() copy("Name: " .. lp.Name .. "\nUserId: " .. tostring(lp.UserId), "玩家信息已复制") end
+})
+toolTab:Button({
+    Title = "重新加入服务器", Desc = "重新进入当前服务器",
+    Callback = function() teleport:Teleport(game.PlaceId, lp) end
+})
+toolTab:Button({
+    Title = "即时互动", Desc = "字面意思 所有交互均为秒互动", Icon = "zap",
     Callback = function()
-        CopyText(
-            "Name: " .. LocalPlayer.Name .. "\nUserId: " .. tostring(LocalPlayer.UserId),
-            "玩家信息已复制"
-        )
+        for _,v in pairs(game:GetDescendants()) do if v:IsA("ProximityPrompt") then v.HoldDuration = 0 end end
+        notify("快速互动", "已开启", "zap", 3)
     end
 })
 
-ToolTab:Button({
-    Title = "重新加入服务器",
-    Desc = "重新进入当前服务器",
-    Locked = false,
-    Callback = function()
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
-    end
-})
-
-ToolTab:Button({
-    Title = "即时互动",
-    Desc = "字面意思 所有交互均为秒互动",
-    Icon = "zap",
-    Callback = function()
-        for _, v in pairs(game:GetDescendants()) do
-            if v:IsA("ProximityPrompt") then
-                v.HoldDuration = 0
-            end
-        end
-
-        Notify("快速互动", "已开启", "zap", 3)
-    end
-})
-
---// 脚本类
-
+-- 脚本区域（保留多行格式）
 doorsTab:Button({
     Title = "全自动刷旋钮",
     Desc = "字面意思 执行后什么都不用管了",
@@ -521,8 +216,7 @@ doorsTab:Button({
             UseLockpick = false,
             UseRobuxKnobsBoost = false
         }
-
-        RunScript(
+        run(
             "https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua",
             "Doors 脚本"
         )
@@ -541,8 +235,8 @@ doorsTab:Button({
             UseLockpick = false,
             UseRobuxKnobsBoost = false
         }
-
-        RunScript("https://api.jnkie.com/api/v1/luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download",
+        run(
+            "https://api.jnkie.com/api/v1/luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download",
             "Doors 脚本"
         )
     end
@@ -554,107 +248,74 @@ doorsTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        local keyLink = "https://www.mspaint.cc/key"
-
+        local link = "https://www.mspaint.cc/key"
         if setclipboard then
-            setclipboard(keyLink)
-            Notify("mspaint", "已自动复制mspaint解卡链接到粘贴板", "check", 5)
+            setclipboard(link)
+            notify("mspaint", "已自动复制mspaint解卡链接到粘贴板", "check", 5)
         else
-            Notify("复制失败", "当前环境不支持复制链接", "triangle-alert", 3)
+            warn("复制失败：当前环境不支持复制链接")
         end
-
-        RunScript(
+        run(
             "https://api.luarmor.net/files/v3/loaders/002c19202c9946e6047b0c6e0ad51f84.lua",
             "Doors msp"
         )
     end
 })
 
-
-doorsTab:Divider({
-    Title = "Doors 刷复活"
-})
-
+doorsTab:Divider({ Title = "Doors 刷复活" })
 doorsTab:Paragraph({
     Title = "Doors 刷复活",
     Desc = "填写主号、小号和数量后，点击按钮复制生成好的脚本。\n低性能设备建议 6666，高性能设备建议 8888。"
 })
 
-local ReviveCopyConfig = {
-    MainAccount = "",
-    AltAccount = "",
-    DuplicationAmount = 6666,
-}
-
-local function LuaString(str)
-    return string.format("%q", tostring(str or ""))
-end
+local reviveCfg = { MainAccount = "", AltAccount = "", DuplicationAmount = 6666 }
+local function luaStr(s) return string.format("%q", tostring(s or "")) end
 
 doorsTab:Input({
     Title = "主号用户名",
     Desc = "填写 MainAccount",
     Placeholder = "这里填主号用户名",
     Value = "",
-    Callback = function(value)
-        ReviveCopyConfig.MainAccount = value
-    end
+    Callback = function(v) reviveCfg.MainAccount = v end
 })
-
 doorsTab:Input({
     Title = "小号用户名",
     Desc = "填写 AltAccount",
     Placeholder = "这里填小号用户名",
     Value = "",
-    Callback = function(value)
-        ReviveCopyConfig.AltAccount = value
-    end
+    Callback = function(v) reviveCfg.AltAccount = v end
 })
-
 doorsTab:Dropdown({
     Title = "复制数量",
     Desc = "高性能设备建议 8888，低性能设备建议 6666",
-    Values = {
-        "6666",
-        "8888"
-    },
+    Values = { "6666", "8888" },
     Value = "6666",
-    Callback = function(value)
-        ReviveCopyConfig.DuplicationAmount = tonumber(value)
-    end
+    Callback = function(v) reviveCfg.DuplicationAmount = tonumber(v) end
 })
-
 doorsTab:Paragraph({
     Title = "数量提示",
     Desc = "低性能设备请选择 6666\n高性能设备可以选择 8888"
 })
-
 doorsTab:Button({
     Title = "复制 Doors 刷复活脚本",
     Desc = "根据上面的参数生成脚本并复制",
     Icon = "copy",
     Locked = false,
     Callback = function()
-        if ReviveCopyConfig.MainAccount == "" then
-            Notify("缺少参数", "请先填写主号用户名", "triangle-alert", 3)
+        if reviveCfg.MainAccount == "" then
+            notify("缺少参数", "请先填写主号用户名", "triangle-alert", 3)
             return
         end
-
-        if ReviveCopyConfig.AltAccount == "" then
-            Notify("缺少参数", "请先填写小号用户名", "triangle-alert", 3)
+        if reviveCfg.AltAccount == "" then
+            notify("缺少参数", "请先填写小号用户名", "triangle-alert", 3)
             return
         end
-
-        local scriptText =
-            'MainAccount = ' .. LuaString(ReviveCopyConfig.MainAccount) .. ' -- 主号用户名\n' ..
-            'AltAccount = ' .. LuaString(ReviveCopyConfig.AltAccount) .. ' -- 小号用户名\n\n' ..
-            'DuplicationAmount = ' .. tostring(ReviveCopyConfig.DuplicationAmount) .. '\n' ..
-            'loadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/refs/heads/main/doors/revives.lua"))()'
-
+        local scriptText = 'MainAccount = ' .. luaStr(reviveCfg.MainAccount) .. ' -- 主号用户名\nAltAccount = ' .. luaStr(reviveCfg.AltAccount) .. ' -- 小号用户名\n\nDuplicationAmount = ' .. tostring(reviveCfg.DuplicationAmount) .. '\nloadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/refs/heads/main/doors/revives.lua"))()'
         if setclipboard then
             setclipboard(scriptText)
-            Notify("复制成功", "Doors 刷复活脚本已复制到剪贴板", "check", 3)
+            notify("复制成功", "Doors 刷复活脚本已复制到剪贴板", "check", 3)
         else
-            Notify("复制失败", "当前环境不支持 setclipboard，脚本已输出到控制台", "triangle-alert", 3)
+            warn("复制失败：当前环境不支持 setclipboard，脚本已输出到控制台")
             print(scriptText)
         end
     end
@@ -666,7 +327,7 @@ byqTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua",
             "被遗弃脚本"
         )
@@ -679,7 +340,7 @@ stgTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://getnative.cc/script/loader",
             "死铁轨叶子"
         )
@@ -692,7 +353,7 @@ stgTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://raw.githubusercontent.com/erewe23/deadrailsring.github.io/refs/heads/main/ringta.lua",
             "死铁轨ringta"
         )
@@ -705,7 +366,7 @@ slTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download",
             "扫雷"
         )
@@ -718,7 +379,7 @@ slTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='",
             "扫雷"
         )
@@ -731,7 +392,7 @@ fkgsTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua",
             "方块故事"
         )
@@ -744,7 +405,7 @@ zrzhTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://pastebin.com/raw/JR7RBh2a",
             "自然灾害"
         )
@@ -757,7 +418,7 @@ xesqTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-        RunScript(
+        run(
             "https://rawscripts.net/raw/UPD-something-evil-will-happen-Inf-stamina-57438",
             "邪恶事情"
         )
@@ -770,72 +431,41 @@ wqkTab:Button({
     Icon = "shell",
     Locked = false,
     Callback = function()
-            getgenv().bypass_adonis = true
-        RunScript(
+        getgenv().bypass_adonis = true
+        run(
             "https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua",
             "武器库"
         )
     end
 })
 
-
---// UI 设置
-
-local ThemeMap = {
-    ["深色"] = "Dark",
-    ["浅色"] = "Light",
-    ["玫瑰"] = "Rose",
-    ["植物"] = "Plant",
-    ["红色"] = "Red",
-    ["靛蓝"] = "Indigo",
-    ["天空蓝"] = "Sky",
-    ["紫罗兰"] = "Violet",
-    ["琥珀"] = "Amber",
+-- UI设置
+local themeMap = {
+    ["深色"]="Dark", ["浅色"]="Light", ["玫瑰"]="Rose", ["植物"]="Plant", ["红色"]="Red",
+    ["靛蓝"]="Indigo", ["天空蓝"]="Sky", ["紫罗兰"]="Violet", ["琥珀"]="Amber"
 }
-
-SettingsTab:Dropdown({
-    Title = "UI 主题",
-    Desc = "切换 UI 主题",
-    Values = {
-        "深色",
-        "浅色",
-        "玫瑰",
-        "植物",
-        "红色",
-        "靛蓝",
-        "天空蓝",
-        "紫罗兰",
-        "琥珀"
-    },
+settingsTab:Dropdown({
+    Title = "UI 主题", Desc = "切换 UI 主题",
+    Values = { "深色","浅色","玫瑰","植物","红色","靛蓝","天空蓝","紫罗兰","琥珀" },
     Value = "深色",
-    Callback = function(themeName)
-        local realTheme = ThemeMap[themeName]
-        UISettings.Theme = realTheme
-
+    Callback = function(name)
+        local real = themeMap[name]
+        uiSet.Theme = real
         if WindUI.SetTheme then
-            WindUI:SetTheme(realTheme)
-        elseif Window.SetTheme then
-            Window:SetTheme(realTheme)
+            WindUI:SetTheme(real)
+        elseif win.SetTheme then
+            win:SetTheme(real)
         else
             warn("当前 WindUI 版本可能不支持运行时切换主题")
         end
-
-        Notify("主题切换", "当前主题：" .. themeName, "palette", 3)
+        notify("主题切换", "当前主题：" .. name, "palette", 3)
     end
 })
 
---// 关于
-
-AboutTab:Button({
-    Title = "复制作者B站链接",
-    Desc = "",
-    Locked = false,
-    Callback = function()
-        CopyText(
-            "https://space.bilibili.com/3493268314655259",
-            "作者 B 站链接已复制"
-        )
-    end
+-- 关于
+aboutTab:Button({
+    Title = "复制作者B站链接", Desc = "",
+    Callback = function() copy("https://space.bilibili.com/3493268314655259", "作者 B 站链接已复制") end
 })
 
-Notify("Suture Hub", "Suture Hub 加载成功！", "bird", 5)
+notify("Suture Hub", "Suture Hub 加载成功！", "bird", 5)
