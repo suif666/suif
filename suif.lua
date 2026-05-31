@@ -1,3 +1,4 @@
+-- 1. 远程加载 WindUI 库
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local plrs = game:GetService("Players")
@@ -5,14 +6,17 @@ local lighting = game:GetService("Lighting")
 local teleport = game:GetService("TeleportService")
 local lp = plrs.LocalPlayer
 
+-- 【视觉体积优化版】全局通知函数：合并内容为单行，让气泡体积缩到最小
 local function notify(title, content, icon, duration)
-    WindUI:Notify({ Title = title, Content = content, Duration = duration or 3, Icon = icon or "bell" })
+    local shortText = title
+    if content and content ~= "" then shortText = title .. " | " .. content end
+    WindUI:Notify({ Title = shortText, Duration = duration or 2, Icon = icon or "bell" })
 end
 
 local function copy(text, msg)
     if setclipboard then
         setclipboard(text)
-        notify("复制成功", msg or "内容已复制到剪贴板", "check", 3)
+        notify("复制成功", msg or "内容已复制", "check", 2)
     else
         warn("复制失败：当前环境不支持 setclipboard")
     end
@@ -21,7 +25,7 @@ end
 local function run(url, name)
     local ok, err = pcall(function() loadstring(game:HttpGet(url))() end)
     if ok then
-        notify("执行成功", (name or "脚本") .. " 已运行", "check", 3)
+        notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
     else
         warn("执行失败: " .. tostring(err))
     end
@@ -32,7 +36,7 @@ local function getHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
-notify("Suture Hub", "Suture Hub 正在加载...", "bird", 2)
+notify("Suture Hub", "正在加载...", "bird", 1.5)
 
 if not getgenv().SutureHubAntiAFK then
     getgenv().SutureHubAntiAFK = true
@@ -42,7 +46,7 @@ if not getgenv().SutureHubAntiAFK then
         task.wait(1)
         vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
     end)
-    notify("防挂机", "防 AFK 正在运行", "info", 4)
+    notify("防挂机", "正在运行", "info", 2)
 end
 
 local uiSet = { Theme = "Dark", Transparent = true, HideSearchBar = false, SideBarWidth = 180 }
@@ -96,7 +100,7 @@ local function updateCount()
     if ok then
         res = tostring(res)
         if countText.SetDesc then countText:SetDesc("当前全网执行次数：" .. res) end
-        notify("执行统计", "全网执行次数：" .. res, "activity", 3)
+        notify("执行统计", "次数：" .. res, "activity", 2)
     else
         if countText.SetDesc then countText:SetDesc("获取失败") end
         warn("全网执行次数获取失败:", res)
@@ -124,7 +128,7 @@ playerTab:Button({
             h.UseJumpPower = true
             h.JumpPower = 50
         end
-        notify("恢复成功", "已恢复默认属性", "check", 3)
+        notify("恢复成功", "已恢复默认", "check", 2)
     end
 })
 playerTab:Button({
@@ -174,7 +178,7 @@ visualTab:Button({
         lighting.FogStart = 0
         lighting.FogEnd = 100000
         fb.FogEnd = 100000
-        notify("雾气", "已删除本地雾气", "check", 3)
+        notify("雾气", "已删除本地雾气", "check", 2)
     end
 })
 visualTab:Button({
@@ -182,44 +186,43 @@ visualTab:Button({
     Callback = function()
         fb.Enabled = false; fb.Brightness = 2; fb.ClockTime = 14; fb.FogEnd = 100000; fb.Shadows = false
         lighting.Brightness = 1; lighting.ClockTime = 12; lighting.FogStart = 0; lighting.FogEnd = 100000; lighting.GlobalShadows = true
-        notify("恢复成功", "已关闭高亮并恢复默认光照", "check", 3)
+        notify("恢复成功", "已恢复光照", "check", 2)
     end
 })
 
--- 工具
+-- 工具栏
 toolTab:Button({
     Title = "复制玩家信息", Desc = "复制自己的用户名和 UserId",
-    Callback = function() copy("Name: " .. lp.Name .. "\nUserId: " .. tostring(lp.UserId), "玩家信息已复制") end
+    Callback = function() copy("Name: " .. lp.Name .. "\nUserId: " .. tostring(lp.UserId), "信息已复制") end
 })
 toolTab:Button({
     Title = "重新加入服务器", Desc = "重新进入当前服务器",
     Callback = function() teleport:Teleport(game.PlaceId, lp) end
 })
-toolTab:Button({
-    Title = "即时互动", Desc = "字面意思 所有交互均为秒互动", Icon = "zap",
-    Callback = function()
-        for _,v in pairs(game:GetDescendants()) do if v:IsA("ProximityPrompt") then v.HoldDuration = 0 end end
-        notify("快速互动", "已开启", "zap", 3)
+
+-- 【已修改为：精简版可选式开关】
+toolTab:Toggle({
+    Title = "即时互动", Desc = "开启后所有交互无需按住", Icon = "zap", Value = false,
+    Callback = function(s)
+        getgenv().InstantInteract = s
+        for _, v in pairs(workspace:GetDescendants()) do if v:IsA("ProximityPrompt") then v.HoldDuration = s and 0 or 0.5 end end
+        notify("快速互动", s and "已开启" or "已关闭", "zap", 1.5)
     end
 })
+if not _G.IntHook then 
+    _G.IntHook = workspace.DescendantAdded:Connect(function(v) 
+        if getgenv().InstantInteract and v:IsA("ProximityPrompt") then v.HoldDuration = 0 end 
+    end) 
+end
 
--- 脚本区域（保留多行格式）
+-- 脚本区域
 doorsTab:Button({
     Title = "全自动刷旋钮",
     Desc = "字面意思 执行后什么都不用管了",
     Icon = "shell",
-    Locked = false,
     Callback = function()
-        getgenv().Config = {
-            MinContainers = 10,
-            MinCoins = 50,
-            UseLockpick = false,
-            UseRobuxKnobsBoost = false
-        }
-        run(
-            "https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua",
-            "Doors 脚本"
-        )
+        getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
+        run("https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua", "Doors 脚本")
     end
 })
 
@@ -227,18 +230,9 @@ doorsTab:Button({
     Title = "半自动刷旋钮",
     Desc = "字面意思 大厅执行后进游戏里收集金币就可以了",
     Icon = "shell",
-    Locked = false,
     Callback = function()
-        getgenv().Config = {
-            MinContainers = 10,
-            MinCoins = 50,
-            UseLockpick = false,
-            UseRobuxKnobsBoost = false
-        }
-        run(
-            "https://api.jnkie.com/api/v1/luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download",
-            "Doors 脚本"
-        )
+        getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
+        run("https://api.jnkie.com/api/v1/luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download", "Doors 脚本")
     end
 })
 
@@ -246,19 +240,15 @@ doorsTab:Button({
     Title = "mspaint",
     Desc = "需卡密 超好用",
     Icon = "shell",
-    Locked = false,
     Callback = function()
         local link = "https://www.mspaint.cc/key"
         if setclipboard then
             setclipboard(link)
-            notify("mspaint", "已自动复制mspaint解卡链接到粘贴板", "check", 5)
+            notify("mspaint", "已自动复制解卡链接", "check", 2)
         else
             warn("复制失败：当前环境不支持复制链接")
         end
-        run(
-            "https://api.luarmor.net/files/v3/loaders/002c19202c9946e6047b0c6e0ad51f84.lua",
-            "Doors msp"
-        )
+        run("https://api.luarmor.net/files/v3/loaders/002c19202c9946e6047b0c6e0ad51f84.lua", "Doors msp")
     end
 })
 
@@ -272,170 +262,81 @@ local reviveCfg = { MainAccount = "", AltAccount = "", DuplicationAmount = 6666 
 local function luaStr(s) return string.format("%q", tostring(s or "")) end
 
 doorsTab:Input({
-    Title = "主号用户名",
-    Desc = "填写 MainAccount",
-    Placeholder = "这里填主号用户名",
-    Value = "",
+    Title = "主号用户名", Desc = "填写 MainAccount", Placeholder = "这里填主号用户名", Value = "",
     Callback = function(v) reviveCfg.MainAccount = v end
 })
 doorsTab:Input({
-    Title = "小号用户名",
-    Desc = "填写 AltAccount",
-    Placeholder = "这里填小号用户名",
-    Value = "",
+    Title = "小号用户名", Desc = "填写 AltAccount", Placeholder = "这里填小号用户名", Value = "",
     Callback = function(v) reviveCfg.AltAccount = v end
 })
 doorsTab:Dropdown({
-    Title = "复制数量",
-    Desc = "高性能设备建议 8888，低性能设备建议 6666",
-    Values = { "6666", "8888" },
-    Value = "6666",
+    Title = "复制数量", Desc = "高性能设备建议 8888，低性能设备建议 6666", Values = { "6666", "8888" }, Value = "6666",
     Callback = function(v) reviveCfg.DuplicationAmount = tonumber(v) end
 })
-doorsTab:Paragraph({
-    Title = "数量提示",
-    Desc = "低性能设备请选择 6666\n高性能设备可以选择 8888"
-})
+doorsTab:Paragraph({ Title = "数量提示", Desc = "低性能设备请选择 6666\n高性能设备可以选择 8888" })
 doorsTab:Button({
-    Title = "复制 Doors 刷复活脚本",
-    Desc = "根据上面的参数生成脚本并复制",
-    Icon = "copy",
-    Locked = false,
+    Title = "复制 Doors 刷复活脚本", Desc = "根据上面的参数生成脚本并复制", Icon = "copy",
     Callback = function()
-        if reviveCfg.MainAccount == "" then
-            notify("缺少参数", "请先填写主号用户名", "triangle-alert", 3)
-            return
-        end
-        if reviveCfg.AltAccount == "" then
-            notify("缺少参数", "请先填写小号用户名", "triangle-alert", 3)
+        if reviveCfg.MainAccount == "" or reviveCfg.AltAccount == "" then
+            notify("缺少参数", "请先填写账号名", "triangle-alert", 2)
             return
         end
         local scriptText = 'MainAccount = ' .. luaStr(reviveCfg.MainAccount) .. ' -- 主号用户名\nAltAccount = ' .. luaStr(reviveCfg.AltAccount) .. ' -- 小号用户名\n\nDuplicationAmount = ' .. tostring(reviveCfg.DuplicationAmount) .. '\nloadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/refs/heads/main/doors/revives.lua"))()'
         if setclipboard then
             setclipboard(scriptText)
-            notify("复制成功", "Doors 刷复活脚本已复制到剪贴板", "check", 3)
+            notify("复制成功", "脚本已复制到剪贴板", "check", 2)
         else
-            warn("复制失败：当前环境不支持 setclipboard，脚本已输出到控制台")
+            warn("复制失败：环境不支持，已输出至控制台")
             print(scriptText)
         end
     end
 })
 
 byqTab:Button({
-    Title = "fa",
-    Desc = "无卡密 个人感觉很好用",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua",
-            "被遗弃脚本"
-        )
-    end
+    Title = "fa", Desc = "无卡密 个人感觉很好用", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua", "被遗弃脚本") end
 })
 
 stgTab:Button({
-    Title = "叶子",
-    Desc = "需卡密 好长时间都没有更新了...",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://getnative.cc/script/loader",
-            "死铁轨叶子"
-        )
-    end
+    Title = "叶子", Desc = "需卡密 好长时间都没有更新了...", Icon = "shell",
+    Callback = function() run("https://getnative.cc/script/loader", "死铁轨叶子") end
 })
 
 stgTab:Button({
-    Title = "ringta",
-    Desc = "无卡密 老朋友了 更新速度还算可以",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://raw.githubusercontent.com/erewe23/deadrailsring.github.io/refs/heads/main/ringta.lua",
-            "死铁轨ringta"
-        )
-    end
+    Title = "ringta", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/erewe23/deadrailsring.github.io/refs/heads/main/ringta.lua", "死铁轨ringta") end
 })
 
 slTab:Button({
-    Title = "扫雷",
-    Desc = "无卡密 支持服务器bLockerman's Minesweeper",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download",
-            "扫雷"
-        )
-    end
+    Title = "扫雷", Desc = "无卡密 支持服务器bLockerman's Minesweeper", Icon = "shell",
+    Callback = function() run("https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download", "扫雷") end
 })
 
 slTab:Button({
-    Title = "扫雷02",
-    Desc = "无卡密 支持服务器bLockerman's Minesweeper",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='",
-            "扫雷"
-        )
-    end
+    Title = "扫雷02", Desc = "无卡密 支持服务器bLockerman's Minesweeper", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='", "扫雷") end
 })
 
 fkgsTab:Button({
-    Title = "方块故事",
-    Desc = "无卡密 超好用",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua",
-            "方块故事"
-        )
-    end
+    Title = "方块故事", Desc = "无卡密 超好用", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua", "方块故事") end
 })
 
 zrzhTab:Button({
-    Title = "自然灾害 龙卷风",
-    Desc = "无卡密 大风车呀滴溜溜的转...",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://pastebin.com/raw/JR7RBh2a",
-            "自然灾害"
-        )
-    end
+    Title = "自然灾害 龙卷风", Desc = "无卡密 大风车呀滴溜溜的转...", Icon = "shell",
+    Callback = function() run("https://pastebin.com/raw/JR7RBh2a", "自然灾害") end
 })
 
 xesqTab:Button({
-    Title = "将会发生些邪恶事情",
-    Desc = "无卡密 无限体力",
-    Icon = "shell",
-    Locked = false,
-    Callback = function()
-        run(
-            "https://rawscripts.net/raw/UPD-something-evil-will-happen-Inf-stamina-57438",
-            "邪恶事情"
-        )
-    end
+    Title = "将会发生些邪恶事情", Desc = "无卡密 无限体力", Icon = "shell",
+    Callback = function() run("https://rawscripts.net/raw/UPD-something-evil-will-happen-Inf-stamina-57438", "邪恶事情") end
 })
 
 wqkTab:Button({
-    Title = "武器库 静默瞄准",
-    Desc = "无卡密 没有esp..",
-    Icon = "shell",
-    Locked = false,
+    Title = "武器库 静默瞄准", Desc = "无卡密 没有esp..", Icon = "shell",
     Callback = function()
         getgenv().bypass_adonis = true
-        run(
-            "https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua",
-            "武器库"
-        )
+        run("https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua", "武器库")
     end
 })
 
@@ -451,21 +352,15 @@ settingsTab:Dropdown({
     Callback = function(name)
         local real = themeMap[name]
         uiSet.Theme = real
-        if WindUI.SetTheme then
-            WindUI:SetTheme(real)
-        elseif win.SetTheme then
-            win:SetTheme(real)
-        else
-            warn("当前 WindUI 版本可能不支持运行时切换主题")
-        end
-        notify("主题切换", "当前主题：" .. name, "palette", 3)
+        if WindUI.SetTheme then WindUI:SetTheme(real) elseif win.SetTheme then win:SetTheme(real) end
+        notify("主题切换", "当前：" .. name, "palette", 2)
     end
 })
 
 -- 关于
 aboutTab:Button({
     Title = "复制作者B站链接", Desc = "",
-    Callback = function() copy("https://space.bilibili.com/3493268314655259", "作者 B 站链接已复制") end
+    Callback = function() copy("https://space.bilibili.com/3493268314655259", "链接已复制") end
 })
 
-notify("Suture Hub", "Suture Hub 加载成功！", "bird", 5)
+notify("Suture Hub", "成功加载全部功能！", "bird", 3)
