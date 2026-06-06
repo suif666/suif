@@ -390,40 +390,49 @@ aboutTab:Button({
 })
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
--- 【胶囊栏专属定制版】仅胶囊栏加时间 + 体积缩小
+-- 【100%精准识别版】严格区分内部与胶囊栏
 task.spawn(function()
     while true do
         local currentTime = os.date("%H:%M:%S")
         local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
         
         for _, v in pairs(uiContainer:GetDescendants()) do
-            -- 1. 寻找文本为 Suture Hub 的 TextLabel
+            -- 1. 寻找文本包含 Suture Hub 的 TextLabel
             if v:IsA("TextLabel") and (v.Text == "Suture Hub" or string.find(v.Text, "Suture Hub")) then
                 
-                -- 2. 精准识别胶囊栏：通过它父级或祖父级的特征来过滤
-                -- WindUI 的顶部胶囊栏通常是一个独立的、非常扁的常驻 Frame，且绝对不在那个大窗口内
+                -- 获取它的最顶层父级（看它属于哪个 ScreenGui）
+                local screenGui = v:FindFirstAncestorOfClass("ScreenGui")
                 local parentFrame = v.Parent
-                if parentFrame and parentFrame:IsA("Frame") and parentFrame.AbsoluteSize.Y < 50 then
-                    
-                    -- 【功能一】只给胶囊栏加时间
-                    v.Text = "Suture Hub | " .. currentTime
-                    
-                    -- 【功能二】把胶囊栏改小一点
-                    -- 缩小文本字号，防止缩短胶囊后字漏出来
-                    v.TextSize = 12 
-                    
-                    -- 缩小整个胶囊的外壳（Width 缩短，Height 变矮）
-                    -- 这里原版大概是 (150, 35) 左右，我们把它强行压扁缩小
-                    if parentFrame.Size ~= UDim2.new(0, 140, 0, 26) then
-                        parentFrame.Size = UDim2.new(0, 140, 0, 26)
+                
+                if screenGui and parentFrame then
+                    -- 【核心判断】胶囊栏是常驻在最外层的，它的父级的父级通常就是 ScreenGui 本身
+                    -- 并且胶囊栏通常没有复杂的 Tabs、Sections 等子节点
+                    if parentFrame.Parent == screenGui and parentFrame:IsA("Frame") then
                         
-                        -- 如果胶囊栏有圆角组件 (UICorner)，顺便让它更圆润精致
-                        local uiCorner = parentFrame:FindFirstChildOfClass("UICorner")
-                        if uiCorner then
-                            uiCorner.CornerRadius = UDim.new(0, 13) -- 高度的一半，完美胶囊形状
+                        -- 【这一步只对真正的胶囊栏生效】
+                        v.Text = "Suture Hub | " .. currentTime
+                        v.TextSize = 12 -- 缩减字号
+                        
+                        -- 强行缩小胶囊栏外壳 (长 130, 宽 24)
+                        if parentFrame.Size ~= UDim2.new(0, 130, 0, 24) then
+                            parentFrame.Size = UDim2.new(0, 130, 0, 24)
+                            
+                            -- 让圆角跟着变精致
+                            local uiCorner = parentFrame:FindFirstChildOfClass("UICorner")
+                            if uiCorner then
+                                uiCorner.CornerRadius = UDim.new(0, 12)
+                            end
+                        end
+                        
+                    else
+                        -- 【这里是脚本内部的标题】
+                        -- 确保它的文本保持纯净，不带时间
+                        if v.Text ~= "Suture Hub" then
+                            v.Text = "Suture Hub"
                         end
                     end
                 end
+                
             end
         end
         task.wait(1)
