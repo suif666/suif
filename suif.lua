@@ -341,10 +341,10 @@ wqkTab:Button({
 })
 
 fescriptTab:Button({
-    Title = "fe超人飞行", Desc = "他人可见", Icon = "shell",
+    Title = "fe超人飞行", Desc = "r15 他人可见", Icon = "shell",
     Callback = function()
         getgenv().bypass_adonis = true
-        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "武器库")
+        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "超人飞行r15")
     end
 })
 
