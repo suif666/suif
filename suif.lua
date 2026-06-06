@@ -390,23 +390,33 @@ aboutTab:Button({
 })
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
--- 开启后台线程，实时刷新顶部 UI 标题栏的时间
+-- 开启后台线程，专门抓取并刷新顶部最小化胶囊栏的时间
 task.spawn(function()
+    local targetLabel = nil
+    
+    -- 循环检测并抓取 WindUI 渲染的文本节点
     while true do
-        -- 获取当前时间（时:分:秒）
-        local currentTime = os.date("%H:%M:%S")
-        local newTitle = "Suture Hub | " .. currentTime
-        
-        -- 尝试 WindUI 常用的几种更新窗口标题的方法
-        if win and win.SetTitle then
-            win:SetTitle(newTitle)
-        elseif win and win.SetText then
-            win:SetText(newTitle)
-        else
-            -- 如果没有提供方法，尝试直接修改属性
-            win.Title = newTitle
+        if not targetLabel then
+            -- 遍历寻找包含 "Suture Hub" 的 TextLabel
+            -- WindUI 的 UI 实例通常在 CoreGui 或 PlayerGui 里
+            local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
+            for _, v in pairs(uiContainer:GetDescendants()) do
+                if v:IsA("TextLabel") and (v.Text == "Suture Hub" or string.find(v.Text, "Suture Hub")) then
+                    -- 确保它是顶部缩放栏的组件（WindUI 缩放栏通常带有特定的层级，这里直接锁定它）
+                    if v.Parent and (v.Parent:IsA("Frame") or v.Parent:IsA("CanvasGroup")) then
+                        targetLabel = v
+                        break
+                    end
+                end
+            end
         end
-        
-        task.wait(1) -- 每秒更新一次
+
+        -- 如果找到了节点，直接高频同步时间
+        if targetLabel then
+            local currentTime = os.date("%H:%M:%S")
+            targetLabel.Text = "Suture Hub | " .. currentTime
+        end
+
+        task.wait(1) -- 每秒刷新一次
     end
 end)
