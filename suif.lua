@@ -390,24 +390,42 @@ aboutTab:Button({
 })
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
--- 【动态追踪增强版】专治最小化胶囊栏不更新
+-- 【胶囊栏专属定制版】仅胶囊栏加时间 + 体积缩小
 task.spawn(function()
     while true do
-        -- 每次循环都获取当前最新时间
         local currentTime = os.date("%H:%M:%S")
         local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
         
-        -- 全局扫描：找出所有包含 Suture Hub 的文本框并强制更新
-        -- 这样不管它是展开状态的标题，还是最小化后的胶囊，都会被一网打尽
         for _, v in pairs(uiContainer:GetDescendants()) do
-            if v:IsA("TextLabel") and string.find(v.Text, "Suture Hub") then
-                -- 排除掉主页大字 Paragraph 介绍，只修改标题和胶囊栏
-                if v.Name ~= "Description" and v.Name ~= "Desc" and v.Parent.Name ~= "Paragraph" then
+            -- 1. 寻找文本为 Suture Hub 的 TextLabel
+            if v:IsA("TextLabel") and (v.Text == "Suture Hub" or string.find(v.Text, "Suture Hub")) then
+                
+                -- 2. 精准识别胶囊栏：通过它父级或祖父级的特征来过滤
+                -- WindUI 的顶部胶囊栏通常是一个独立的、非常扁的常驻 Frame，且绝对不在那个大窗口内
+                local parentFrame = v.Parent
+                if parentFrame and parentFrame:IsA("Frame") and parentFrame.AbsoluteSize.Y < 50 then
+                    
+                    -- 【功能一】只给胶囊栏加时间
                     v.Text = "Suture Hub | " .. currentTime
+                    
+                    -- 【功能二】把胶囊栏改小一点
+                    -- 缩小文本字号，防止缩短胶囊后字漏出来
+                    v.TextSize = 12 
+                    
+                    -- 缩小整个胶囊的外壳（Width 缩短，Height 变矮）
+                    -- 这里原版大概是 (150, 35) 左右，我们把它强行压扁缩小
+                    if parentFrame.Size ~= UDim2.new(0, 140, 0, 26) then
+                        parentFrame.Size = UDim2.new(0, 140, 0, 26)
+                        
+                        -- 如果胶囊栏有圆角组件 (UICorner)，顺便让它更圆润精致
+                        local uiCorner = parentFrame:FindFirstChildOfClass("UICorner")
+                        if uiCorner then
+                            uiCorner.CornerRadius = UDim.new(0, 13) -- 高度的一半，完美胶囊形状
+                        end
+                    end
                 end
             end
         end
-        
-        task.wait(1) -- 每秒高频同步一次
+        task.wait(1)
     end
 end)
