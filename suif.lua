@@ -74,16 +74,16 @@ local aboutTab = win:Tab({ Title = "关于", Icon = "info", Locked = false })
 
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
+local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
+local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
+local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
+
 local visSec = win:Section({ Title = "视觉", Icon = "folder", Opened = false })
+local visualTab = visSec:Tab({ Title = "高亮类", Icon = "eye", Locked = false })
+
 local tyscriptTab = win:Tab({ Title = "通用", Icon = "folder", Opened = false })
+
 local scriptSec = win:Section({ Title = "缝合脚本", Icon = "folder", Opened = false })
-local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
-local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
-
-local playerTab = funcSec:Tab({ Title = "玩家", Icon = "user", Locked = false })
-local toolTab = funcSec:Tab({ Title = "通用/工具", Icon = "wrench", Locked = false })
-local visualTab = visSec:Tab({ Title = "高亮", Icon = "eye", Locked = false })
-
 local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
 local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
 local stgTab = scriptSec:Tab({ Title = "死铁轨", Icon = "shell", Locked = false })
@@ -92,6 +92,9 @@ local fkgsTab = scriptSec:Tab({ Title = "方块故事", Icon = "shell", Locked =
 local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked = false })
 local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
+
+local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
+local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
@@ -135,6 +138,14 @@ playerTab:Button({
 playerTab:Button({
     Title = "重置角色", Desc = "让自己的角色重生",
     Callback = function() local h = getHum() if h then h.Health = 0 end end
+})
+
+fyTab:Button({
+    Title = "devastate翻译", Desc = "字面意思", Icon = "shell",
+    Callback = function()
+        getgenv().bypass_adonis = true
+        run("https://raw.githubusercontent.com/dream6-e/rbx/refs/heads/main/%E7%BF%BB%E8%AF%91%E8%84%9A%E6%9C%AC.lua", "devastate翻译")
+    end
 })
 
 -- 视觉
@@ -218,9 +229,7 @@ end
 
 -- 脚本区域
 doorsTab:Button({
-    Title = "全自动刷旋钮",
-    Desc = "字面意思 执行后什么都不用管了",
-    Icon = "shell",
+    Title = "全自动刷旋钮", Desc = "字面意思 执行后什么都不用管了", Icon = "shell",
     Callback = function()
         getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
         run("https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua", "Doors 脚本")
