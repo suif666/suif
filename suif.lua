@@ -390,3 +390,23 @@ aboutTab:Button({
 })
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
+-- 开启后台线程，实时刷新顶部 UI 标题栏的时间
+task.spawn(function()
+    while true do
+        -- 获取当前时间（时:分:秒）
+        local currentTime = os.date("%H:%M:%S")
+        local newTitle = "Suture Hub | " .. currentTime
+        
+        -- 尝试 WindUI 常用的几种更新窗口标题的方法
+        if win and win.SetTitle then
+            win:SetTitle(newTitle)
+        elseif win and win.SetText then
+            win:SetText(newTitle)
+        else
+            -- 如果没有提供方法，尝试直接修改属性
+            win.Title = newTitle
+        end
+        
+        task.wait(1) -- 每秒更新一次
+    end
+end)
