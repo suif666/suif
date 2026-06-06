@@ -390,33 +390,24 @@ aboutTab:Button({
 })
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
--- 开启后台线程，专门抓取并刷新顶部最小化胶囊栏的时间
+-- 【动态追踪增强版】专治最小化胶囊栏不更新
 task.spawn(function()
-    local targetLabel = nil
-    
-    -- 循环检测并抓取 WindUI 渲染的文本节点
     while true do
-        if not targetLabel then
-            -- 遍历寻找包含 "Suture Hub" 的 TextLabel
-            -- WindUI 的 UI 实例通常在 CoreGui 或 PlayerGui 里
-            local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
-            for _, v in pairs(uiContainer:GetDescendants()) do
-                if v:IsA("TextLabel") and (v.Text == "Suture Hub" or string.find(v.Text, "Suture Hub")) then
-                    -- 确保它是顶部缩放栏的组件（WindUI 缩放栏通常带有特定的层级，这里直接锁定它）
-                    if v.Parent and (v.Parent:IsA("Frame") or v.Parent:IsA("CanvasGroup")) then
-                        targetLabel = v
-                        break
-                    end
+        -- 每次循环都获取当前最新时间
+        local currentTime = os.date("%H:%M:%S")
+        local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
+        
+        -- 全局扫描：找出所有包含 Suture Hub 的文本框并强制更新
+        -- 这样不管它是展开状态的标题，还是最小化后的胶囊，都会被一网打尽
+        for _, v in pairs(uiContainer:GetDescendants()) do
+            if v:IsA("TextLabel") and string.find(v.Text, "Suture Hub") then
+                -- 排除掉主页大字 Paragraph 介绍，只修改标题和胶囊栏
+                if v.Name ~= "Description" and v.Name ~= "Desc" and v.Parent.Name ~= "Paragraph" then
+                    v.Text = "Suture Hub | " .. currentTime
                 end
             end
         end
-
-        -- 如果找到了节点，直接高频同步时间
-        if targetLabel then
-            local currentTime = os.date("%H:%M:%S")
-            targetLabel.Text = "Suture Hub | " .. currentTime
-        end
-
-        task.wait(1) -- 每秒刷新一次
+        
+        task.wait(1) -- 每秒高频同步一次
     end
 end)
