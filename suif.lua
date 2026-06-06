@@ -75,13 +75,13 @@ local aboutTab = win:Tab({ Title = "关于", Icon = "info", Locked = false })
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local visSec = win:Section({ Title = "视觉", Icon = "folder", Opened = false })
-local scriptSec = win:Section({ Title = "脚本", Icon = "folder", Opened = false })
-local setSec = win:Section({ Title = "设置", Icon = "settings", Opened = false })
+local scriptSec = win:Section({ Title = "缝合脚本", Icon = "folder", Opened = false })
+local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
+local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 local playerTab = funcSec:Tab({ Title = "玩家", Icon = "user", Locked = false })
 local toolTab = funcSec:Tab({ Title = "通用/工具", Icon = "wrench", Locked = false })
 local visualTab = visSec:Tab({ Title = "高亮", Icon = "eye", Locked = false })
-local settingsTab = setSec:Tab({ Title = "UI设置", Icon = "sliders-horizontal", Locked = false })
 
 local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
 local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
@@ -337,6 +337,14 @@ wqkTab:Button({
     Callback = function()
         getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua", "武器库")
+    end
+})
+
+fescriptTab:Button({
+    Title = "fe超人飞行", Desc = "他人可见", Icon = "shell",
+    Callback = function()
+        getgenv().bypass_adonis = true
+        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "武器库")
     end
 })
 
