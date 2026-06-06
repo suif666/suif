@@ -390,49 +390,37 @@ aboutTab:Button({
 })
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
--- 【100%精准识别版】严格区分内部与胶囊栏
+
+-- 【富文本色彩定制版】统一添加时间，时间独立颜色与大小
 task.spawn(function()
     while true do
-        local currentTime = os.date("%H:%M:%S")
+        -- 1. 定义时间的颜色（这里用的是亮青色 #00ffff，你可以改成你喜欢的十六进制颜色）
+        -- 2. 定义时间的字号（从标签内部缩减到 12 号字）
+        local timeColor = "#00ffff" 
+        local timeSize = "12"
+        
+        -- 格式化时间并套入富文本标签
+        local timeString = os.date("%H:%M:%S")
+        local richTime = string.format(' <font color="%s" size="%s">| %s</font>', timeColor, timeSize, timeString)
+        local fullText = "Suture Hub" .. richTime
+        
         local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
         
         for _, v in pairs(uiContainer:GetDescendants()) do
-            -- 1. 寻找文本包含 Suture Hub 的 TextLabel
+            -- 寻找所有需要显示 Suture Hub 的 TextLabel
             if v:IsA("TextLabel") and (v.Text == "Suture Hub" or string.find(v.Text, "Suture Hub")) then
                 
-                -- 获取它的最顶层父级（看它属于哪个 ScreenGui）
-                local screenGui = v:FindFirstAncestorOfClass("ScreenGui")
-                local parentFrame = v.Parent
-                
-                if screenGui and parentFrame then
-                    -- 【核心判断】胶囊栏是常驻在最外层的，它的父级的父级通常就是 ScreenGui 本身
-                    -- 并且胶囊栏通常没有复杂的 Tabs、Sections 等子节点
-                    if parentFrame.Parent == screenGui and parentFrame:IsA("Frame") then
-                        
-                        -- 【这一步只对真正的胶囊栏生效】
-                        v.Text = "Suture Hub | " .. currentTime
-                        v.TextSize = 12 -- 缩减字号
-                        
-                        -- 强行缩小胶囊栏外壳 (长 130, 宽 24)
-                        if parentFrame.Size ~= UDim2.new(0, 130, 0, 24) then
-                            parentFrame.Size = UDim2.new(0, 130, 0, 24)
-                            
-                            -- 让圆角跟着变精致
-                            local uiCorner = parentFrame:FindFirstChildOfClass("UICorner")
-                            if uiCorner then
-                                uiCorner.CornerRadius = UDim.new(0, 12)
-                            end
-                        end
-                        
-                    else
-                        -- 【这里是脚本内部的标题】
-                        -- 确保它的文本保持纯净，不带时间
-                        if v.Text ~= "Suture Hub" then
-                            v.Text = "Suture Hub"
-                        end
+                -- 排除主页大字Paragraph，只针对标题栏和胶囊栏
+                if v.Name ~= "Description" and v.Name ~= "Desc" and v.Parent.Name ~= "Paragraph" then
+                    
+                    -- 必须开启富文本属性，否则标签会变成纯文本显示出来
+                    if not v.RichText then
+                        v.RichText = true
                     end
+                    
+                    -- 实时更新带特效的时间文本
+                    v.Text = fullText
                 end
-                
             end
         end
         task.wait(1)
