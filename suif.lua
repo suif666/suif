@@ -75,6 +75,7 @@ local aboutTab = win:Tab({ Title = "关于", Icon = "info", Locked = false })
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local visSec = win:Section({ Title = "视觉", Icon = "folder", Opened = false })
+local tyscriptTab = win:Tab({ Title = "通用", Icon = "folder", Opened = false })
 local scriptSec = win:Section({ Title = "缝合脚本", Icon = "folder", Opened = false })
 local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
@@ -341,10 +342,18 @@ wqkTab:Button({
 })
 
 fescriptTab:Button({
-    Title = "fe超人飞行", Desc = "r15 他人可见", Icon = "shell",
+    Title = "fe超人飞行", Desc = "他人可见", Icon = "shell",
     Callback = function()
         getgenv().bypass_adonis = true
-        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "超人飞行r15")
+        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "武器库")
+    end
+})
+
+tyscriptTab:Button({
+    Title = "飞行V3", Desc = "顾名思义", Icon = "shell",
+    Callback = function()
+        getgenv().bypass_adonis = true
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/FlyGuiV3.lua", "飞行V3")
     end
 })
 
