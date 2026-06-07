@@ -611,28 +611,126 @@ UIS.InputEnded:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then resizing=false; Main.Draggable=true end
 end)
 
+-- 实时监听自动获取：新UI出现 / 文本变化 / 定时兜底扫描
+local RealtimeScheduled=false
+local WatchedObjects=setmetatable({}, {__mode="k"})
+local WatchedRoots=setmetatable({}, {__mode="k"})
+
+local function IsTextObject(o)
+    return o and (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox"))
+end
+
+local function RefreshRoots()
+    HuiRoot=nil
+    pcall(function() if gethui then HuiRoot=gethui() end end)
+    UIRoots={}
+    AddUniqueRoot(UIRoots,CoreGui)
+    AddUniqueRoot(UIRoots,HuiRoot)
+    WideRoots={}
+    AddUniqueRoot(WideRoots,PlayerGui)
+    AddUniqueRoot(WideRoots,Workspace)
+    AddUniqueRoot(WideRoots,CoreGui)
+    AddUniqueRoot(WideRoots,HuiRoot)
+end
+
+local function RealtimeUpdate(reason)
+    if not AutoRefresh then return end
+    RefreshRoots()
+    local before=Count(CurrentSection)
+    local added=ScanAllSections()
+    UpdateSectionBtns()
+    if Search.Text~="" then
+        SearchNow()
+    else
+        local after=Count(CurrentSection)
+        if added>0 or after~=before then
+            SetDisplay(GetCurrentText(), added>0)
+        end
+        if added>0 then
+            Status("实时新增 "..added.." 条")
+        else
+            Status(reason or "实时检测中")
+        end
+    end
+end
+
+local function QueueRealtimeUpdate(reason)
+    if RealtimeScheduled or not AutoRefresh then return end
+    RealtimeScheduled=true
+    task.defer(function()
+        task.wait(0.12)
+        RealtimeScheduled=false
+        RealtimeUpdate(reason)
+    end)
+end
+
+local function WatchTextObject(o)
+    if not IsTextObject(o) or WatchedObjects[o] then return end
+    WatchedObjects[o]=true
+    pcall(function()
+        o:GetPropertyChangedSignal("Text"):Connect(function()
+            QueueRealtimeUpdate("文本变化")
+        end)
+    end)
+    pcall(function()
+        o:GetPropertyChangedSignal("Visible"):Connect(function()
+            QueueRealtimeUpdate("显示变化")
+        end)
+    end)
+    pcall(function()
+        o:GetPropertyChangedSignal("Parent"):Connect(function()
+            QueueRealtimeUpdate("层级变化")
+        end)
+    end)
+end
+
+local function WatchRoot(root)
+    if not root or WatchedRoots[root] then return end
+    WatchedRoots[root]=true
+    pcall(function()
+        for _,o in ipairs(root:GetDescendants()) do
+            WatchTextObject(o)
+        end
+    end)
+    pcall(function()
+        root.DescendantAdded:Connect(function(o)
+            if IsTextObject(o) then
+                WatchTextObject(o)
+            else
+                task.defer(function()
+                    pcall(function()
+                        for _,c in ipairs(o:GetDescendants()) do
+                            WatchTextObject(c)
+                        end
+                    end)
+                end)
+            end
+            QueueRealtimeUpdate("新UI")
+        end)
+    end)
+    pcall(function()
+        root.DescendantRemoving:Connect(function()
+            QueueRealtimeUpdate("UI移除")
+        end)
+    end)
+end
+
 task.spawn(function()
     while SG and SG.Parent do
+        RefreshRoots()
+        WatchRoot(PlayerGui)
+        WatchRoot(Workspace)
+        for _,root in ipairs(UIRoots) do WatchRoot(root) end
+        for _,root in ipairs(WideRoots) do WatchRoot(root) end
         if AutoRefresh then
-            local before=Count(CurrentSection)
-            local added=ScanAllSections()
-            UpdateSectionBtns()
-            if Search.Text~="" then
-                SearchNow()
-            else
-                local after=Count(CurrentSection)
-                if added>0 or after~=before then
-                    SetDisplay(GetCurrentText(), added>0)
-                end
-                Status((added>0) and ("新增 "..added.." 条") or "暂无新增")
-            end
+            QueueRealtimeUpdate("实时检测中")
         else
             UpdateSectionBtns(); Status()
         end
-        task.wait(1)
+        task.wait(0.35)
     end
 end)
 
 LayoutUI()
 CurrentSection="全部"
-RefreshDisplay(Scan(CurrentSection))
+RefreshDisplay(ScanAllSections())
