@@ -20,8 +20,26 @@ else SG.Parent=PlayerGui end
 
 local HuiRoot=nil
 pcall(function() if gethui then HuiRoot=gethui() end end)
-local UIRoots={CoreGui}
-if HuiRoot and HuiRoot~=CoreGui then table.insert(UIRoots,HuiRoot) end
+local function AddUniqueRoot(list,root)
+    if not root then return end
+    for _,v in ipairs(list) do
+        if v==root then return end
+    end
+    table.insert(list,root)
+end
+
+-- UIRoots：专门扫 CoreGui / gethui
+local UIRoots={}
+AddUniqueRoot(UIRoots,CoreGui)
+AddUniqueRoot(UIRoots,HuiRoot)
+
+-- WideRoots：第三方UI宽松扫描范围
+-- 有些第三方UI不在CoreGui，而在PlayerGui或gethui的独立容器里
+local WideRoots={}
+AddUniqueRoot(WideRoots,PlayerGui)
+AddUniqueRoot(WideRoots,Workspace)
+AddUniqueRoot(WideRoots,CoreGui)
+AddUniqueRoot(WideRoots,HuiRoot)
 
 local Sections={"全部","PlayerGui","Workspace","CoreGui","RobloxGui","PlayerList","第三方UI"}
 local SystemNames={"RobloxGui","PlayerList","Backpack","Chat","BubbleChat","ExperienceChat","TextChatService","TopBar","Topbar","Health","EmotesMenu","Chrome","InspectMenu","PurchasePrompt","ScreenshotHud"}
@@ -117,6 +135,13 @@ end
 
 local function InUIRoots(o)
     for _,root in ipairs(UIRoots) do
+        if o:IsDescendantOf(root) then return true end
+    end
+    return false
+end
+
+local function InWideRoots(o)
+    for _,root in ipairs(WideRoots) do
         if o:IsDescendantOf(root) then return true end
     end
     return false
@@ -383,7 +408,9 @@ local function InSection(o,s)
     if s=="CoreGui" then return InUIRoots(o) end
     if s=="RobloxGui" then return InUIRoots(o) and p:find("RobloxGui",1,true)~=nil end
     if s=="PlayerList" then return InUIRoots(o) and p:find("PlayerList",1,true)~=nil end
-    if s=="第三方UI" then return InUIRoots(o) and not IsSystem(o) end
+    -- 第三方UI改为宽松扫描：PlayerGui / Workspace / CoreGui / gethui 都会尝试
+    -- 只排除本脚本UI和明显Roblox系统UI，避免漏掉第三方脚本窗口
+    if s=="第三方UI" then return InWideRoots(o) and not IsSystem(o) end
     if s=="全部" then return o:IsDescendantOf(PlayerGui) or o:IsDescendantOf(Workspace) or InUIRoots(o) end
     return false
 end
@@ -415,11 +442,20 @@ local function ScanUIRoots(s)
     return n
 end
 
+local function ScanWideRoots(s)
+    local n=0
+    for _,root in ipairs(WideRoots) do
+        n+=ScanContainer(root,s)
+    end
+    return n
+end
+
 local function Scan(s)
     local n=0
     if s=="全部" then n+=Scan("PlayerGui"); n+=Scan("Workspace"); n+=Scan("CoreGui")
     elseif s=="PlayerGui" then n+=ScanContainer(PlayerGui,s)
     elseif s=="Workspace" then n+=ScanContainer(Workspace,s)
+    elseif s=="第三方UI" then n+=ScanWideRoots(s)
     else n+=ScanUIRoots(s) end
     Rebuild(s); Rebuild("全部")
     return n
