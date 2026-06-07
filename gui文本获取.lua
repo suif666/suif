@@ -203,6 +203,13 @@ FavoriteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 FavoriteBtn.Font = Enum.Font.SourceSansBold
 FavoriteBtn.Parent = BottomBar
 
+local ExportLuaBtn = Instance.new("TextButton")
+ExportLuaBtn.BackgroundColor3 = Color3.fromRGB(80, 150, 160)
+ExportLuaBtn.Text = "导出Lua"
+ExportLuaBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ExportLuaBtn.Font = Enum.Font.SourceSansBold
+ExportLuaBtn.Parent = BottomBar
+
 local ClearAll = Instance.new("TextButton")
 ClearAll.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
 ClearAll.Text = "清空当前"
@@ -301,8 +308,8 @@ StyleButton(Copy, Color3.fromRGB(70, 165, 90))
 StyleButton(AutoBtn, Color3.fromRGB(160, 120, 60))
 StyleButton(BlockBtn, Color3.fromRGB(110, 80, 150))
 StyleButton(FavoriteBtn, Color3.fromRGB(90, 130, 210))
+StyleButton(ExportLuaBtn, Color3.fromRGB(80, 150, 160))
 StyleButton(ClearAll, Color3.fromRGB(180, 70, 70))
-StyleButton(Minimize, Color3.fromRGB(80, 80, 88))
 StyleButton(Close, Color3.fromRGB(180, 55, 60))
 StyleButton(ResizeHandle, Color3.fromRGB(95, 95, 105))
 
@@ -628,7 +635,7 @@ local function CreateFavoriteUI()
     bottom.Parent = FavoriteMain
 
     local copyAll = Instance.new("TextButton")
-    copyAll.Size = UDim2.new(0.5, -4, 1, 0)
+    copyAll.Size = UDim2.new(0.333, -4, 1, 0)
     copyAll.Position = UDim2.new(0, 0, 0, 0)
     copyAll.BackgroundColor3 = Color3.fromRGB(70, 165, 90)
     copyAll.Text = "复制全部"
@@ -637,11 +644,23 @@ local function CreateFavoriteUI()
     copyAll.Font = Enum.Font.SourceSansBold
     copyAll.Parent = bottom
 
+    local exportLua = Instance.new("TextButton")
+exportLua.Size = UDim2.new(0.333, -4, 1, 0)
+exportLua.Position = UDim2.new(0.333, 4, 0, 0)
+exportLua.BackgroundColor3 = Color3.fromRGB(80, 150, 160)
+exportLua.Text = "导出Lua"
+exportLua.TextColor3 = Color3.fromRGB(255, 255, 255)
+exportLua.TextSize = 13
+exportLua.Font = Enum.Font.SourceSansBold
+exportLua.Parent = bottom
+
+StyleButton(exportLua, Color3.fromRGB(80, 150, 160))
+
     StyleButton(copyAll, Color3.fromRGB(70, 165, 90))
 
     local clearAll = Instance.new("TextButton")
-    clearAll.Size = UDim2.new(0.5, -4, 1, 0)
-    clearAll.Position = UDim2.new(0.5, 4, 0, 0)
+   clearAll.Size = UDim2.new(0.333, -4, 1, 0)
+clearAll.Position = UDim2.new(0.666, 8, 0, 0)
     clearAll.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
     clearAll.Text = "清空全部"
     clearAll.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -652,15 +671,64 @@ local function CreateFavoriteUI()
     StyleButton(clearAll, Color3.fromRGB(180, 70, 70))
 
     copyAll.MouseButton1Click:Connect(function()
-        CopyText(RebuildFavoriteText(), "已复制收藏全部")
-    end)
+    CopyText(RebuildFavoriteText(), "已复制收藏全部")
+end)
 
-    clearAll.MouseButton1Click:Connect(function()
-        FavoriteData.Texts = {}
-        FavoriteData.Map = {}
-        RefreshFavoriteList()
-        UpdateFavoriteStatus()
-    end)
+exportLua.MouseButton1Click:Connect(function()
+    local lines = {}
+
+    table.insert(lines, "-- 收藏列表文本导出")
+    table.insert(lines, "-- 数量：" .. tostring(#FavoriteData.Texts))
+    table.insert(lines, "")
+    table.insert(lines, "return {")
+
+    for _, text in ipairs(FavoriteData.Texts) do
+        text = tostring(text or "")
+        text = text:gsub("\\", "\\\\")
+        text = text:gsub("\n", "\\n")
+        text = text:gsub("\r", "\\r")
+        text = text:gsub("\t", "\\t")
+        text = text:gsub("\"", "\\\"")
+
+        table.insert(lines, "    \"" .. text .. "\",")
+    end
+
+    table.insert(lines, "}")
+
+    local luaText = table.concat(lines, "\n")
+    local copied = false
+    local saved = false
+
+    if setclipboard then
+        setclipboard(luaText)
+        copied = true
+    elseif toclipboard then
+        toclipboard(luaText)
+        copied = true
+    end
+
+    if writefile then
+        writefile("UITextExport_收藏列表.lua", luaText)
+        saved = true
+    end
+
+    if copied and saved then
+        UpdateStatus("收藏Lua已复制并保存")
+    elseif copied then
+        UpdateStatus("收藏Lua已复制")
+    elseif saved then
+        UpdateStatus("收藏Lua已保存")
+    else
+        UpdateStatus("导出失败：不支持复制或写文件")
+    end
+end)
+
+clearAll.MouseButton1Click:Connect(function()
+    FavoriteData.Texts = {}
+    FavoriteData.Map = {}
+    RefreshFavoriteList()
+    UpdateFavoriteStatus()
+end)
 
     close.MouseButton1Click:Connect(function()
         FavoriteMain.Visible = false
@@ -1049,6 +1117,68 @@ local function GetCurrentAllText()
         return "未检测到 UI 文本"
     end
 
+    local function EscapeLuaString(str)
+    str = tostring(str or "")
+    str = str:gsub("\\", "\\\\")
+    str = str:gsub("\n", "\\n")
+    str = str:gsub("\r", "\\r")
+    str = str:gsub("\t", "\\t")
+    str = str:gsub("\"", "\\\"")
+    return str
+end
+
+local function BuildLuaExport()
+    local data = SectionData[CurrentSection]
+    local lines = {}
+
+    table.insert(lines, "-- UI文本导出")
+    table.insert(lines, "-- 分区：" .. CurrentSection)
+    table.insert(lines, "-- 数量：" .. tostring(GetSectionCount(CurrentSection)))
+    table.insert(lines, "")
+    table.insert(lines, "return {")
+
+    if data and #data.Texts > 0 then
+        for _, text in ipairs(data.Texts) do
+            table.insert(lines, "    \"" .. EscapeLuaString(text) .. "\",")
+        end
+    end
+
+    table.insert(lines, "}")
+
+    return table.concat(lines, "\n")
+end
+
+local function ExportCurrentSectionAsLua()
+    local luaText = BuildLuaExport()
+
+    local copied = false
+    local saved = false
+
+    if setclipboard then
+        setclipboard(luaText)
+        copied = true
+    elseif toclipboard then
+        toclipboard(luaText)
+        copied = true
+    end
+
+    if writefile then
+        local safeName = tostring(CurrentSection):gsub("[\\/:*?\"<>|]", "_")
+        writefile("UITextExport_" .. safeName .. ".lua", luaText)
+        saved = true
+    end
+
+    if copied and saved then
+        UpdateStatus("已导出Lua：已复制并保存文件")
+    elseif copied then
+        UpdateStatus("已导出Lua：已复制")
+    elseif saved then
+        UpdateStatus("已导出Lua：已保存文件")
+    else
+        UpdateStatus("导出失败：当前环境不支持复制或写文件")
+    end
+end
+
     RebuildSectionText(CurrentSection)
 
     return data.AllText
@@ -1375,7 +1505,7 @@ local function LayoutUI()
     BottomBar.Size = UDim2.new(1, -pad * 2, 0, buttonH)
     BottomBar.Position = UDim2.new(0, pad, 1, -buttonH - pad)
 
-    local bottomButtons = {Refresh, Copy, AutoBtn, BlockBtn, FavoriteBtn, ClearAll}
+   local bottomButtons = {Refresh, Copy, AutoBtn, BlockBtn, FavoriteBtn, ExportLuaBtn, ClearAll}
     local bw = 1 / #bottomButtons
 
     for i, btn in ipairs(bottomButtons) do
@@ -1437,6 +1567,10 @@ FavoriteBtn.MouseButton1Click:Connect(function()
     RefreshFavoriteList()
     UpdateFavoriteStatus()
     UpdateStatus("已打开收藏栏")
+end)
+
+ExportLuaBtn.MouseButton1Click:Connect(function()
+    ExportCurrentSectionAsLua()
 end)
 
 SearchBtn.MouseButton1Click:Connect(function()
