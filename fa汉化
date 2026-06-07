@@ -1,0 +1,386 @@
+local Translations = {
+    --格式：["英文原文"] = "中文翻译",
+        ["Fart Hub"] = "fart中心",
+        ["[N] Forsaken | Version :: 0183"] = "[N]被遗弃 | 版本 :: 0183",
+        ["Home"] = "主页",
+        ["Visuals"] = "视觉",
+        ["Generators"] = "发电机",
+        ["Player"] = "玩家",
+        ["Misc"] = "杂项",
+        ["Rage"] = "暴力",
+        ["Aiming"] = "瞄准",
+        ["Music"] = "音乐",
+        ["Addons"] = "插件",
+        ["Animations"] = "动画",
+        ["UI Settings"] = "界面设置",
+        ["Profile"] = "个人资料",
+        ["Executor: delta"] = "执行器：delta",
+        ["Support Server"] = "支持服务器",
+        ["Information"] = "信息",
+        ["Welcome to FartHub, Have fun!"] = "欢迎来到fart中心，玩得开心！",
+        ["🟢 Script is updated"] = "🟢 脚本已更新",
+        ["Developers"] = "开发者",
+        ["[ivannetta] - Owner"] = "[ivannetta] - 所有者",
+        ["Contributors"] = "贡献者",
+        ["[union] - Created autoblock and others."] = "[union] - 创建了自动格挡等功能。",
+        ["[io] - Improved the script"] = "[io] - 改进了脚本",
+        ["[Dottik] - Helper with Generators"] = "[Dottik] - 协助发电机功能",
+        ["[lopticat] - Lopticat has been the main artist for almost everything in the script."] = "[lopticat] - Lopticat 是脚本中几乎所有内容的主要美工。",
+        ["[upio] - Helped with Optimization"] = "[upio] - 帮助优化",
+        ["[Mstudio45] - He meows in vc for motivation"] = "[Mstudio45] - 他在语音频道喵喵叫以激励大家",
+        ["[who_else123] - Authored ESP & optimised the script"] = "[who_else123] - 编写了 ESP 并优化了脚本",
+        ["[dedysence] - Introduced some features to the script"] = "[dedysence] - 为脚本引入了一些功能",
+        ["ESP and other visuals."] = "ESP 及其他视觉效果。",
+        ["ESP"] = "ESP",
+        ["Player ESP"] = "玩家 ESP",
+        ["Items"] = "物品",
+        ["Minions"] = "小弟",
+        ["Projectile"] = "投射物",
+        ["Traps"] = "陷阱",
+        ["Quests"] = "任务",
+        ["World"] = "世界",
+        ["Disable Blur"] = "禁用模糊",
+        ["Full Bright"] = "全亮",
+        ["Self"] = "自身",
+        ["Effects"] = "特效",
+        ["Princess Mode"] = "公主模式",
+        ["Field of View"] = "视野",
+        ["Highlights"] = "高亮",
+        ["Tracers"] = "轨迹线",
+        ["Tracer Start Position"] = "轨迹起始位置",
+        ["Bottom"] = "底部",
+        ["Offscreen Arrows"] = "屏幕外箭头",
+        ["Arrow Radius"] = "箭头半径",
+        ["Names"] = "名称",
+        ["Distance"] = "距离",
+        ["2D Boxes"] = "2D 方框",
+        ["3D Boxes"] = "3D 方框",
+        ["Skeleton"] = "骨骼",
+        ["Skeleton Transparency"] = "骨骼透明度",
+        ["Outline Transparency"] = "轮廓透明度",
+        ["Fill Transparency"] = "填充透明度",
+        ["Text Size"] = "文字大小",
+        ["Top"] = "顶部",
+        ["Mouse"] = "鼠标",
+        ["Remove Health Glitch"] = "移除生命值显示故障",
+        ["Delete John Doe's Footprints"] = "删除 John Doe 的脚印",
+        ["Disable Subspace Effect"] = "禁用子空间效果",
+        ["Disable Noli Halucinations"] = "禁用 Noli 幻觉",
+        ["Auto Solve Generators and other generator stuff."] = "自动解发电机及其他发电机相关功能。",
+        ["Auto Solve Generator"] = "自动发电机",
+        ["Realistic"] = "人类模式",
+        ["Realistic Solver"] = "人类解法",
+        ["Generator Helper"] = "发电机助手",
+        ["Helper Transparency"] = "助手透明度",
+        ["Generator Backgrounds"] = "发电机背景",
+        ["Background Video."] = "背景视频。",
+        ["Subway Surfers"] = "地铁跑酷",
+        ["Video Volume"] = "视频音量",
+        ["Waiting to be in generator..."] = "等待进入发电机...",
+        ["Auto Solve Generator disabled."] = "自动解发电机已禁用。",
+        ["Humanizer Solve Speed"] = "拟人化解谜速度",
+        ["Generator Solve Delay"] = "发电机解谜延迟",
+        ["Generator Delay Randomness"] = "发电机延迟随机性",
+        ["Random"] = "随机",
+        ["Player Character Functions"] = "角色功能",
+        ["Speed"] = "速度",
+        ["Stamina"] = "耐力",
+        ["Walkspeed Multiplier"] = "行走速度倍率",
+        ["Walkspeed Type"] = "行走速度类型",
+        ["Physics Rate"] = "物理速率",
+        ["Physics Rate Multiplier"] = "物理速率倍率",
+        ["Disable Slowness Modifiers"] = "禁用减速修正",
+        ["Actions"] = "动作",
+        ["Abilities"] = "能力",
+        ["Ragdoll"] = "布娃娃",
+        ["Frontflip"] = "前空翻",
+        ["Legit"] = "合法模式",
+        ["Note: Stamina changes apply after round ends"] = "注意：耐力更改在回合结束后生效",
+        ["Infinite Stamina"] = "无限耐力",
+        ["Minimum Stamina"] = "最小耐力",
+        ["Stamina Gain Speed"] = "耐力恢复速度",
+        ["Max Stamina"] = "最大耐力",
+        ["Invisibility"] = "隐身",
+        ["Better Noli Controls"] = "更好的 Noli 控制",
+        ["Better Sixer Controls"] = "更好的 Sixer 控制",
+        ["Better c00lkidd Controls"] = "更好的 c00lkidd 控制",
+        ["Veeronica SK8 Controls"] = "Veeronica SK8 控制",
+        ["Miscellaneous functions and utilities."] = "杂项功能和实用工具。",
+        ["General"] = "常规",
+        ["UI"] = "用户界面",
+        ["Fake Name"] = "假名",
+        ["Streamer Mode"] = "主播模式",
+        ["Show Hidden Stats"] = "显示隐藏统计",
+        ["Delete Killer Only Walls"] = "删除仅杀手可见的墙",
+        ["Jane Doe Instant Crystal Charge"] = "Jane Doe 瞬间水晶充能",
+        ["Visibility"] = "可见性",
+        ["Device"] = "设备",
+        ["Toggle Chat Visibility"] = "切换聊天可见性",
+        ["Anti Features"] = "反制功能",
+        ["Anti Auto 404"] = "反自动 404",
+        ["Anti Autoblock"] = "反自动格挡",
+        ["TopBar Buttons"] = "顶栏按钮",
+        ["Frontflip, Fake Block,..."] = "前空翻、假格挡……",
+        ["Fake Block"] = "假格挡",
+        ["Dusekkar Target"] = "Dusekkar 目标",
+        ["Jane Doe Target"] = "Jane Doe 目标",
+        ["Spoof Device"] = "伪造设备",
+        ["PC"] = "PC",
+        ["Mobile"] = "手机",
+        ["Console"] = "主机",
+        ["Misc Rage Functions"] = "杂项暴力功能",
+        ["Auto Screen Popups"] = "自动1x弹窗",
+        ["Auto Escape Nosferatu"] = "自动逃脱 Nosferatu",
+        ["Anti Reach"] = "反触及",
+        ["No Anti-Cheat"] = "无反作弊",
+        ["Reach"] = "触及",
+        ["Reach Type"] = "触及类型",
+        ["Aim"] = "瞄准",
+        ["Reach Characters"] = "触及角色",
+        ["Static"] = "静态",
+        ["Max Aim Distance"] = "最大瞄准距离",
+        ["Static Reach"] = "静态触及",
+        ["Reach Prediction"] = "触及预测",
+        ["Reach Strength"] = "触及强度",
+        ["It aims for you wow"] = "它会为你瞄准，哇",
+        ["Aimbot"] = "自瞄",
+        ["Face Same Way"] = "面向同一方向",
+        ["Wallcheck Mode"] = "穿墙检测模式",
+        ["Disabled"] = "禁用",
+        ["Aimbot Characters"] = "自瞄角色",
+        ["Silent Aim"] = "静默自瞄",
+        ["Silent Aim Characters"] = "静默自瞄角色",
+        ["Camera"] = "相机",
+        ["Character"] = "角色",
+        ["Silent Aim Prediction Strength"] = "静默自瞄预测强度",
+        ["Dusekkar Aim Target"] = "Dusekkar 瞄准目标",
+        ["Killer"] = "杀手",
+        ["Target Swap"] = "目标切换",
+        ["JaneDoe Aim Target"] = "JaneDoe 瞄准目标",
+        ["Dusekkar Wallbang"] = "Dusekkar 穿墙",
+        ["Silent Aim Part Picker, Click where u want silent aim to aim duhhhh"] = "静默自瞄部位选择器，点击你想要静默自瞄瞄准的位置，呃",
+        ["Survivor"] = "幸存者",
+        ["Aimbot Prediction"] = "自瞄预测",
+        ["Aimbot Rotation Speed"] = "自瞄旋转速度",
+        ["Aimbot Max Distance"] = "自瞄最大距离",
+        ["Aimbot Aim Events"] = "自瞄瞄准事件",
+        ["This will change how aimbot selects targets, Inside the circle or the closest to you."] = "这将改变自瞄选择目标的方式，在圆内还是离你最近。",
+        ["Aimbot Priority"] = "自瞄优先级",
+        ["Nearest"] = "最近",
+        ["Aimbot Type"] = "自瞄类型",
+        ["Character Aimbot"] = "角色自瞄",
+        ["Closest To Cursor"] = "离光标最近",
+        ["Camera Aimbot"] = "相机自瞄",
+        ["Automatically block incoming attacks"] = "自动格挡来袭攻击",
+        ["Main"] = "主要",
+        ["Config"] = "配置",
+        ["Survivor Autoblock"] = "幸存者自动格挡",
+        ["Block Projectiles"] = "格挡投射物",
+        ["Auto Punch"] = "自动出拳",
+        ["Killer Autoblock"] = "杀手自动格挡",
+        ["Ghost Block"] = "假格挡",
+        ["Hitbox"] = "命中框",
+        ["Characters"] = "角色",
+        ["Hitbox Distance"] = "命中框距离",
+        ["Autoblock Hitbox Multiplier"] = "自动格挡命中框倍率",
+        ["Autoblock Hitbox Transparency"] = "自动格挡命中框透明度",
+        ["Hitbox Hits"] = "命中框命中次数",
+        ["AB Hitbox Color"] = "自动格挡命中框颜色",
+        ["Hitbox Preview"] = "命中框预览",
+        ["Autoblock Delay"] = "自动格挡延迟",
+        ["Autoblock Sound Events"] = "自动格挡音效事件",
+        ["Autoblock Characters"] = "自动格挡角色",
+        ["Custom music for lobby and last man standing"] = "大厅和最后幸存者的自定义音乐",
+        ["Enable Custom LMS Music"] = "启用自定义最后幸存者音乐",
+        ["Enable Custom Lobby Music"] = "启用自定义大厅音乐",
+        ["Enable Custom Chase Music"] = "启用自定义追逐音乐",
+        ["Enable Custom Ambiance Music"] = "启用自定义环境音乐",
+        ["Custom"] = "自定义",
+        ["Manage"] = "管理",
+        ["How To Get Custom Sounds:\n\n1. Upload your music file to a platform like Discord or any file hosting service.\n\n2. Get the direct download link to your file (must be a RAW file link, not a YouTube link).\n\n3. Enter that download link in the first text box below.\n\n4. Choose a name for your song and add the file extension.\nExample: 'My EVIL Song.mp3'\n\nIMPORTANT: You MUST include the file extension (.mp3, .wav, etc.)\n\nNote: MP3 format is recommended as other formats have not been tested."] = "如何获取自定义音效：\n\n1. 将你的音乐文件上传到 Discord 或任何文件托管服务。\n\n2. 获取文件的直接下载链接（必须是原始文件链接，不是 YouTube 链接）。\n\n3. 在下面的第一个文本框中输入该下载链接。\n\n4. 为你的歌曲命名并添加文件扩展名。\n示例：'My EVIL Song.mp3'\n\n重要提示：你必须包含文件扩展名（.mp3, .wav 等）\n\n注意：推荐使用 MP3 格式，其他格式未经测试。",
+        ["Reminder: Always include the file extension like .mp3 or .wav"] = "提醒：始终包含文件扩展名，如 .mp3 或 .wav",
+        ["Download Custom Music"] = "下载自定义音乐",
+        ["File Name"] = "文件名",
+        ["Download Sound"] = "下载音效",
+        ["Custom LMS Music"] = "自定义最后幸存者音乐",
+        ["Sigmaboy Phonk"] = "西格玛男孩放克",
+        ["Custom Lobby Music"] = "自定义大厅音乐",
+        ["Canto3 Boss Battle"] = "第三章 Boss 战",
+        ["Custom Chase Music"] = "自定义追逐音乐",
+        ["Grass Skirt"] = "草裙",
+        ["Custom Ambiance Music"] = "自定义环境音乐",
+        ["Delete all sounds"] = "删除所有音效",
+        ["Delete All Sounds"] = "删除所有音效",
+        ["Addons created by the community"] = "社区创建的附加组件",
+        ["Warning"] = "警告",
+        ["Addons are only available to premium users."] = "附加组件仅对高级用户可用。",
+        ["Stuff related to animations"] = "与动画相关的内容",
+        ["Animation Selector"] = "动画选择器",
+        ["Enable Custom Animations"] = "启用自定义动画",
+        ["Free Emotes"] = "免费表情",
+        ["Select Emotes"] = "选择表情",
+        ["Enable Free Emotes"] = "启用免费表情",
+        ["Custom Animation"] = "自定义动画",
+        ["None"] = "无",
+        ["Animation Speed"] = "动画速度",
+        ["Themes"] = "主题",
+        ["Background color"] = "背景色",
+        ["Main color"] = "主色",
+        ["Accent color"] = "强调色",
+        ["Outline color"] = "轮廓色",
+        ["Font color"] = "字体颜色",
+        ["Font Face"] = "字体",
+        ["Code"] = "代码",
+        ["Theme list"] = "主题列表",
+        ["Default"] = "默认",
+        ["Set as default"] = "设为默认",
+        ["Custom theme name"] = "自定义主题名",
+        ["Create theme"] = "创建主题",
+        ["Custom themes"] = "自定义主题",
+        ["Load theme"] = "加载主题",
+        ["Overwrite theme"] = "覆盖主题",
+        ["Delete theme"] = "删除主题",
+        ["Refresh list"] = "刷新列表",
+        ["Reset default"] = "重置默认",
+        ["Config Downloader"] = "配置下载器",
+        ["Here you can download configs shared by other users."] = "在这里你可以下载其他用户分享的配置。",
+        ["Selected Config"] = "已选配置",
+        ["Configs"] = "配置",
+        ["Refresh"] = "刷新",
+        ["Download Config"] = "下载配置",
+        ["Config Upload"] = "配置上传",
+        ["Note: You can only upload a config once every 12 hours."] = "注意：每 12 小时只能上传一次配置。",
+        ["Specify the type of config.Eg: [ Rage ] or [ Closet ].Configs without a type tag will be denied and not uploaded."] = "指定配置类型。例如：[ Rage ] 或 [ Closet ]。没有类型标签的配置将被拒绝且不上传。",
+        ["Specify the type of config.\nEg: [ Rage ] or [ Closet ].\nConfigs without a type tag will be denied and not uploaded."] = "指定配置类型。\n例如：[ Rage ] 或 [ Closet ]。\n没有类型标签的配置将被拒绝且不上传。",
+        ["Config Name"] = "配置名称",
+        ["Upload Current Config"] = "上传当前配置",
+        ["Utility"] = "实用工具",
+        ["Menu keybind"] = "菜单快捷键",
+        ["RightShift"] = "右 Shift",
+        ["Swap RPC Icons Position"] = "交换 RPC 图标位置",
+        ["Unload"] = "卸载",
+        ["Custom Cursor"] = "自定义光标",
+        ["Debug Mode"] = "调试模式",
+        ["Notification Side"] = "通知侧",
+        ["Right"] = "右侧",
+        ["DPI Scale"] = "DPI 缩放",
+        ["Configuration"] = "配置",
+        ["Config name"] = "配置名",
+        ["Create config"] = "创建配置",
+        ["Config list"] = "配置列表",
+        ["Load config"] = "加载配置",
+        ["Overwrite config"] = "覆盖配置",
+        ["Delete config"] = "删除配置",
+        ["Set as autoload"] = "设为自动加载",
+        ["Reset autoload"] = "重置自动加载",
+        ["Current autoload config: none"] = "当前自动加载配置：无",
+
+}
+
+local BlackListGuiNames = {
+    ["CoreGui"] = true,
+    ["RobloxGui"] = true,
+    ["GameGui"] = true,
+    ["StartGui"] = true,
+}
+
+local function IsNativeUI(targetObj)
+    local cur = targetObj
+    while cur do
+        if BlackListGuiNames[cur.Name] then
+            return true 
+        end
+        if cur:IsA("CoreGui") then
+            return true
+        end
+        cur = cur.Parent
+    end
+    return false
+end
+
+local function translateText(text)
+    if not text or type(text) ~= "string" then return text end
+    if Translations[text] then
+        return Translations[text]
+    end
+    return text
+end
+
+local function setupTranslationEngine()
+    local success, err = pcall(function()
+        local meta = getrawmetatable(game)
+        local oldNewIndex = meta.__newindex
+        setreadonly(meta, false)
+
+        meta.__newindex = newcclosure(function(tbl, key, val)
+            if (tbl:IsA("TextLabel") or tbl:IsA("TextButton") or tbl:IsA("TextBox")) and key == "Text" then
+                if not IsNativeUI(tbl) then
+                    val = translateText(tostring(val))
+                end
+            end
+            return oldNewIndex(tbl, key, val)
+        end)
+        setreadonly(meta, true)
+    end)
+
+    if not success then
+        warn("元表Hook失效，启用轮询翻译：",err)
+        local translatedCache = {}
+
+        local function scanAllUi()
+            local Players = game:GetService("Players")
+            local lp = Players.LocalPlayer
+            if not lp then return end
+            local playerGui = lp:FindFirstChild("PlayerGui")
+            if not playerGui then return end
+
+            for _,uiObj in ipairs(playerGui:GetDescendants()) do
+                if not translatedCache[uiObj] and (uiObj:IsA("TextLabel") or uiObj:IsA("TextButton") or uiObj:IsA("TextBox")) then
+                    if IsNativeUI(uiObj) then continue end
+                    local rawTxt = uiObj.Text
+                    local newTxt = translateText(rawTxt)
+                    if newTxt ~= rawTxt then
+                        pcall(function()
+                            uiObj.Text = newTxt
+                            translatedCache[uiObj] = true
+                        end)
+                    end
+                end
+            end
+        end
+
+        local function listenNewObj(parentInst)
+            parentInst.DescendantAdded:Connect(function(obj)
+                task.wait(0.08)
+                if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+                if IsNativeUI(obj) then return end
+                local rawTxt = obj.Text
+                local newTxt = translateText(rawTxt)
+                if newTxt ~= rawTxt then
+                    pcall(function() obj.Text = newTxt end)
+                end
+            end)
+        end
+
+        local lp = game:GetService("Players").LocalPlayer
+        if lp and lp:FindFirstChild("PlayerGui") then
+            listenNewObj(lp.PlayerGui)
+        end
+
+        task.spawn(function()
+            while task.wait(3) do
+                scanAllUi()
+            end
+        end)
+    end
+end
+
+task.wait(2)
+setupTranslationEngine()
+
+local loadSuccess,loadErr = pcall(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"))()
+end)
+if not loadSuccess then
+    warn("目标脚本加载失败：",loadErr)
+end
