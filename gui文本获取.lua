@@ -196,6 +196,13 @@ BlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 BlockBtn.Font = Enum.Font.SourceSansBold
 BlockBtn.Parent = BottomBar
 
+local FavoriteBtn = Instance.new("TextButton")
+FavoriteBtn.BackgroundColor3 = Color3.fromRGB(90, 130, 210)
+FavoriteBtn.Text = "打开收藏栏"
+FavoriteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+FavoriteBtn.Font = Enum.Font.SourceSansBold
+FavoriteBtn.Parent = BottomBar
+
 local ClearAll = Instance.new("TextButton")
 ClearAll.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
 ClearAll.Text = "清空当前"
@@ -293,6 +300,7 @@ StyleButton(Refresh, Color3.fromRGB(65, 120, 200))
 StyleButton(Copy, Color3.fromRGB(70, 165, 90))
 StyleButton(AutoBtn, Color3.fromRGB(160, 120, 60))
 StyleButton(BlockBtn, Color3.fromRGB(110, 80, 150))
+StyleButton(FavoriteBtn, Color3.fromRGB(90, 130, 210))
 StyleButton(ClearAll, Color3.fromRGB(180, 70, 70))
 StyleButton(Minimize, Color3.fromRGB(80, 80, 88))
 StyleButton(Close, Color3.fromRGB(180, 55, 60))
@@ -1218,14 +1226,21 @@ DeleteTextFromCurrentList = function(text)
         RebuildAllSectionFromOtherSections()
     end
 
-    if CleanText(SearchBox.Text) ~= "" then
-        SearchText()
-    else
-        SetDisplayText(GetCurrentAllText(), false)
-    end
+    local oldCanvasPosition = Scroll.CanvasPosition
 
-    Scroll.CanvasPosition = Vector2.new(0, 0)
-    UpdateSectionButtons()
+if CleanText(SearchBox.Text) ~= "" then
+    SearchText()
+else
+    SetDisplayText(GetCurrentAllText(), false)
+end
+
+task.defer(function()
+    task.wait()
+    local maxY = math.max(0, Scroll.CanvasSize.Y.Offset - Scroll.AbsoluteSize.Y)
+    Scroll.CanvasPosition = Vector2.new(0, math.clamp(oldCanvasPosition.Y, 0, maxY))
+end)
+
+UpdateSectionButtons()
 
     if BlockMode then
         UpdateStatus("已删除并加入屏蔽")
@@ -1360,7 +1375,7 @@ local function LayoutUI()
     BottomBar.Size = UDim2.new(1, -pad * 2, 0, buttonH)
     BottomBar.Position = UDim2.new(0, pad, 1, -buttonH - pad)
 
-    local bottomButtons = {Refresh, Copy, AutoBtn, BlockBtn, ClearAll}
+    local bottomButtons = {Refresh, Copy, AutoBtn, BlockBtn, FavoriteBtn, ClearAll}
     local bw = 1 / #bottomButtons
 
     for i, btn in ipairs(bottomButtons) do
@@ -1415,6 +1430,13 @@ BlockBtn.MouseButton1Click:Connect(function()
         ClearBlockList()
         UpdateStatus("屏蔽文本已关闭，记录已清空")
     end
+end)
+
+FavoriteBtn.MouseButton1Click:Connect(function()
+    CreateFavoriteUI()
+    RefreshFavoriteList()
+    UpdateFavoriteStatus()
+    UpdateStatus("已打开收藏栏")
 end)
 
 SearchBtn.MouseButton1Click:Connect(function()
