@@ -1,5 +1,14 @@
+--====================================================
+-- Roblox 第三方脚本通用汉化模板｜低卡顿完整版
+-- 使用方法：
+-- 1. 在 Translations 里填英文=中文
+-- 2. 在最底部 ScriptUrl 填原脚本 Raw 链接
+-- 3. 执行本脚本
+--====================================================
+
+-- 翻译表
 local Translations = {
-    --格式：["英文原文"] = "中文翻译",
+   --格式：["英文原文"] = "中文翻译",
         ["Fart Hub"] = "fart中心",
         ["[N] Forsaken | Version :: 0183"] = "[N]被遗弃 | 版本 :: 0183",
         ["Home"] = "主页",
@@ -274,17 +283,10 @@ local Translations = {
         ["Set as autoload"] = "设为自动加载",
         ["Reset autoload"] = "重置自动加载",
         ["Current autoload config: none"] = "当前自动加载配置：无",
-
 }
 
 --====================================================
--- 通用 Roblox UI 汉化引擎
--- 说明：
--- 1. 不要把整个 CoreGui 过滤掉，否则第三方 UI 会漏翻
--- 2. 只过滤 RobloxGui / PlayerList / Chat 等原版系统 UI
--- 3. 支持 Text / PlaceholderText
--- 4. 支持后加载 UI 自动汉化
--- 5. 支持动态改 Text 时自动汉化
+-- 低卡顿汉化引擎
 --====================================================
 
 local Players = game:GetService("Players")
@@ -293,7 +295,7 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- 原版 Roblox 系统 UI 黑名单
+-- Roblox 系统 UI 黑名单
 -- 注意：不要写 CoreGui，否则第三方脚本 UI 会被跳过
 local SystemUiNames = {
     ["RobloxGui"] = true,
@@ -313,38 +315,46 @@ local SystemUiNames = {
     ["ScreenshotHud"] = true,
 }
 
--- 防止重复监听
+local Config = {
+    -- 兜底扫描间隔，越大越流畅，越小越及时
+    FallbackScanInterval = 8,
+
+    -- 新 UI 出现后延迟翻译
+    NewObjectDelay = 0.05,
+
+    -- Text 变化后延迟翻译
+    TextChangeDelay = 0.03,
+
+    -- 是否扫描这些区域
+    ScanPlayerGui = true,
+    ScanCoreGui = true,
+    ScanHui = true,
+}
+
 local WatchedRoots = setmetatable({}, { __mode = "k" })
 local WatchedObjects = setmetatable({}, { __mode = "k" })
+local TranslatingObjects = setmetatable({}, { __mode = "k" })
 
 local function CleanText(text)
     text = tostring(text or "")
-
-    -- 去掉 RichText 标签
     text = text:gsub("<[^>]->", "")
-
-    -- 去掉换行符和首尾空格
     text = text:gsub("\r", "")
     text = text:gsub("^%s+", "")
     text = text:gsub("%s+$", "")
-
     return text
 end
 
 local function TranslateText(text)
-    if type(text) ~= "string" then
+    if type(text) ~= "string" or text == "" then
         return text
     end
 
-    local raw = text
-    local cleaned = CleanText(raw)
-
-    -- 先尝试原文完全匹配
-    if Translations[raw] then
-        return Translations[raw]
+    if Translations[text] then
+        return Translations[text]
     end
 
-    -- 再尝试清理后的文本匹配
+    local cleaned = CleanText(text)
+
     if Translations[cleaned] then
         return Translations[cleaned]
     end
@@ -384,7 +394,12 @@ local function TranslateObject(obj)
         return
     end
 
-    -- TextLabel / TextButton / TextBox 的正文
+    if TranslatingObjects[obj] then
+        return
+    end
+
+    TranslatingObjects[obj] = true
+
     pcall(function()
         local oldText = obj.Text
         local newText = TranslateText(oldText)
@@ -394,7 +409,6 @@ local function TranslateObject(obj)
         end
     end)
 
-    -- TextBox 的占位符，例如搜索框 Search
     pcall(function()
         local oldPlaceholder = obj.PlaceholderText
         local newPlaceholder = TranslateText(oldPlaceholder)
@@ -403,18 +417,8 @@ local function TranslateObject(obj)
             obj.PlaceholderText = newPlaceholder
         end
     end)
-end
 
-local function ScanRoot(root)
-    if not root then
-        return
-    end
-
-    pcall(function()
-        for _, obj in ipairs(root:GetDescendants()) do
-            TranslateObject(obj)
-        end
-    end)
+    TranslatingObjects[obj] = nil
 end
 
 local function WatchTextObject(obj)
@@ -427,25 +431,44 @@ local function WatchTextObject(obj)
     end
 
     WatchedObjects[obj] = true
-
     TranslateObject(obj)
 
-    -- 监听 Text 变化
     pcall(function()
         obj:GetPropertyChangedSignal("Text"):Connect(function()
-            task.defer(function()
+            if TranslatingObjects[obj] then
+                return
+            end
+
+            task.delay(Config.TextChangeDelay, function()
                 TranslateObject(obj)
             end)
         end)
     end)
 
-    -- 监听 PlaceholderText 变化
     pcall(function()
         obj:GetPropertyChangedSignal("PlaceholderText"):Connect(function()
-            task.defer(function()
+            if TranslatingObjects[obj] then
+                return
+            end
+
+            task.delay(Config.TextChangeDelay, function()
                 TranslateObject(obj)
             end)
         end)
+    end)
+end
+
+local function ScanRoot(root)
+    if not root then
+        return
+    end
+
+    pcall(function()
+        for _, obj in ipairs(root:GetDescendants()) do
+            if IsTextObject(obj) then
+                WatchTextObject(obj)
+            end
+        end
     end)
 end
 
@@ -460,59 +483,64 @@ local function WatchRoot(root)
 
     WatchedRoots[root] = true
 
-    -- 先扫描已有 UI
-    pcall(function()
-        for _, obj in ipairs(root:GetDescendants()) do
-            WatchTextObject(obj)
-        end
-    end)
+    ScanRoot(root)
 
-    -- 监听后续新增 UI
     pcall(function()
         root.DescendantAdded:Connect(function(obj)
-            task.defer(function()
-                WatchTextObject(obj)
+            task.delay(Config.NewObjectDelay, function()
+                if IsTextObject(obj) then
+                    WatchTextObject(obj)
+                    return
+                end
 
                 pcall(function()
                     for _, child in ipairs(obj:GetDescendants()) do
-                        WatchTextObject(child)
+                        if IsTextObject(child) then
+                            WatchTextObject(child)
+                        end
                     end
                 end)
-
-                TranslateObject(obj)
             end)
         end)
     end)
 end
 
+local function AddRoot(roots, root)
+    if root then
+        table.insert(roots, root)
+    end
+end
+
 local function GetRoots()
     local roots = {}
 
-    if PlayerGui then
-        table.insert(roots, PlayerGui)
+    if Config.ScanPlayerGui then
+        AddRoot(roots, PlayerGui)
     end
 
-    -- 第三方 UI 很多会放在 CoreGui
-    pcall(function()
-        table.insert(roots, CoreGui)
-    end)
+    if Config.ScanCoreGui then
+        pcall(function()
+            AddRoot(roots, CoreGui)
+        end)
+    end
 
-    -- 一些执行器的第三方 UI 会放在 gethui()
-    pcall(function()
-        if gethui then
-            local hui = gethui()
-            if hui then
-                table.insert(roots, hui)
+    if Config.ScanHui then
+        pcall(function()
+            if gethui then
+                local hui = gethui()
+
+                if hui then
+                    AddRoot(roots, hui)
+                end
             end
-        end
-    end)
+        end)
+    end
 
     return roots
 end
 
-local function SetupTranslationEngine()
-    -- 元表 Hook：拦截脚本后续设置 Text / PlaceholderText
-    local hookOk, hookErr = pcall(function()
+local function HookTextSetter()
+    local ok, err = pcall(function()
         if not getrawmetatable or not setreadonly or not newcclosure then
             error("当前环境不支持元表 Hook")
         end
@@ -535,29 +563,42 @@ local function SetupTranslationEngine()
         setreadonly(mt, true)
     end)
 
-    if not hookOk then
-        warn("汉化 Hook 失败，已启用扫描模式：", hookErr)
+    if not ok then
+        warn("汉化 Hook 不可用，已使用监听/扫描模式：", err)
     end
+end
 
-    -- 扫描并监听所有根目录
+local function StartTranslationEngine()
+    HookTextSetter()
+
+    -- 启动时监听一次
     for _, root in ipairs(GetRoots()) do
-        ScanRoot(root)
         WatchRoot(root)
     end
 
-    -- 兜底循环：防止某些 UI 改 Text 时绕过 Hook
+    -- 低频兜底扫描，防止漏翻
     task.spawn(function()
-        while task.wait(1) do
+        while task.wait(Config.FallbackScanInterval) do
             for _, root in ipairs(GetRoots()) do
-                ScanRoot(root)
                 WatchRoot(root)
+                ScanRoot(root)
             end
         end
     end)
 end
 
-task.wait(1)
-SetupTranslationEngine()
+StartTranslationEngine()
+
+--====================================================
+-- 原脚本链接放这里
+--====================================================
+
+local ScriptUrl = "这里填原脚本Raw链接"
 
 task.wait(0.5)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"))()
+
+if ScriptUrl ~= "" and ScriptUrl ~= "这里填原脚本Raw链接" then
+    loadstring(game:HttpGet(ScriptUrl))()
+else
+    warn("请在 ScriptUrl 里填入原脚本 Raw 链接")
+end
