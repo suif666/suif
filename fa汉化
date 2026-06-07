@@ -277,121 +277,284 @@ local Translations = {
 
 }
 
--- 系统UI黑名单（不翻译原生Roblox界面）
-local BlackListGuiNames = {
-    ["CoreGui"] = true,
+--====================================================
+-- 通用 Roblox UI 汉化引擎
+-- 说明：
+-- 1. 不要把整个 CoreGui 过滤掉，否则第三方 UI 会漏翻
+-- 2. 只过滤 RobloxGui / PlayerList / Chat 等原版系统 UI
+-- 3. 支持 Text / PlaceholderText
+-- 4. 支持后加载 UI 自动汉化
+-- 5. 支持动态改 Text 时自动汉化
+--====================================================
+
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- 原版 Roblox 系统 UI 黑名单
+-- 注意：不要写 CoreGui，否则第三方脚本 UI 会被跳过
+local SystemUiNames = {
     ["RobloxGui"] = true,
-    ["GameGui"] = true,
-    ["StartGui"] = true,
+    ["PlayerList"] = true,
+    ["Backpack"] = true,
+    ["Chat"] = true,
+    ["BubbleChat"] = true,
+    ["ExperienceChat"] = true,
+    ["TextChatService"] = true,
+    ["TopBar"] = true,
+    ["Topbar"] = true,
+    ["Health"] = true,
+    ["EmotesMenu"] = true,
+    ["Chrome"] = true,
+    ["InspectMenu"] = true,
+    ["PurchasePrompt"] = true,
+    ["ScreenshotHud"] = true,
 }
 
--- 判断是否为系统原生UI
-local function IsNativeUI(targetObj)
-    local cur = targetObj
-    while cur do
-        if BlackListGuiNames[cur.Name] then
-            return true 
-        end
-        if cur:IsA("CoreGui") then
+-- 防止重复监听
+local WatchedRoots = setmetatable({}, { __mode = "k" })
+local WatchedObjects = setmetatable({}, { __mode = "k" })
+
+local function CleanText(text)
+    text = tostring(text or "")
+
+    -- 去掉 RichText 标签
+    text = text:gsub("<[^>]->", "")
+
+    -- 去掉换行符和首尾空格
+    text = text:gsub("\r", "")
+    text = text:gsub("^%s+", "")
+    text = text:gsub("%s+$", "")
+
+    return text
+end
+
+local function TranslateText(text)
+    if type(text) ~= "string" then
+        return text
+    end
+
+    local raw = text
+    local cleaned = CleanText(raw)
+
+    -- 先尝试原文完全匹配
+    if Translations[raw] then
+        return Translations[raw]
+    end
+
+    -- 再尝试清理后的文本匹配
+    if Translations[cleaned] then
+        return Translations[cleaned]
+    end
+
+    return text
+end
+
+local function IsTextObject(obj)
+    return obj
+        and (
+            obj:IsA("TextLabel")
+            or obj:IsA("TextButton")
+            or obj:IsA("TextBox")
+        )
+end
+
+local function IsSystemUI(obj)
+    local current = obj
+
+    while current do
+        if SystemUiNames[current.Name] then
             return true
         end
-        cur = cur.Parent
+
+        current = current.Parent
     end
+
     return false
 end
 
--- 文本翻译函数：清除首尾空格 + 精准匹配
-local function translateText(text)
-    if not text or type(text) ~= "string" then return text end
-    -- 清除UI常见首尾空白字符，解决带空格文本不匹配问题
-    local cleanText = text:gsub("^%s+", ""):gsub("%s+$", "")
-    return Translations[cleanText] or text
-end
-
--- 全局UI节点翻译（单次遍历）
-local function scanAllUi()
-    local Players = game:GetService("Players")
-    local lp = Players.LocalPlayer
-    if not lp then return end
-    -- 遍历所有UI容器
-    local guiContainers = {lp.PlayerGui, game.StarterGui, game.CoreGui}
-    for _,container in ipairs(guiContainers) do
-        for _,uiObj in ipairs(container:GetDescendants()) do
-            if (uiObj:IsA("TextLabel") or uiObj:IsA("TextButton") or uiObj:IsA("TextBox")) then
-                if IsNativeUI(uiObj) then continue end
-                local rawTxt = uiObj.Text
-                local newTxt = translateText(rawTxt)
-                if newTxt ~= rawTxt then
-                    pcall(function() uiObj.Text = newTxt end)
-                end
-            end
-        end
+local function TranslateObject(obj)
+    if not IsTextObject(obj) then
+        return
     end
-end
 
--- 监听新增UI节点（全局范围）
-local function listenNewObj(parentInst)
-    parentInst.DescendantAdded:Connect(function(obj)
-        if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
-        if IsNativeUI(obj) then return end
-        local rawTxt = obj.Text
-        local newTxt = translateText(rawTxt)
-        if newTxt ~= rawTxt then
-            pcall(function() obj.Text = newTxt end)
+    if IsSystemUI(obj) then
+        return
+    end
+
+    -- TextLabel / TextButton / TextBox 的正文
+    pcall(function()
+        local oldText = obj.Text
+        local newText = TranslateText(oldText)
+
+        if newText ~= oldText then
+            obj.Text = newText
+        end
+    end)
+
+    -- TextBox 的占位符，例如搜索框 Search
+    pcall(function()
+        local oldPlaceholder = obj.PlaceholderText
+        local newPlaceholder = TranslateText(oldPlaceholder)
+
+        if newPlaceholder ~= oldPlaceholder then
+            obj.PlaceholderText = newPlaceholder
         end
     end)
 end
 
--- 启动翻译引擎
-local function setupTranslationEngine()
-    -- 方案1：元表Hook（优先拦截实时文本修改）
-    local success, err = pcall(function()
-        local meta = getrawmetatable(game)
-        local oldNewIndex = meta.__newindex
-        setreadonly(meta, false)
-        meta.__newindex = newcclosure(function(tbl, key, val)
-            if (tbl:IsA("TextLabel") or tbl:IsA("TextButton") or tbl:IsA("TextBox")) and key == "Text" then
-                if not IsNativeUI(tbl) then
-                    val = translateText(tostring(val))
-                end
-            end
-            return oldNewIndex(tbl, key, val)
+local function ScanRoot(root)
+    if not root then
+        return
+    end
+
+    pcall(function()
+        for _, obj in ipairs(root:GetDescendants()) do
+            TranslateObject(obj)
+        end
+    end)
+end
+
+local function WatchTextObject(obj)
+    if not IsTextObject(obj) then
+        return
+    end
+
+    if WatchedObjects[obj] then
+        return
+    end
+
+    WatchedObjects[obj] = true
+
+    TranslateObject(obj)
+
+    -- 监听 Text 变化
+    pcall(function()
+        obj:GetPropertyChangedSignal("Text"):Connect(function()
+            task.defer(function()
+                TranslateObject(obj)
+            end)
         end)
-        setreadonly(meta, true)
     end)
 
-    -- 方案2：兜底监听 + 高频轮询（Hook失效时启用）
-    if not success then
-        warn("元表Hook失效，启用兜底翻译：",err)
+    -- 监听 PlaceholderText 变化
+    pcall(function()
+        obj:GetPropertyChangedSignal("PlaceholderText"):Connect(function()
+            task.defer(function()
+                TranslateObject(obj)
+            end)
+        end)
+    end)
+end
+
+local function WatchRoot(root)
+    if not root then
+        return
     end
 
-    -- 全局监听所有UI容器
-    local lp = game:GetService("Players").LocalPlayer
-    local allGuiRoot = {lp.PlayerGui, game.StarterGui, game.CoreGui}
-    for _,root in ipairs(allGuiRoot) do
-        if root then listenNewObj(root) end
+    if WatchedRoots[root] then
+        return
     end
 
-    -- 高频轮询（0.5秒一次，快速翻译延迟加载的右侧面板）
-    task.spawn(function()
-        while task.wait(0.5) do
-            scanAllUi()
+    WatchedRoots[root] = true
+
+    -- 先扫描已有 UI
+    pcall(function()
+        for _, obj in ipairs(root:GetDescendants()) do
+            WatchTextObject(obj)
         end
     end)
 
-    -- 首次全量扫描
-    scanAllUi()
+    -- 监听后续新增 UI
+    pcall(function()
+        root.DescendantAdded:Connect(function(obj)
+            task.defer(function()
+                WatchTextObject(obj)
+
+                pcall(function()
+                    for _, child in ipairs(obj:GetDescendants()) do
+                        WatchTextObject(child)
+                    end
+                end)
+
+                TranslateObject(obj)
+            end)
+        end)
+    end)
 end
 
--- ========== 关键修改：先加载外挂UI，再启动翻译 ==========
--- 1. 加载 Fart Hub 主脚本
-local loadSuccess,loadErr = pcall(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"))()
-end)
-if not loadSuccess then
-    warn("目标脚本加载失败：",loadErr)
+local function GetRoots()
+    local roots = {}
+
+    if PlayerGui then
+        table.insert(roots, PlayerGui)
+    end
+
+    -- 第三方 UI 很多会放在 CoreGui
+    pcall(function()
+        table.insert(roots, CoreGui)
+    end)
+
+    -- 一些执行器的第三方 UI 会放在 gethui()
+    pcall(function()
+        if gethui then
+            local hui = gethui()
+            if hui then
+                table.insert(roots, hui)
+            end
+        end
+    end)
+
+    return roots
 end
 
--- 2. 短暂等待UI容器创建，再启动翻译（仅0.3秒，不影响体验）
-task.wait(0.3)
-setupTranslationEngine()
+local function SetupTranslationEngine()
+    -- 元表 Hook：拦截脚本后续设置 Text / PlaceholderText
+    local hookOk, hookErr = pcall(function()
+        if not getrawmetatable or not setreadonly or not newcclosure then
+            error("当前环境不支持元表 Hook")
+        end
+
+        local mt = getrawmetatable(game)
+        local oldNewIndex = mt.__newindex
+
+        setreadonly(mt, false)
+
+        mt.__newindex = newcclosure(function(tbl, key, value)
+            if IsTextObject(tbl) and not IsSystemUI(tbl) then
+                if key == "Text" or key == "PlaceholderText" then
+                    value = TranslateText(tostring(value))
+                end
+            end
+
+            return oldNewIndex(tbl, key, value)
+        end)
+
+        setreadonly(mt, true)
+    end)
+
+    if not hookOk then
+        warn("汉化 Hook 失败，已启用扫描模式：", hookErr)
+    end
+
+    -- 扫描并监听所有根目录
+    for _, root in ipairs(GetRoots()) do
+        ScanRoot(root)
+        WatchRoot(root)
+    end
+
+    -- 兜底循环：防止某些 UI 改 Text 时绕过 Hook
+    task.spawn(function()
+        while task.wait(1) do
+            for _, root in ipairs(GetRoots()) do
+                ScanRoot(root)
+                WatchRoot(root)
+            end
+        end
+    end)
+end
+
+task.wait(1)
+SetupTranslationEngine()
