@@ -592,8 +592,8 @@ StartTranslationEngine()
 --====================================================
 -- 原脚本链接放这里
 --====================================================
-
-local ScriptUrl = "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"
+-- 保留最后底部这一组
+local ScriptUrl = "你的原脚本Raw链接"
 
 task.wait(0.5)
 
