@@ -227,6 +227,11 @@ if not _G.IntHook then
     end) 
 end
 
+toolTab:Button({
+    Title = "Gui文本获取", Desc = "自制 依旧ai神力", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/gui%E6%96%87%E6%9C%AC%E8%8E%B7%E5%8F%96.lua", "Gui文本获取") end
+})
+
 -- 脚本区域
 doorsTab:Button({
     Title = "全自动刷旋钮", Desc = "字面意思 执行后什么都不用管了", Icon = "shell",
