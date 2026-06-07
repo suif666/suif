@@ -1,5 +1,5 @@
--- UI Text Collector 简化修复版 v2
--- 修复第三方UI扫描；主界面/收藏栏均支持导出Lua
+-- UI Text Collector 简化修复版 v4
+-- 修复自动扫描：自动模式会扫描所有分区，包括第三方UI
 
 local Players=game:GetService("Players")
 local CoreGui=game:GetService("CoreGui")
@@ -452,12 +452,28 @@ end
 
 local function Scan(s)
     local n=0
-    if s=="全部" then n+=Scan("PlayerGui"); n+=Scan("Workspace"); n+=Scan("CoreGui")
+    if s=="全部" then
+        n+=Scan("PlayerGui")
+        n+=Scan("Workspace")
+        n+=Scan("CoreGui")
+        n+=Scan("第三方UI")
     elseif s=="PlayerGui" then n+=ScanContainer(PlayerGui,s)
     elseif s=="Workspace" then n+=ScanContainer(Workspace,s)
     elseif s=="第三方UI" then n+=ScanWideRoots(s)
     else n+=ScanUIRoots(s) end
     Rebuild(s); Rebuild("全部")
+    return n
+end
+
+local function ScanAllSections()
+    local n=0
+    n+=Scan("PlayerGui")
+    n+=Scan("Workspace")
+    n+=Scan("CoreGui")
+    n+=Scan("RobloxGui")
+    n+=Scan("PlayerList")
+    n+=Scan("第三方UI")
+    Rebuild("全部")
     return n
 end
 
@@ -597,7 +613,22 @@ end)
 
 task.spawn(function()
     while SG and SG.Parent do
-        if AutoRefresh then RefreshDisplay(Scan(CurrentSection)) else UpdateSectionBtns(); Status() end
+        if AutoRefresh then
+            local before=Count(CurrentSection)
+            local added=ScanAllSections()
+            UpdateSectionBtns()
+            if Search.Text~="" then
+                SearchNow()
+            else
+                local after=Count(CurrentSection)
+                if added>0 or after~=before then
+                    SetDisplay(GetCurrentText(), added>0)
+                end
+                Status((added>0) and ("新增 "..added.." 条") or "暂无新增")
+            end
+        else
+            UpdateSectionBtns(); Status()
+        end
         task.wait(1)
     end
 end)
