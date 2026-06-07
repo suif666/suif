@@ -1,5 +1,5 @@
--- UI Text Collector 简化修复版
--- 主界面/收藏栏均支持导出Lua；主界面导出已修复
+-- UI Text Collector 简化修复版 v2
+-- 修复第三方UI扫描；主界面/收藏栏均支持导出Lua
 
 local Players=game:GetService("Players")
 local CoreGui=game:GetService("CoreGui")
@@ -17,6 +17,11 @@ SG.ResetOnSpawn=false
 if gethui then SG.Parent=gethui()
 elseif syn and syn.protect_gui then syn.protect_gui(SG); SG.Parent=CoreGui
 else SG.Parent=PlayerGui end
+
+local HuiRoot=nil
+pcall(function() if gethui then HuiRoot=gethui() end end)
+local UIRoots={CoreGui}
+if HuiRoot and HuiRoot~=CoreGui then table.insert(UIRoots,HuiRoot) end
 
 local Sections={"全部","PlayerGui","Workspace","CoreGui","RobloxGui","PlayerList","第三方UI"}
 local SystemNames={"RobloxGui","PlayerList","Backpack","Chat","BubbleChat","ExperienceChat","TextChatService","TopBar","Topbar","Health","EmotesMenu","Chrome","InspectMenu","PurchasePrompt","ScreenshotHud"}
@@ -108,6 +113,13 @@ end
 local function IsSystem(o)
     local p=ObjPath(o)
     return HasKeyword(o.Name,SystemNames) or HasKeyword(p,SystemNames)
+end
+
+local function InUIRoots(o)
+    for _,root in ipairs(UIRoots) do
+        if o:IsDescendantOf(root) then return true end
+    end
+    return false
 end
 
 local function Rebuild(s)
@@ -368,11 +380,11 @@ local function InSection(o,s)
     local p=ObjPath(o)
     if s=="PlayerGui" then return o:IsDescendantOf(PlayerGui) end
     if s=="Workspace" then return o:IsDescendantOf(Workspace) end
-    if s=="CoreGui" then return o:IsDescendantOf(CoreGui) end
-    if s=="RobloxGui" then return o:IsDescendantOf(CoreGui) and p:find("RobloxGui",1,true)~=nil end
-    if s=="PlayerList" then return o:IsDescendantOf(CoreGui) and p:find("PlayerList",1,true)~=nil end
-    if s=="第三方UI" then return o:IsDescendantOf(CoreGui) and not IsSystem(o) end
-    if s=="全部" then return o:IsDescendantOf(PlayerGui) or o:IsDescendantOf(Workspace) or o:IsDescendantOf(CoreGui) end
+    if s=="CoreGui" then return InUIRoots(o) end
+    if s=="RobloxGui" then return InUIRoots(o) and p:find("RobloxGui",1,true)~=nil end
+    if s=="PlayerList" then return InUIRoots(o) and p:find("PlayerList",1,true)~=nil end
+    if s=="第三方UI" then return InUIRoots(o) and not IsSystem(o) end
+    if s=="全部" then return o:IsDescendantOf(PlayerGui) or o:IsDescendantOf(Workspace) or InUIRoots(o) end
     return false
 end
 
@@ -395,12 +407,20 @@ local function ScanContainer(c,s)
     return n
 end
 
+local function ScanUIRoots(s)
+    local n=0
+    for _,root in ipairs(UIRoots) do
+        n+=ScanContainer(root,s)
+    end
+    return n
+end
+
 local function Scan(s)
     local n=0
     if s=="全部" then n+=Scan("PlayerGui"); n+=Scan("Workspace"); n+=Scan("CoreGui")
     elseif s=="PlayerGui" then n+=ScanContainer(PlayerGui,s)
     elseif s=="Workspace" then n+=ScanContainer(Workspace,s)
-    else n+=ScanContainer(CoreGui,s) end
+    else n+=ScanUIRoots(s) end
     Rebuild(s); Rebuild("全部")
     return n
 end
