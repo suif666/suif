@@ -308,8 +308,8 @@ doorsTab:Button({
 })
 
 byqTab:Button({
-    Title = "fa", Desc = "无卡密 个人感觉很好用", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua", "被遗弃脚本") end
+    Title = "fart[suif汉化]", Desc = "无卡密 个人感觉很好用", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/fa%E6%B1%89%E5%8C%96", "被遗弃脚本") end
 })
 
 stgTab:Button({
