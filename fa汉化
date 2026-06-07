@@ -592,13 +592,16 @@ StartTranslationEngine()
 --====================================================
 -- 原脚本链接放这里
 --====================================================
--- 保留最后底部这一组
-local ScriptUrl = "你的原脚本Raw链接"
+local ScriptUrl = "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"
 
 task.wait(0.5)
 
-if ScriptUrl ~= "" and ScriptUrl ~= "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua" then
-    loadstring(game:HttpGet(ScriptUrl))()
+local ok, result = pcall(function()
+    return game:HttpGet(ScriptUrl)
+end)
+
+if ok and result and result ~= "" then
+    loadstring(result)()
 else
-    warn("请在 ScriptUrl 里填入原脚本 Raw 链接")
+    warn("原脚本获取失败：", result)
 end
