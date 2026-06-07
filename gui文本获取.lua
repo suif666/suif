@@ -620,7 +620,7 @@ local WatchedRoots=setmetatable({}, {__mode="k"})
 local PendingObjects=setmetatable({}, {__mode="k"})
 local PendingCount=0
 local LastFallbackScan=0
-local FallbackInterval=8 -- 秒。想更省性能可改成 8；想更实时可改成 3
+local FallbackInterval=5 -- 秒。想更省性能可改成 8；想更实时可改成 3
 local EventDelay=0.18     -- 事件合并延迟，避免一堆UI同时出现时连扫很多次
 
 local function IsTextObject(o)
