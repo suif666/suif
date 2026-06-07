@@ -1,5 +1,5 @@
--- UI Text Collector 实时低卡顿版 v6
--- 优化：事件实时获取 + 低频兜底扫描，减少卡顿
+-- UI Text Collector 简化修复版 v4
+-- 修复自动扫描：自动模式会扫描所有分区，包括第三方UI
 
 local Players=game:GetService("Players")
 local CoreGui=game:GetService("CoreGui")
@@ -611,17 +611,18 @@ UIS.InputEnded:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then resizing=false; Main.Draggable=true end
 end)
 
--- 低卡顿实时监听自动获取 v6
--- 事件触发优先：新UI出现 / 文本变化会实时收集
--- 低频兜底扫描：避免持续全量扫描导致卡顿
+-- 稳定自动获取版：保留实时监听，但不监听 Workspace 全量对象，避免卡顿
+-- 逻辑：
+-- 1. PlayerGui/CoreGui/gethui 新UI或文本变化：快速触发扫描
+-- 2. 定时兜底扫描：保证后加载UI也能进入列表
+-- 3. Workspace 只做低频兜底，不做DescendantAdded全量监听，避免大地图卡顿
+
 local RealtimeScheduled=false
 local WatchedObjects=setmetatable({}, {__mode="k"})
 local WatchedRoots=setmetatable({}, {__mode="k"})
-local PendingObjects=setmetatable({}, {__mode="k"})
-local PendingCount=0
-local LastFallbackScan=0
-local FallbackInterval=5 -- 秒。想更省性能可改成 8；想更实时可改成 3
-local EventDelay=0.18     -- 事件合并延迟，避免一堆UI同时出现时连扫很多次
+local LastFullScan=0
+local FallbackInterval=1.25 -- 越小越实时，越大越省性能；建议 1.0~2.0
+local DebounceTime=0.35
 
 local function IsTextObject(o)
     return o and (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox"))
@@ -640,109 +641,67 @@ local function RefreshRoots()
     AddUniqueRoot(WideRoots,HuiRoot)
 end
 
-local function ScanObjectAllSections(o)
-    if not IsTextObject(o) then return 0 end
-    local n=0
-    n+=ReadObj(o,"PlayerGui")
-    n+=ReadObj(o,"Workspace")
-    n+=ReadObj(o,"CoreGui")
-    n+=ReadObj(o,"RobloxGui")
-    n+=ReadObj(o,"PlayerList")
-    n+=ReadObj(o,"第三方UI")
-    Rebuild("全部")
-    return n
-end
-
-local function RefreshCurrentDisplay(added, reason)
+local function UpdateDisplayAfterScan(added, reason, autoBottom)
     UpdateSectionBtns()
-
     if Search.Text~="" then
         SearchNow()
         return
     end
-
     if added and added>0 then
-        SetDisplay(GetCurrentText(), true)
-        Status((reason or "实时新增").." "..added.." 条")
+        SetDisplay(GetCurrentText(), autoBottom ~= false)
+        Status((reason or "自动").."新增 "..added.." 条")
     else
-        Status(reason or "实时检测中")
+        Status(reason or "自动检测中")
     end
 end
 
-local function FlushPending(reason)
+local function StableScan(reason, full)
     if not AutoRefresh then return end
     RefreshRoots()
 
     local before=Count(CurrentSection)
     local added=0
 
-    for o in pairs(PendingObjects) do
-        added += ScanObjectAllSections(o)
+    if full then
+        -- 全分区兜底，保证第三方UI、后加载UI都能被抓到
+        added=ScanAllSections()
+    else
+        -- 轻量扫描当前分区；第三方UI/全部会走宽松扫描
+        added=Scan(CurrentSection)
+        Rebuild("全部")
     end
 
-    PendingObjects=setmetatable({}, {__mode="k"})
-    PendingCount=0
-
     local after=Count(CurrentSection)
-
     if added>0 or after~=before then
-        RefreshCurrentDisplay(added, reason)
+        UpdateDisplayAfterScan(added, reason, true)
     else
-        Status(reason or "实时检测中")
+        UpdateSectionBtns()
+        Status(reason or "自动检测中")
     end
 end
 
-local function QueueFlush(reason)
+local function QueueStableScan(reason, full)
     if RealtimeScheduled or not AutoRefresh then return end
     RealtimeScheduled=true
     task.defer(function()
-        task.wait(EventDelay)
+        task.wait(DebounceTime)
         RealtimeScheduled=false
-        FlushPending(reason)
+        StableScan(reason or "实时", full)
     end)
-end
-
-local function QueueObject(o, reason)
-    if not IsTextObject(o) or not AutoRefresh then return end
-    if not PendingObjects[o] then
-        PendingObjects[o]=true
-        PendingCount += 1
-    end
-    QueueFlush(reason)
 end
 
 local function WatchTextObject(o)
     if not IsTextObject(o) or WatchedObjects[o] then return end
     WatchedObjects[o]=true
-
     pcall(function()
         o:GetPropertyChangedSignal("Text"):Connect(function()
-            QueueObject(o,"文本变化")
+            QueueStableScan("文本变化", false)
         end)
     end)
-
     pcall(function()
         o:GetPropertyChangedSignal("Visible"):Connect(function()
-            QueueObject(o,"显示变化")
+            QueueStableScan("显示变化", false)
         end)
-    end)
-
-    pcall(function()
-        o:GetPropertyChangedSignal("Parent"):Connect(function()
-            QueueObject(o,"层级变化")
-        end)
-    end)
-end
-
-local function WatchDescendantsOnce(root)
-    -- 只在首次监听时扫一遍已有文本对象。Workspace 很大时跳过，避免启动卡顿。
-    if root==Workspace then return end
-    pcall(function()
-        for _,o in ipairs(root:GetDescendants()) do
-            if IsTextObject(o) then
-                WatchTextObject(o)
-            end
-        end
     end)
 end
 
@@ -750,74 +709,63 @@ local function WatchRoot(root)
     if not root or WatchedRoots[root] then return end
     WatchedRoots[root]=true
 
-    WatchDescendantsOnce(root)
+    -- 只给GUI根挂监听；不要给Workspace挂全量监听，Workspace太大容易卡
+    pcall(function()
+        for _,o in ipairs(root:GetDescendants()) do
+            WatchTextObject(o)
+        end
+    end)
 
     pcall(function()
         root.DescendantAdded:Connect(function(o)
             if IsTextObject(o) then
                 WatchTextObject(o)
-                QueueObject(o,"新UI文本")
+                QueueStableScan("新UI文本", false)
             else
-                -- 新容器出现时，只扫描这个新容器的后代，不全量扫整棵树
                 task.defer(function()
                     pcall(function()
                         for _,c in ipairs(o:GetDescendants()) do
-                            if IsTextObject(c) then
-                                WatchTextObject(c)
-                                QueueObject(c,"新UI")
-                            end
+                            WatchTextObject(c)
                         end
                     end)
+                    QueueStableScan("新UI", false)
                 end)
             end
         end)
     end)
 end
 
-local function FallbackScanIfNeeded(force)
-    if not AutoRefresh then return end
-    local now=os.clock()
-    if not force and now-LastFallbackScan < FallbackInterval then return end
-    LastFallbackScan=now
-
-    local before=Count(CurrentSection)
-    local added=ScanAllSections()
-    local after=Count(CurrentSection)
-
-    UpdateSectionBtns()
-
-    if Search.Text~="" then
-        SearchNow()
-    elseif added>0 or after~=before then
-        SetDisplay(GetCurrentText(), added>0)
-        Status((added>0) and ("兜底新增 "..added.." 条") or "已同步")
-    else
-        Status("实时监听中")
+local function InitWatchers()
+    RefreshRoots()
+    WatchRoot(PlayerGui)
+    for _,root in ipairs(UIRoots) do
+        WatchRoot(root)
     end
+    -- 不监听 Workspace，只靠兜底扫描；需要3D文本时会被定时扫描到
 end
 
 task.spawn(function()
-    -- 启动时先全量扫一次，之后靠事件实时获取 + 低频兜底
-    LayoutUI()
-    CurrentSection="全部"
-    RefreshRoots()
-    RefreshDisplay(ScanAllSections())
-    LastFallbackScan=os.clock()
+    InitWatchers()
+    StableScan("启动扫描", true)
 
     while SG and SG.Parent do
-        RefreshRoots()
-        WatchRoot(PlayerGui)
-        WatchRoot(Workspace)
-        for _,root in ipairs(UIRoots) do WatchRoot(root) end
-        for _,root in ipairs(WideRoots) do WatchRoot(root) end
-
         if AutoRefresh then
-            FallbackScanIfNeeded(false)
+            -- 新执行器/第三方UI可能运行后才创建gethui，定期补挂监听
+            InitWatchers()
+
+            local now=os.clock()
+            if now-LastFullScan>=FallbackInterval then
+                LastFullScan=now
+                StableScan("自动检测", true)
+            end
         else
             UpdateSectionBtns()
             Status()
         end
-
-        task.wait(1.0)
+        task.wait(0.25)
     end
 end)
+
+LayoutUI()
+CurrentSection="全部"
+RefreshDisplay(ScanAllSections())
