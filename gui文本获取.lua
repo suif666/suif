@@ -1,1701 +1,640 @@
--- Roblox UI 文本提取器 收藏列表完整版
--- 第1段：基础初始化 + 主UI创建
--- 注意：需要把所有分段按顺序拼接到同一个脚本里再执行
+-- UI Text Collector 稳定低卡顿版 v8
+-- 基于可执行精简版 v4，移除高频全分区自动扫描，保留导出/收藏/屏蔽/搜索/缩放
 
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
+local Players=game:GetService("Players")
+local CoreGui=game:GetService("CoreGui")
+local Workspace=game:GetService("Workspace")
+local UIS=game:GetService("UserInputService")
+local LP=Players.LocalPlayer
+local PlayerGui=LP:WaitForChild("PlayerGui")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+pcall(function() CoreGui.AutoTextCollectorUI:Destroy() end)
+pcall(function() PlayerGui.AutoTextCollectorUI:Destroy() end)
 
-pcall(function()
-    if CoreGui:FindFirstChild("AutoTextCollectorUI") then
-        CoreGui.AutoTextCollectorUI:Destroy()
-    end
-end)
-
-pcall(function()
-    if PlayerGui:FindFirstChild("AutoTextCollectorUI") then
-        PlayerGui.AutoTextCollectorUI:Destroy()
-    end
-end)
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AutoTextCollectorUI"
-ScreenGui.ResetOnSpawn = false
-
-if gethui then
-    ScreenGui.Parent = gethui()
-elseif syn and syn.protect_gui then
-    syn.protect_gui(ScreenGui)
-    ScreenGui.Parent = CoreGui
-else
-    ScreenGui.Parent = PlayerGui
-end
-
-local Sections = {
-    "全部",
-    "PlayerGui",
-    "Workspace",
-    "CoreGui",
-    "RobloxGui",
-    "PlayerList",
-    "第三方UI"
-}
-
-local CurrentSection = "全部"
-
-local RobloxSystemNames = {
-    "RobloxGui",
-    "PlayerList",
-    "Backpack",
-    "Chat",
-    "BubbleChat",
-    "ExperienceChat",
-    "TextChatService",
-    "TopBar",
-    "Topbar",
-    "Health",
-    "EmotesMenu",
-    "Chrome",
-    "InspectMenu",
-    "PurchasePrompt",
-    "ScreenshotHud",
-}
-
-local TextFilterKeywords = {
-    "未检测到 UI 文本",
-}
-
-local SectionData = {}
-
-for _, name in ipairs(Sections) do
-    SectionData[name] = {
-        Texts = {},
-        Map = {},
-        AllText = "未检测到 UI 文本",
-    }
-end
-
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 460, 0, 350)
-Main.Position = UDim2.new(0.5, -230, 0.5, -175)
-Main.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true
-Main.Parent = ScreenGui
-
-local Title = Instance.new("TextLabel")
-Title.BackgroundTransparency = 1
-Title.Text = "UI 文本提取器 - 分区版"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.SourceSansBold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.TextTruncate = Enum.TextTruncate.AtEnd
-Title.Parent = Main
-
-local Minimize = Instance.new("TextButton")
-Minimize.BackgroundColor3 = Color3.fromRGB(80, 80, 88)
-Minimize.Text = "-"
-Minimize.TextColor3 = Color3.fromRGB(255, 255, 255)
-Minimize.Font = Enum.Font.SourceSansBold
-Minimize.Parent = Main
-
-local Close = Instance.new("TextButton")
-Close.BackgroundColor3 = Color3.fromRGB(180, 55, 60)
-Close.Text = "X"
-Close.TextColor3 = Color3.fromRGB(255, 255, 255)
-Close.Font = Enum.Font.SourceSansBold
-Close.Parent = Main
-
-local ContentFrame = Instance.new("Frame")
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.Parent = Main
-
-local Status = Instance.new("TextLabel")
-Status.BackgroundTransparency = 1
-Status.Text = "状态：自动检测中"
-Status.TextColor3 = Color3.fromRGB(200, 200, 205)
-Status.Font = Enum.Font.SourceSans
-Status.TextXAlignment = Enum.TextXAlignment.Left
-Status.TextTruncate = Enum.TextTruncate.AtEnd
-Status.Parent = ContentFrame
-
-local SectionFrame = Instance.new("Frame")
-SectionFrame.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
-SectionFrame.BorderSizePixel = 0
-SectionFrame.Parent = ContentFrame
-
-local SearchBox = Instance.new("TextBox")
-SearchBox.BackgroundColor3 = Color3.fromRGB(38, 38, 45)
-SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-SearchBox.PlaceholderText = "搜索当前分区文本..."
-SearchBox.PlaceholderColor3 = Color3.fromRGB(155, 155, 160)
-SearchBox.Font = Enum.Font.SourceSans
-SearchBox.ClearTextOnFocus = false
-SearchBox.Text = ""
-SearchBox.Parent = ContentFrame
-
-local SearchBtn = Instance.new("TextButton")
-SearchBtn.BackgroundColor3 = Color3.fromRGB(120, 90, 180)
-SearchBtn.Text = "搜索"
-SearchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-SearchBtn.Font = Enum.Font.SourceSansBold
-SearchBtn.Parent = ContentFrame
-
-local Scroll = Instance.new("ScrollingFrame")
-Scroll.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
-Scroll.BorderSizePixel = 0
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-Scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
-Scroll.ScrollBarThickness = 8
-Scroll.ScrollingDirection = Enum.ScrollingDirection.Y
-Scroll.VerticalScrollBarInset = Enum.ScrollBarInset.Always
-Scroll.ScrollBarImageColor3 = Color3.fromRGB(170, 170, 175)
-Scroll.CanvasPosition = Vector2.new(0, 0)
-Scroll.ClipsDescendants = true
-Scroll.Parent = ContentFrame
-
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.Padding = UDim.new(0, 4)
-ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Parent = Scroll
-
-local BottomBar = Instance.new("Frame")
-BottomBar.BackgroundTransparency = 1
-BottomBar.Parent = ContentFrame
-
-local Refresh = Instance.new("TextButton")
-Refresh.BackgroundColor3 = Color3.fromRGB(65, 120, 200)
-Refresh.Text = "刷新"
-Refresh.TextColor3 = Color3.fromRGB(255, 255, 255)
-Refresh.Font = Enum.Font.SourceSansBold
-Refresh.Parent = BottomBar
-
-local Copy = Instance.new("TextButton")
-Copy.BackgroundColor3 = Color3.fromRGB(70, 165, 90)
-Copy.Text = "复制全部"
-Copy.TextColor3 = Color3.fromRGB(255, 255, 255)
-Copy.Font = Enum.Font.SourceSansBold
-Copy.Parent = BottomBar
-
-local AutoBtn = Instance.new("TextButton")
-AutoBtn.BackgroundColor3 = Color3.fromRGB(160, 120, 60)
-AutoBtn.Text = "自动：开"
-AutoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-AutoBtn.Font = Enum.Font.SourceSansBold
-AutoBtn.Parent = BottomBar
-
-local BlockBtn = Instance.new("TextButton")
-BlockBtn.BackgroundColor3 = Color3.fromRGB(110, 80, 150)
-BlockBtn.Text = "屏蔽：关"
-BlockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-BlockBtn.Font = Enum.Font.SourceSansBold
-BlockBtn.Parent = BottomBar
-
-local FavoriteBtn = Instance.new("TextButton")
-FavoriteBtn.BackgroundColor3 = Color3.fromRGB(90, 130, 210)
-FavoriteBtn.Text = "打开收藏栏"
-FavoriteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-FavoriteBtn.Font = Enum.Font.SourceSansBold
-FavoriteBtn.Parent = BottomBar
-
-local ExportLuaBtn = Instance.new("TextButton")
-ExportLuaBtn.BackgroundColor3 = Color3.fromRGB(80, 150, 160)
-ExportLuaBtn.Text = "导出Lua"
-ExportLuaBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ExportLuaBtn.Font = Enum.Font.SourceSansBold
-ExportLuaBtn.Parent = BottomBar
-
-local ClearAll = Instance.new("TextButton")
-ClearAll.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
-ClearAll.Text = "清空当前"
-ClearAll.TextColor3 = Color3.fromRGB(255, 255, 255)
-ClearAll.Font = Enum.Font.SourceSansBold
-ClearAll.Parent = BottomBar
-
-local ResizeHandle = Instance.new("TextButton")
-ResizeHandle.Size = UDim2.new(0, 22, 0, 22)
-ResizeHandle.AnchorPoint = Vector2.new(1, 1)
-ResizeHandle.Position = UDim2.new(1, -3, 1, -3)
-ResizeHandle.BackgroundColor3 = Color3.fromRGB(95, 95, 105)
-ResizeHandle.Text = "↘"
-ResizeHandle.TextColor3 = Color3.fromRGB(255, 255, 255)
-ResizeHandle.TextSize = 14
-ResizeHandle.Font = Enum.Font.SourceSansBold
-ResizeHandle.ZIndex = 10
-ResizeHandle.Parent = Main
-
-local AutoRefresh = true
-local Minimized = false
-local CurrentDisplayText = ""
-local SectionButtons = {}
-
-local AutoScrollToBottom = true
-
-local BlockMode = false
-local BlockedData = {}
-
-for _, name in ipairs(Sections) do
-    BlockedData[name] = {}
-end
-
-local FavoriteData = {
-    Texts = {},
-    Map = {},
-}
-
-local FavoriteMain
-local FavoriteScroll
-local FavoriteListLayout
-local FavoriteStatus
-
-local AddTextToFavorite
-local DeleteTextFromCurrentList
-
-local MinWidth = 360
-local MinHeight = 270
-local MaxWidth = 760
-local MaxHeight = 580
-local LastNormalSize = Vector2.new(460, 350)
-local MiniCircleSize = 46
-local LastNormalPosition = nil
--- 第2段：样式函数 + 基础工具函数 + 收藏列表UI
-
-local function AddCorner(obj, radius)
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, radius or 8)
-    corner.Parent = obj
-    return corner
-end
-
-local function AddStroke(obj, color, thickness, transparency)
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = color or Color3.fromRGB(70, 70, 78)
-    stroke.Thickness = thickness or 1
-    stroke.Transparency = transparency or 0.25
-    stroke.Parent = obj
-    return stroke
-end
-
-local function StyleButton(btn, bgColor)
-    btn.BackgroundColor3 = bgColor or btn.BackgroundColor3
-    btn.BorderSizePixel = 0
-    btn.AutoButtonColor = true
-    AddCorner(btn, 7)
-    AddStroke(btn, Color3.fromRGB(95, 95, 105), 1, 0.4)
-end
-
-local function StyleBox(obj)
-    obj.BorderSizePixel = 0
-    AddCorner(obj, 8)
-    AddStroke(obj, Color3.fromRGB(90, 90, 100), 1, 0.38)
-end
-
-local MainCorner = AddCorner(Main, 12)
-AddStroke(Main, Color3.fromRGB(100, 100, 110), 1, 0.2)
-
-StyleBox(SectionFrame)
-StyleBox(SearchBox)
-StyleBox(Scroll)
-
-StyleButton(SearchBtn, Color3.fromRGB(120, 90, 180))
-StyleButton(Refresh, Color3.fromRGB(65, 120, 200))
-StyleButton(Copy, Color3.fromRGB(70, 165, 90))
-StyleButton(AutoBtn, Color3.fromRGB(160, 120, 60))
-StyleButton(BlockBtn, Color3.fromRGB(110, 80, 150))
-StyleButton(FavoriteBtn, Color3.fromRGB(90, 130, 210))
-StyleButton(ExportLuaBtn, Color3.fromRGB(80, 150, 160))
-StyleButton(ClearAll, Color3.fromRGB(180, 70, 70))
-StyleButton(Close, Color3.fromRGB(180, 55, 60))
-StyleButton(ResizeHandle, Color3.fromRGB(95, 95, 105))
-
-local function CleanText(text)
-    text = tostring(text or "")
-    text = text:gsub("<[^>]->", "")
-    text = text:gsub("\r", "")
-    text = text:gsub("^%s+", "")
-    text = text:gsub("%s+$", "")
-    return text
-end
-
-local function ContainsKeyword(text, list)
-    text = string.lower(tostring(text or ""))
-
-    for _, keyword in ipairs(list) do
-        keyword = string.lower(tostring(keyword or ""))
-
-        if keyword ~= "" and string.find(text, keyword, 1, true) then
-            return true
+local SG=Instance.new("ScreenGui")
+SG.Name="AutoTextCollectorUI"
+SG.ResetOnSpawn=false
+do
+    local parented=false
+    pcall(function()
+        if gethui then
+            local hui=gethui()
+            if hui then SG.Parent=hui; parented=true end
         end
+    end)
+    if not parented then
+        pcall(function() if syn and syn.protect_gui then syn.protect_gui(SG) end end)
+        local ok=pcall(function() SG.Parent=CoreGui; parented=true end)
+        if not ok or not parented then SG.Parent=PlayerGui end
     end
+end
 
+local HuiRoot=nil
+pcall(function() if gethui then HuiRoot=gethui() end end)
+local function AddUniqueRoot(list,root)
+    if not root then return end
+    for _,v in ipairs(list) do
+        if v==root then return end
+    end
+    table.insert(list,root)
+end
+
+-- UIRoots：专门扫 CoreGui / gethui
+local UIRoots={}
+AddUniqueRoot(UIRoots,CoreGui)
+AddUniqueRoot(UIRoots,HuiRoot)
+
+-- WideRoots：第三方UI宽松扫描范围
+-- 有些第三方UI不在CoreGui，而在PlayerGui或gethui的独立容器里
+local WideRoots={}
+AddUniqueRoot(WideRoots,PlayerGui)
+AddUniqueRoot(WideRoots,Workspace)
+AddUniqueRoot(WideRoots,CoreGui)
+AddUniqueRoot(WideRoots,HuiRoot)
+
+local Sections={"全部","PlayerGui","Workspace","CoreGui","RobloxGui","PlayerList","第三方UI"}
+local SystemNames={"RobloxGui","PlayerList","Backpack","Chat","BubbleChat","ExperienceChat","TextChatService","TopBar","Topbar","Health","EmotesMenu","Chrome","InspectMenu","PurchasePrompt","ScreenshotHud"}
+local IgnoreTexts={["未检测到 UI 文本"]=true}
+
+local CurrentSection="全部"
+local AutoRefresh=true
+local BlockMode=false
+local Minimized=false
+local CurrentDisplayText=""
+local AutoScrollToBottom=true
+
+local Data,Blocked={},{}
+for _,s in ipairs(Sections) do
+    Data[s]={Texts={},Map={},AllText="未检测到 UI 文本"}
+    Blocked[s]={}
+end
+
+local Fav={Texts={},Map={}}
+local FavMain,FavScroll,FavLayout,FavStatus
+local SectionBtns={}
+
+local function N(class,props,parent)
+    local o=Instance.new(class)
+    for k,v in pairs(props or {}) do o[k]=v end
+    if parent then o.Parent=parent end
+    return o
+end
+
+local function Corner(o,r)
+    return N("UICorner",{CornerRadius=UDim.new(0,r or 8)},o)
+end
+
+local function Stroke(o,c,t,a)
+    return N("UIStroke",{Color=c or Color3.fromRGB(90,90,100),Thickness=t or 1,Transparency=a or .35},o)
+end
+
+local function Style(o,r,c)
+    o.BorderSizePixel=0
+    if c then o.BackgroundColor3=c end
+    Corner(o,r or 8)
+    Stroke(o)
+end
+
+local function Button(txt,color,parent)
+    local b=N("TextButton",{
+        BackgroundColor3=color,
+        Text=txt,
+        TextColor3=Color3.new(1,1,1),
+        Font=Enum.Font.SourceSansBold,
+        TextSize=12,
+        AutoButtonColor=true,
+        BorderSizePixel=0
+    },parent)
+    Style(b,7,color)
+    return b
+end
+
+local function Clean(s)
+    s=tostring(s or "")
+    s=s:gsub("<[^>]->",""):gsub("\r",""):gsub("^%s+",""):gsub("%s+$","")
+    return s
+end
+
+local function HasKeyword(str,list)
+    str=string.lower(tostring(str or ""))
+    for _,k in ipairs(list) do
+        k=string.lower(tostring(k or ""))
+        if k~="" and string.find(str,k,1,true) then return true end
+    end
     return false
 end
 
-local function GetObjectPath(obj)
-    local names = {}
-    local current = obj
-
-    while current and current ~= game do
-        table.insert(names, 1, current.Name)
-        current = current.Parent
-    end
-
-    return table.concat(names, "/")
+local function ObjPath(o)
+    local t={}
+    while o and o~=game do table.insert(t,1,o.Name); o=o.Parent end
+    return table.concat(t,"/")
 end
 
-local function IsObjectVisible(obj)
-    local current = obj
-
-    while current and current ~= game do
-        local ok, visible = pcall(function()
-            return current.Visible
-        end)
-
-        if ok and visible == false then
-            return false
-        end
-
-        current = current.Parent
+local function IsVisible(o)
+    while o and o~=game do
+        local ok,v=pcall(function() return o.Visible end)
+        if ok and v==false then return false end
+        o=o.Parent
     end
-
     return true
 end
 
-local function IsRobloxSystemObject(obj)
-    local path = GetObjectPath(obj)
+local function IsSystem(o)
+    local p=ObjPath(o)
+    return HasKeyword(o.Name,SystemNames) or HasKeyword(p,SystemNames)
+end
 
-    if ContainsKeyword(obj.Name, RobloxSystemNames) then
-        return true
+local function InUIRoots(o)
+    for _,root in ipairs(UIRoots) do
+        if o:IsDescendantOf(root) then return true end
     end
-
-    if ContainsKeyword(path, RobloxSystemNames) then
-        return true
-    end
-
     return false
 end
 
-local function GetSectionCount(sectionName)
-    local data = SectionData[sectionName]
-    if not data then
-        return 0
+local function InWideRoots(o)
+    for _,root in ipairs(WideRoots) do
+        if o:IsDescendantOf(root) then return true end
     end
-    return #data.Texts
+    return false
 end
 
-local function RebuildSectionText(sectionName)
-    local data = SectionData[sectionName]
-    if not data then
-        return
-    end
+local function Rebuild(s)
+    local d=Data[s]
+    if not d then return end
+    d.AllText=(#d.Texts>0) and table.concat(d.Texts,"\n") or "未检测到 UI 文本"
+end
 
-    if #data.Texts == 0 then
-        data.AllText = "未检测到 UI 文本"
-    else
-        data.AllText = table.concat(data.Texts, "\n")
+local function Count(s)
+    return Data[s] and #Data[s].Texts or 0
+end
+
+local function Status(msg)
+    local mode=AutoRefresh and "自动" or "暂停"
+    local block=BlockMode and "屏蔽开" or "屏蔽关"
+    StatusLabel.Text="状态："..mode.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block..(msg and ("｜"..msg) or "")
+end
+
+local function EscapeLua(s)
+    s=tostring(s or "")
+    s=s:gsub("\\","\\\\"):gsub("\n","\\n"):gsub("\r","\\r"):gsub("\t","\\t"):gsub('"','\\"')
+    return s
+end
+
+local function BuildLua(name,texts)
+    local out={"-- UI文本导出","-- 分区："..tostring(name),"-- 数量："..tostring(#texts),"","return {"}
+    for _,v in ipairs(texts) do table.insert(out,'    "'..EscapeLua(v)..'",') end
+    table.insert(out,"}")
+    return table.concat(out,"\n")
+end
+
+local function ExportLua(name,texts,fileName)
+    local code=BuildLua(name,texts)
+    local copied,saved=false,false
+    if setclipboard then setclipboard(code); copied=true
+    elseif toclipboard then toclipboard(code); copied=true end
+    if writefile then writefile(fileName,code); saved=true end
+    if copied and saved then Status("Lua已复制并保存")
+    elseif copied then Status("Lua已复制")
+    elseif saved then Status("Lua已保存")
+    else Status("导出失败：不支持复制/写文件") end
+end
+
+local function CopyText(s,msg)
+    s=tostring(s or "")
+    if setclipboard then setclipboard(s); Status(msg or "已复制")
+    elseif toclipboard then toclipboard(s); Status(msg or "已复制")
+    else Status("当前环境不支持自动复制") end
+end
+
+local function UpdateSectionBtns()
+    for s,b in pairs(SectionBtns) do
+        b.Text=s.." ["..Count(s).."]"
+        b.BackgroundColor3=(s==CurrentSection) and Color3.fromRGB(75,125,215) or Color3.fromRGB(58,58,66)
     end
 end
 
-local function UpdateStatus(extra)
-    local mode = AutoRefresh and "自动检测中" or "自动检测已关闭"
-    local count = GetSectionCount(CurrentSection)
-    local block = BlockMode and "屏蔽开" or "屏蔽关"
+-- 主窗口
+local Main=N("Frame",{Size=UDim2.new(0,460,0,350),Position=UDim2.new(.5,-230,.5,-175),BackgroundColor3=Color3.fromRGB(24,24,28),BorderSizePixel=0,Active=true,Draggable=true},SG)
+local MainCorner=Corner(Main,12); Stroke(Main,Color3.fromRGB(100,100,110),1,.2)
 
-    if extra and extra ~= "" then
-        Status.Text = "状态：" .. mode .. "｜" .. CurrentSection .. "｜" .. count .. "条｜" .. block .. "｜" .. extra
-    else
-        Status.Text = "状态：" .. mode .. "｜" .. CurrentSection .. "｜" .. count .. "条｜" .. block
+local Title=N("TextLabel",{BackgroundTransparency=1,Text="UI 文本提取器 - 精简版",TextColor3=Color3.new(1,1,1),Font=Enum.Font.SourceSansBold,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd},Main)
+local MinBtn=Button("-",Color3.fromRGB(80,80,88),Main)
+local CloseBtn=Button("X",Color3.fromRGB(180,55,60),Main)
+
+local Content=N("Frame",{BackgroundTransparency=1},Main)
+local StatusLabel=N("TextLabel",{BackgroundTransparency=1,Text="状态：自动检测中",TextColor3=Color3.fromRGB(200,200,205),Font=Enum.Font.SourceSans,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd},Content)
+local SectionFrame=N("Frame",{BackgroundColor3=Color3.fromRGB(32,32,38),BorderSizePixel=0},Content); Style(SectionFrame,8)
+
+local Search=N("TextBox",{BackgroundColor3=Color3.fromRGB(38,38,45),TextColor3=Color3.new(1,1,1),PlaceholderText="搜索当前分区文本...",PlaceholderColor3=Color3.fromRGB(155,155,160),Font=Enum.Font.SourceSans,ClearTextOnFocus=false,Text=""},Content); Style(Search,8)
+local SearchBtn=Button("搜索",Color3.fromRGB(120,90,180),Content)
+
+local Scroll=N("ScrollingFrame",{BackgroundColor3=Color3.fromRGB(34,34,40),BorderSizePixel=0,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.None,ScrollBarThickness=8,ScrollingDirection=Enum.ScrollingDirection.Y,VerticalScrollBarInset=Enum.ScrollBarInset.Always,ScrollBarImageColor3=Color3.fromRGB(170,170,175),ClipsDescendants=true},Content); Style(Scroll,8)
+local Layout=N("UIListLayout",{Padding=UDim.new(0,4),SortOrder=Enum.SortOrder.LayoutOrder},Scroll)
+
+local Bottom=N("Frame",{BackgroundTransparency=1},Content)
+local RefreshBtn=Button("刷新",Color3.fromRGB(65,120,200),Bottom)
+local CopyBtn=Button("复制",Color3.fromRGB(70,165,90),Bottom)
+local AutoBtn=Button("自动",Color3.fromRGB(160,120,60),Bottom)
+local BlockBtn=Button("屏蔽",Color3.fromRGB(110,80,150),Bottom)
+local FavBtn=Button("收藏",Color3.fromRGB(90,130,210),Bottom)
+local ExportBtn=Button("导出",Color3.fromRGB(80,150,160),Bottom)
+local ClearBtn=Button("清空",Color3.fromRGB(180,70,70),Bottom)
+
+local Resize=Button("↘",Color3.fromRGB(95,95,105),Main)
+Resize.Size=UDim2.new(0,22,0,22); Resize.AnchorPoint=Vector2.new(1,1); Resize.Position=UDim2.new(1,-3,1,-3); Resize.ZIndex=10
+
+local function ResizeCanvas()
+    task.defer(function()
+        task.wait()
+        Scroll.CanvasSize=UDim2.new(0,0,0,Layout.AbsoluteContentSize.Y+10)
+        if AutoScrollToBottom then
+            local maxY=math.max(0,Scroll.CanvasSize.Y.Offset-Scroll.AbsoluteSize.Y)
+            Scroll.CanvasPosition=Vector2.new(0,maxY)
+        end
+    end)
+end
+
+local function ClearList()
+    for _,o in ipairs(Scroll:GetChildren()) do
+        if o:IsA("Frame") or o:IsA("TextButton") then o:Destroy() end
     end
 end
 
-local function UpdateSectionButtons()
-    for name, btn in pairs(SectionButtons) do
-        if name == CurrentSection then
-            btn.BackgroundColor3 = Color3.fromRGB(75, 125, 215)
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+local function RemoveFromSection(s,text)
+    local d=Data[s]; if not d then return end
+    text=Clean(text); d.Map[text]=nil
+    for i=#d.Texts,1,-1 do if d.Texts[i]==text then table.remove(d.Texts,i) end end
+    Rebuild(s)
+end
+
+local function RebuildAll()
+    Data["全部"]={Texts={},Map={},AllText="未检测到 UI 文本"}
+    for _,s in ipairs(Sections) do
+        if s~="全部" then
+            for _,t in ipairs(Data[s].Texts) do
+                if not Data["全部"].Map[t] then
+                    Data["全部"].Map[t]=true
+                    table.insert(Data["全部"].Texts,t)
+                end
+            end
+        end
+    end
+    Rebuild("全部")
+end
+
+local function DeleteCurrent(text)
+    text=Clean(text)
+    if text=="" then return end
+    local old=Scroll.CanvasPosition
+    if BlockMode then
+        if CurrentSection=="全部" then
+            for _,s in ipairs(Sections) do Blocked[s][text]=true end
         else
-            btn.BackgroundColor3 = Color3.fromRGB(58, 58, 66)
-            btn.TextColor3 = Color3.fromRGB(225, 225, 230)
+            Blocked[CurrentSection][text]=true; Blocked["全部"][text]=true
         end
-
-        btn.Text = name .. " [" .. GetSectionCount(name) .. "]"
     end
-end
-
-local function CopyText(text, hint)
-    text = tostring(text or "")
-
-    if setclipboard then
-        setclipboard(text)
-        UpdateStatus(hint or "已复制")
-    elseif toclipboard then
-        toclipboard(text)
-        UpdateStatus(hint or "已复制")
+    if CurrentSection=="全部" then
+        for _,s in ipairs(Sections) do RemoveFromSection(s,text) end
     else
-        UpdateStatus("当前环境不支持自动复制")
+        RemoveFromSection(CurrentSection,text); RebuildAll()
     end
+    if Search.Text~="" then
+        SearchBtn:Activate()
+    end
+    -- 直接刷新显示
+    task.defer(function()
+        local maxY=math.max(0,Scroll.CanvasSize.Y.Offset-Scroll.AbsoluteSize.Y)
+        Scroll.CanvasPosition=Vector2.new(0,math.clamp(old.Y,0,maxY))
+    end)
+    UpdateSectionBtns()
+    Status(BlockMode and "已删除并屏蔽" or "已删除")
 end
 
-local function RebuildFavoriteText()
-    if #FavoriteData.Texts == 0 then
-        return "收藏列表为空"
-    end
+local function FavoriteWindow()
+    if FavMain and FavMain.Parent then FavMain.Visible=true end
+    if FavMain and FavMain.Parent then return end
 
-    return table.concat(FavoriteData.Texts, "\n")
+    FavMain=N("Frame",{Size=UDim2.new(0,360,0,300),Position=UDim2.new(.5,-180,.5,-150),BackgroundColor3=Color3.fromRGB(24,24,28),BorderSizePixel=0,Active=true,Draggable=true},SG)
+    Style(FavMain,12)
+    N("TextLabel",{Size=UDim2.new(1,-42,0,32),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,Text="收藏列表",TextColor3=Color3.new(1,1,1),TextSize=16,Font=Enum.Font.SourceSansBold,TextXAlignment=Enum.TextXAlignment.Left},FavMain)
+    local close=Button("X",Color3.fromRGB(180,55,60),FavMain); close.Size=UDim2.new(0,32,0,32); close.Position=UDim2.new(1,-32,0,0)
+    FavStatus=N("TextLabel",{Size=UDim2.new(1,-20,0,20),Position=UDim2.new(0,10,0,34),BackgroundTransparency=1,TextColor3=Color3.fromRGB(200,200,205),TextSize=12,Font=Enum.Font.SourceSans,TextXAlignment=Enum.TextXAlignment.Left},FavMain)
+    FavScroll=N("ScrollingFrame",{Size=UDim2.new(1,-20,1,-105),Position=UDim2.new(0,10,0,58),BackgroundColor3=Color3.fromRGB(34,34,40),BorderSizePixel=0,CanvasSize=UDim2.new(),ScrollBarThickness=8,ScrollingDirection=Enum.ScrollingDirection.Y,VerticalScrollBarInset=Enum.ScrollBarInset.Always},FavMain); Style(FavScroll,8)
+    FavLayout=N("UIListLayout",{Padding=UDim.new(0,4),SortOrder=Enum.SortOrder.LayoutOrder},FavScroll)
+    local bot=N("Frame",{Size=UDim2.new(1,-20,0,34),Position=UDim2.new(0,10,1,-40),BackgroundTransparency=1},FavMain)
+    local copy=Button("复制全部",Color3.fromRGB(70,165,90),bot)
+    local export=Button("导出Lua",Color3.fromRGB(80,150,160),bot)
+    local clear=Button("清空全部",Color3.fromRGB(180,70,70),bot)
+    copy.Size=UDim2.new(.333,-4,1,0); export.Size=UDim2.new(.333,-4,1,0); export.Position=UDim2.new(.333,4,0,0); clear.Size=UDim2.new(.333,-4,1,0); clear.Position=UDim2.new(.666,8,0,0)
+    close.MouseButton1Click:Connect(function() FavMain.Visible=false end)
+    copy.MouseButton1Click:Connect(function() CopyText((#Fav.Texts>0 and table.concat(Fav.Texts,"\n") or "收藏列表为空"),"已复制收藏") end)
+    export.MouseButton1Click:Connect(function() ExportLua("收藏列表",Fav.Texts,"UITextExport_收藏列表.lua") end)
+    clear.MouseButton1Click:Connect(function() Fav={Texts={},Map={}}; RefreshFav() end)
 end
 
-local function UpdateFavoriteStatus()
-    if FavoriteStatus then
-        FavoriteStatus.Text = "收藏列表｜共 " .. #FavoriteData.Texts .. " 条"
-    end
-end
-
-local function RefreshFavoriteList()
-    if not FavoriteScroll then
-        return
-    end
-
-    for _, obj in ipairs(FavoriteScroll:GetChildren()) do
-        if obj:IsA("Frame") or obj:IsA("TextButton") then
-            obj:Destroy()
-        end
-    end
-
-    for i, text in ipairs(FavoriteData.Texts) do
-        local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, -12, 0, 30)
-        row.BackgroundColor3 = Color3.fromRGB(48, 48, 56)
-        row.BorderSizePixel = 0
-        row.LayoutOrder = i
-        row.Parent = FavoriteScroll
-
-        AddCorner(row, 6)
-        AddStroke(row, Color3.fromRGB(75, 75, 85), 1, 0.45)
-
-        local label = Instance.new("TextButton")
-        label.Size = UDim2.new(1, -100, 1, 0)
-        label.Position = UDim2.new(0, 6, 0, 0)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = Color3.fromRGB(245, 245, 245)
-        label.TextSize = 13
-        label.Font = Enum.Font.Code
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.TextTruncate = Enum.TextTruncate.AtEnd
-        label.Text = text
-        label.Parent = row
-
-        label.MouseButton1Click:Connect(function()
-            CopyText(text, "已复制收藏行")
-        end)
-
-        local del = Instance.new("TextButton")
-        del.Size = UDim2.new(0, 42, 0, 24)
-        del.Position = UDim2.new(1, -88, 0.5, -12)
-        del.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
-        del.Text = "删除"
-        del.TextColor3 = Color3.fromRGB(255, 255, 255)
-        del.TextSize = 12
-        del.Font = Enum.Font.SourceSansBold
-        del.Parent = row
-
-        StyleButton(del, Color3.fromRGB(180, 70, 70))
-
-        local copy = Instance.new("TextButton")
-        copy.Size = UDim2.new(0, 42, 0, 24)
-        copy.Position = UDim2.new(1, -44, 0.5, -12)
-        copy.BackgroundColor3 = Color3.fromRGB(70, 165, 90)
-        copy.Text = "复制"
-        copy.TextColor3 = Color3.fromRGB(255, 255, 255)
-        copy.TextSize = 12
-        copy.Font = Enum.Font.SourceSansBold
-        copy.Parent = row
-
-        StyleButton(copy, Color3.fromRGB(70, 165, 90))
-
-        copy.MouseButton1Click:Connect(function()
-            CopyText(text, "已复制收藏行")
-        end)
-
+function RefreshFav()
+    if not FavScroll then return end
+    for _,o in ipairs(FavScroll:GetChildren()) do if o:IsA("Frame") or o:IsA("TextButton") then o:Destroy() end end
+    FavStatus.Text="收藏列表｜共 "..#Fav.Texts.." 条"
+    for i,text in ipairs(Fav.Texts) do
+        local row=N("Frame",{Size=UDim2.new(1,-12,0,30),BackgroundColor3=Color3.fromRGB(48,48,56),BorderSizePixel=0,LayoutOrder=i},FavScroll); Style(row,6)
+        local lab=N("TextButton",{Size=UDim2.new(1,-100,1,0),Position=UDim2.new(0,6,0,0),BackgroundTransparency=1,TextColor3=Color3.fromRGB(245,245,245),TextSize=13,Font=Enum.Font.Code,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,Text=text},row)
+        local del=Button("删除",Color3.fromRGB(180,70,70),row); del.Size=UDim2.new(0,42,0,24); del.Position=UDim2.new(1,-88,.5,-12)
+        local cp=Button("复制",Color3.fromRGB(70,165,90),row); cp.Size=UDim2.new(0,42,0,24); cp.Position=UDim2.new(1,-44,.5,-12)
+        lab.MouseButton1Click:Connect(function() CopyText(text,"已复制收藏行") end)
+        cp.MouseButton1Click:Connect(function() CopyText(text,"已复制收藏行") end)
         del.MouseButton1Click:Connect(function()
-            FavoriteData.Map[text] = nil
-
-            for index = #FavoriteData.Texts, 1, -1 do
-                if FavoriteData.Texts[index] == text then
-                    table.remove(FavoriteData.Texts, index)
-                    break
-                end
-            end
-
-            RefreshFavoriteList()
-            UpdateFavoriteStatus()
+            Fav.Map[text]=nil
+            for n=#Fav.Texts,1,-1 do if Fav.Texts[n]==text then table.remove(Fav.Texts,n); break end end
+            RefreshFav()
         end)
     end
-
-    if #FavoriteData.Texts == 0 then
-        local empty = Instance.new("TextButton")
-        empty.Size = UDim2.new(1, -12, 0, 30)
-        empty.BackgroundColor3 = Color3.fromRGB(48, 48, 56)
-        empty.BorderSizePixel = 0
-        empty.TextColor3 = Color3.fromRGB(180, 180, 180)
-        empty.TextSize = 13
-        empty.Font = Enum.Font.SourceSans
-        empty.TextXAlignment = Enum.TextXAlignment.Left
-        empty.Text = "  收藏列表为空"
-        empty.Parent = FavoriteScroll
-
-        AddCorner(empty, 6)
-        AddStroke(empty, Color3.fromRGB(75, 75, 85), 1, 0.45)
+    if #Fav.Texts==0 then
+        local e=N("TextButton",{Size=UDim2.new(1,-12,0,30),BackgroundColor3=Color3.fromRGB(48,48,56),TextColor3=Color3.fromRGB(180,180,180),TextSize=13,Font=Enum.Font.SourceSans,TextXAlignment=Enum.TextXAlignment.Left,Text="  收藏列表为空"},FavScroll); Style(e,6)
     end
-
-    task.defer(function()
-        task.wait()
-        FavoriteScroll.CanvasSize = UDim2.new(0, 0, 0, FavoriteListLayout.AbsoluteContentSize.Y + 10)
-    end)
-end
--- 第3段：收藏列表窗口 + 主列表显示函数
-
-local function CreateFavoriteUI()
-    if FavoriteMain and FavoriteMain.Parent then
-        FavoriteMain.Visible = true
-        return
-    end
-
-    FavoriteMain = Instance.new("Frame")
-    FavoriteMain.Size = UDim2.new(0, 360, 0, 300)
-    FavoriteMain.Position = UDim2.new(0.5, -180, 0.5, -150)
-    FavoriteMain.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-    FavoriteMain.BorderSizePixel = 0
-    FavoriteMain.Active = true
-    FavoriteMain.Draggable = true
-    FavoriteMain.Parent = ScreenGui
-
-    AddCorner(FavoriteMain, 12)
-    AddStroke(FavoriteMain, Color3.fromRGB(100, 100, 110), 1, 0.2)
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -42, 0, 32)
-    title.Position = UDim2.new(0, 10, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = "收藏列表"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 16
-    title.Font = Enum.Font.SourceSansBold
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = FavoriteMain
-
-    local close = Instance.new("TextButton")
-    close.Size = UDim2.new(0, 32, 0, 32)
-    close.Position = UDim2.new(1, -32, 0, 0)
-    close.BackgroundColor3 = Color3.fromRGB(180, 55, 60)
-    close.Text = "X"
-    close.TextColor3 = Color3.fromRGB(255, 255, 255)
-    close.TextSize = 14
-    close.Font = Enum.Font.SourceSansBold
-    close.Parent = FavoriteMain
-
-    StyleButton(close, Color3.fromRGB(180, 55, 60))
-
-    FavoriteStatus = Instance.new("TextLabel")
-    FavoriteStatus.Size = UDim2.new(1, -20, 0, 20)
-    FavoriteStatus.Position = UDim2.new(0, 10, 0, 34)
-    FavoriteStatus.BackgroundTransparency = 1
-    FavoriteStatus.TextColor3 = Color3.fromRGB(200, 200, 205)
-    FavoriteStatus.TextSize = 12
-    FavoriteStatus.Font = Enum.Font.SourceSans
-    FavoriteStatus.TextXAlignment = Enum.TextXAlignment.Left
-    FavoriteStatus.Parent = FavoriteMain
-
-    FavoriteScroll = Instance.new("ScrollingFrame")
-    FavoriteScroll.Size = UDim2.new(1, -20, 1, -105)
-    FavoriteScroll.Position = UDim2.new(0, 10, 0, 58)
-    FavoriteScroll.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
-    FavoriteScroll.BorderSizePixel = 0
-    FavoriteScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-    FavoriteScroll.ScrollBarThickness = 8
-    FavoriteScroll.ScrollingDirection = Enum.ScrollingDirection.Y
-    FavoriteScroll.VerticalScrollBarInset = Enum.ScrollBarInset.Always
-    FavoriteScroll.Parent = FavoriteMain
-
-    StyleBox(FavoriteScroll)
-
-    FavoriteListLayout = Instance.new("UIListLayout")
-    FavoriteListLayout.Padding = UDim.new(0, 4)
-    FavoriteListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    FavoriteListLayout.Parent = FavoriteScroll
-
-    local bottom = Instance.new("Frame")
-    bottom.Size = UDim2.new(1, -20, 0, 34)
-    bottom.Position = UDim2.new(0, 10, 1, -40)
-    bottom.BackgroundTransparency = 1
-    bottom.Parent = FavoriteMain
-
-    local copyAll = Instance.new("TextButton")
-    copyAll.Size = UDim2.new(0.333, -4, 1, 0)
-    copyAll.Position = UDim2.new(0, 0, 0, 0)
-    copyAll.BackgroundColor3 = Color3.fromRGB(70, 165, 90)
-    copyAll.Text = "复制全部"
-    copyAll.TextColor3 = Color3.fromRGB(255, 255, 255)
-    copyAll.TextSize = 13
-    copyAll.Font = Enum.Font.SourceSansBold
-    copyAll.Parent = bottom
-
-    local exportLua = Instance.new("TextButton")
-exportLua.Size = UDim2.new(0.333, -4, 1, 0)
-exportLua.Position = UDim2.new(0.333, 4, 0, 0)
-exportLua.BackgroundColor3 = Color3.fromRGB(80, 150, 160)
-exportLua.Text = "导出Lua"
-exportLua.TextColor3 = Color3.fromRGB(255, 255, 255)
-exportLua.TextSize = 13
-exportLua.Font = Enum.Font.SourceSansBold
-exportLua.Parent = bottom
-
-StyleButton(exportLua, Color3.fromRGB(80, 150, 160))
-
-    StyleButton(copyAll, Color3.fromRGB(70, 165, 90))
-
-    local clearAll = Instance.new("TextButton")
-   clearAll.Size = UDim2.new(0.333, -4, 1, 0)
-clearAll.Position = UDim2.new(0.666, 8, 0, 0)
-    clearAll.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
-    clearAll.Text = "清空全部"
-    clearAll.TextColor3 = Color3.fromRGB(255, 255, 255)
-    clearAll.TextSize = 13
-    clearAll.Font = Enum.Font.SourceSansBold
-    clearAll.Parent = bottom
-
-    StyleButton(clearAll, Color3.fromRGB(180, 70, 70))
-
-    copyAll.MouseButton1Click:Connect(function()
-    CopyText(RebuildFavoriteText(), "已复制收藏全部")
-end)
-
-exportLua.MouseButton1Click:Connect(function()
-    local lines = {}
-
-    table.insert(lines, "-- 收藏列表文本导出")
-    table.insert(lines, "-- 数量：" .. tostring(#FavoriteData.Texts))
-    table.insert(lines, "")
-    table.insert(lines, "return {")
-
-    for _, text in ipairs(FavoriteData.Texts) do
-        text = tostring(text or "")
-        text = text:gsub("\\", "\\\\")
-        text = text:gsub("\n", "\\n")
-        text = text:gsub("\r", "\\r")
-        text = text:gsub("\t", "\\t")
-        text = text:gsub("\"", "\\\"")
-
-        table.insert(lines, "    \"" .. text .. "\",")
-    end
-
-    table.insert(lines, "}")
-
-    local luaText = table.concat(lines, "\n")
-    local copied = false
-    local saved = false
-
-    if setclipboard then
-        setclipboard(luaText)
-        copied = true
-    elseif toclipboard then
-        toclipboard(luaText)
-        copied = true
-    end
-
-    if writefile then
-        writefile("UITextExport_收藏列表.lua", luaText)
-        saved = true
-    end
-
-    if copied and saved then
-        UpdateStatus("收藏Lua已复制并保存")
-    elseif copied then
-        UpdateStatus("收藏Lua已复制")
-    elseif saved then
-        UpdateStatus("收藏Lua已保存")
-    else
-        UpdateStatus("导出失败：不支持复制或写文件")
-    end
-end)
-
-clearAll.MouseButton1Click:Connect(function()
-    FavoriteData.Texts = {}
-    FavoriteData.Map = {}
-    RefreshFavoriteList()
-    UpdateFavoriteStatus()
-end)
-
-    close.MouseButton1Click:Connect(function()
-        FavoriteMain.Visible = false
-    end)
-
-    UpdateFavoriteStatus()
-    RefreshFavoriteList()
+    task.defer(function() task.wait(); FavScroll.CanvasSize=UDim2.new(0,0,0,FavLayout.AbsoluteContentSize.Y+10) end)
 end
 
-AddTextToFavorite = function(text)
-    text = CleanText(text)
-
-    if text == "" then
-        return
-    end
-
-    if not FavoriteData.Map[text] then
-        FavoriteData.Map[text] = true
-        table.insert(FavoriteData.Texts, text)
-    end
-
-    CreateFavoriteUI()
-    RefreshFavoriteList()
-    UpdateFavoriteStatus()
-    UpdateStatus("已添加进收藏列表")
+local function AddFav(text)
+    text=Clean(text)
+    if text~="" and not Fav.Map[text] then Fav.Map[text]=true; table.insert(Fav.Texts,text) end
+    FavoriteWindow(); RefreshFav(); Status("已添加收藏")
 end
 
-local function ClearScrollItems()
-    for _, obj in ipairs(Scroll:GetChildren()) do
-        if obj:IsA("Frame") or obj:IsA("TextButton") then
-            obj:Destroy()
+local function SetDisplay(text,bottom)
+    CurrentDisplayText=text
+    ClearList()
+    local i=0
+    for line in string.gmatch(text.."\n","(.-)\n") do
+        line=Clean(line)
+        if line~="" then
+            i+=1
+            local row=N("Frame",{Size=UDim2.new(1,-12,0,31),BackgroundColor3=Color3.fromRGB(48,48,56),BorderSizePixel=0,LayoutOrder=i},Scroll); Style(row,6)
+            local shown=(#line>500 and string.sub(line,1,500).."..." or line)
+            local lab=N("TextButton",{Size=UDim2.new(1,-150,1,0),Position=UDim2.new(0,6,0,0),BackgroundTransparency=1,TextColor3=Color3.fromRGB(245,245,245),TextSize=13,Font=Enum.Font.Code,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Center,TextTruncate=Enum.TextTruncate.AtEnd,Text=shown},row)
+            local add=Button("添加",Color3.fromRGB(90,130,210),row); add.Size=UDim2.new(0,42,0,24); add.Position=UDim2.new(1,-138,.5,-12)
+            local del=Button("删除",Color3.fromRGB(180,70,70),row); del.Size=UDim2.new(0,42,0,24); del.Position=UDim2.new(1,-92,.5,-12)
+            local cp=Button("复制",Color3.fromRGB(70,165,90),row); cp.Size=UDim2.new(0,42,0,24); cp.Position=UDim2.new(1,-46,.5,-12)
+            lab.MouseButton1Click:Connect(function() CopyText(line,"已复制当前行") end)
+            add.MouseButton1Click:Connect(function() AddFav(line) end)
+            del.MouseButton1Click:Connect(function() DeleteCurrent(line); SetDisplay(GetCurrentText(),false) end)
+            cp.MouseButton1Click:Connect(function() CopyText(line,"已复制当前行") end)
         end
     end
+    if i==0 then local e=N("TextButton",{Size=UDim2.new(1,-12,0,30),BackgroundColor3=Color3.fromRGB(48,48,56),TextColor3=Color3.fromRGB(180,180,180),TextSize=13,Font=Enum.Font.SourceSans,TextXAlignment=Enum.TextXAlignment.Left,Text="  未检测到 UI 文本"},Scroll); Style(e,6) end
+    AutoScrollToBottom=bottom and true or false
+    ResizeCanvas()
+    task.defer(function() task.wait(); AutoScrollToBottom=true end)
 end
 
-local function ResizeScrollCanvas()
-    task.defer(function()
-        task.wait()
-        Scroll.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
-    end)
+function GetCurrentText()
+    Rebuild(CurrentSection)
+    return Data[CurrentSection] and Data[CurrentSection].AllText or "未检测到 UI 文本"
 end
 
-local function ScrollToBottom()
-    if not AutoScrollToBottom then
-        return
-    end
-
-    task.defer(function()
-        task.wait()
-        local maxY = math.max(0, Scroll.CanvasSize.Y.Offset - Scroll.AbsoluteSize.Y)
-        Scroll.CanvasPosition = Vector2.new(0, maxY)
-    end)
+local function IgnoreText(t)
+    t=Clean(t)
+    return t=="" or IgnoreTexts[t]
 end
 
-local function SetDisplayText(text, autoBottom)
-    CurrentDisplayText = text
-    ClearScrollItems()
-
-    local index = 0
-
-    for line in string.gmatch(text .. "\n", "(.-)\n") do
-        line = CleanText(line)
-
-        if line ~= "" then
-            index = index + 1
-
-            local displayLine = line
-            if #displayLine > 500 then
-                displayLine = string.sub(displayLine, 1, 500) .. "..."
-            end
-
-            local row = Instance.new("Frame")
-            row.Size = UDim2.new(1, -12, 0, 31)
-            row.BackgroundColor3 = Color3.fromRGB(48, 48, 56)
-            row.BorderSizePixel = 0
-            row.LayoutOrder = index
-            row.Parent = Scroll
-
-            AddCorner(row, 6)
-            AddStroke(row, Color3.fromRGB(75, 75, 85), 1, 0.45)
-
-            local label = Instance.new("TextButton")
-            label.Size = UDim2.new(1, -150, 1, 0)
-            label.Position = UDim2.new(0, 6, 0, 0)
-            label.BackgroundTransparency = 1
-            label.TextColor3 = Color3.fromRGB(245, 245, 245)
-            label.TextSize = 13
-            label.Font = Enum.Font.Code
-            label.TextXAlignment = Enum.TextXAlignment.Left
-            label.TextYAlignment = Enum.TextYAlignment.Center
-            label.TextWrapped = false
-            label.TextTruncate = Enum.TextTruncate.AtEnd
-            label.Text = displayLine
-            label.Parent = row
-
-            label.MouseButton1Click:Connect(function()
-                CopyText(line, "已复制当前行")
-            end)
-
-            local addBtn = Instance.new("TextButton")
-            addBtn.Size = UDim2.new(0, 42, 0, 24)
-            addBtn.Position = UDim2.new(1, -138, 0.5, -12)
-            addBtn.BackgroundColor3 = Color3.fromRGB(90, 130, 210)
-            addBtn.Text = "添加"
-            addBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            addBtn.TextSize = 12
-            addBtn.Font = Enum.Font.SourceSansBold
-            addBtn.Parent = row
-
-            StyleButton(addBtn, Color3.fromRGB(90, 130, 210))
-
-            local delBtn = Instance.new("TextButton")
-            delBtn.Size = UDim2.new(0, 42, 0, 24)
-            delBtn.Position = UDim2.new(1, -92, 0.5, -12)
-            delBtn.BackgroundColor3 = Color3.fromRGB(180, 70, 70)
-            delBtn.Text = "删除"
-            delBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            delBtn.TextSize = 12
-            delBtn.Font = Enum.Font.SourceSansBold
-            delBtn.Parent = row
-
-            StyleButton(delBtn, Color3.fromRGB(180, 70, 70))
-
-            local copyBtn = Instance.new("TextButton")
-            copyBtn.Size = UDim2.new(0, 42, 0, 24)
-            copyBtn.Position = UDim2.new(1, -46, 0.5, -12)
-            copyBtn.BackgroundColor3 = Color3.fromRGB(70, 165, 90)
-            copyBtn.Text = "复制"
-            copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            copyBtn.TextSize = 12
-            copyBtn.Font = Enum.Font.SourceSansBold
-            copyBtn.Parent = row
-
-            StyleButton(copyBtn, Color3.fromRGB(70, 165, 90))
-
-            addBtn.MouseButton1Click:Connect(function()
-                AddTextToFavorite(line)
-            end)
-
-            delBtn.MouseButton1Click:Connect(function()
-                if DeleteTextFromCurrentList then
-                    DeleteTextFromCurrentList(line)
-                end
-            end)
-
-            copyBtn.MouseButton1Click:Connect(function()
-                CopyText(line, "已复制当前行")
-            end)
-        end
-    end
-
-    if index == 0 then
-        local empty = Instance.new("TextButton")
-        empty.Size = UDim2.new(1, -12, 0, 30)
-        empty.BackgroundColor3 = Color3.fromRGB(48, 48, 56)
-        empty.BorderSizePixel = 0
-        empty.TextColor3 = Color3.fromRGB(180, 180, 180)
-        empty.TextSize = 13
-        empty.Font = Enum.Font.SourceSans
-        empty.TextXAlignment = Enum.TextXAlignment.Left
-        empty.Text = "  未检测到 UI 文本"
-        empty.LayoutOrder = 1
-        empty.Parent = Scroll
-
-        AddCorner(empty, 6)
-        AddStroke(empty, Color3.fromRGB(75, 75, 85), 1, 0.45)
-    end
-
-    ResizeScrollCanvas()
-
-    if autoBottom then
-        ScrollToBottom()
-    end
-end
--- 第4段：文本保存/扫描/搜索/删除逻辑
-
-local function ShouldIgnoreText(text)
-    text = CleanText(text)
-
-    if text == "" then
-        return true
-    end
-
-    if ContainsKeyword(text, TextFilterKeywords) then
-        return true
-    end
-
+local function Save(s,t)
+    t=Clean(t)
+    if IgnoreText(t) or (BlockMode and Blocked[s] and Blocked[s][t]) then return false end
+    local d=Data[s]; if not d then return false end
+    if not d.Map[t] then d.Map[t]=true; table.insert(d.Texts,t); Rebuild(s); return true end
     return false
 end
 
-local function IsTextBlocked(sectionName, text)
-    text = CleanText(text)
+local function SaveFrom(s,t)
+    local ok=Save(s,t)
+    if ok and s~="全部" then Save("全部",t) end
+    return ok
+end
 
-    if not BlockMode then
-        return false
-    end
-
-    if BlockedData[sectionName] and BlockedData[sectionName][text] then
-        return true
-    end
-
+local function InSection(o,s)
+    if not o or o:IsDescendantOf(SG) or not IsVisible(o) then return false end
+    local p=ObjPath(o)
+    if s=="PlayerGui" then return o:IsDescendantOf(PlayerGui) end
+    if s=="Workspace" then return o:IsDescendantOf(Workspace) end
+    if s=="CoreGui" then return InUIRoots(o) end
+    if s=="RobloxGui" then return InUIRoots(o) and p:find("RobloxGui",1,true)~=nil end
+    if s=="PlayerList" then return InUIRoots(o) and p:find("PlayerList",1,true)~=nil end
+    -- 第三方UI改为宽松扫描：PlayerGui / Workspace / CoreGui / gethui 都会尝试
+    -- 只排除本脚本UI和明显Roblox系统UI，避免漏掉第三方脚本窗口
+    if s=="第三方UI" then return InWideRoots(o) and not IsSystem(o) end
+    if s=="全部" then return o:IsDescendantOf(PlayerGui) or o:IsDescendantOf(Workspace) or InUIRoots(o) end
     return false
 end
 
-local function SaveTextToSection(sectionName, text)
-    text = CleanText(text)
-
-    if ShouldIgnoreText(text) then
-        return false
+local function ReadObj(o,s)
+    if not InSection(o,s) then return 0 end
+    local n=0
+    for _,prop in ipairs({"Text","ContentText","LocalizedText"}) do
+        pcall(function() if o[prop] and SaveFrom(s,o[prop]) then n+=1 end end)
     end
-
-    if IsTextBlocked(sectionName, text) then
-        return false
-    end
-
-    local data = SectionData[sectionName]
-    if not data then
-        return false
-    end
-
-    if not data.Map[text] then
-        data.Map[text] = true
-        table.insert(data.Texts, text)
-        RebuildSectionText(sectionName)
-        return true
-    end
-
-    return false
+    return n
 end
 
-local function SaveTextWithSection(sourceSection, text)
-    local added = false
-
-    local sourceAdded = SaveTextToSection(sourceSection, text)
-
-    if sourceAdded then
-        added = true
-
-        if sourceSection ~= "全部" then
-            if SaveTextToSection("全部", text) then
-                added = true
-            end
-        end
-    end
-
-    return added
-end
-
-local function ShouldObjectBelongToSection(obj, sectionName)
-    if not obj then
-        return false
-    end
-
-    if obj:IsDescendantOf(ScreenGui) then
-        return false
-    end
-
-    if not IsObjectVisible(obj) then
-        return false
-    end
-
-    local path = GetObjectPath(obj)
-
-    if sectionName == "PlayerGui" then
-        return obj:IsDescendantOf(PlayerGui)
-    end
-
-    if sectionName == "Workspace" then
-        return obj:IsDescendantOf(Workspace)
-    end
-
-    if sectionName == "CoreGui" then
-        return obj:IsDescendantOf(CoreGui)
-    end
-
-    if sectionName == "RobloxGui" then
-        return obj:IsDescendantOf(CoreGui) and string.find(path, "RobloxGui", 1, true) ~= nil
-    end
-
-    if sectionName == "PlayerList" then
-        return obj:IsDescendantOf(CoreGui) and string.find(path, "PlayerList", 1, true) ~= nil
-    end
-
-    if sectionName == "第三方UI" then
-        if not obj:IsDescendantOf(CoreGui) then
-            return false
-        end
-
-        if IsRobloxSystemObject(obj) then
-            return false
-        end
-
-        return true
-    end
-
-    if sectionName == "全部" then
-        return obj:IsDescendantOf(PlayerGui)
-            or obj:IsDescendantOf(Workspace)
-            or obj:IsDescendantOf(CoreGui)
-    end
-
-    return false
-end
-
-local function ReadTextObjectToSection(obj, sectionName)
-    if not ShouldObjectBelongToSection(obj, sectionName) then
-        return 0
-    end
-
-    local added = 0
-
-    local function trySave(value)
-        if SaveTextWithSection(sectionName, value) then
-            added = added + 1
-        end
-    end
-
+local function ScanContainer(c,s)
+    local n=0
     pcall(function()
-        if obj.Text then
-            trySave(obj.Text)
+        for _,o in ipairs(c:GetDescendants()) do
+            if o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then n+=ReadObj(o,s) end
         end
     end)
-
-    pcall(function()
-        if obj.ContentText then
-            trySave(obj.ContentText)
-        end
-    end)
-
-    pcall(function()
-        if obj.LocalizedText then
-            trySave(obj.LocalizedText)
-        end
-    end)
-
-    return added
+    return n
 end
 
-local function ScanOneContainerForSection(container, sectionName)
-    local added = 0
-
-    pcall(function()
-        for _, obj in ipairs(container:GetDescendants()) do
-            if obj:IsA("TextLabel")
-            or obj:IsA("TextButton")
-            or obj:IsA("TextBox") then
-                added = added + ReadTextObjectToSection(obj, sectionName)
-            end
-        end
-    end)
-
-    return added
+local function ScanUIRoots(s)
+    local n=0
+    for _,root in ipairs(UIRoots) do
+        n+=ScanContainer(root,s)
+    end
+    return n
 end
 
-local function ScanSection(sectionName)
-    local added = 0
-
-    if sectionName == "PlayerGui" then
-        added = added + ScanOneContainerForSection(PlayerGui, "PlayerGui")
-    elseif sectionName == "Workspace" then
-        added = added + ScanOneContainerForSection(Workspace, "Workspace")
-    elseif sectionName == "CoreGui" then
-        added = added + ScanOneContainerForSection(CoreGui, "CoreGui")
-    elseif sectionName == "RobloxGui" then
-        added = added + ScanOneContainerForSection(CoreGui, "RobloxGui")
-    elseif sectionName == "PlayerList" then
-        added = added + ScanOneContainerForSection(CoreGui, "PlayerList")
-    elseif sectionName == "第三方UI" then
-        added = added + ScanOneContainerForSection(CoreGui, "第三方UI")
-    elseif sectionName == "全部" then
-        added = added + ScanSection("PlayerGui")
-        added = added + ScanSection("Workspace")
-        added = added + ScanSection("CoreGui")
+local function ScanWideRoots(s)
+    local n=0
+    for _,root in ipairs(WideRoots) do
+        n+=ScanContainer(root,s)
     end
-
-    RebuildSectionText(sectionName)
-    RebuildSectionText("全部")
-
-    return added
+    return n
 end
 
-local function EscapeLuaString(str)
-    str = tostring(str or "")
-    str = str:gsub("\\", "\\\\")
-    str = str:gsub("\n", "\\n")
-    str = str:gsub("\r", "\\r")
-    str = str:gsub("\t", "\\t")
-    str = str:gsub("\"", "\\\"")
-    return str
+local function Scan(s)
+    local n=0
+    if s=="全部" then
+        n+=Scan("PlayerGui")
+        n+=Scan("Workspace")
+        n+=Scan("CoreGui")
+        n+=Scan("第三方UI")
+    elseif s=="PlayerGui" then n+=ScanContainer(PlayerGui,s)
+    elseif s=="Workspace" then n+=ScanContainer(Workspace,s)
+    elseif s=="第三方UI" then n+=ScanWideRoots(s)
+    else n+=ScanUIRoots(s) end
+    Rebuild(s); Rebuild("全部")
+    return n
 end
 
-local function BuildLuaExport()
-    local data = SectionData[CurrentSection]
-    local lines = {}
-
-    table.insert(lines, "-- UI文本导出")
-    table.insert(lines, "-- 分区：" .. CurrentSection)
-    table.insert(lines, "-- 数量：" .. tostring(GetSectionCount(CurrentSection)))
-    table.insert(lines, "")
-    table.insert(lines, "return {")
-
-    if data and #data.Texts > 0 then
-        for _, text in ipairs(data.Texts) do
-            table.insert(lines, "    \"" .. EscapeLuaString(text) .. "\",")
-        end
-    end
-
-    table.insert(lines, "}")
-    return table.concat(lines, "\n")
+local function ScanAllSections()
+    local n=0
+    n+=Scan("PlayerGui")
+    n+=Scan("Workspace")
+    n+=Scan("CoreGui")
+    n+=Scan("RobloxGui")
+    n+=Scan("PlayerList")
+    n+=Scan("第三方UI")
+    Rebuild("全部")
+    return n
 end
 
-local function ExportCurrentSectionAsLua()
-    local luaText = BuildLuaExport()
-    local copied = false
-    local saved = false
-
-    if setclipboard then
-        setclipboard(luaText)
-        copied = true
-    elseif toclipboard then
-        toclipboard(luaText)
-        copied = true
-    end
-
-    if writefile then
-        local safeName = tostring(CurrentSection):gsub("[\\/:*?\"<>|]", "_")
-        writefile("UITextExport_" .. safeName .. ".lua", luaText)
-        saved = true
-    end
-
-    if copied and saved then
-        UpdateStatus("已导出Lua：已复制并保存文件")
-    elseif copied then
-        UpdateStatus("已导出Lua：已复制")
-    elseif saved then
-        UpdateStatus("已导出Lua：已保存文件")
-    else
-        UpdateStatus("导出失败：当前环境不支持复制或写文件")
-    end
+local function SearchNow()
+    local kw=Clean(Search.Text)
+    if kw=="" then SetDisplay(GetCurrentText(),false); Scroll.CanvasPosition=Vector2.new(); Status("显示全部"); return end
+    local res={}
+    for _,v in ipairs(Data[CurrentSection].Texts) do if string.find(string.lower(v),string.lower(kw),1,true) then table.insert(res,v) end end
+    SetDisplay(#res>0 and table.concat(res,"\n") or ("没有搜索到包含【"..kw.."】的文本"),false)
+    Scroll.CanvasPosition=Vector2.new()
+    Status("搜索结果 "..#res.." 条")
 end
 
-local function GetCurrentAllText()
-    local data = SectionData[CurrentSection]
-
-    if not data then
-        return "未检测到 UI 文本"
-    end
-
-    RebuildSectionText(CurrentSection)
-    return data.AllText
+local function RefreshDisplay(add)
+    UpdateSectionBtns()
+    if Search.Text~="" then SearchNow()
+    else SetDisplay(GetCurrentText(),add and add>0); Status((add and add>0) and ("新增 "..add.." 条") or "暂无新增") end
 end
 
-local function SearchText()
-    local keyword = CleanText(SearchBox.Text)
-    local data = SectionData[CurrentSection]
-
-    if not data then
-        return
-    end
-
-    if keyword == "" then
-        SetDisplayText(GetCurrentAllText(), false)
-        Scroll.CanvasPosition = Vector2.new(0, 0)
-        UpdateStatus("显示全部文本")
-        return
-    end
-
-    local result = {}
-    local lowerKeyword = string.lower(keyword)
-
-    for _, line in ipairs(data.Texts) do
-        if string.find(string.lower(line), lowerKeyword, 1, true) then
-            table.insert(result, line)
-        end
-    end
-
-    if #result == 0 then
-        SetDisplayText("没有搜索到包含【" .. keyword .. "】的文本", false)
-        UpdateStatus("搜索结果 0 条")
-    else
-        SetDisplayText(table.concat(result, "\n"), false)
-        UpdateStatus("搜索结果 " .. #result .. " 条")
-    end
-
-    Scroll.CanvasPosition = Vector2.new(0, 0)
-end
-
-local function RefreshDisplay(added)
-    UpdateSectionButtons()
-
-    if CleanText(SearchBox.Text) ~= "" then
-        SearchText()
-    else
-        if added and added > 0 then
-            SetDisplayText(GetCurrentAllText(), true)
-            UpdateStatus("新增 " .. added .. " 条，已自动滚动")
-        else
-            SetDisplayText(GetCurrentAllText(), false)
-            UpdateStatus("暂无新增")
-        end
-    end
-end
-
-local function ManualRefresh()
-    local added = ScanSection(CurrentSection)
-    RefreshDisplay(added)
-end
-
-local function SwitchSection(sectionName)
-    CurrentSection = sectionName
-    SearchBox.Text = ""
-    SetDisplayText(GetCurrentAllText(), false)
-    Scroll.CanvasPosition = Vector2.new(0, 0)
-    UpdateSectionButtons()
-    UpdateStatus("已切换分区")
-end
-
-local function ClearBlockList()
-    for _, name in ipairs(Sections) do
-        BlockedData[name] = {}
-    end
-end
-
-local function AddCurrentSectionToBlockList()
-    if not BlockMode then
-        return
-    end
-
-    if CurrentSection == "全部" then
-        for _, sectionName in ipairs(Sections) do
-            local sectionData = SectionData[sectionName]
-
-            if sectionData then
-                for _, text in ipairs(sectionData.Texts) do
-                    text = CleanText(text)
-
-                    if text ~= "" then
-                        BlockedData[sectionName][text] = true
-                    end
-                end
-            end
-        end
-
-        return
-    end
-
-    local data = SectionData[CurrentSection]
-
-    if not data then
-        return
-    end
-
-    for _, text in ipairs(data.Texts) do
-        text = CleanText(text)
-
-        if text ~= "" then
-            BlockedData[CurrentSection][text] = true
-            BlockedData["全部"][text] = true
-        end
-    end
-end
-
-local function RebuildAllSectionFromOtherSections()
-    SectionData["全部"].Texts = {}
-    SectionData["全部"].Map = {}
-    SectionData["全部"].AllText = "未检测到 UI 文本"
-
-    for _, name in ipairs(Sections) do
-        if name ~= "全部" then
-            for _, text in ipairs(SectionData[name].Texts) do
-                SaveTextToSection("全部", text)
-            end
-        end
-    end
-
-    RebuildSectionText("全部")
-end
-
-local function RemoveTextFromSection(sectionName, text)
-    text = CleanText(text)
-
-    local data = SectionData[sectionName]
-    if not data then
-        return
-    end
-
-    data.Map[text] = nil
-
-    for i = #data.Texts, 1, -1 do
-        if data.Texts[i] == text then
-            table.remove(data.Texts, i)
-        end
-    end
-
-    RebuildSectionText(sectionName)
-end
-
-DeleteTextFromCurrentList = function(text)
-    text = CleanText(text)
-
-    if text == "" then
-        return
-    end
-
+local function ClearCurrent()
     if BlockMode then
-        if CurrentSection == "全部" then
-            for _, sectionName in ipairs(Sections) do
-                BlockedData[sectionName][text] = true
-            end
-        else
-            BlockedData[CurrentSection][text] = true
-            BlockedData["全部"][text] = true
+        for _,v in ipairs(Data[CurrentSection].Texts) do
+            if CurrentSection=="全部" then for _,s in ipairs(Sections) do Blocked[s][v]=true end
+            else Blocked[CurrentSection][v]=true; Blocked["全部"][v]=true end
         end
     end
-
-    if CurrentSection == "全部" then
-        for _, sectionName in ipairs(Sections) do
-            RemoveTextFromSection(sectionName, text)
-        end
+    if CurrentSection=="全部" then
+        for _,s in ipairs(Sections) do Data[s]={Texts={},Map={},AllText="未检测到 UI 文本"} end
     else
-        RemoveTextFromSection(CurrentSection, text)
-        RebuildAllSectionFromOtherSections()
+        Data[CurrentSection]={Texts={},Map={},AllText="未检测到 UI 文本"}
+        RebuildAll()
     end
-
-    local oldCanvasPosition = Scroll.CanvasPosition
-
-if CleanText(SearchBox.Text) ~= "" then
-    SearchText()
-else
-    SetDisplayText(GetCurrentAllText(), false)
+    Search.Text=""; SetDisplay(GetCurrentText(),false); UpdateSectionBtns(); Status(BlockMode and "已清空并屏蔽" or "已清空")
 end
 
-task.defer(function()
-    task.wait()
-    local maxY = math.max(0, Scroll.CanvasSize.Y.Offset - Scroll.AbsoluteSize.Y)
-    Scroll.CanvasPosition = Vector2.new(0, math.clamp(oldCanvasPosition.Y, 0, maxY))
-end)
-
-UpdateSectionButtons()
-
-    if BlockMode then
-        UpdateStatus("已删除并加入屏蔽")
-    else
-        UpdateStatus("已从当前列表删除")
-    end
+for _,s in ipairs(Sections) do
+    local b=Button(s.." [0]",Color3.fromRGB(58,58,66),SectionFrame)
+    b.MouseButton1Click:Connect(function() CurrentSection=s; Search.Text=""; SetDisplay(GetCurrentText(),false); Scroll.CanvasPosition=Vector2.new(); UpdateSectionBtns(); Status("已切换") end)
+    SectionBtns[s]=b
 end
 
-local function ClearCurrentSection()
-    local data = SectionData[CurrentSection]
-
-    if not data then
-        return
-    end
-
-    AddCurrentSectionToBlockList()
-
-    data.Texts = {}
-    data.Map = {}
-    data.AllText = "未检测到 UI 文本"
-
-    if CurrentSection == "全部" then
-        for _, name in ipairs(Sections) do
-            SectionData[name].Texts = {}
-            SectionData[name].Map = {}
-            SectionData[name].AllText = "未检测到 UI 文本"
-        end
-    else
-        RebuildAllSectionFromOtherSections()
-    end
-
-    SearchBox.Text = ""
-    SetDisplayText(GetCurrentAllText(), false)
-    Scroll.CanvasPosition = Vector2.new(0, 0)
-    UpdateSectionButtons()
-
-    if BlockMode then
-        UpdateStatus("已清空并加入屏蔽")
-    else
-        UpdateStatus("已清空当前分区")
-    end
-end
--- 第5段：分区按钮 + 布局 + 所有按钮事件 + 启动循环
-
-for i, sectionName in ipairs(Sections) do
-    local btn = Instance.new("TextButton")
-    btn.BackgroundColor3 = Color3.fromRGB(58, 58, 66)
-    btn.TextColor3 = Color3.fromRGB(225, 225, 230)
-    btn.Font = Enum.Font.SourceSansBold
-    btn.Text = sectionName .. " [0]"
-    btn.TextTruncate = Enum.TextTruncate.AtEnd
-    btn.BorderSizePixel = 0
-    btn.Parent = SectionFrame
-
-    AddCorner(btn, 6)
-    AddStroke(btn, Color3.fromRGB(80, 80, 90), 1, 0.45)
-
-    btn.MouseButton1Click:Connect(function()
-        SwitchSection(sectionName)
-    end)
-
-    SectionButtons[sectionName] = btn
-end
+local LastSize=Vector2.new(460,350)
+local MiniSize=46
+local LastPos=nil
+local MinW,MinH,MaxW,MaxH=360,270,760,580
 
 local function LayoutUI()
-    if Minimized then
-        return
+    if Minimized then return end
+    local w,h=Main.AbsoluteSize.X,Main.AbsoluteSize.Y
+    local tiny=w<380 or h<285
+    local compact=w<420 or h<315
+    local titleH=tiny and 28 or 32
+    local pad=tiny and 5 or 8
+    local statusH=tiny and 18 or 20
+    local searchH=tiny and 24 or 28
+    local btnH=tiny and 28 or 34
+    local cols=compact and 3 or 4
+    local rows=compact and 3 or 2
+    local secH=rows*(tiny and 22 or 25)+6
+    Title.Size=UDim2.new(1,-76,0,titleH); Title.Position=UDim2.new(0,pad,0,0); Title.TextSize=tiny and 14 or 16
+    MinBtn.Size=UDim2.new(0,titleH,0,titleH); MinBtn.Position=UDim2.new(1,-titleH*2,0,0)
+    CloseBtn.Size=UDim2.new(0,titleH,0,titleH); CloseBtn.Position=UDim2.new(1,-titleH,0,0)
+    Content.Size=UDim2.new(1,0,1,-titleH); Content.Position=UDim2.new(0,0,0,titleH)
+    StatusLabel.Size=UDim2.new(1,-pad*2,0,statusH); StatusLabel.Position=UDim2.new(0,pad,0,0); StatusLabel.TextSize=tiny and 10 or 12
+    SectionFrame.Size=UDim2.new(1,-pad*2,0,secH); SectionFrame.Position=UDim2.new(0,pad,0,statusH+2)
+    for i,s in ipairs(Sections) do
+        local b=SectionBtns[s]; local row=math.floor((i-1)/cols); local col=(i-1)%cols; local bh=tiny and 20 or 23
+        b.Size=UDim2.new(1/cols,-5,0,bh); b.Position=UDim2.new(col/cols,3+col,0,3+row*(bh+3)); b.TextSize=tiny and 9 or 11
     end
-
-    local w = Main.AbsoluteSize.X
-    local h = Main.AbsoluteSize.Y
-
-    local compact = w < 420 or h < 315
-    local tiny = w < 380 or h < 285
-
-    local titleH = tiny and 28 or 32
-    local pad = tiny and 5 or 8
-    local titleSize = tiny and 14 or 16
-    local buttonH = tiny and 28 or 34
-    local searchH = tiny and 24 or 28
-    local statusH = tiny and 18 or 20
-    local sectionRows = compact and 3 or 2
-    local sectionCols = compact and 3 or 4
-    local sectionH = sectionRows * (tiny and 22 or 25) + 6
-
-    Title.Size = UDim2.new(1, -76, 0, titleH)
-    Title.Position = UDim2.new(0, pad, 0, 0)
-    Title.TextSize = titleSize
-
-    Minimize.Size = UDim2.new(0, titleH, 0, titleH)
-    Minimize.Position = UDim2.new(1, -titleH * 2, 0, 0)
-    Minimize.TextSize = titleSize + 2
-
-    Close.Size = UDim2.new(0, titleH, 0, titleH)
-    Close.Position = UDim2.new(1, -titleH, 0, 0)
-    Close.TextSize = titleSize
-
-    ContentFrame.Size = UDim2.new(1, 0, 1, -titleH)
-    ContentFrame.Position = UDim2.new(0, 0, 0, titleH)
-
-    Status.Size = UDim2.new(1, -pad * 2, 0, statusH)
-    Status.Position = UDim2.new(0, pad, 0, 0)
-    Status.TextSize = tiny and 10 or 12
-
-    SectionFrame.Size = UDim2.new(1, -pad * 2, 0, sectionH)
-    SectionFrame.Position = UDim2.new(0, pad, 0, statusH + 2)
-
-    local btnWScale = 1 / sectionCols
-
-    for i, sectionName in ipairs(Sections) do
-        local btn = SectionButtons[sectionName]
-        local row = math.floor((i - 1) / sectionCols)
-        local col = (i - 1) % sectionCols
-        local bh = tiny and 20 or 23
-
-        btn.Size = UDim2.new(btnWScale, -5, 0, bh)
-        btn.Position = UDim2.new(col * btnWScale, 3 + col * 1, 0, 3 + row * (bh + 3))
-        btn.TextSize = tiny and 9 or 11
-    end
-
-    local searchY = statusH + 2 + sectionH + 6
-    local searchBtnW = tiny and 58 or 72
-
-    SearchBox.Size = UDim2.new(1, -pad * 2 - searchBtnW - 6, 0, searchH)
-    SearchBox.Position = UDim2.new(0, pad, 0, searchY)
-    SearchBox.TextSize = tiny and 11 or 13
-
-    SearchBtn.Size = UDim2.new(0, searchBtnW, 0, searchH)
-    SearchBtn.Position = UDim2.new(1, -pad - searchBtnW, 0, searchY)
-    SearchBtn.TextSize = tiny and 11 or 13
-
-    BottomBar.Size = UDim2.new(1, -pad * 2, 0, buttonH)
-    BottomBar.Position = UDim2.new(0, pad, 1, -buttonH - pad)
-
-   local bottomButtons = {Refresh, Copy, AutoBtn, BlockBtn, FavoriteBtn, ExportLuaBtn, ClearAll}
-    local bw = 1 / #bottomButtons
-
-    for i, btn in ipairs(bottomButtons) do
-        btn.Size = UDim2.new(bw, -5, 1, 0)
-        btn.Position = UDim2.new((i - 1) * bw, (i - 1) * 2, 0, 0)
-        btn.TextSize = tiny and 9 or 12
-    end
-
-    local scrollY = searchY + searchH + 6
-    local scrollBottom = buttonH + pad + 6
-    local scrollH = math.max(70, h - titleH - scrollY - scrollBottom)
-
-    Scroll.Size = UDim2.new(1, -pad * 2, 0, scrollH)
-    Scroll.Position = UDim2.new(0, pad, 0, scrollY)
-
-    ResizeHandle.Size = UDim2.new(0, tiny and 18 or 22, 0, tiny and 18 or 22)
-    ResizeHandle.Position = UDim2.new(1, -3, 1, -3)
-
-    ResizeScrollCanvas()
+    local sy=statusH+secH+10; local sbw=tiny and 58 or 72
+    Search.Size=UDim2.new(1,-pad*2-sbw-6,0,searchH); Search.Position=UDim2.new(0,pad,0,sy); Search.TextSize=tiny and 11 or 13
+    SearchBtn.Size=UDim2.new(0,sbw,0,searchH); SearchBtn.Position=UDim2.new(1,-pad-sbw,0,sy); SearchBtn.TextSize=tiny and 11 or 13
+    Bottom.Size=UDim2.new(1,-pad*2,0,btnH); Bottom.Position=UDim2.new(0,pad,1,-btnH-pad)
+    local btns={RefreshBtn,CopyBtn,AutoBtn,BlockBtn,FavBtn,ExportBtn,ClearBtn}
+    for i,b in ipairs(btns) do b.Size=UDim2.new(1/#btns,-5,1,0); b.Position=UDim2.new((i-1)/#btns,(i-1)*2,0,0); b.TextSize=tiny and 9 or 12 end
+    local scrollY=sy+searchH+6
+    Scroll.Size=UDim2.new(1,-pad*2,0,math.max(70,h-titleH-scrollY-btnH-pad-6))
+    Scroll.Position=UDim2.new(0,pad,0,scrollY)
+    Resize.Size=UDim2.new(0,tiny and 18 or 22,0,tiny and 18 or 22); Resize.Position=UDim2.new(1,-3,1,-3)
+    ResizeCanvas()
 end
 
-Refresh.MouseButton1Click:Connect(function()
-    ManualRefresh()
-end)
-
-Copy.MouseButton1Click:Connect(function()
-    CopyText(CurrentDisplayText, "已复制当前显示全部")
-end)
-
-AutoBtn.MouseButton1Click:Connect(function()
-    AutoRefresh = not AutoRefresh
-
-    if AutoRefresh then
-        AutoBtn.Text = "自动：开"
-    else
-        AutoBtn.Text = "自动：关"
-    end
-
-    UpdateStatus()
-end)
-
+RefreshBtn.MouseButton1Click:Connect(function() RefreshDisplay(Scan(CurrentSection)) end)
+CopyBtn.MouseButton1Click:Connect(function() CopyText(CurrentDisplayText,"已复制当前显示") end)
+AutoBtn.MouseButton1Click:Connect(function() AutoRefresh=not AutoRefresh; AutoBtn.Text=AutoRefresh and "自动" or "暂停"; Status() end)
 BlockBtn.MouseButton1Click:Connect(function()
-    BlockMode = not BlockMode
-
-    if BlockMode then
-        BlockBtn.Text = "屏蔽：开"
-        BlockBtn.BackgroundColor3 = Color3.fromRGB(150, 80, 180)
-        UpdateStatus("屏蔽文本已开启")
-    else
-        BlockBtn.Text = "屏蔽：关"
-        BlockBtn.BackgroundColor3 = Color3.fromRGB(110, 80, 150)
-        ClearBlockList()
-        UpdateStatus("屏蔽文本已关闭，记录已清空")
-    end
+    BlockMode=not BlockMode; BlockBtn.Text=BlockMode and "屏蔽开" or "屏蔽"
+    if not BlockMode then for _,s in ipairs(Sections) do Blocked[s]={} end end
+    Status(BlockMode and "屏蔽文本已开启" or "屏蔽已关闭")
 end)
-
-FavoriteBtn.MouseButton1Click:Connect(function()
-    CreateFavoriteUI()
-    RefreshFavoriteList()
-    UpdateFavoriteStatus()
-    UpdateStatus("已打开收藏栏")
+FavBtn.MouseButton1Click:Connect(function() FavoriteWindow(); RefreshFav(); Status("已打开收藏栏") end)
+ExportBtn.MouseButton1Click:Connect(function()
+    local safe=tostring(CurrentSection):gsub('[\\/:*?"<>|]',"_")
+    ExportLua(CurrentSection,Data[CurrentSection].Texts,"UITextExport_"..safe..".lua")
 end)
+SearchBtn.MouseButton1Click:Connect(SearchNow)
+Search.FocusLost:Connect(function(e) if e then SearchNow() end end)
+ClearBtn.MouseButton1Click:Connect(ClearCurrent)
+CloseBtn.MouseButton1Click:Connect(function() SG:Destroy() end)
 
-ExportLuaBtn.MouseButton1Click:Connect(function()
-    ExportCurrentSectionAsLua()
-end)
-
-SearchBtn.MouseButton1Click:Connect(function()
-    SearchText()
-end)
-
-SearchBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        SearchText()
-    end
-end)
-
-ClearAll.MouseButton1Click:Connect(function()
-    ClearCurrentSection()
-end)
-
-Minimize.MouseButton1Click:Connect(function()
-    Minimized = not Minimized
-
+MinBtn.MouseButton1Click:Connect(function()
+    Minimized=not Minimized
     if Minimized then
-        LastNormalSize = Vector2.new(Main.AbsoluteSize.X, Main.AbsoluteSize.Y)
-        LastNormalPosition = Main.Position
-
-        ContentFrame.Visible = false
-        Title.Visible = false
-        Close.Visible = false
-        ResizeHandle.Visible = false
-
-        Main.Draggable = true
-        Main.Size = UDim2.new(0, MiniCircleSize, 0, MiniCircleSize)
-        MainCorner.CornerRadius = UDim.new(1, 0)
-
-        Minimize.Size = UDim2.new(1, 0, 1, 0)
-        Minimize.Position = UDim2.new(0, 0, 0, 0)
-        Minimize.Text = "+"
-        Minimize.TextSize = 24
-        Minimize.BackgroundColor3 = Color3.fromRGB(75, 125, 215)
-        Minimize.ZIndex = 20
+        LastSize=Vector2.new(Main.AbsoluteSize.X,Main.AbsoluteSize.Y); LastPos=Main.Position
+        Content.Visible=false; Title.Visible=false; CloseBtn.Visible=false; Resize.Visible=false
+        Main.Size=UDim2.new(0,MiniSize,0,MiniSize); MainCorner.CornerRadius=UDim.new(1,0)
+        MinBtn.Size=UDim2.new(1,0,1,0); MinBtn.Position=UDim2.new(); MinBtn.Text="+"; MinBtn.TextSize=24; MinBtn.BackgroundColor3=Color3.fromRGB(75,125,215); MinBtn.ZIndex=20
     else
-        ContentFrame.Visible = true
-        Title.Visible = true
-        Close.Visible = true
-        ResizeHandle.Visible = true
-
-        Main.Size = UDim2.new(0, LastNormalSize.X, 0, LastNormalSize.Y)
-
-        if LastNormalPosition then
-            Main.Position = LastNormalPosition
-        end
-
-        MainCorner.CornerRadius = UDim.new(0, 12)
-
-        Minimize.Text = "-"
-        Minimize.BackgroundColor3 = Color3.fromRGB(80, 80, 88)
-        Minimize.ZIndex = 1
-
+        Content.Visible=true; Title.Visible=true; CloseBtn.Visible=true; Resize.Visible=true
+        Main.Size=UDim2.new(0,LastSize.X,0,LastSize.Y); if LastPos then Main.Position=LastPos end
+        MainCorner.CornerRadius=UDim.new(0,12)
+        MinBtn.Text="-"; MinBtn.BackgroundColor3=Color3.fromRGB(80,80,88); MinBtn.ZIndex=1
         LayoutUI()
     end
 end)
 
-Close.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-end)
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(ResizeCanvas)
+Main:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() if not Minimized then LayoutUI() end end)
 
-ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    ResizeScrollCanvas()
-end)
-
-Main:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-    if not Minimized then
-        LayoutUI()
+local resizing=false
+local rStartPos,rStartSize
+Resize.InputBegan:Connect(function(input)
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+        resizing=true; rStartPos=input.Position; rStartSize=Main.AbsoluteSize; Main.Draggable=false
     end
 end)
-
-local resizing = false
-local resizeStartPos = nil
-local resizeStartSize = nil
-
-ResizeHandle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-    or input.UserInputType == Enum.UserInputType.Touch then
-        resizing = true
-        resizeStartPos = input.Position
-        resizeStartSize = Main.AbsoluteSize
-        Main.Draggable = false
+UIS.InputChanged:Connect(function(input)
+    if resizing and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
+        local d=input.Position-rStartPos
+        Main.Size=UDim2.new(0,math.clamp(rStartSize.X+d.X,MinW,MaxW),0,math.clamp(rStartSize.Y+d.Y,MinH,MaxH))
+        LastSize=Vector2.new(Main.AbsoluteSize.X,Main.AbsoluteSize.Y)
     end
 end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if not resizing then
-        return
-    end
-
-    if input.UserInputType ~= Enum.UserInputType.MouseMovement
-    and input.UserInputType ~= Enum.UserInputType.Touch then
-        return
-    end
-
-    local delta = input.Position - resizeStartPos
-    local newW = math.clamp(resizeStartSize.X + delta.X, MinWidth, MaxWidth)
-    local newH = math.clamp(resizeStartSize.Y + delta.Y, MinHeight, MaxHeight)
-
-    Main.Size = UDim2.new(0, newW, 0, newH)
-    LastNormalSize = Vector2.new(newW, newH)
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then resizing=false; Main.Draggable=true end
 end)
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-    or input.UserInputType == Enum.UserInputType.Touch then
-        resizing = false
-        Main.Draggable = true
-    end
-end)
-
+-- 稳定低卡顿自动获取：只扫描当前分区，不做全分区实时监听
+-- 如果当前在“第三方UI”，就只扫第三方UI；如果当前在“全部”，才扫全部。
 task.spawn(function()
-    while ScreenGui and ScreenGui.Parent do
+    while SG and SG.Parent do
         if AutoRefresh then
-            local added = ScanSection(CurrentSection)
-            RefreshDisplay(added)
+            RefreshDisplay(Scan(CurrentSection))
         else
-            UpdateSectionButtons()
-            UpdateStatus()
+            UpdateSectionBtns(); Status()
         end
-
-        task.wait(1)
+        task.wait(1.2)
     end
 end)
 
 LayoutUI()
-SwitchSection("全部")
-ManualRefresh()
+CurrentSection="全部"
+RefreshDisplay(Scan(CurrentSection))
