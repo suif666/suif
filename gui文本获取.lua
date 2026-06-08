@@ -1459,10 +1459,7 @@ local StatusFunc = UpdateStatus
 local ResizeCanvas = ResizeScrollCanvas
 local Scan = ScanSection
 
--- 兼容后面 v9 自动逻辑里的 Status(...) 写法
-local function Status(msg)
-    return UpdateStatus(msg)
-end
+-- 已移除错误的 Status 兼容函数：它会覆盖状态栏 TextLabel，导致界面只显示外框
 
 local function ExportLua(title, texts, fileName)
     local lines = {}
