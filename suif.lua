@@ -333,8 +333,8 @@ slTab:Button({
 })
 
 fkgsTab:Button({
-    Title = "方块故事", Desc = "无卡密 超好用", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/block%20tales/revamp.lua", "方块故事") end
+    Title = "方块故事[suif汉化]", Desc = "无卡密 超好用", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B.lua", "方块故事") end
 })
 
 zrzhTab:Button({
