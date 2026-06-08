@@ -1113,12 +1113,10 @@ end
 local function EscapeLuaString(str)
     str = tostring(str or "")
     str = str:gsub("\\", "\\\\")
-    str = str:gsub("
-", "\\n")
-    str = str:gsub("
-", "\\r")
-    str = str:gsub("	", "\\t")
-    str = str:gsub("\"", "\\"")
+    str = str:gsub("\n", "\\n")
+    str = str:gsub("\r", "\\r")
+    str = str:gsub("\t", "\\t")
+    str = str:gsub("\"", "\\\"")
     return str
 end
 
@@ -1134,13 +1132,12 @@ local function BuildLuaExport()
 
     if data and #data.Texts > 0 then
         for _, text in ipairs(data.Texts) do
-            table.insert(lines, "    "" .. EscapeLuaString(text) .. "",")
+            table.insert(lines, "    \"" .. EscapeLuaString(text) .. "\",")
         end
     end
 
     table.insert(lines, "}")
-    return table.concat(lines, "
-")
+    return table.concat(lines, "\n")
 end
 
 local function ExportCurrentSectionAsLua()
