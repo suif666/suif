@@ -48,7 +48,7 @@ AddUniqueRoot(UIRoots,HuiRoot)
 -- 有些第三方UI不在CoreGui，而在PlayerGui或gethui的独立容器里
 local WideRoots={}
 AddUniqueRoot(WideRoots,PlayerGui)
-AddUniqueRoot(WideRoots,Workspace)
+-- 自动版不把 Workspace 放进第三方UI宽扫，避免地图对象太多导致卡顿
 AddUniqueRoot(WideRoots,CoreGui)
 AddUniqueRoot(WideRoots,HuiRoot)
 
@@ -622,19 +622,58 @@ UIS.InputEnded:Connect(function(input)
     if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then resizing=false; Main.Draggable=true end
 end)
 
--- 稳定低卡顿自动获取：只扫描当前分区，不做全分区实时监听
--- 如果当前在“第三方UI”，就只扫第三方UI；如果当前在“全部”，才扫全部。
+-- 稳定自动获取 v9：低频扫描当前分区，同时后台补扫第三方UI
+-- 不再只执行第一次；也不做高频实时监听，避免卡顿。
+local AutoScanInterval = 1.5
+
+local function AutoScanOnce()
+    local before = Count(CurrentSection)
+    local added = 0
+
+    if CurrentSection == "全部" then
+        -- 自动模式下不扫 Workspace，避免地图对象太多导致卡顿
+        added += Scan("PlayerGui")
+        added += Scan("CoreGui")
+        added += Scan("第三方UI")
+        Rebuild("全部")
+    else
+        added += Scan(CurrentSection)
+
+        -- 后台补扫第三方UI，让后加载的脚本UI也能进列表
+        if CurrentSection ~= "第三方UI" then
+            added += Scan("第三方UI")
+            Rebuild("全部")
+        end
+    end
+
+    UpdateSectionBtns()
+
+    if Search.Text ~= "" then
+        SearchNow()
+        return
+    end
+
+    local after = Count(CurrentSection)
+    if added > 0 or after ~= before then
+        SetDisplay(GetCurrentText(), added > 0)
+        Status("新增 " .. tostring(added) .. " 条")
+    else
+        Status("暂无新增")
+    end
+end
+
 task.spawn(function()
     while SG and SG.Parent do
         if AutoRefresh then
-            RefreshDisplay(Scan(CurrentSection))
+            AutoScanOnce()
         else
-            UpdateSectionBtns(); Status()
+            UpdateSectionBtns()
+            Status()
         end
-        task.wait(1.2)
+        task.wait(AutoScanInterval)
     end
 end)
 
 LayoutUI()
 CurrentSection="全部"
-RefreshDisplay(Scan(CurrentSection))
+RefreshDisplay(Scan("PlayerGui") + Scan("CoreGui") + Scan("第三方UI"))
