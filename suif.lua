@@ -406,6 +406,14 @@ tyscriptTab:Button({
     end
 })
 
+tyscriptTab:Button({
+    Title = "npc控制[suif汉化]", Desc = "可以控制npc", Icon = "shell",
+    Callback = function()
+        getgenv().bypass_adonis = true
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E6%B1%89%E5%8C%96.lua", "npc控制")
+    end
+})
+
 -- UI设置
 local themeMap = {
     ["深色"]="Dark", ["浅色"]="Light", ["玫瑰"]="Rose", ["植物"]="Plant", ["红色"]="Red",
