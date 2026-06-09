@@ -366,12 +366,37 @@ wqkTab:Button({
 })
 
 fescriptTab:Button({
-    Title = "fe超人飞行", Desc = "他人可见", Icon = "shell",
+    Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
     Callback = function()
         getgenv().bypass_adonis = true
-        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "武器库")
+        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "无敌少侠")
     end
 })
+
+fescriptTab:Button({
+    Title = "fe祖国人[suif汉化]", Desc = "他人可见", Icon = "shell",
+    Callback = function()
+        getgenv().bypass_adonis = true
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96.lua", "祖国人")
+    end
+})
+
+fescriptTab:Button({
+    Title = "fe火车头", Desc = "他人可见", Icon = "shell",
+    Callback = function()
+        getgenv().bypass_adonis = true
+        run("https://raw.githubusercontent.com/giobolqv1/A-Train-by-GioBolqv1-/refs/heads/main/train.lua", "火车头")
+    end
+})
+
+fescriptTab:Button({
+    Title = "fe死亡[suif汉化]", Desc = "他人可见 优质的动作脚本。。", Icon = "shell",
+    Callback = function()
+        getgenv().bypass_adonis = true
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/uhhhhhh.lua", "uhhhh")
+    end
+})
+
 
 tyscriptTab:Button({
     Title = "飞行V3", Desc = "顾名思义", Icon = "shell",
