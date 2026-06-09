@@ -374,7 +374,7 @@ fescriptTab:Button({
 })
 
 fescriptTab:Button({
-    Title = "fe祖国人[suif汉化]", Desc = "他人可见", Icon = "shell",
+    Title = "fe祖国人[suif汉化]", Desc = "晚安,阿祖", Icon = "shell",
     Callback = function()
         getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96.lua", "祖国人")
@@ -382,10 +382,10 @@ fescriptTab:Button({
 })
 
 fescriptTab:Button({
-    Title = "fe火车头", Desc = "他人可见", Icon = "shell",
+    Title = "fe火车头[suif汉化]", Desc = "情侣拆散器", Icon = "shell",
     Callback = function()
         getgenv().bypass_adonis = true
-        run("https://raw.githubusercontent.com/giobolqv1/A-Train-by-GioBolqv1-/refs/heads/main/train.lua", "火车头")
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%AB%E8%BD%A6%E5%A4%B4%E6%B1%89%E5%8C%96.lua", "火车头")
     end
 })
 
