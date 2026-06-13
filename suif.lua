@@ -227,6 +227,53 @@ if not _G.IntHook then
     end) 
 end
 
+
+
+local ItemHighlightURL = ""
+
+local ItemHighlightLib = nil
+
+local function getItemHighlightLib()
+    if ItemHighlightLib then
+        return ItemHighlightLib
+    end
+
+    local ok, res = pcall(function()
+        return loadstring(game:HttpGet(ItemHighlightURL))()
+    end)
+
+    if ok and type(res) == "table" and res.Start and res.Stop then
+        ItemHighlightLib = res
+        return ItemHighlightLib
+    else
+        warn("物品高亮加载失败:", res)
+        notify("物品高亮", "加载失败", "triangle-alert", 3)
+        return nil
+    end
+end
+
+toolTab:Toggle({
+    Title = "物品高亮",
+    Desc = "高亮特殊物品，可开启/关闭",
+    Icon = "eye",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(state)
+        local lib = getItemHighlightLib()
+        if not lib then return end
+
+        if state then
+            lib.Start()
+            notify("物品高亮", "已开启", "eye", 2)
+        else
+            lib.Stop()
+            notify("物品高亮", "已关闭", "eye-off", 2)
+        end
+    end
+})
+
+
+
 toolTab:Button({
     Title = "Gui文本获取", Desc = "自制 依旧ai神力", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/gui%E6%96%87%E6%9C%AC%E8%8E%B7%E5%8F%96.lua", "Gui文本获取") end
