@@ -229,7 +229,7 @@ end
 
 
 
-local ItemHighlightURL = ""
+local ItemHighlightURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"
 
 local ItemHighlightLib = nil
 
