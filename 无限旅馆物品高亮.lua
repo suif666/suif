@@ -9,6 +9,8 @@ local FillTransparency = 0.85
 local OutlineTransparency = 0
 local TextSize = 12
 
+local Enabled = {}
+
 local ObjectIds = setmetatable({}, { __mode = "k" })
 local NextId = 0
 
@@ -66,7 +68,18 @@ local function getLabelAdornee(obj)
     return nil
 end
 
-local function makeHighlight(obj, prefix, color, text)
+local function removeGroup(group)
+    if not HighlightFolder then return end
+
+    for _, obj in ipairs(HighlightFolder:GetChildren()) do
+        if obj:GetAttribute("Group") == group then
+            obj:Destroy()
+        end
+    end
+end
+
+local function makeHighlight(group, obj, prefix, color, text)
+    if not Enabled[group] then return end
     if not obj then return end
 
     local folder = getFolder()
@@ -93,6 +106,7 @@ local function makeHighlight(obj, prefix, color, text)
     h.OutlineTransparency = OutlineTransparency
     h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     h.Enabled = true
+    h:SetAttribute("Group", group)
     h.Parent = folder
 
     local adornee = getLabelAdornee(obj)
@@ -103,6 +117,7 @@ local function makeHighlight(obj, prefix, color, text)
         bill.AlwaysOnTop = true
         bill.Size = UDim2.new(0, 95, 0, 20)
         bill.StudsOffset = Vector3.new(0, -2, 0)
+        bill:SetAttribute("Group", group)
         bill.Parent = folder
 
         local label = Instance.new("TextLabel")
@@ -119,12 +134,12 @@ local function makeHighlight(obj, prefix, color, text)
 end
 
 local function cleanInvalid()
-    local folder = getFolder()
+    if not HighlightFolder then return end
 
-    for _, obj in ipairs(folder:GetChildren()) do
+    for _, obj in ipairs(HighlightFolder:GetChildren()) do
         if obj:IsA("Highlight") then
             if not obj.Adornee or obj.Adornee.Parent == nil then
-                local text = folder:FindFirstChild(obj.Name .. "_Text")
+                local text = HighlightFolder:FindFirstChild(obj.Name .. "_Text")
                 if text then
                     text:Destroy()
                 end
@@ -139,78 +154,111 @@ local function cleanInvalid()
     end
 end
 
+local function anyEnabled()
+    for _, v in pairs(Enabled) do
+        if v then
+            return true
+        end
+    end
+
+    return false
+end
+
 local function highlightSimpleObjects()
+    if not (
+        Enabled.Cabinet
+        or Enabled.Box
+        or Enabled.Safe
+        or Enabled.HintPaper
+        or Enabled.EvilRoom
+        or Enabled.DollBlackHead
+        or Enabled.Table
+        or Enabled.Dish
+        or Enabled.Sacrifice
+    ) then
+        return
+    end
+
     local root = getRoot()
 
     for _, obj in ipairs(root:GetDescendants()) do
-        if obj.Name == "HideTansu" then
+        if Enabled.Cabinet and obj.Name == "HideTansu" then
             makeHighlight(
+                "Cabinet",
                 obj,
-                "HideTansu",
+                "Cabinet",
                 Color3.fromRGB(255, 255, 0),
                 "柜子"
             )
 
-        elseif obj.Name == "BoxBottom" and obj.Parent and obj.Parent.Name == "OfudaBox2" then
+        elseif Enabled.Box and obj.Name == "BoxBottom" and obj.Parent and obj.Parent.Name == "OfudaBox2" then
             makeHighlight(
+                "Box",
                 obj,
-                "OfudaBox",
+                "Box",
                 Color3.fromRGB(0, 255, 255),
                 "箱子"
             )
 
-        elseif obj.Name == "Meshes/safe_Safe" then
+        elseif Enabled.Safe and obj.Name == "Meshes/safe_Safe" then
             makeHighlight(
+                "Safe",
                 obj,
                 "Safe",
                 Color3.fromRGB(0, 255, 0),
                 "保险柜"
             )
 
-        elseif obj.Name == "HintPaper" then
+        elseif Enabled.HintPaper and obj.Name == "HintPaper" then
             makeHighlight(
+                "HintPaper",
                 obj,
                 "HintPaper",
                 Color3.fromRGB(255, 170, 255),
                 "提示纸"
             )
 
-        elseif obj.Name == "hanging scroll_base" then
+        elseif Enabled.EvilRoom and obj.Name == "hanging scroll_base" then
             makeHighlight(
+                "EvilRoom",
                 obj,
                 "EvilRoom",
                 Color3.fromRGB(255, 0, 0),
                 "邪恶房间"
             )
 
-        elseif obj.Name == "DollBlackHead" and obj:IsA("MeshPart") then
+        elseif Enabled.DollBlackHead and obj.Name == "DollBlackHead" and obj:IsA("MeshPart") then
             makeHighlight(
+                "DollBlackHead",
                 obj,
                 "DollBlackHead",
                 Color3.fromRGB(255, 80, 80),
                 "洋娃娃头"
             )
 
-        elseif obj.Name == "Zataku" then
+        elseif Enabled.Table and obj.Name == "Zataku" then
             makeHighlight(
+                "Table",
                 obj,
-                "Zataku",
+                "Table",
                 Color3.fromRGB(255, 140, 0),
                 "桌子"
             )
 
-        elseif obj.Name == "Dish" and obj:IsA("BasePart") then
+        elseif Enabled.Dish and obj.Name == "Dish" and obj:IsA("BasePart") then
             makeHighlight(
+                "Dish",
                 obj,
                 "Dish",
                 Color3.fromRGB(240, 240, 240),
                 "盘子"
             )
 
-        elseif obj.Name == "dirty sheet" and obj:IsA("MeshPart") then
+        elseif Enabled.Sacrifice and obj.Name == "dirty sheet" and obj:IsA("MeshPart") then
             makeHighlight(
+                "Sacrifice",
                 obj,
-                "SacrificeBoard",
+                "Sacrifice",
                 Color3.fromRGB(170, 100, 40),
                 "祭祀"
             )
@@ -219,6 +267,8 @@ local function highlightSimpleObjects()
 end
 
 local function highlightDolls()
+    if not Enabled.Doll then return end
+
     local server = getServer()
     if not server then return end
 
@@ -232,6 +282,7 @@ local function highlightDolls()
 
             if hasHead and hasTorso then
                 makeHighlight(
+                    "Doll",
                     obj,
                     "Doll",
                     Color3.fromRGB(255, 105, 180),
@@ -243,6 +294,8 @@ local function highlightDolls()
 end
 
 local function highlightTV()
+    if not Enabled.TV then return end
+
     local root = getRoot()
 
     for _, obj in ipairs(root:GetDescendants()) do
@@ -253,6 +306,7 @@ local function highlightTV()
 
             if hasBase0 and hasBase02 and hasPoint1 then
                 makeHighlight(
+                    "TV",
                     obj,
                     "TV",
                     Color3.fromRGB(80, 170, 255),
@@ -264,6 +318,8 @@ local function highlightTV()
 end
 
 local function highlightLighter()
+    if not Enabled.Lighter then return end
+
     local root = getRoot()
 
     for _, obj in ipairs(root:GetDescendants()) do
@@ -276,6 +332,7 @@ local function highlightLighter()
 
             if hasOil and hasMetal and (hasBase01 or hasBase02 or hasBase04) then
                 makeHighlight(
+                    "Lighter",
                     obj,
                     "Lighter",
                     Color3.fromRGB(0, 255, 120),
@@ -287,6 +344,8 @@ local function highlightLighter()
 end
 
 local function highlightPasswordBox()
+    if not Enabled.PasswordBox then return end
+
     local root = getRoot()
 
     for _, obj in ipairs(root:GetDescendants()) do
@@ -298,6 +357,7 @@ local function highlightPasswordBox()
 
             if hasBase and (hasRope01 or hasRope02 or hasRopeSpawn) then
                 makeHighlight(
+                    "PasswordBox",
                     obj,
                     "PasswordBox",
                     Color3.fromRGB(255, 215, 0),
@@ -317,13 +377,10 @@ local function scan()
     cleanInvalid()
 end
 
-function M.Start()
-    if Running then
-        return
-    end
+local function startLoop()
+    if Running then return end
 
     Running = true
-    getFolder()
 
     task.spawn(function()
         while Running do
@@ -333,7 +390,35 @@ function M.Start()
     end)
 end
 
-function M.Stop()
+function M.Set(key, state)
+    Enabled[key] = state and true or false
+
+    if state then
+        getFolder()
+        startLoop()
+    else
+        removeGroup(key)
+
+        if not anyEnabled() then
+            Running = false
+        end
+    end
+end
+
+function M.Enable(key)
+    M.Set(key, true)
+end
+
+function M.Disable(key)
+    M.Set(key, false)
+end
+
+function M.DisableAll()
+    for key in pairs(Enabled) do
+        Enabled[key] = false
+        removeGroup(key)
+    end
+
     Running = false
 
     if HighlightFolder then
@@ -342,8 +427,8 @@ function M.Stop()
     end
 end
 
-function M.IsRunning()
-    return Running
+function M.IsEnabled(key)
+    return Enabled[key] == true
 end
 
 return M
