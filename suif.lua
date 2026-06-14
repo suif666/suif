@@ -153,6 +153,92 @@ local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = fal
 local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
+
+local ItemHighlightURL = "https://raw.githubusercontent.com/你的用户名/你的仓库/main/item_highlight.lua"
+
+local ItemHighlightLib = nil
+
+local function getItemHighlightLib()
+    if ItemHighlightLib then
+        return ItemHighlightLib
+    end
+
+    local ok, res = pcall(function()
+        return loadstring(game:HttpGet(ItemHighlightURL))()
+    end)
+
+    if ok and type(res) == "table" and res.Set then
+        ItemHighlightLib = res
+        return ItemHighlightLib
+    else
+        warn("物品高亮加载失败:", res)
+        notify("物品高亮", "加载失败", "triangle-alert", 3)
+        return nil
+    end
+end
+
+local itemHLSection = win:Section({
+    Title = "物品高亮",
+    Icon = "eye",
+    Opened = false
+})
+
+local itemHLTab = itemHLSection:Tab({
+    Title = "高亮开关",
+    Icon = "eye",
+    Locked = false
+})
+
+local function addItemToggle(title, key, desc)
+    itemHLTab:Toggle({
+        Title = title,
+        Desc = desc or "",
+        Icon = "eye",
+        Type = "Checkbox",
+        Value = false,
+        Callback = function(state)
+            local lib = getItemHighlightLib()
+            if not lib then return end
+
+            lib.Set(key, state)
+
+            notify(
+                title,
+                state and "已开启" or "已关闭",
+                state and "eye" or "eye-off",
+                2
+            )
+        end
+    })
+end
+
+addItemToggle("柜子高亮", "Cabinet", "HideTansu")
+addItemToggle("箱子高亮", "Box", "OfudaBox2.BoxBottom")
+addItemToggle("保险柜高亮", "Safe", "safe_Safe")
+addItemToggle("提示纸高亮", "HintPaper", "HintPaper")
+addItemToggle("邪恶房间高亮", "EvilRoom", "hanging scroll_base")
+addItemToggle("洋娃娃高亮", "Doll", "DollHead + DollTorso")
+addItemToggle("洋娃娃头高亮", "DollBlackHead", "DollBlackHead")
+addItemToggle("桌子高亮", "Table", "Zataku")
+addItemToggle("盘子高亮", "Dish", "Dish")
+addItemToggle("电视机高亮", "TV", "base0 + base02 + Point1")
+addItemToggle("打火机高亮", "Lighter", "oil + metal01")
+addItemToggle("祭祀高亮", "Sacrifice", "dirty sheet")
+addItemToggle("密码箱高亮", "PasswordBox", "base + rope")
+
+itemHLTab:Button({
+    Title = "关闭全部高亮",
+    Desc = "关闭所有物品高亮",
+    Icon = "eye-off",
+    Callback = function()
+        local lib = getItemHighlightLib()
+        if lib and lib.DisableAll then
+            lib.DisableAll()
+            notify("物品高亮", "已关闭全部", "eye-off", 2)
+        end
+    end
+})
+
 -- 远程加载反馈模块，不让主脚本变长
 task.spawn(function()
     local ok, feedbackModule = pcall(function()
