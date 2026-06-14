@@ -118,12 +118,10 @@ task.delay(1, function()
     end
 end)
 
--- 反馈模块配置
--- 第一步：把 /mnt/data/SutureHubFeedback.lua 上传到你的 GitHub 仓库
--- 第二步：把下面的 FeedbackModuleURL 改成它的 Raw 链接
--- 第三步：把 FeedbackAPI 改成你的 Cloudflare Worker 地址
-local FeedbackModuleURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
-local FeedbackAPI = "https://suture-feedback.sfbdsl666.workers.dev"
+_G.FeedbackAPI = "https://suture-feedback.sfbdsl666.workers.dev"
+_G.FeedbackWindowTitle = "反馈"
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"))()
 
 -- tabs
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
@@ -239,36 +237,6 @@ itemHLTab:Button({
     end
 })
 
--- 远程加载反馈模块，不让主脚本变长
-task.spawn(function()
-    local ok, feedbackModule = pcall(function()
-        return loadstring(game:HttpGet(FeedbackModuleURL))()
-    end)
-
-    if not ok or type(feedbackModule) ~= "function" then
-        warn("反馈模块加载失败:", feedbackModule)
-        notify("反馈模块", "加载失败", "triangle-alert", 2)
-        return
-    end
-
-    local ok2, err = pcall(function()
-        feedbackModule({
-            Window = win,
-            MainTab = mainTab,
-            Notify = notify,
-            LocalPlayer = lp,
-            HttpService = httpService,
-            UISet = uiSet,
-            FeedbackAPI = FeedbackAPI
-        })
-    end)
-
-    if not ok2 then
-        warn("反馈模块初始化失败:", err)
-        notify("反馈模块", "初始化失败", "triangle-alert", 2)
-    end
-end)
-
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
 local countText = mainTab:Paragraph({ Title = "全网执行次数", Desc = "正在获取..." })
@@ -357,10 +325,10 @@ local function applyFB()
 end
 visualTab:Toggle({
     Title = "高亮环境",
-    Desc = "默认自动开启，可手动关闭",
+    Desc = "这辈子再也不怕黑了。。",
     Icon = "sun",
     Type = "Checkbox",
-    Value = true,
+    Value = false,
     Callback = function(s)
         fb.Enabled = s
         applyFB()
@@ -383,15 +351,7 @@ visualTab:Toggle({
     Title = "保留阴影", Desc = "关闭后画面会更亮", Icon = "cloud-sun", Type = "Checkbox", Value = false,
     Callback = function(s) fb.Shadows = s applyFB() end
 })
-visualTab:Button({
-    Title = "删除本地雾气", Desc = "只影响本地画面",
-    Callback = function()
-        lighting.FogStart = 0
-        lighting.FogEnd = 100000
-        fb.FogEnd = 100000
-        notify("雾气", "已删除本地雾气", "check", 2)
-    end
-})
+
 visualTab:Button({
     Title = "恢复默认光照", Desc = "关闭高亮并恢复默认光照",
     Callback = function()
@@ -405,17 +365,7 @@ visualTab:Button({
     end
 })
 
--- 每次执行脚本时，自动执行一次视觉分区的高亮环境
-task.defer(function()
-    applyFB()
-    notify("高亮环境", "已自动开启", "sun", 2)
-end)
-
 -- 工具栏
-toolTab:Button({
-    Title = "复制玩家信息", Desc = "复制自己的用户名和 UserId",
-    Callback = function() copy("Name: " .. lp.Name .. "\nUserId: " .. tostring(lp.UserId), "信息已复制") end
-})
 toolTab:Button({
     Title = "重新加入服务器", Desc = "重新进入当前服务器",
     Callback = function() teleport:Teleport(game.PlaceId, lp) end
@@ -482,82 +432,6 @@ toolTab:Toggle({
         notify("快速互动", s and "已开启" or "已关闭并恢复", "zap", 1.5)
     end
 })
-
--- 兼容旧版本：如果以前用过 _G.IntHook，先断开，避免重复连接
-if _G.IntHook then
-    pcall(function()
-        _G.IntHook:Disconnect()
-    end)
-    _G.IntHook = nil
-end
-
--- 使用专属命名，避免和其它脚本的 _G.IntHook 冲突
-if getgenv().SutureHubInstantInteractConnection then
-    pcall(function()
-        getgenv().SutureHubInstantInteractConnection:Disconnect()
-    end)
-    getgenv().SutureHubInstantInteractConnection = nil
-end
-
-getgenv().SutureHubInstantInteractConnection = workspace.DescendantAdded:Connect(function(v)
-    if getgenv().InstantInteract and v:IsA("ProximityPrompt") then
-        setInstantPrompt(v)
-    end
-end)
-
-
-
-local ItemHighlightURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"
-
-local ItemHighlightLib = nil
-
-local function getItemHighlightLib()
-    if ItemHighlightLib then
-        return ItemHighlightLib
-    end
-
-    local ok, res = pcall(function()
-        return loadstring(game:HttpGet(ItemHighlightURL))()
-    end)
-
-    if ok and type(res) == "table" and type(res.Start) == "function" and type(res.Stop) == "function" then
-        ItemHighlightLib = res
-        return ItemHighlightLib
-    else
-        warn("物品高亮加载失败:", res)
-        notify("物品高亮", "加载失败", "triangle-alert", 3)
-        return nil
-    end
-end
-
-toolTab:Toggle({
-    Title = "物品高亮",
-    Desc = "高亮特殊物品，可开启/关闭",
-    Icon = "eye",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(state)
-        local lib = getItemHighlightLib()
-        if not lib then return end
-
-        local ok, err = pcall(function()
-            if state then
-                lib.Start()
-            else
-                lib.Stop()
-            end
-        end)
-
-        if ok then
-            notify("物品高亮", state and "已开启" or "已关闭", state and "eye" or "eye-off", 2)
-        else
-            warn("物品高亮切换失败:", err)
-            notify("物品高亮", "切换失败", "triangle-alert", 2)
-        end
-    end
-})
-
-
 
 toolTab:Button({
     Title = "Gui文本获取", Desc = "自制 依旧ai神力", Icon = "shell",
@@ -771,8 +645,7 @@ aboutTab:Button({
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
 
--- 【缓存优化版】标题时间显示：不再每秒全量扫描 CoreGui
--- 重新执行脚本时，让旧的标题时间循环自动退出，避免重复 while true 占用内存和性能
+
 getgenv().SutureHubTitleClockToken = (getgenv().SutureHubTitleClockToken or 0) + 1
 local TitleClockToken = getgenv().SutureHubTitleClockToken
 
@@ -816,7 +689,7 @@ task.spawn(function()
     while getgenv().SutureHubTitleClockToken == TitleClockToken do
         -- 每 5 秒补扫一次，避免 WindUI 延迟创建标题导致找不到
         local now = os.clock()
-        if now - LastTitleScan >= 5 then
+        if now - LastTitleScan >= 60 then
             LastTitleScan = now
             scanSutureTitleLabels()
         end
