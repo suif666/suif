@@ -1,347 +1,239 @@
--- SutureHubFeedback.lua
--- 放到 GitHub Raw 后，在主脚本里 loadstring(game:HttpGet(FeedbackModuleURL))() 加载
--- 用法：
--- local Feedback = loadstring(game:HttpGet(FeedbackModuleURL))()
--- Feedback({
---     Window = win,
---     MainTab = mainTab,
---     Notify = notify,
---     LocalPlayer = lp,
---     HttpService = httpService,
---     UISet = uiSet,
---     FeedbackAPI = "https://你的worker地址.workers.dev"
--- })
+--// Embedded Feedback Module
+--// 作者注释位：你的B站UID
 
-return function(ctx)
-    local Window = ctx.Window
-    local MainTab = ctx.MainTab
-    local notify = ctx.Notify or function(t, c) warn(t, c) end
-    local lp = ctx.LocalPlayer or game:GetService("Players").LocalPlayer
-    local httpService = ctx.HttpService or game:GetService("HttpService")
-    local uiSet = ctx.UISet or { SideBarWidth = 180 }
-    local FeedbackAPI = ctx.FeedbackAPI or ""
+local FeedbackAPI = _G.FeedbackAPI or ""
+local WindowTitle = _G.FeedbackWindowTitle or "刘某脚本"
 
-    if not Window then
-        warn("SutureHubFeedback: 缺少 Window")
-        return
-    end
+if FeedbackAPI == "" then
+    warn("反馈模块加载失败：缺少 _G.FeedbackAPI")
+    return
+end
 
-    local ModuleVersion = "GET_COMPAT_V2"
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
 
-    -- 旧版模块用过 SutureHubFeedbackLoaded，重新执行时可能会拦截新版模块。
-    -- 这里改成版本号机制，方便你以后直接更新 Raw 文件。
-    if getgenv().SutureHubFeedbackVersion == ModuleVersion then
-        return
-    end
+local function GetRequest()
+    return syn and syn.request
+        or http and http.request
+        or http_request
+        or request
+end
 
-    getgenv().SutureHubFeedbackVersion = ModuleVersion
-    getgenv().SutureHubFeedbackLoaded = nil
+local function FindWindUIRoot(titleText)
+    local roots = {}
 
-    if getgenv().SutureHubFeedbackButton and getgenv().SutureHubFeedbackButton.Parent then
-        pcall(function()
-            getgenv().SutureHubFeedbackButton:Destroy()
-        end)
-        getgenv().SutureHubFeedbackButton = nil
-    end
-
-    local FeedbackText = ""
-
-    local function getUIRoots()
-        local roots = {}
-
-        pcall(function()
-            table.insert(roots, game:GetService("CoreGui"))
-        end)
-
-        pcall(function()
-            local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 2)
-            if pg then
-                table.insert(roots, pg)
+    for _, gui in ipairs(CoreGui:GetDescendants()) do
+        if gui:IsA("TextLabel") or gui:IsA("TextButton") then
+            if tostring(gui.Text):find(titleText) then
+                local obj = gui
+                while obj and not obj:IsA("ScreenGui") do
+                    table.insert(roots, obj)
+                    obj = obj.Parent
+                end
             end
-        end)
-
-        return roots
+        end
     end
 
-    local function findSutureMainWindow()
-        local bestWindow = nil
-        local bestArea = 0
+    local best, bestArea = nil, 0
 
-        local function checkCandidate(obj)
-            if not obj or not obj:IsA("GuiObject") or not obj.Visible then
-                return
-            end
+    for _, obj in ipairs(roots) do
+        if obj:IsA("Frame") or obj:IsA("ImageLabel") or obj:IsA("CanvasGroup") then
+            local s = obj.AbsoluteSize
+            local area = s.X * s.Y
 
-            local size = obj.AbsoluteSize
-            local area = size.X * size.Y
-
-            if size.X >= 480 and size.X <= 1000 and size.Y >= 300 and size.Y <= 750 and area > bestArea then
-                bestWindow = obj
+            if area > bestArea and s.X > 300 and s.Y > 200 then
+                best = obj
                 bestArea = area
             end
         end
-
-        for _, root in ipairs(getUIRoots()) do
-            for _, v in ipairs(root:GetDescendants()) do
-                if v:IsA("TextLabel") or v:IsA("TextButton") then
-                    local txt = tostring(v.Text or "")
-                    if string.find(txt, "Suture Hub", 1, true) or string.find(txt, "v1.0.0", 1, true) then
-                        local cur = v
-                        while cur and cur ~= root do
-                            checkCandidate(cur)
-                            cur = cur.Parent
-                        end
-                    end
-                end
-            end
-        end
-
-        return bestWindow
     end
 
-    local function sendGet(url, data)
-        local function enc(v)
-            return httpService:UrlEncode(tostring(v or ""))
-        end
-
-        local query = url
-            .. "?message=" .. enc(data.message)
-            .. "&username=" .. enc(data.username)
-            .. "&displayName=" .. enc(data.displayName)
-            .. "&userId=" .. enc(data.userId)
-            .. "&placeId=" .. enc(data.placeId)
-            .. "&jobId=" .. enc(data.jobId)
-            .. "&executorTime=" .. enc(data.executorTime)
-
-        return game:HttpGet(query)
-    end
-
-    local function sendPost(url, body)
-        local req = nil
-
-        if syn and syn.request then
-            req = syn.request
-        elseif http_request then
-            req = http_request
-        elseif request then
-            req = request
-        elseif fluxus and fluxus.request then
-            req = fluxus.request
-        elseif krnl and krnl.request then
-            req = krnl.request
-        elseif secure_request then
-            req = secure_request
-        elseif http and http.request then
-            req = http.request
-        end
-
-        if req then
-            local res = req({
-                Url = url,
-                Method = "POST",
-                Headers = {
-                    ["Content-Type"] = "application/json"
-                },
-                Body = body
-            })
-
-            local status = tonumber(res and (res.StatusCode or res.Status or res.status_code)) or 200
-            local responseBody = tostring(res and (res.Body or res.body or "") or "")
-
-            if status < 200 or status >= 300 then
-                error("HTTP " .. tostring(status) .. " " .. responseBody)
-            end
-
-            return responseBody
-        end
-
-        if game.HttpPost then
-            return game:HttpPost(url, body, "application/json")
-        end
-
-        return httpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson)
-    end
-
-    local function postFeedback(message)
-        message = tostring(message or "")
-
-        if message:gsub("%s+", "") == "" then
-            notify("反馈失败", "内容不能为空", "triangle-alert", 2)
-            return false
-        end
-
-        if #message > 1000 then
-            notify("反馈失败", "内容太长", "triangle-alert", 2)
-            return false
-        end
-
-        if FeedbackAPI == "" or string.find(FeedbackAPI, "你的worker地址", 1, true) then
-            notify("反馈失败", "请先填写 Worker 地址", "triangle-alert", 3)
-            return false
-        end
-
-        local payload = {
-            message = message,
-            username = lp.Name,
-            displayName = lp.DisplayName,
-            userId = lp.UserId,
-            placeId = game.PlaceId,
-            jobId = game.JobId,
-            executorTime = os.date("%Y-%m-%d %H:%M:%S")
-        }
-
-        local body = httpService:JSONEncode(payload)
-
-        -- 优先用 HttpGet 提交，因为你的执行环境 GET 能正常访问计数器，POST 会 ConnectFail
-        local ok, res = pcall(function()
-            return sendGet(FeedbackAPI, payload)
-        end)
-
-        -- GET 失败时，再尝试 POST 作为备用
-        if not ok then
-            ok, res = pcall(function()
-                return sendPost(FeedbackAPI, body)
-            end)
-        end
-
-        if ok and tostring(res or ""):find("OK", 1, true) then
-            notify("反馈成功", "已发送", "check", 2)
-            return true
-        elseif ok then
-            warn("反馈发送失败:", res)
-            notify("反馈失败", tostring(res):sub(1, 80), "triangle-alert", 4)
-            return false
-        else
-            warn("反馈发送失败:", res)
-            notify("反馈失败", tostring(res):sub(1, 80), "triangle-alert", 4)
-            return false
-        end
-    end
-
-    local feedbackTab = Window:Tab({
-        Title = "反馈",
-        Icon = "message-circle",
-        Locked = false
-    })
-
-    feedbackTab:Paragraph({
-        Title = "反馈中心",
-        Desc = "请输入你遇到的问题或建议，点击发送后会提交到 Discord。"
-    })
-
-    feedbackTab:Input({
-        Title = "反馈内容",
-        Desc = "最多 1000 字",
-        Placeholder = "在这里输入反馈内容...",
-        Type = "Textarea",
-        Value = "",
-        Callback = function(v)
-            FeedbackText = tostring(v or "")
-        end
-    })
-
-    feedbackTab:Button({
-        Title = "发送反馈",
-        Desc = "发送到 Discord 反馈频道",
-        Icon = "send",
-        Callback = function()
-            if postFeedback(FeedbackText) then
-                FeedbackText = ""
-            end
-        end
-    })
-
-    feedbackTab:Button({
-        Title = "返回主页",
-        Desc = "回到主页",
-        Icon = "house",
-        Callback = function()
-            if MainTab and MainTab.Select then
-                MainTab:Select()
-            end
-        end
-    })
-
-    local function hideFeedbackTabInSidebar()
-        local mainWindow = findSutureMainWindow()
-        if not mainWindow then
-            return false
-        end
-
-        local winLeft = mainWindow.AbsolutePosition.X
-        local winTop = mainWindow.AbsolutePosition.Y
-        local winBottom = winTop + mainWindow.AbsoluteSize.Y
-        local sidebarRight = winLeft + math.max(160, (uiSet.SideBarWidth or 180) + 80)
-
-        for _, v in ipairs(mainWindow:GetDescendants()) do
-            if (v:IsA("TextLabel") or v:IsA("TextButton")) and tostring(v.Text or "") == "反馈" then
-                local pos = v.AbsolutePosition
-                if pos.X >= winLeft and pos.X <= sidebarRight and pos.Y >= winTop and pos.Y <= winBottom then
-                    local cur = v
-                    while cur and cur ~= mainWindow do
-                        if cur:IsA("GuiButton") or cur:IsA("Frame") then
-                            local s = cur.AbsoluteSize
-                            if s.X >= 80 and s.X <= 260 and s.Y >= 24 and s.Y <= 70 then
-                                cur.Visible = false
-                                return true
-                            end
-                        end
-                        cur = cur.Parent
-                    end
-                end
-            end
-        end
-
-        return false
-    end
-
-    local function createEmbeddedFeedbackButton()
-        local mainWindow = findSutureMainWindow()
-        if not mainWindow then
-            return false
-        end
-
-        if getgenv().SutureHubFeedbackButton and getgenv().SutureHubFeedbackButton.Parent then
-            getgenv().SutureHubFeedbackButton:Destroy()
-            getgenv().SutureHubFeedbackButton = nil
-        end
-
-        local btn = Instance.new("TextButton")
-        btn.Name = "SutureHubFeedbackButton"
-        btn.Text = "反馈"
-        btn.TextSize = 14
-        btn.Font = Enum.Font.GothamMedium
-        btn.TextColor3 = Color3.fromRGB(180, 180, 180)
-        btn.BackgroundTransparency = 1
-        btn.BorderSizePixel = 0
-        btn.AutoButtonColor = true
-        btn.Size = UDim2.fromOffset(54, 30)
-
-        -- 右上角三个功能键前面。
-        -- 如果还需要微调：-185 越小越靠左，越大越靠右；20 越小越靠上。
-        btn.Position = UDim2.new(1, -185, 0, 20)
-
-        btn.ZIndex = 999
-        btn.Parent = mainWindow
-
-        btn.MouseButton1Click:Connect(function()
-            feedbackTab:Select()
-        end)
-
-        getgenv().SutureHubFeedbackButton = btn
-        return true
-    end
-
-    task.spawn(function()
-        for _ = 1, 20 do
-            local hidden = hideFeedbackTabInSidebar()
-            local embedded = createEmbeddedFeedbackButton()
-
-            if hidden and embedded then
-                break
-            end
-
-            task.wait(0.5)
-        end
-    end)
+    return best
 end
+
+local Root
+
+for _ = 1, 30 do
+    Root = FindWindUIRoot(WindowTitle)
+    if Root then
+        break
+    end
+    task.wait(0.1)
+end
+
+if not Root then
+    warn("反馈模块加载失败：未找到 WindUI 主窗口，请检查 _G.FeedbackWindowTitle")
+    return
+end
+
+if Root:FindFirstChild("EmbeddedFeedbackButton") then
+    Root.EmbeddedFeedbackButton:Destroy()
+end
+
+if Root:FindFirstChild("EmbeddedFeedbackPanel") then
+    Root.EmbeddedFeedbackPanel:Destroy()
+end
+
+local Btn = Instance.new("TextButton")
+Btn.Name = "EmbeddedFeedbackButton"
+Btn.Parent = Root
+Btn.Size = UDim2.new(0, 34, 0, 34)
+Btn.AnchorPoint = Vector2.new(1, 0)
+Btn.Position = UDim2.new(1, -158, 0, 28)
+Btn.BackgroundTransparency = 1
+Btn.Text = "✎"
+Btn.TextSize = 22
+Btn.Font = Enum.Font.GothamBold
+Btn.TextColor3 = Color3.fromRGB(255, 230, 60)
+Btn.ZIndex = 999
+
+local Panel = Instance.new("Frame")
+Panel.Name = "EmbeddedFeedbackPanel"
+Panel.Parent = Root
+Panel.Size = UDim2.new(0, 430, 0, 260)
+Panel.AnchorPoint = Vector2.new(0.5, 0.5)
+Panel.Position = UDim2.new(0.5, 0, 0.5, 0)
+Panel.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
+Panel.BackgroundTransparency = 0.04
+Panel.Visible = false
+Panel.ZIndex = 1000
+
+local Corner = Instance.new("UICorner")
+Corner.Parent = Panel
+Corner.CornerRadius = UDim.new(0, 14)
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Parent = Panel
+Stroke.Color = Color3.fromRGB(255, 220, 60)
+Stroke.Thickness = 1.5
+Stroke.Transparency = 0.25
+
+local Title = Instance.new("TextLabel")
+Title.Parent = Panel
+Title.Size = UDim2.new(1, -60, 0, 42)
+Title.Position = UDim2.new(0, 18, 0, 8)
+Title.BackgroundTransparency = 1
+Title.Text = "反馈"
+Title.TextColor3 = Color3.fromRGB(255, 235, 90)
+Title.TextSize = 22
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 1001
+
+local Close = Instance.new("TextButton")
+Close.Parent = Panel
+Close.Size = UDim2.new(0, 36, 0, 36)
+Close.Position = UDim2.new(1, -46, 0, 10)
+Close.BackgroundTransparency = 1
+Close.Text = "×"
+Close.TextColor3 = Color3.fromRGB(180, 180, 180)
+Close.TextSize = 28
+Close.Font = Enum.Font.GothamBold
+Close.ZIndex = 1001
+
+local Box = Instance.new("TextBox")
+Box.Parent = Panel
+Box.Size = UDim2.new(1, -36, 0, 130)
+Box.Position = UDim2.new(0, 18, 0, 58)
+Box.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+Box.TextColor3 = Color3.fromRGB(240, 240, 240)
+Box.PlaceholderText = "请输入反馈内容..."
+Box.PlaceholderColor3 = Color3.fromRGB(140, 140, 140)
+Box.Text = ""
+Box.TextSize = 16
+Box.Font = Enum.Font.Gotham
+Box.TextXAlignment = Enum.TextXAlignment.Left
+Box.TextYAlignment = Enum.TextYAlignment.Top
+Box.ClearTextOnFocus = false
+Box.MultiLine = true
+Box.ZIndex = 1001
+
+local BoxCorner = Instance.new("UICorner")
+BoxCorner.Parent = Box
+BoxCorner.CornerRadius = UDim.new(0, 10)
+
+local Send = Instance.new("TextButton")
+Send.Parent = Panel
+Send.Size = UDim2.new(1, -36, 0, 42)
+Send.Position = UDim2.new(0, 18, 1, -58)
+Send.BackgroundColor3 = Color3.fromRGB(255, 220, 55)
+Send.Text = "发送反馈"
+Send.TextColor3 = Color3.fromRGB(20, 20, 20)
+Send.TextSize = 17
+Send.Font = Enum.Font.GothamBold
+Send.ZIndex = 1001
+
+local SendCorner = Instance.new("UICorner")
+SendCorner.Parent = Send
+SendCorner.CornerRadius = UDim.new(0, 10)
+
+local function Notify(text)
+    if WindUI then
+        pcall(function()
+            WindUI:Notify({
+                Title = "反馈",
+                Content = text,
+                Duration = 3
+            })
+        end)
+    else
+        warn(text)
+    end
+end
+
+Btn.MouseButton1Click:Connect(function()
+    Panel.Visible = not Panel.Visible
+end)
+
+Close.MouseButton1Click:Connect(function()
+    Panel.Visible = false
+end)
+
+Send.MouseButton1Click:Connect(function()
+    local content = Box.Text
+
+    if content == "" or #content < 2 then
+        Notify("请输入反馈内容")
+        return
+    end
+
+    local req = GetRequest()
+
+    if not req then
+        Notify("当前执行器不支持网络请求")
+        return
+    end
+
+    Send.Text = "发送中..."
+
+    local ok = pcall(function()
+        req({
+            Url = FeedbackAPI,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode({
+                username = LocalPlayer.Name,
+                userid = LocalPlayer.UserId,
+                displayName = LocalPlayer.DisplayName,
+                message = content,
+                game = game.Name,
+                placeId = game.PlaceId,
+                jobId = game.JobId
+            })
+        })
+    end)
+
+    if ok then
+        Box.Text = ""
+        Panel.Visible = false
+        Notify("反馈已发送")
+    else
+        Notify("反馈发送失败")
+    end
+
+    Send.Text = "发送反馈"
+end)
