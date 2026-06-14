@@ -118,11 +118,8 @@ task.delay(1, function()
     end
 end)
 
--- 标题栏反馈按钮：点击后打开 WindUI 内部隐藏反馈面板
--- 把这里改成你的 Cloudflare Worker 地址，不要写 Discord Webhook 地址
+-- 反馈功能配置：Roblox 只请求你的 Worker，不直接暴露 Discord Webhook
 local FeedbackAPI = "https://你的worker地址.workers.dev"
-
-local FeedbackPanel = nil
 local FeedbackText = ""
 
 local function getUIRoots()
@@ -154,14 +151,12 @@ local function findSutureMainWindow()
         local size = obj.AbsoluteSize
         local area = size.X * size.Y
 
-        -- 你的主窗口大概是 620x460，这里放宽范围，避免不同分辨率找不到
         if size.X >= 480 and size.X <= 1000 and size.Y >= 300 and size.Y <= 750 and area > bestArea then
             bestWindow = obj
             bestArea = area
         end
     end
 
-    -- 优先通过 Suture Hub 标题或 v1.0.0 标签定位 WindUI 主窗口
     for _, root in ipairs(getUIRoots()) do
         for _, v in ipairs(root:GetDescendants()) do
             if v:IsA("TextLabel") or v:IsA("TextButton") then
@@ -174,17 +169,6 @@ local function findSutureMainWindow()
                     end
                 end
             end
-        end
-    end
-
-    if bestWindow then
-        return bestWindow
-    end
-
-    -- 兜底：找一个尺寸最像 WindUI 主窗口的 GuiObject
-    for _, root in ipairs(getUIRoots()) do
-        for _, v in ipairs(root:GetDescendants()) do
-            checkCandidate(v)
         end
     end
 
@@ -260,216 +244,6 @@ local function postFeedback(message)
     end
 end
 
-local function createFeedbackPanel()
-    if FeedbackPanel and FeedbackPanel.Parent then
-        return FeedbackPanel
-    end
-
-    local parent = findSutureMainWindow()
-    if not parent then
-        notify("反馈", "找不到主窗口", "triangle-alert", 2)
-        return nil
-    end
-
-    if getgenv().SutureHubFeedbackPanel and getgenv().SutureHubFeedbackPanel.Parent then
-        getgenv().SutureHubFeedbackPanel:Destroy()
-        getgenv().SutureHubFeedbackPanel = nil
-    end
-
-    local panel = Instance.new("Frame")
-    panel.Name = "SutureHubFeedbackPanel"
-    panel.Size = UDim2.fromOffset(380, 230)
-    panel.Position = UDim2.new(0.5, -190, 0.5, -115)
-    panel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    panel.BackgroundTransparency = 0.04
-    panel.BorderSizePixel = 0
-    panel.Visible = false
-    panel.ZIndex = 1000
-    panel.Parent = parent
-
-    local panelCorner = Instance.new("UICorner")
-    panelCorner.CornerRadius = UDim.new(0, 12)
-    panelCorner.Parent = panel
-
-    local title = Instance.new("TextLabel")
-    title.Name = "Title"
-    title.Size = UDim2.new(1, -20, 0, 34)
-    title.Position = UDim2.fromOffset(12, 8)
-    title.BackgroundTransparency = 1
-    title.Text = "反馈"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 18
-    title.Font = Enum.Font.GothamBold
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.ZIndex = 1001
-    title.Parent = panel
-
-    local closeTop = Instance.new("TextButton")
-    closeTop.Name = "CloseTop"
-    closeTop.Size = UDim2.fromOffset(28, 28)
-    closeTop.Position = UDim2.new(1, -38, 0, 8)
-    closeTop.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    closeTop.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeTop.Text = "×"
-    closeTop.TextSize = 18
-    closeTop.Font = Enum.Font.GothamBold
-    closeTop.BorderSizePixel = 0
-    closeTop.ZIndex = 1001
-    closeTop.Parent = panel
-
-    local closeTopCorner = Instance.new("UICorner")
-    closeTopCorner.CornerRadius = UDim.new(0, 8)
-    closeTopCorner.Parent = closeTop
-
-    local box = Instance.new("TextBox")
-    box.Name = "FeedbackInput"
-    box.Size = UDim2.new(1, -24, 0, 110)
-    box.Position = UDim2.fromOffset(12, 52)
-    box.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    box.TextColor3 = Color3.fromRGB(255, 255, 255)
-    box.PlaceholderText = "请输入反馈内容..."
-    box.PlaceholderColor3 = Color3.fromRGB(160, 160, 160)
-    box.Text = ""
-    box.TextSize = 14
-    box.Font = Enum.Font.Gotham
-    box.ClearTextOnFocus = false
-    pcall(function()
-        box.MultiLine = true
-    end)
-    box.TextWrapped = true
-    box.TextXAlignment = Enum.TextXAlignment.Left
-    box.TextYAlignment = Enum.TextYAlignment.Top
-    box.BorderSizePixel = 0
-    box.ZIndex = 1001
-    box.Parent = panel
-
-    local boxCorner = Instance.new("UICorner")
-    boxCorner.CornerRadius = UDim.new(0, 8)
-    boxCorner.Parent = box
-
-    box:GetPropertyChangedSignal("Text"):Connect(function()
-        FeedbackText = box.Text
-    end)
-
-    local cancel = Instance.new("TextButton")
-    cancel.Name = "Cancel"
-    cancel.Size = UDim2.fromOffset(86, 34)
-    cancel.Position = UDim2.new(1, -210, 1, -48)
-    cancel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    cancel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    cancel.Text = "关闭"
-    cancel.TextSize = 14
-    cancel.Font = Enum.Font.GothamMedium
-    cancel.BorderSizePixel = 0
-    cancel.ZIndex = 1001
-    cancel.Parent = panel
-
-    local cancelCorner = Instance.new("UICorner")
-    cancelCorner.CornerRadius = UDim.new(0, 8)
-    cancelCorner.Parent = cancel
-
-    local send = Instance.new("TextButton")
-    send.Name = "Send"
-    send.Size = UDim2.fromOffset(110, 34)
-    send.Position = UDim2.new(1, -122, 1, -48)
-    send.BackgroundColor3 = Color3.fromRGB(48, 255, 106)
-    send.TextColor3 = Color3.fromRGB(0, 0, 0)
-    send.Text = "发送反馈"
-    send.TextSize = 14
-    send.Font = Enum.Font.GothamBold
-    send.BorderSizePixel = 0
-    send.ZIndex = 1001
-    send.Parent = panel
-
-    local sendCorner = Instance.new("UICorner")
-    sendCorner.CornerRadius = UDim.new(0, 8)
-    sendCorner.Parent = send
-
-    local function closePanel()
-        panel.Visible = false
-    end
-
-    closeTop.MouseButton1Click:Connect(closePanel)
-    cancel.MouseButton1Click:Connect(closePanel)
-
-    send.MouseButton1Click:Connect(function()
-        send.Text = "发送中..."
-        local success = postFeedback(FeedbackText)
-        send.Text = "发送反馈"
-
-        if success then
-            box.Text = ""
-            FeedbackText = ""
-            panel.Visible = false
-        end
-    end)
-
-    FeedbackPanel = panel
-    getgenv().SutureHubFeedbackPanel = panel
-    return panel
-end
-
-local function openFeedback()
-    local panel = createFeedbackPanel()
-    if panel then
-        panel.Visible = true
-    end
-end
-
-local function createFeedbackButton()
-    local ok, created = pcall(function()
-        if getgenv().SutureHubFeedbackButton and getgenv().SutureHubFeedbackButton.Parent then
-            getgenv().SutureHubFeedbackButton:Destroy()
-            getgenv().SutureHubFeedbackButton = nil
-        end
-
-        local parent = findSutureMainWindow()
-        if not parent then
-            return false
-        end
-
-        local btn = Instance.new("TextButton")
-        btn.Name = "SutureHubFeedbackButton"
-        btn.Text = "反馈"
-        btn.TextSize = 12
-        btn.Font = Enum.Font.GothamMedium
-        btn.AutoButtonColor = true
-        btn.BackgroundTransparency = 0.18
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-        btn.BorderSizePixel = 0
-        btn.Size = UDim2.fromOffset(44, 28)
-        btn.AnchorPoint = Vector2.new(1, 0)
-        -- 放到右上角三个功能键前面，位置不够可以微调 -190 这个数值
-        btn.Position = UDim2.new(1, -190, 0, 20)
-        btn.ZIndex = 999
-        btn.Parent = parent
-
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 8)
-        corner.Parent = btn
-
-        btn.MouseButton1Click:Connect(openFeedback)
-
-        getgenv().SutureHubFeedbackButton = btn
-        return true
-    end)
-
-    return ok and created == true
-end
-
--- WindUI 有时会延迟创建标题栏，所以这里多试几次，避免出现“找不到主窗口”
-task.spawn(function()
-    for _ = 1, 20 do
-        if createFeedbackButton() then
-            break
-        end
-        task.wait(0.5)
-    end
-end)
-
-
-
 -- tabs
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 local aboutTab = win:Tab({ Title = "关于", Icon = "info", Locked = false })
@@ -497,6 +271,154 @@ local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = fal
 
 local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
+
+-- 隐藏反馈页：用 WindUI 的 Tab/Input/Button 对接，不单独创建外部 UI
+local feedbackTab = win:Tab({ Title = "反馈", Icon = "message-circle", Locked = false })
+
+feedbackTab:Paragraph({
+    Title = "反馈中心",
+    Desc = "请输入你遇到的问题或建议，点击发送后会提交到 Discord。"
+})
+
+feedbackTab:Input({
+    Title = "反馈内容",
+    Desc = "最多 1000 字",
+    Placeholder = "在这里输入反馈内容...",
+    Type = "Textarea",
+    Value = "",
+    Callback = function(v)
+        FeedbackText = tostring(v or "")
+    end
+})
+
+feedbackTab:Button({
+    Title = "发送反馈",
+    Desc = "发送到 Discord 反馈频道",
+    Icon = "send",
+    Callback = function()
+        if postFeedback(FeedbackText) then
+            FeedbackText = ""
+        end
+    end
+})
+
+feedbackTab:Button({
+    Title = "返回主页",
+    Desc = "回到主页",
+    Icon = "house",
+    Callback = function()
+        if mainTab and mainTab.Select then
+            mainTab:Select()
+        end
+    end
+})
+
+local function hideFeedbackTabInSidebar()
+    local mainWindow = findSutureMainWindow()
+    if not mainWindow then
+        return false
+    end
+
+    local winLeft = mainWindow.AbsolutePosition.X
+    local winTop = mainWindow.AbsolutePosition.Y
+    local winBottom = winTop + mainWindow.AbsoluteSize.Y
+    local sidebarRight = winLeft + math.max(160, uiSet.SideBarWidth + 80)
+
+    for _, v in ipairs(mainWindow:GetDescendants()) do
+        if (v:IsA("TextLabel") or v:IsA("TextButton")) and tostring(v.Text or "") == "反馈" then
+            local pos = v.AbsolutePosition
+            if pos.X >= winLeft and pos.X <= sidebarRight and pos.Y >= winTop and pos.Y <= winBottom then
+                local cur = v
+                while cur and cur ~= mainWindow do
+                    if cur:IsA("GuiButton") or cur:IsA("Frame") then
+                        local s = cur.AbsoluteSize
+                        if s.X >= 80 and s.X <= 260 and s.Y >= 24 and s.Y <= 70 then
+                            cur.Visible = false
+                            return true
+                        end
+                    end
+                    cur = cur.Parent
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+local function createEmbeddedFeedbackButton()
+    local mainWindow = findSutureMainWindow()
+    if not mainWindow then
+        return false
+    end
+
+    if getgenv().SutureHubFeedbackButton and getgenv().SutureHubFeedbackButton.Parent then
+        getgenv().SutureHubFeedbackButton:Destroy()
+        getgenv().SutureHubFeedbackButton = nil
+    end
+
+    local winPos = mainWindow.AbsolutePosition
+    local winSize = mainWindow.AbsoluteSize
+    local buttons = {}
+
+    for _, v in ipairs(mainWindow:GetDescendants()) do
+        if (v:IsA("TextButton") or v:IsA("ImageButton")) and v.Visible and v.Name ~= "SutureHubFeedbackButton" then
+            local p = v.AbsolutePosition
+            local s = v.AbsoluteSize
+
+            if p.X > winPos.X + winSize.X - 230 and p.Y < winPos.Y + 80 and s.X <= 46 and s.Y <= 46 then
+                table.insert(buttons, v)
+            end
+        end
+    end
+
+    table.sort(buttons, function(a, b)
+        return a.AbsolutePosition.X < b.AbsolutePosition.X
+    end)
+
+    if #buttons < 1 then
+        return false
+    end
+
+    local leftButton = buttons[1]
+    local size = leftButton.AbsoluteSize
+    local relX = leftButton.AbsolutePosition.X - winPos.X - size.X - 8
+    local relY = leftButton.AbsolutePosition.Y - winPos.Y
+
+    local btn = Instance.new("TextButton")
+    btn.Name = "SutureHubFeedbackButton"
+    btn.Text = "?"
+    btn.TextSize = 18
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextColor3 = Color3.fromRGB(180, 180, 180)
+    btn.BackgroundTransparency = 1
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = true
+    btn.Size = UDim2.fromOffset(size.X, size.Y)
+    btn.Position = UDim2.fromOffset(relX, relY)
+    btn.ZIndex = math.max(leftButton.ZIndex, 999)
+    btn.Parent = mainWindow
+
+    btn.MouseButton1Click:Connect(function()
+        feedbackTab:Select()
+    end)
+
+    getgenv().SutureHubFeedbackButton = btn
+    return true
+end
+
+task.spawn(function()
+    for _ = 1, 20 do
+        local hidden = hideFeedbackTabInSidebar()
+        local embedded = createEmbeddedFeedbackButton()
+
+        if hidden and embedded then
+            break
+        end
+
+        task.wait(0.5)
+    end
+end)
 
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
