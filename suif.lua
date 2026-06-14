@@ -122,8 +122,8 @@ end)
 -- 第一步：把 /mnt/data/SutureHubFeedback.lua 上传到你的 GitHub 仓库
 -- 第二步：把下面的 FeedbackModuleURL 改成它的 Raw 链接
 -- 第三步：把 FeedbackAPI 改成你的 Cloudflare Worker 地址
-local FeedbackModuleURL = ""
-local FeedbackAPI = "https://你的worker地址.workers.dev"
+local FeedbackModuleURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
+local FeedbackAPI = "https://suture-feedback.sfbdsl666.workers.dev"
 
 -- tabs
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
