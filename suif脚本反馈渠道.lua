@@ -162,48 +162,195 @@ local function send(msg)
     return false, tostring(err3)
 end
 
-pcall(function()
-    Tab:Divider({
-        Title = "反馈"
-    })
+local CoreGui = game:GetService("CoreGui")
+local TitleText = cfg.Title or "Suture Hub"
+
+local function getUiContainer()
+    if gethui then
+        local ok, hui = pcall(gethui)
+        if ok and hui then
+            return hui
+        end
+    end
+
+    return CoreGui
+end
+
+local function findWindUIRoot()
+    local container = getUiContainer()
+    local list = {}
+
+    for _, v in ipairs(container:GetDescendants()) do
+        if (v:IsA("TextLabel") or v:IsA("TextButton")) and tostring(v.Text):find(TitleText, 1, true) then
+            local p = v.Parent
+
+            while p and not p:IsA("ScreenGui") do
+                if p:IsA("Frame") or p:IsA("ImageLabel") or p:IsA("CanvasGroup") then
+                    table.insert(list, p)
+                end
+                p = p.Parent
+            end
+        end
+    end
+
+    local best, area = nil, 0
+
+    for _, v in ipairs(list) do
+        local s = v.AbsoluteSize
+        local a = s.X * s.Y
+
+        if a > area and s.X > 260 and s.Y > 80 then
+            best = v
+            area = a
+        end
+    end
+
+    return best
+end
+
+local Root
+
+for _ = 1, 40 do
+    Root = findWindUIRoot()
+    if Root then
+        break
+    end
+    task.wait(0.1)
+end
+
+if not Root then
+    return notify("反馈模块", "未找到WindUI窗口", "triangle-alert", 4)
+end
+
+if Root:FindFirstChild("SutureFeedbackButton") then
+    Root.SutureFeedbackButton:Destroy()
+end
+
+if Root:FindFirstChild("SutureFeedbackPanel") then
+    Root.SutureFeedbackPanel:Destroy()
+end
+
+local Btn = Instance.new("TextButton")
+Btn.Name = "SutureFeedbackButton"
+Btn.Parent = Root
+Btn.Size = UDim2.fromOffset(32, 32)
+Btn.AnchorPoint = Vector2.new(1, 0)
+Btn.Position = UDim2.new(1, cfg.ButtonX or -150, 0, cfg.ButtonY or 18)
+Btn.BackgroundTransparency = 1
+Btn.Text = "✎"
+Btn.TextSize = 21
+Btn.Font = Enum.Font.GothamBold
+Btn.TextColor3 = Color3.fromRGB(255, 220, 60)
+Btn.ZIndex = 999
+
+local Panel = Instance.new("Frame")
+Panel.Name = "SutureFeedbackPanel"
+Panel.Parent = Root
+Panel.Size = UDim2.fromOffset(430, 255)
+Panel.AnchorPoint = Vector2.new(0.5, 0.5)
+Panel.Position = UDim2.new(0.5, 0, 0.5, 0)
+Panel.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
+Panel.BackgroundTransparency = 0.03
+Panel.Visible = false
+Panel.ZIndex = 1000
+
+Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 14)
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Parent = Panel
+Stroke.Color = Color3.fromRGB(255, 220, 60)
+Stroke.Thickness = 1.4
+Stroke.Transparency = 0.25
+
+local Title = Instance.new("TextLabel")
+Title.Parent = Panel
+Title.Size = UDim2.new(1, -60, 0, 42)
+Title.Position = UDim2.fromOffset(18, 8)
+Title.BackgroundTransparency = 1
+Title.Text = "反馈"
+Title.TextColor3 = Color3.fromRGB(255, 235, 90)
+Title.TextSize = 22
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 1001
+
+local Close = Instance.new("TextButton")
+Close.Parent = Panel
+Close.Size = UDim2.fromOffset(36, 36)
+Close.Position = UDim2.new(1, -46, 0, 9)
+Close.BackgroundTransparency = 1
+Close.Text = "×"
+Close.TextColor3 = Color3.fromRGB(180, 180, 180)
+Close.TextSize = 28
+Close.Font = Enum.Font.GothamBold
+Close.ZIndex = 1001
+
+local Box = Instance.new("TextBox")
+Box.Parent = Panel
+Box.Size = UDim2.new(1, -36, 0, 125)
+Box.Position = UDim2.fromOffset(18, 58)
+Box.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+Box.TextColor3 = Color3.fromRGB(240, 240, 240)
+Box.PlaceholderText = "请输入反馈内容..."
+Box.PlaceholderColor3 = Color3.fromRGB(145, 145, 145)
+Box.Text = ""
+Box.TextSize = 16
+Box.Font = Enum.Font.Gotham
+Box.TextXAlignment = Enum.TextXAlignment.Left
+Box.TextYAlignment = Enum.TextYAlignment.Top
+Box.ClearTextOnFocus = false
+Box.MultiLine = true
+Box.ZIndex = 1001
+
+Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 10)
+
+local Send = Instance.new("TextButton")
+Send.Parent = Panel
+Send.Size = UDim2.new(1, -36, 0, 42)
+Send.Position = UDim2.new(0, 18, 1, -56)
+Send.BackgroundColor3 = Color3.fromRGB(255, 220, 55)
+Send.Text = "发送反馈"
+Send.TextColor3 = Color3.fromRGB(20, 20, 20)
+Send.TextSize = 17
+Send.Font = Enum.Font.GothamBold
+Send.ZIndex = 1001
+
+Instance.new("UICorner", Send).CornerRadius = UDim.new(0, 10)
+
+Btn.MouseButton1Click:Connect(function()
+    Panel.Visible = not Panel.Visible
 end)
 
-Tab:Input({
-    Title = "反馈内容",
-    Desc = "输入你想反馈的问题或建议",
-    Placeholder = "例如：按钮失效、脚本打不开、UI显示异常...",
-    Value = "",
-    Callback = function(v)
-        text = tostring(v or "")
+Close.MouseButton1Click:Connect(function()
+    Panel.Visible = false
+end)
+
+Send.MouseButton1Click:Connect(function()
+    if busy then
+        return notify("反馈", "正在发送中", "loader", 2)
     end
-})
 
-Tab:Button({
-    Title = "发送反馈",
-    Desc = "将反馈发送给作者",
-    Icon = "send",
-    Callback = function()
-        if busy then
-            return notify("反馈", "正在发送中", "loader", 2)
-        end
+    local msg = tostring(Box.Text or "")
 
-        if #text < 2 then
-            return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
-        end
-
-        busy = true
-
-        local ok, err = send(text)
-
-        busy = false
-
-        if ok then
-            text = ""
-            notify("反馈成功", "已发送给作者", "check", 3)
-        else
-            notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
-        end
+    if #msg < 2 then
+        return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
     end
-})
 
-notify("反馈模块", "已加载到设置页", "check", 2)
+    busy = true
+    Send.Text = "发送中..."
+
+    local ok, err = send(msg)
+
+    busy = false
+    Send.Text = "发送反馈"
+
+    if ok then
+        Box.Text = ""
+        Panel.Visible = false
+        notify("反馈成功", "已发送给作者", "check", 3)
+    else
+        notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
+    end
+end)
+
+notify("反馈模块", "右上角入口已加载", "check", 2)
