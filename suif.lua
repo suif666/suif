@@ -147,10 +147,15 @@ local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = fals
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 
-_G.FeedbackAPI = "https://suture-feedback.sfbdsl666.workers.dev"
-_G.FeedbackWindowTitle = "Suture Hub"
+getgenv().SutureHubFeedback = {
+    API = "https://suture-feedback.sfbdsl666.workers.dev",
+    WindUI = WindUI,
+    Window = win,
+    ParentTab = settingsTab
+}
 
 loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"))()
+
 
 
 local ItemHighlightURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"
