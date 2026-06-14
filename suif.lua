@@ -150,7 +150,7 @@ local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Loc
 -- WindUI 原生反馈模块：主脚本只保留配置和加载
 local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
 getgenv().SutureHubFeedback = {
-    API = "https://suture-feedback.sfbdsl666.workers.dev",
+API = "https://suture-feedback.sfbdsl666.workers.dev/",
     WindUI = WindUI,
     Tab = settingsTab,
     Notify = notify
