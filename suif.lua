@@ -125,31 +125,70 @@ local FeedbackAPI = "https://你的worker地址.workers.dev"
 local FeedbackPanel = nil
 local FeedbackText = ""
 
+local function getUIRoots()
+    local roots = {}
+
+    pcall(function()
+        table.insert(roots, game:GetService("CoreGui"))
+    end)
+
+    pcall(function()
+        local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 2)
+        if pg then
+            table.insert(roots, pg)
+        end
+    end)
+
+    return roots
+end
+
 local function findSutureMainWindow()
-    local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
+    local bestWindow = nil
+    local bestArea = 0
 
-    for _, v in ipairs(uiContainer:GetDescendants()) do
-        if v:IsA("TextLabel") and string.find(tostring(v.Text or ""), "Suture Hub", 1, true) then
-            local cur = v
-            local candidate = nil
+    local function checkCandidate(obj)
+        if not obj or not obj:IsA("GuiObject") or not obj.Visible then
+            return
+        end
 
-            while cur and cur ~= uiContainer do
-                if cur:IsA("GuiObject") then
-                    local size = cur.AbsoluteSize
-                    if size.X >= 500 and size.Y >= 300 then
-                        candidate = cur
+        local size = obj.AbsoluteSize
+        local area = size.X * size.Y
+
+        -- 你的主窗口大概是 620x460，这里放宽范围，避免不同分辨率找不到
+        if size.X >= 480 and size.X <= 1000 and size.Y >= 300 and size.Y <= 750 and area > bestArea then
+            bestWindow = obj
+            bestArea = area
+        end
+    end
+
+    -- 优先通过 Suture Hub 标题或 v1.0.0 标签定位 WindUI 主窗口
+    for _, root in ipairs(getUIRoots()) do
+        for _, v in ipairs(root:GetDescendants()) do
+            if v:IsA("TextLabel") or v:IsA("TextButton") then
+                local txt = tostring(v.Text or "")
+                if string.find(txt, "Suture Hub", 1, true) or string.find(txt, "v1.0.0", 1, true) then
+                    local cur = v
+                    while cur and cur ~= root do
+                        checkCandidate(cur)
+                        cur = cur.Parent
                     end
                 end
-                cur = cur.Parent
-            end
-
-            if candidate then
-                return candidate
             end
         end
     end
 
-    return nil
+    if bestWindow then
+        return bestWindow
+    end
+
+    -- 兜底：找一个尺寸最像 WindUI 主窗口的 GuiObject
+    for _, root in ipairs(getUIRoots()) do
+        for _, v in ipairs(root:GetDescendants()) do
+            checkCandidate(v)
+        end
+    end
+
+    return bestWindow
 end
 
 local function postFeedback(message)
@@ -378,13 +417,17 @@ local function openFeedback()
 end
 
 local function createFeedbackButton()
-    pcall(function()
+    local ok, created = pcall(function()
         if getgenv().SutureHubFeedbackButton and getgenv().SutureHubFeedbackButton.Parent then
             getgenv().SutureHubFeedbackButton:Destroy()
             getgenv().SutureHubFeedbackButton = nil
         end
 
         local parent = findSutureMainWindow()
+        if not parent then
+            return false
+        end
+
         local btn = Instance.new("TextButton")
         btn.Name = "SutureHubFeedbackButton"
         btn.Text = "反馈"
@@ -396,7 +439,11 @@ local function createFeedbackButton()
         btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
         btn.BorderSizePixel = 0
         btn.Size = UDim2.fromOffset(44, 28)
+        btn.AnchorPoint = Vector2.new(1, 0)
+        -- 放到右上角三个功能键前面，位置不够可以微调 -190 这个数值
+        btn.Position = UDim2.new(1, -190, 0, 20)
         btn.ZIndex = 999
+        btn.Parent = parent
 
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 8)
@@ -404,26 +451,24 @@ local function createFeedbackButton()
 
         btn.MouseButton1Click:Connect(openFeedback)
 
-        if parent then
-            btn.AnchorPoint = Vector2.new(1, 0)
-            btn.Position = UDim2.new(1, -105, 0, 8)
-            btn.Parent = parent
-        else
-            local gui = Instance.new("ScreenGui")
-            gui.Name = "SutureHubFeedbackOverlay"
-            gui.ResetOnSpawn = false
-            gui.Parent = game:GetService("CoreGui")
-
-            btn.AnchorPoint = Vector2.new(1, 0)
-            btn.Position = UDim2.new(1, -115, 0, 12)
-            btn.Parent = gui
-        end
-
         getgenv().SutureHubFeedbackButton = btn
+        return true
     end)
+
+    return ok and created == true
 end
 
-task.delay(2, createFeedbackButton)
+-- WindUI 有时会延迟创建标题栏，所以这里多试几次，避免出现“找不到主窗口”
+task.spawn(function()
+    for _ = 1, 20 do
+        if createFeedbackButton() then
+            break
+        end
+        task.wait(0.5)
+    end
+end)
+
+
 
 -- tabs
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
