@@ -1,9 +1,10 @@
---// Suture Hub Feedback | WindUI 原生精简版
+--// Suture Hub Feedback | WindUI 右上角入口版
+--// 作者注释位：你的B站UID
 
 local cfg = getgenv().SutureHubFeedback or {}
 
 local WindUI = cfg.WindUI
-local Tab = cfg.Tab or cfg.ParentTab
+local TitleText = cfg.Title or "Suture Hub"
 
 local function notify(t, c, i, d)
     if cfg.Notify then
@@ -44,21 +45,11 @@ if API == "" then
     return notify("反馈模块", "API为空，请检查主脚本配置", "triangle-alert", 5)
 end
 
-if not Tab then
-    return notify("反馈模块", "Tab为空，请检查 settingsTab", "triangle-alert", 5)
-end
-
-if getgenv().SutureHubFeedbackTab == Tab then
-    return
-end
-
-getgenv().SutureHubFeedbackTab = Tab
-
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local lp = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 
-local text = ""
+local lp = Players.LocalPlayer
 local busy = false
 
 local function requestFunc()
@@ -97,6 +88,11 @@ local function callRequest(method, url, body)
         return false, "当前执行器不支持 request"
     end
 
+    local headers = {
+        ["Content-Type"] = "application/json",
+        ["User-Agent"] = "SutureHub"
+    }
+
     local data = {
         Url = url,
         url = url,
@@ -104,14 +100,8 @@ local function callRequest(method, url, body)
         Method = method,
         method = method,
 
-        Headers = {
-            ["Content-Type"] = "application/json",
-            ["User-Agent"] = "SutureHub"
-        },
-        headers = {
-            ["Content-Type"] = "application/json",
-            ["User-Agent"] = "SutureHub"
-        },
+        Headers = headers,
+        headers = headers,
 
         Body = body,
         body = body
@@ -125,10 +115,15 @@ local function callRequest(method, url, body)
         return true
     end
 
-    return false, ok and tostring(res and res.Body or "状态码异常") or tostring(res)
+    if ok then
+        local code = res and (res.StatusCode or res.Status or res.status_code) or "?"
+        return false, "HTTP " .. tostring(code)
+    else
+        return false, tostring(res)
+    end
 end
 
-local function send(msg)
+local function sendFeedback(msg)
     local body = HttpService:JSONEncode({
         message = msg,
         username = lp.Name,
@@ -162,9 +157,6 @@ local function send(msg)
     return false, tostring(err3)
 end
 
-local CoreGui = game:GetService("CoreGui")
-local TitleText = cfg.Title or "Suture Hub"
-
 local function getUiContainer()
     if gethui then
         local ok, hui = pcall(gethui)
@@ -188,6 +180,7 @@ local function findWindUIRoot()
                 if p:IsA("Frame") or p:IsA("ImageLabel") or p:IsA("CanvasGroup") then
                     table.insert(list, p)
                 end
+
                 p = p.Parent
             end
         end
@@ -212,9 +205,11 @@ local Root
 
 for _ = 1, 40 do
     Root = findWindUIRoot()
+
     if Root then
         break
     end
+
     task.wait(0.1)
 end
 
@@ -254,7 +249,9 @@ Panel.BackgroundTransparency = 0.03
 Panel.Visible = false
 Panel.ZIndex = 1000
 
-Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 14)
+local PanelCorner = Instance.new("UICorner")
+PanelCorner.Parent = Panel
+PanelCorner.CornerRadius = UDim.new(0, 14)
 
 local Stroke = Instance.new("UIStroke")
 Stroke.Parent = Panel
@@ -302,7 +299,9 @@ Box.ClearTextOnFocus = false
 Box.MultiLine = true
 Box.ZIndex = 1001
 
-Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 10)
+local BoxCorner = Instance.new("UICorner")
+BoxCorner.Parent = Box
+BoxCorner.CornerRadius = UDim.new(0, 10)
 
 local Send = Instance.new("TextButton")
 Send.Parent = Panel
@@ -315,7 +314,9 @@ Send.TextSize = 17
 Send.Font = Enum.Font.GothamBold
 Send.ZIndex = 1001
 
-Instance.new("UICorner", Send).CornerRadius = UDim.new(0, 10)
+local SendCorner = Instance.new("UICorner")
+SendCorner.Parent = Send
+SendCorner.CornerRadius = UDim.new(0, 10)
 
 Btn.MouseButton1Click:Connect(function()
     Panel.Visible = not Panel.Visible
@@ -339,7 +340,7 @@ Send.MouseButton1Click:Connect(function()
     busy = true
     Send.Text = "发送中..."
 
-    local ok, err = send(msg)
+    local ok, err = sendFeedback(msg)
 
     busy = false
     Send.Text = "发送反馈"
