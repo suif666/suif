@@ -119,7 +119,7 @@ task.delay(1, function()
 end)
 
 _G.FeedbackAPI = "https://suture-feedback.sfbdsl666.workers.dev"
-_G.FeedbackWindowTitle = "反馈"
+_G.FeedbackWindowTitle = "Suture Hub"
 
 loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"))()
 
