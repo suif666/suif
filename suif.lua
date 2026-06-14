@@ -1,16 +1,43 @@
 -- 1. 远程加载 WindUI 库
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local WindUI
+do
+    local ok, res = pcall(function()
+        local source = game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
+        local fn, compileErr = loadstring(source)
+        if not fn then
+            error(compileErr)
+        end
+        return fn()
+    end)
+
+    if not ok or not res then
+        warn("WindUI 加载失败，脚本已停止:", res)
+        return
+    end
+
+    WindUI = res
+end
 
 local plrs = game:GetService("Players")
 local lighting = game:GetService("Lighting")
 local teleport = game:GetService("TeleportService")
+local httpService = game:GetService("HttpService")
 local lp = plrs.LocalPlayer
 
 -- 【视觉体积优化版】全局通知函数：合并内容为单行，让气泡体积缩到最小
 local function notify(title, content, icon, duration)
     local shortText = title
-    if content and content ~= "" then shortText = title .. " | " .. content end
-    WindUI:Notify({ Title = shortText, Duration = duration or 2, Icon = icon or "bell" })
+    if content and content ~= "" then
+        shortText = title .. " | " .. content
+    end
+
+    local ok, err = pcall(function()
+        WindUI:Notify({ Title = shortText, Duration = duration or 2, Icon = icon or "bell" })
+    end)
+
+    if not ok then
+        warn("通知失败:", err)
+    end
 end
 
 local function copy(text, msg)
@@ -23,11 +50,20 @@ local function copy(text, msg)
 end
 
 local function run(url, name)
-    local ok, err = pcall(function() loadstring(game:HttpGet(url))() end)
+    local ok, err = pcall(function()
+        local source = game:HttpGet(url)
+        local fn, compileErr = loadstring(source)
+        if not fn then
+            error(compileErr)
+        end
+        fn()
+    end)
+
     if ok then
         notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
     else
         warn("执行失败: " .. tostring(err))
+        notify("执行失败", name or "脚本", "triangle-alert", 2)
     end
 end
 
@@ -62,11 +98,330 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "v1.0.0", Icon = "github", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
-local dialog = win:Dialog({
+local dialog
+dialog = win:Dialog({
     Icon = "megaphone", Title = "公告", Content = "写什么。。是个问题",
-    Buttons = { { Title = "朕已阅", Callback = function() dialog:Close() end } }
+    Buttons = {
+        {
+            Title = "朕已阅",
+            Callback = function()
+                if dialog and dialog.Close then
+                    dialog:Close()
+                end
+            end
+        }
+    }
 })
-task.delay(1, function() dialog:Show() end)
+task.delay(1, function()
+    if dialog and dialog.Show then
+        dialog:Show()
+    end
+end)
+
+-- 标题栏反馈按钮：点击后打开 WindUI 内部隐藏反馈面板
+-- 把这里改成你的 Cloudflare Worker 地址，不要写 Discord Webhook 地址
+local FeedbackAPI = "https://你的worker地址.workers.dev"
+
+local FeedbackPanel = nil
+local FeedbackText = ""
+
+local function findSutureMainWindow()
+    local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
+
+    for _, v in ipairs(uiContainer:GetDescendants()) do
+        if v:IsA("TextLabel") and string.find(tostring(v.Text or ""), "Suture Hub", 1, true) then
+            local cur = v
+            local candidate = nil
+
+            while cur and cur ~= uiContainer do
+                if cur:IsA("GuiObject") then
+                    local size = cur.AbsoluteSize
+                    if size.X >= 500 and size.Y >= 300 then
+                        candidate = cur
+                    end
+                end
+                cur = cur.Parent
+            end
+
+            if candidate then
+                return candidate
+            end
+        end
+    end
+
+    return nil
+end
+
+local function postFeedback(message)
+    message = tostring(message or "")
+
+    if message:gsub("%s+", "") == "" then
+        notify("反馈失败", "内容不能为空", "triangle-alert", 2)
+        return false
+    end
+
+    if #message > 1000 then
+        notify("反馈失败", "内容太长", "triangle-alert", 2)
+        return false
+    end
+
+    if string.find(FeedbackAPI, "你的worker地址", 1, true) then
+        notify("反馈失败", "请先填写 Worker 地址", "triangle-alert", 3)
+        return false
+    end
+
+    local payload = {
+        message = message,
+        username = lp.Name,
+        displayName = lp.DisplayName,
+        userId = lp.UserId,
+        placeId = game.PlaceId,
+        jobId = game.JobId,
+        executorTime = os.date("%Y-%m-%d %H:%M:%S")
+    }
+
+    local body = httpService:JSONEncode(payload)
+
+    local ok, res = pcall(function()
+        local req = nil
+
+        if syn and syn.request then
+            req = syn.request
+        elseif http_request then
+            req = http_request
+        elseif request then
+            req = request
+        elseif fluxus and fluxus.request then
+            req = fluxus.request
+        elseif http and http.request then
+            req = http.request
+        end
+
+        if req then
+            return req({
+                Url = FeedbackAPI,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = body
+            })
+        end
+
+        return httpService:PostAsync(FeedbackAPI, body, Enum.HttpContentType.ApplicationJson)
+    end)
+
+    if ok then
+        notify("反馈成功", "已发送", "check", 2)
+        return true
+    else
+        warn("反馈发送失败:", res)
+        notify("反馈失败", "发送失败", "triangle-alert", 2)
+        return false
+    end
+end
+
+local function createFeedbackPanel()
+    if FeedbackPanel and FeedbackPanel.Parent then
+        return FeedbackPanel
+    end
+
+    local parent = findSutureMainWindow()
+    if not parent then
+        notify("反馈", "找不到主窗口", "triangle-alert", 2)
+        return nil
+    end
+
+    if getgenv().SutureHubFeedbackPanel and getgenv().SutureHubFeedbackPanel.Parent then
+        getgenv().SutureHubFeedbackPanel:Destroy()
+        getgenv().SutureHubFeedbackPanel = nil
+    end
+
+    local panel = Instance.new("Frame")
+    panel.Name = "SutureHubFeedbackPanel"
+    panel.Size = UDim2.fromOffset(380, 230)
+    panel.Position = UDim2.new(0.5, -190, 0.5, -115)
+    panel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    panel.BackgroundTransparency = 0.04
+    panel.BorderSizePixel = 0
+    panel.Visible = false
+    panel.ZIndex = 1000
+    panel.Parent = parent
+
+    local panelCorner = Instance.new("UICorner")
+    panelCorner.CornerRadius = UDim.new(0, 12)
+    panelCorner.Parent = panel
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -20, 0, 34)
+    title.Position = UDim2.fromOffset(12, 8)
+    title.BackgroundTransparency = 1
+    title.Text = "反馈"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 1001
+    title.Parent = panel
+
+    local closeTop = Instance.new("TextButton")
+    closeTop.Name = "CloseTop"
+    closeTop.Size = UDim2.fromOffset(28, 28)
+    closeTop.Position = UDim2.new(1, -38, 0, 8)
+    closeTop.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    closeTop.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeTop.Text = "×"
+    closeTop.TextSize = 18
+    closeTop.Font = Enum.Font.GothamBold
+    closeTop.BorderSizePixel = 0
+    closeTop.ZIndex = 1001
+    closeTop.Parent = panel
+
+    local closeTopCorner = Instance.new("UICorner")
+    closeTopCorner.CornerRadius = UDim.new(0, 8)
+    closeTopCorner.Parent = closeTop
+
+    local box = Instance.new("TextBox")
+    box.Name = "FeedbackInput"
+    box.Size = UDim2.new(1, -24, 0, 110)
+    box.Position = UDim2.fromOffset(12, 52)
+    box.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.PlaceholderText = "请输入反馈内容..."
+    box.PlaceholderColor3 = Color3.fromRGB(160, 160, 160)
+    box.Text = ""
+    box.TextSize = 14
+    box.Font = Enum.Font.Gotham
+    box.ClearTextOnFocus = false
+    box.MultiLine = true
+    box.TextWrapped = true
+    box.TextXAlignment = Enum.TextXAlignment.Left
+    box.TextYAlignment = Enum.TextYAlignment.Top
+    box.BorderSizePixel = 0
+    box.ZIndex = 1001
+    box.Parent = panel
+
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.CornerRadius = UDim.new(0, 8)
+    boxCorner.Parent = box
+
+    box:GetPropertyChangedSignal("Text"):Connect(function()
+        FeedbackText = box.Text
+    end)
+
+    local cancel = Instance.new("TextButton")
+    cancel.Name = "Cancel"
+    cancel.Size = UDim2.fromOffset(86, 34)
+    cancel.Position = UDim2.new(1, -210, 1, -48)
+    cancel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    cancel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    cancel.Text = "关闭"
+    cancel.TextSize = 14
+    cancel.Font = Enum.Font.GothamMedium
+    cancel.BorderSizePixel = 0
+    cancel.ZIndex = 1001
+    cancel.Parent = panel
+
+    local cancelCorner = Instance.new("UICorner")
+    cancelCorner.CornerRadius = UDim.new(0, 8)
+    cancelCorner.Parent = cancel
+
+    local send = Instance.new("TextButton")
+    send.Name = "Send"
+    send.Size = UDim2.fromOffset(110, 34)
+    send.Position = UDim2.new(1, -122, 1, -48)
+    send.BackgroundColor3 = Color3.fromRGB(48, 255, 106)
+    send.TextColor3 = Color3.fromRGB(0, 0, 0)
+    send.Text = "发送反馈"
+    send.TextSize = 14
+    send.Font = Enum.Font.GothamBold
+    send.BorderSizePixel = 0
+    send.ZIndex = 1001
+    send.Parent = panel
+
+    local sendCorner = Instance.new("UICorner")
+    sendCorner.CornerRadius = UDim.new(0, 8)
+    sendCorner.Parent = send
+
+    local function closePanel()
+        panel.Visible = false
+    end
+
+    closeTop.MouseButton1Click:Connect(closePanel)
+    cancel.MouseButton1Click:Connect(closePanel)
+
+    send.MouseButton1Click:Connect(function()
+        send.Text = "发送中..."
+        local success = postFeedback(FeedbackText)
+        send.Text = "发送反馈"
+
+        if success then
+            box.Text = ""
+            FeedbackText = ""
+            panel.Visible = false
+        end
+    end)
+
+    FeedbackPanel = panel
+    getgenv().SutureHubFeedbackPanel = panel
+    return panel
+end
+
+local function openFeedback()
+    local panel = createFeedbackPanel()
+    if panel then
+        panel.Visible = true
+    end
+end
+
+local function createFeedbackButton()
+    pcall(function()
+        if getgenv().SutureHubFeedbackButton and getgenv().SutureHubFeedbackButton.Parent then
+            getgenv().SutureHubFeedbackButton:Destroy()
+            getgenv().SutureHubFeedbackButton = nil
+        end
+
+        local parent = findSutureMainWindow()
+        local btn = Instance.new("TextButton")
+        btn.Name = "SutureHubFeedbackButton"
+        btn.Text = "反馈"
+        btn.TextSize = 12
+        btn.Font = Enum.Font.GothamMedium
+        btn.AutoButtonColor = true
+        btn.BackgroundTransparency = 0.18
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        btn.BorderSizePixel = 0
+        btn.Size = UDim2.fromOffset(44, 28)
+        btn.ZIndex = 999
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = btn
+
+        btn.MouseButton1Click:Connect(openFeedback)
+
+        if parent then
+            btn.AnchorPoint = Vector2.new(1, 0)
+            btn.Position = UDim2.new(1, -105, 0, 8)
+            btn.Parent = parent
+        else
+            local gui = Instance.new("ScreenGui")
+            gui.Name = "SutureHubFeedbackOverlay"
+            gui.ResetOnSpawn = false
+            gui.Parent = game:GetService("CoreGui")
+
+            btn.AnchorPoint = Vector2.new(1, 0)
+            btn.Position = UDim2.new(1, -115, 0, 12)
+            btn.Parent = gui
+        end
+
+        getgenv().SutureHubFeedbackButton = btn
+    end)
+end
+
+task.delay(2, createFeedbackButton)
 
 -- tabs
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
@@ -99,7 +454,7 @@ local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Loc
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
 local countText = mainTab:Paragraph({ Title = "全网执行次数", Desc = "正在获取..." })
-local function updateCount()
+local function task.spawn(updateCount)
     local ok, res = pcall(function() return game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/count") end)
     if ok then
         res = tostring(res)
@@ -149,24 +504,42 @@ fyTab:Button({
 })
 
 -- 视觉
-local fb = { Enabled = false, Brightness = 2, ClockTime = 14, FogEnd = 100000, Shadows = false }
+local defaultLighting = {
+    Brightness = lighting.Brightness,
+    ClockTime = lighting.ClockTime,
+    FogStart = lighting.FogStart,
+    FogEnd = lighting.FogEnd,
+    GlobalShadows = lighting.GlobalShadows
+}
+
+local fb = { Enabled = true, Brightness = 2, ClockTime = 14, FogEnd = 100000, Shadows = false }
+
 local function applyFB()
-    lighting.FogStart = 0
     if fb.Enabled then
+        lighting.FogStart = 0
         lighting.Brightness = fb.Brightness
         lighting.ClockTime = fb.ClockTime
         lighting.FogEnd = fb.FogEnd
         lighting.GlobalShadows = fb.Shadows
     else
-        lighting.Brightness = 1
-        lighting.ClockTime = 12
-        lighting.FogEnd = 100000
-        lighting.GlobalShadows = true
+        lighting.Brightness = defaultLighting.Brightness
+        lighting.ClockTime = defaultLighting.ClockTime
+        lighting.FogStart = defaultLighting.FogStart
+        lighting.FogEnd = defaultLighting.FogEnd
+        lighting.GlobalShadows = defaultLighting.GlobalShadows
     end
 end
 visualTab:Toggle({
-    Title = "高亮环境", Desc = "开启后使用下面的亮度设置", Icon = "sun", Type = "Checkbox", Value = false,
-    Callback = function(s) fb.Enabled = s applyFB() end
+    Title = "高亮环境",
+    Desc = "默认自动开启，可手动关闭",
+    Icon = "sun",
+    Type = "Checkbox",
+    Value = true,
+    Callback = function(s)
+        fb.Enabled = s
+        applyFB()
+        notify("高亮环境", s and "已开启" or "已关闭", s and "sun" or "moon", 1.5)
+    end
 })
 visualTab:Slider({
     Title = "亮度大小", Step = 0.1, Value = { Min = 0, Max = 10, Default = fb.Brightness },
@@ -196,11 +569,21 @@ visualTab:Button({
 visualTab:Button({
     Title = "恢复默认光照", Desc = "关闭高亮并恢复默认光照",
     Callback = function()
-        fb.Enabled = false; fb.Brightness = 2; fb.ClockTime = 14; fb.FogEnd = 100000; fb.Shadows = false
-        lighting.Brightness = 1; lighting.ClockTime = 12; lighting.FogStart = 0; lighting.FogEnd = 100000; lighting.GlobalShadows = true
-        notify("恢复成功", "已恢复光照", "check", 2)
+        fb.Enabled = false
+        fb.Brightness = 2
+        fb.ClockTime = 14
+        fb.FogEnd = 100000
+        fb.Shadows = false
+        applyFB()
+        notify("恢复成功", "已恢复执行前光照", "check", 2)
     end
 })
+
+-- 每次执行脚本时，自动执行一次视觉分区的高亮环境
+task.defer(function()
+    applyFB()
+    notify("高亮环境", "已自动开启", "sun", 2)
+end)
 
 -- 工具栏
 toolTab:Button({
@@ -212,20 +595,89 @@ toolTab:Button({
     Callback = function() teleport:Teleport(game.PlaceId, lp) end
 })
 
--- 【已修改为：精简版可选式开关】
+-- 即时互动：开启时记录原始交互时间，关闭时恢复原值
+getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
+
+local PromptHoldCache = getgenv().SutureHubPromptHoldCache
+
+-- 重新执行脚本时，先把上一次即时互动留下的 0 秒交互恢复，避免 UI 显示关闭但实际仍开启
+for prompt, oldHold in pairs(PromptHoldCache) do
+    if typeof(prompt) == "Instance" and prompt:IsA("ProximityPrompt") and oldHold ~= nil then
+        pcall(function()
+            prompt.HoldDuration = oldHold
+        end)
+    end
+    PromptHoldCache[prompt] = nil
+end
+
+getgenv().InstantInteract = false
+
+local function setInstantPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return end
+
+    if PromptHoldCache[prompt] == nil then
+        PromptHoldCache[prompt] = prompt.HoldDuration
+    end
+
+    prompt.HoldDuration = 0
+end
+
+local function restorePrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return end
+
+    local oldHold = PromptHoldCache[prompt]
+    if oldHold ~= nil then
+        prompt.HoldDuration = oldHold
+        PromptHoldCache[prompt] = nil
+    end
+end
+
+local function applyInstantInteract(state)
+    getgenv().InstantInteract = state
+
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            if state then
+                setInstantPrompt(v)
+            else
+                restorePrompt(v)
+            end
+        end
+    end
+end
+
 toolTab:Toggle({
-    Title = "即时互动", Desc = "开启后所有交互无需按住", Icon = "zap", Value = false,
+    Title = "即时互动",
+    Desc = "开启后无需按住，关闭后恢复原交互时间",
+    Icon = "zap",
+    Value = false,
     Callback = function(s)
-        getgenv().InstantInteract = s
-        for _, v in pairs(workspace:GetDescendants()) do if v:IsA("ProximityPrompt") then v.HoldDuration = s and 0 or 0.5 end end
-        notify("快速互动", s and "已开启" or "已关闭", "zap", 1.5)
+        applyInstantInteract(s)
+        notify("快速互动", s and "已开启" or "已关闭并恢复", "zap", 1.5)
     end
 })
-if not _G.IntHook then 
-    _G.IntHook = workspace.DescendantAdded:Connect(function(v) 
-        if getgenv().InstantInteract and v:IsA("ProximityPrompt") then v.HoldDuration = 0 end 
-    end) 
+
+-- 兼容旧版本：如果以前用过 _G.IntHook，先断开，避免重复连接
+if _G.IntHook then
+    pcall(function()
+        _G.IntHook:Disconnect()
+    end)
+    _G.IntHook = nil
 end
+
+-- 使用专属命名，避免和其它脚本的 _G.IntHook 冲突
+if getgenv().SutureHubInstantInteractConnection then
+    pcall(function()
+        getgenv().SutureHubInstantInteractConnection:Disconnect()
+    end)
+    getgenv().SutureHubInstantInteractConnection = nil
+end
+
+getgenv().SutureHubInstantInteractConnection = workspace.DescendantAdded:Connect(function(v)
+    if getgenv().InstantInteract and v:IsA("ProximityPrompt") then
+        setInstantPrompt(v)
+    end
+end)
 
 
 
@@ -242,7 +694,7 @@ local function getItemHighlightLib()
         return loadstring(game:HttpGet(ItemHighlightURL))()
     end)
 
-    if ok and type(res) == "table" and res.Start and res.Stop then
+    if ok and type(res) == "table" and type(res.Start) == "function" and type(res.Stop) == "function" then
         ItemHighlightLib = res
         return ItemHighlightLib
     else
@@ -262,12 +714,19 @@ toolTab:Toggle({
         local lib = getItemHighlightLib()
         if not lib then return end
 
-        if state then
-            lib.Start()
-            notify("物品高亮", "已开启", "eye", 2)
+        local ok, err = pcall(function()
+            if state then
+                lib.Start()
+            else
+                lib.Stop()
+            end
+        end)
+
+        if ok then
+            notify("物品高亮", state and "已开启" or "已关闭", state and "eye" or "eye-off", 2)
         else
-            lib.Stop()
-            notify("物品高亮", "已关闭", "eye-off", 2)
+            warn("物品高亮切换失败:", err)
+            notify("物品高亮", "切换失败", "triangle-alert", 2)
         end
     end
 })
@@ -486,38 +945,72 @@ aboutTab:Button({
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
 
--- 【富文本色彩定制版】统一添加时间，时间独立颜色与大小
-task.spawn(function()
-    while true do
-        -- 1. 定义时间的颜色（这里用的是亮青色 #00ffff，你可以改成你喜欢的十六进制颜色）
-        -- 2. 定义时间的字号（从标签内部缩减到 12 号字）
-        local timeColor = "#00ffff" 
-        local timeSize = "12"
-        
-        -- 格式化时间并套入富文本标签
-        local timeString = os.date("%H:%M:%S")
-        local richTime = string.format(' <font color="%s" size="%s">| %s</font>', timeColor, timeSize, timeString)
-        local fullText = "Suture Hub" .. richTime
-        
-        local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
-        
-        for _, v in pairs(uiContainer:GetDescendants()) do
-            -- 寻找所有需要显示 Suture Hub 的 TextLabel
-            if v:IsA("TextLabel") and (v.Text == "Suture Hub" or string.find(v.Text, "Suture Hub")) then
-                
-                -- 排除主页大字Paragraph，只针对标题栏和胶囊栏
-                if v.Name ~= "Description" and v.Name ~= "Desc" and v.Parent.Name ~= "Paragraph" then
-                    
-                    -- 必须开启富文本属性，否则标签会变成纯文本显示出来
-                    if not v.RichText then
-                        v.RichText = true
-                    end
-                    
-                    -- 实时更新带特效的时间文本
-                    v.Text = fullText
-                end
+-- 【缓存优化版】标题时间显示：不再每秒全量扫描 CoreGui
+-- 重新执行脚本时，让旧的标题时间循环自动退出，避免重复 while true 占用内存和性能
+getgenv().SutureHubTitleClockToken = (getgenv().SutureHubTitleClockToken or 0) + 1
+local TitleClockToken = getgenv().SutureHubTitleClockToken
+
+local TitleTimeLabels = {}
+local LastTitleScan = 0
+
+local function isSutureTitleLabel(v)
+    if not v or not v:IsA("TextLabel") then
+        return false
+    end
+
+    local txt = tostring(v.Text or "")
+    if not string.find(txt, "Suture Hub", 1, true) then
+        return false
+    end
+
+    local parent = v.Parent
+    if v.Name == "Description" or v.Name == "Desc" or (parent and parent.Name == "Paragraph") then
+        return false
+    end
+
+    return true
+end
+
+local function scanSutureTitleLabels()
+    local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
+
+    for _, v in ipairs(uiContainer:GetDescendants()) do
+        if isSutureTitleLabel(v) then
+            TitleTimeLabels[v] = true
+            if not v.RichText then
+                v.RichText = true
             end
         end
+    end
+end
+
+task.spawn(function()
+    scanSutureTitleLabels()
+
+    while getgenv().SutureHubTitleClockToken == TitleClockToken do
+        -- 每 5 秒补扫一次，避免 WindUI 延迟创建标题导致找不到
+        local now = os.clock()
+        if now - LastTitleScan >= 5 then
+            LastTitleScan = now
+            scanSutureTitleLabels()
+        end
+
+        local timeColor = "#00ffff"
+        local timeSize = "12"
+        local timeString = os.date("%H:%M:%S")
+        local fullText = string.format('Suture Hub <font color="%s" size="%s">| %s</font>', timeColor, timeSize, timeString)
+
+        for label in pairs(TitleTimeLabels) do
+            if typeof(label) == "Instance" and label.Parent and label:IsA("TextLabel") then
+                if not label.RichText then
+                    label.RichText = true
+                end
+                label.Text = fullText
+            else
+                TitleTimeLabels[label] = nil
+            end
+        end
+
         task.wait(1)
     end
 end)
