@@ -1,16 +1,15 @@
 --// Suture Hub Feedback | WindUI 原生精简版
+
 local cfg = getgenv().SutureHubFeedback or {}
-
-local API = tostring(cfg.API or ""):gsub("%s+", "")
-
-if API ~= "" and not API:match("^https?://") then
-    API = "https://" .. API
-end
 
 local WindUI = cfg.WindUI
 local Tab = cfg.Tab or cfg.ParentTab
 
-local notify = cfg.Notify or function(t, c, i, d)
+local function notify(t, c, i, d)
+    if cfg.Notify then
+        return cfg.Notify(t, c, i, d)
+    end
+
     if WindUI and WindUI.Notify then
         pcall(function()
             WindUI:Notify({
@@ -25,20 +24,48 @@ local notify = cfg.Notify or function(t, c, i, d)
     end
 end
 
-if not API or not Tab then
-    return notify("反馈模块", "缺少 API 或 Tab", "triangle-alert", 4)
+local function cleanUrl(u)
+    u = tostring(u or ""):gsub("%s+", "")
+
+    if u == "" then
+        return ""
+    end
+
+    if not u:match("^https?://") then
+        u = "https://" .. u
+    end
+
+    return u
 end
 
-if getgenv().SutureHubFeedbackTab == Tab then return end
+local API = cleanUrl(cfg.API or cfg.Url or cfg.FeedbackAPI or getgenv().FeedbackAPI or _G.FeedbackAPI)
+
+if API == "" then
+    return notify("反馈模块", "API为空，请检查主脚本配置", "triangle-alert", 5)
+end
+
+if not Tab then
+    return notify("反馈模块", "Tab为空，请检查 settingsTab", "triangle-alert", 5)
+end
+
+if getgenv().SutureHubFeedbackTab == Tab then
+    return
+end
+
 getgenv().SutureHubFeedbackTab = Tab
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local lp = Players.LocalPlayer
-local text, busy = "", false
+
+local text = ""
+local busy = false
 
 local function requestFunc()
-    return (syn and syn.request) or (http and http.request) or http_request or request
+    return (syn and syn.request)
+        or (http and http.request)
+        or http_request
+        or request
 end
 
 local function enc(v)
@@ -47,6 +74,7 @@ end
 
 local function getUrl(msg)
     local sep = API:find("?", 1, true) and "&" or "?"
+
     return API .. sep
         .. "message=" .. enc(msg)
         .. "&username=" .. enc(lp.Name)
@@ -58,12 +86,49 @@ local function getUrl(msg)
 end
 
 local function okStatus(res)
-    local code = res and (res.StatusCode or res.Status) or 0
+    local code = res and (res.StatusCode or res.Status or res.status_code) or 0
     return code >= 200 and code < 300
 end
 
-local function send(msg)
+local function callRequest(method, url, body)
     local req = requestFunc()
+
+    if not req then
+        return false, "当前执行器不支持 request"
+    end
+
+    local data = {
+        Url = url,
+        url = url,
+
+        Method = method,
+        method = method,
+
+        Headers = {
+            ["Content-Type"] = "application/json",
+            ["User-Agent"] = "SutureHub"
+        },
+        headers = {
+            ["Content-Type"] = "application/json",
+            ["User-Agent"] = "SutureHub"
+        },
+
+        Body = body,
+        body = body
+    }
+
+    local ok, res = pcall(function()
+        return req(data)
+    end)
+
+    if ok and okStatus(res) then
+        return true
+    end
+
+    return false, ok and tostring(res and res.Body or "状态码异常") or tostring(res)
+end
+
+local function send(msg)
     local body = HttpService:JSONEncode({
         message = msg,
         username = lp.Name,
@@ -74,31 +139,33 @@ local function send(msg)
         gameName = game.Name
     })
 
-    if req then
-        local ok, res = pcall(req, {
-            Url = API,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json", ["User-Agent"] = "SutureHub"},
-            Body = body
-        })
-        if ok and okStatus(res) then return true end
+    local ok1 = callRequest("POST", API, body)
+    if ok1 then
+        return true
+    end
 
-        local ok2, res2 = pcall(req, {
-            Url = getUrl(msg),
-            Method = "GET",
-            Headers = {["User-Agent"] = "SutureHub"}
-        })
-        if ok2 and okStatus(res2) then return true end
+    local url = getUrl(msg)
+
+    local ok2 = callRequest("GET", url)
+    if ok2 then
+        return true
     end
 
     local ok3, err3 = pcall(function()
-        game:HttpGet(getUrl(msg))
+        return game:HttpGet(url)
     end)
-    return ok3, err3
+
+    if ok3 then
+        return true
+    end
+
+    return false, tostring(err3)
 end
 
 pcall(function()
-    Tab:Divider({Title = "反馈"})
+    Tab:Divider({
+        Title = "反馈"
+    })
 end)
 
 Tab:Input({
@@ -116,18 +183,25 @@ Tab:Button({
     Desc = "将反馈发送给作者",
     Icon = "send",
     Callback = function()
-        if busy then return notify("反馈", "正在发送中", "loader", 2) end
-        if #text < 2 then return notify("反馈失败", "请先输入内容", "triangle-alert", 3) end
+        if busy then
+            return notify("反馈", "正在发送中", "loader", 2)
+        end
+
+        if #text < 2 then
+            return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
+        end
 
         busy = true
+
         local ok, err = send(text)
+
         busy = false
 
         if ok then
             text = ""
             notify("反馈成功", "已发送给作者", "check", 3)
         else
-            notify("反馈失败", tostring(err or "ConnectFail"), "triangle-alert", 5)
+            notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
         end
     end
 })
