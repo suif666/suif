@@ -86,6 +86,52 @@ return function(ctx)
         return bestWindow
     end
 
+    local function sendPost(url, body)
+        local req = nil
+
+        if syn and syn.request then
+            req = syn.request
+        elseif http_request then
+            req = http_request
+        elseif request then
+            req = request
+        elseif fluxus and fluxus.request then
+            req = fluxus.request
+        elseif krnl and krnl.request then
+            req = krnl.request
+        elseif secure_request then
+            req = secure_request
+        elseif http and http.request then
+            req = http.request
+        end
+
+        if req then
+            local res = req({
+                Url = url,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = body
+            })
+
+            local status = tonumber(res and (res.StatusCode or res.Status or res.status_code)) or 200
+            local responseBody = tostring(res and (res.Body or res.body or "") or "")
+
+            if status < 200 or status >= 300 then
+                error("HTTP " .. tostring(status) .. " " .. responseBody)
+            end
+
+            return responseBody
+        end
+
+        if game.HttpPost then
+            return game:HttpPost(url, body, "application/json")
+        end
+
+        return httpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson)
+    end
+
     local function postFeedback(message)
         message = tostring(message or "")
 
@@ -117,32 +163,7 @@ return function(ctx)
         local body = httpService:JSONEncode(payload)
 
         local ok, res = pcall(function()
-            local req = nil
-
-            if syn and syn.request then
-                req = syn.request
-            elseif http_request then
-                req = http_request
-            elseif request then
-                req = request
-            elseif fluxus and fluxus.request then
-                req = fluxus.request
-            elseif http and http.request then
-                req = http.request
-            end
-
-            if req then
-                return req({
-                    Url = FeedbackAPI,
-                    Method = "POST",
-                    Headers = {
-                        ["Content-Type"] = "application/json"
-                    },
-                    Body = body
-                })
-            end
-
-            return httpService:PostAsync(FeedbackAPI, body, Enum.HttpContentType.ApplicationJson)
+            return sendPost(FeedbackAPI, body)
         end)
 
         if ok then
@@ -150,7 +171,7 @@ return function(ctx)
             return true
         else
             warn("反馈发送失败:", res)
-            notify("反馈失败", "发送失败", "triangle-alert", 2)
+            notify("反馈失败", tostring(res):sub(1, 80), "triangle-alert", 4)
             return false
         end
     end
@@ -243,46 +264,22 @@ return function(ctx)
             getgenv().SutureHubFeedbackButton = nil
         end
 
-        local winPos = mainWindow.AbsolutePosition
-        local winSize = mainWindow.AbsoluteSize
-        local buttons = {}
-
-        for _, v in ipairs(mainWindow:GetDescendants()) do
-            if (v:IsA("TextButton") or v:IsA("ImageButton")) and v.Visible and v.Name ~= "SutureHubFeedbackButton" then
-                local p = v.AbsolutePosition
-                local s = v.AbsoluteSize
-
-                if p.X > winPos.X + winSize.X - 230 and p.Y < winPos.Y + 80 and s.X <= 46 and s.Y <= 46 then
-                    table.insert(buttons, v)
-                end
-            end
-        end
-
-        table.sort(buttons, function(a, b)
-            return a.AbsolutePosition.X < b.AbsolutePosition.X
-        end)
-
-        if #buttons < 1 then
-            return false
-        end
-
-        local leftButton = buttons[1]
-        local size = leftButton.AbsoluteSize
-        local relX = leftButton.AbsolutePosition.X - winPos.X - size.X - 8
-        local relY = leftButton.AbsolutePosition.Y - winPos.Y
-
         local btn = Instance.new("TextButton")
         btn.Name = "SutureHubFeedbackButton"
         btn.Text = "反馈"
-        btn.TextSize = 18
+        btn.TextSize = 14
         btn.Font = Enum.Font.GothamMedium
         btn.TextColor3 = Color3.fromRGB(180, 180, 180)
         btn.BackgroundTransparency = 1
         btn.BorderSizePixel = 0
         btn.AutoButtonColor = true
-        btn.Size = UDim2.fromOffset(size.X, size.Y)
-        btn.Position = UDim2.fromOffset(relX, relY)
-        btn.ZIndex = math.max(leftButton.ZIndex, 999)
+        btn.Size = UDim2.fromOffset(54, 30)
+
+        -- 右上角三个功能键前面。
+        -- 如果还需要微调：-230 越小越靠左，越大越靠右；20 越小越靠上。
+        btn.Position = UDim2.new(1, -230, 0, 20)
+
+        btn.ZIndex = 999
         btn.Parent = mainWindow
 
         btn.MouseButton1Click:Connect(function()
