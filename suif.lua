@@ -147,14 +147,23 @@ local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = fals
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 
+-- WindUI 原生反馈模块：主脚本只保留配置和加载
+local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
 getgenv().SutureHubFeedback = {
     API = "https://suture-feedback.sfbdsl666.workers.dev",
     WindUI = WindUI,
-    Window = win,
-    ParentTab = settingsTab
+    Tab = settingsTab,
+    Notify = notify
 }
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"))()
+task.spawn(function()
+    local ok, err = pcall(function()
+        loadstring(game:HttpGet(FeedbackURL))()
+    end)
+    if not ok then
+        notify("反馈模块", "加载失败: " .. tostring(err), "triangle-alert", 4)
+    end
+end)
 
 
 
