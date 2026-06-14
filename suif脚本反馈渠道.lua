@@ -26,10 +26,23 @@ return function(ctx)
         return
     end
 
-    if getgenv().SutureHubFeedbackLoaded then
+    local ModuleVersion = "GET_COMPAT_V2"
+
+    -- 旧版模块用过 SutureHubFeedbackLoaded，重新执行时可能会拦截新版模块。
+    -- 这里改成版本号机制，方便你以后直接更新 Raw 文件。
+    if getgenv().SutureHubFeedbackVersion == ModuleVersion then
         return
     end
-    getgenv().SutureHubFeedbackLoaded = true
+
+    getgenv().SutureHubFeedbackVersion = ModuleVersion
+    getgenv().SutureHubFeedbackLoaded = nil
+
+    if getgenv().SutureHubFeedbackButton and getgenv().SutureHubFeedbackButton.Parent then
+        pcall(function()
+            getgenv().SutureHubFeedbackButton:Destroy()
+        end)
+        getgenv().SutureHubFeedbackButton = nil
+    end
 
     local FeedbackText = ""
 
