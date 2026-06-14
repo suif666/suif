@@ -146,18 +146,17 @@ local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = fal
 local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
-
--- WindUI 原生反馈模块：主脚本只保留配置和加载
 getgenv().SutureHubFeedback = {
     API = "https://suture-feedback.sfbdsl666.workers.dev/",
     WindUI = WindUI,
+    Window = win,
     Title = "Suture Hub",
     Notify = notify,
 
-    -- 右上角按钮位置
-    ButtonX = -150,
+    ButtonX = -180,
     ButtonY = 18
 }
+
 task.spawn(function()
     local ok, err = pcall(function()
         loadstring(game:HttpGet(FeedbackURL))()
