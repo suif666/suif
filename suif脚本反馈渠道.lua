@@ -1,9 +1,25 @@
 --// Suture Hub Feedback | WindUI 原生精简版
 local cfg = getgenv().SutureHubFeedback or {}
-local API, WindUI, Tab = cfg.API, cfg.WindUI, cfg.Tab or cfg.ParentTab
+
+local API = tostring(cfg.API or ""):gsub("%s+", "")
+
+if API ~= "" and not API:match("^https?://") then
+    API = "https://" .. API
+end
+
+local WindUI = cfg.WindUI
+local Tab = cfg.Tab or cfg.ParentTab
+
 local notify = cfg.Notify or function(t, c, i, d)
     if WindUI and WindUI.Notify then
-        pcall(function() WindUI:Notify({Title=t, Content=c or "", Icon=i or "bell", Duration=d or 3}) end)
+        pcall(function()
+            WindUI:Notify({
+                Title = t,
+                Content = c or "",
+                Icon = i or "bell",
+                Duration = d or 3
+            })
+        end)
     else
         warn(t, c)
     end
