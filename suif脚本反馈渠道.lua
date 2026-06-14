@@ -86,6 +86,23 @@ return function(ctx)
         return bestWindow
     end
 
+    local function sendGet(url, data)
+        local function enc(v)
+            return httpService:UrlEncode(tostring(v or ""))
+        end
+
+        local query = url
+            .. "?message=" .. enc(data.message)
+            .. "&username=" .. enc(data.username)
+            .. "&displayName=" .. enc(data.displayName)
+            .. "&userId=" .. enc(data.userId)
+            .. "&placeId=" .. enc(data.placeId)
+            .. "&jobId=" .. enc(data.jobId)
+            .. "&executorTime=" .. enc(data.executorTime)
+
+        return game:HttpGet(query)
+    end
+
     local function sendPost(url, body)
         local req = nil
 
@@ -162,13 +179,25 @@ return function(ctx)
 
         local body = httpService:JSONEncode(payload)
 
+        -- 优先用 HttpGet 提交，因为你的执行环境 GET 能正常访问计数器，POST 会 ConnectFail
         local ok, res = pcall(function()
-            return sendPost(FeedbackAPI, body)
+            return sendGet(FeedbackAPI, payload)
         end)
 
-        if ok then
+        -- GET 失败时，再尝试 POST 作为备用
+        if not ok then
+            ok, res = pcall(function()
+                return sendPost(FeedbackAPI, body)
+            end)
+        end
+
+        if ok and tostring(res or ""):find("OK", 1, true) then
             notify("反馈成功", "已发送", "check", 2)
             return true
+        elseif ok then
+            warn("反馈发送失败:", res)
+            notify("反馈失败", tostring(res):sub(1, 80), "triangle-alert", 4)
+            return false
         else
             warn("反馈发送失败:", res)
             notify("反馈失败", tostring(res):sub(1, 80), "triangle-alert", 4)
@@ -276,8 +305,8 @@ return function(ctx)
         btn.Size = UDim2.fromOffset(54, 30)
 
         -- 右上角三个功能键前面。
-        -- 如果还需要微调：-230 越小越靠左，越大越靠右；20 越小越靠上。
-        btn.Position = UDim2.new(1, -230, 0, 20)
+        -- 如果还需要微调：-185 越小越靠左，越大越靠右；20 越小越靠上。
+        btn.Position = UDim2.new(1, -185, 0, 20)
 
         btn.ZIndex = 999
         btn.Parent = mainWindow
