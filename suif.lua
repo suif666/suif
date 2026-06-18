@@ -146,21 +146,30 @@ local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = fal
 local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
+-- WindUI 原生顶栏反馈入口
+local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
+
 getgenv().SutureHubFeedback = {
     API = "https://suture-feedback.sfbdsl666.workers.dev/",
     WindUI = WindUI,
     Window = win,
-    Title = "Suture Hub",
-    Notify = notify,
-
-    ButtonX = -180,
-    ButtonY = 18
+    Notify = notify
 }
 
 task.spawn(function()
+    task.wait(0.5)
+
     local ok, err = pcall(function()
-        loadstring(game:HttpGet(FeedbackURL))()
+        local src = game:HttpGet(FeedbackURL)
+        local fn, loadErr = loadstring(src)
+
+        if not fn then
+            error(loadErr)
+        end
+
+        fn()
     end)
+
     if not ok then
         notify("反馈模块", "加载失败: " .. tostring(err), "triangle-alert", 4)
     end
