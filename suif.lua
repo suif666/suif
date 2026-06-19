@@ -186,18 +186,63 @@ local function getItemHighlightLib()
         return ItemHighlightLib
     end
 
-    local ok, res = pcall(function()
-        return loadstring(game:HttpGet(ItemHighlightURL))()
-    end)
-
-    if ok and type(res) == "table" and res.Set then
-        ItemHighlightLib = res
-        return ItemHighlightLib
-    else
-        warn("物品高亮加载失败:", res)
-        notify("物品高亮", "加载失败", "triangle-alert", 3)
+    if not ItemHighlightURL or ItemHighlightURL == "" then
+        notify("物品高亮", "URL为空", "triangle-alert", 3)
         return nil
     end
+
+    local okHttp, source = pcall(function()
+        return game:HttpGet(ItemHighlightURL)
+    end)
+
+    if not okHttp then
+        warn("物品高亮获取失败:", source)
+        notify("物品高亮", "获取失败", "triangle-alert", 3)
+        return nil
+    end
+
+    source = tostring(source)
+
+    if source:find("404") or source:find("Not Found") then
+        warn("物品高亮链接404:", source)
+        notify("物品高亮", "链接404", "triangle-alert", 3)
+        return nil
+    end
+
+    if source:find("<html") or source:find("<!DOCTYPE") then
+        warn("物品高亮链接不是Raw链接")
+        notify("物品高亮", "不是Raw链接", "triangle-alert", 3)
+        return nil
+    end
+
+    if source:find("```") then
+        warn("物品高亮代码里包含Markdown代码块符号")
+        notify("物品高亮", "代码格式错误", "triangle-alert", 3)
+        return nil
+    end
+
+    local fn, compileErr = loadstring(source)
+    if not fn then
+        warn("物品高亮语法错误:", compileErr)
+        notify("物品高亮", "语法错误", "triangle-alert", 3)
+        return nil
+    end
+
+    local okRun, res = pcall(fn)
+    if not okRun then
+        warn("物品高亮运行错误:", res)
+        notify("物品高亮", "运行错误", "triangle-alert", 3)
+        return nil
+    end
+
+    if type(res) ~= "table" or type(res.Set) ~= "function" then
+        warn("物品高亮模块格式错误：需要 return M 且包含 M.Set")
+        notify("物品高亮", "模块格式错误", "triangle-alert", 3)
+        return nil
+    end
+
+    ItemHighlightLib = res
+    return ItemHighlightLib
 end
 
 local itemHLSection = win:Section({
@@ -220,23 +265,22 @@ local function addItemToggle(title, key, desc)
         Type = "Checkbox",
         Value = false,
         Callback = function(state)
-            local lib = getItemHighlightLib()
-            if not lib then return end
-
-            lib.Set(key, state)
-
-            notify(
-                title,
-                state and "已开启" or "已关闭",
-                state and "eye" or "eye-off",
-                2
-            )
+            -- 关闭时如果远程模块还没加载，就不要加载它，避免打开脚本时弹出一串通知
+            if state then
+                local lib = getItemHighlightLib()
+                if not lib then return end
+                lib.Set(key, true)
+            else
+                if ItemHighlightLib then
+                    ItemHighlightLib.Set(key, false)
+                end
+            end
         end
     })
 end
 
 addItemToggle("柜子高亮", "Cabinet", "HideTansu")
-addItemToggle("箱子高亮", "Box", "OfudaBox2.BoxBottom")
+addItemToggle("箱子高亮", "Box", "DialGimmick.DialShelf.base")
 addItemToggle("保险柜高亮", "Safe", "safe_Safe")
 addItemToggle("提示纸高亮", "HintPaper", "HintPaper")
 addItemToggle("邪恶房间高亮", "EvilRoom", "hanging scroll_base")
@@ -244,7 +288,7 @@ addItemToggle("洋娃娃高亮", "Doll", "DollHead + DollTorso")
 addItemToggle("洋娃娃头高亮", "DollBlackHead", "DollBlackHead")
 addItemToggle("桌子高亮", "Table", "Zataku")
 addItemToggle("盘子高亮", "Dish", "Dish")
-addItemToggle("电视机高亮", "TV", "base0 + base02 + Point1")
+addItemToggle("电视机高亮", "TV", "TelevisionW.Base.base01")
 addItemToggle("打火机高亮", "Lighter", "oil + metal01")
 addItemToggle("祭祀高亮", "Sacrifice", "dirty sheet")
 addItemToggle("密码箱高亮", "PasswordBox", "base + rope")
@@ -257,7 +301,6 @@ itemHLTab:Button({
         local lib = getItemHighlightLib()
         if lib and lib.DisableAll then
             lib.DisableAll()
-            notify("物品高亮", "已关闭全部", "eye-off", 2)
         end
     end
 })
