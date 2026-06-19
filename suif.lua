@@ -329,32 +329,119 @@ end
 
 task.spawn(updateCount)
 
--- 玩家
-playerTab:Slider({
-    Title = "移动速度", Desc = "修改 WalkSpeed", Step = 1,
-    Value = { Min = 16, Max = 100, Default = 16 },
-    Callback = function(v) local h = getHum() if h then h.WalkSpeed = v end end
-})
-playerTab:Slider({
-    Title = "跳跃高度", Desc = "修改 JumpPower", Step = 1,
-    Value = { Min = 50, Max = 200, Default = 50 },
-    Callback = function(v) local h = getHum() if h then h.UseJumpPower = true h.JumpPower = v end end
-})
-playerTab:Button({
-    Title = "恢复默认属性", Desc = "恢复默认速度和跳跃",
-    Callback = function()
-        local h = getHum()
-        if h then
-            h.WalkSpeed = 16
-            h.UseJumpPower = true
-            h.JumpPower = 50
+-- 玩家：稳定版速度 / 跳跃
+getgenv().SutureMoveCfg = getgenv().SutureMoveCfg or {
+    WalkSpeed = 16,
+    JumpPower = 50,
+    Lock = true
+}
+
+local MoveCfg = getgenv().SutureMoveCfg
+
+local function applyMovementToHumanoid(h)
+    if not h or not h.Parent then return end
+
+    pcall(function()
+        if h.WalkSpeed ~= MoveCfg.WalkSpeed then
+            h.WalkSpeed = MoveCfg.WalkSpeed
         end
+    end)
+
+    pcall(function()
+        h.UseJumpPower = true
+        if h.JumpPower ~= MoveCfg.JumpPower then
+            h.JumpPower = MoveCfg.JumpPower
+        end
+    end)
+end
+
+local function applyMovement()
+    local h = getHum()
+    if h then
+        applyMovementToHumanoid(h)
+    end
+end
+
+getgenv().SutureMoveToken = (getgenv().SutureMoveToken or 0) + 1
+local MoveToken = getgenv().SutureMoveToken
+
+task.spawn(function()
+    while getgenv().SutureMoveToken == MoveToken do
+        if MoveCfg.Lock then
+            applyMovement()
+        end
+        task.wait(0.25)
+    end
+end)
+
+lp.CharacterAdded:Connect(function(char)
+    task.spawn(function()
+        local h = char:WaitForChild("Humanoid", 8)
+        if h then
+            task.wait(0.2)
+            applyMovementToHumanoid(h)
+        end
+    end)
+end)
+
+playerTab:Slider({
+    Title = "移动速度",
+    Desc = "修改并锁定 WalkSpeed，防止被游戏重置",
+    Step = 1,
+    Value = { Min = 16, Max = 100, Default = MoveCfg.WalkSpeed or 16 },
+    Callback = function(v)
+        MoveCfg.WalkSpeed = tonumber(v) or 16
+        applyMovement()
+    end
+})
+
+playerTab:Slider({
+    Title = "跳跃高度",
+    Desc = "修改并锁定 JumpPower，防止被游戏重置",
+    Step = 1,
+    Value = { Min = 50, Max = 200, Default = MoveCfg.JumpPower or 50 },
+    Callback = function(v)
+        MoveCfg.JumpPower = tonumber(v) or 50
+        applyMovement()
+    end
+})
+
+playerTab:Toggle({
+    Title = "锁定速度跳跃",
+    Desc = "开启后会持续维持上面的速度和跳跃数值",
+    Icon = "lock",
+    Type = "Checkbox",
+    Value = MoveCfg.Lock,
+    Callback = function(s)
+        MoveCfg.Lock = s
+        if s then
+            applyMovement()
+        end
+        notify("速度跳跃", s and "已锁定" or "已停止锁定", s and "lock" or "unlock", 1.5)
+    end
+})
+
+playerTab:Button({
+    Title = "恢复默认属性",
+    Desc = "恢复默认速度和跳跃，并继续锁定默认值",
+    Callback = function()
+        MoveCfg.WalkSpeed = 16
+        MoveCfg.JumpPower = 50
+        MoveCfg.Lock = true
+        applyMovement()
         notify("恢复成功", "已恢复默认", "check", 2)
     end
 })
+
 playerTab:Button({
-    Title = "重置角色", Desc = "让自己的角色重生",
-    Callback = function() local h = getHum() if h then h.Health = 0 end end
+    Title = "重置角色",
+    Desc = "让自己的角色重生",
+    Callback = function()
+        local h = getHum()
+        if h then
+            h.Health = 0
+        end
+    end
 })
 
 fyTab:Button({
@@ -439,12 +526,11 @@ toolTab:Button({
     Callback = function() teleport:Teleport(game.PlaceId, lp) end
 })
 
--- 即时互动：开启时记录原始交互时间，关闭时恢复原值
+-- 即时互动：稳定版，支持新生成交互、循环补锁、关闭后恢复原值
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
-
 local PromptHoldCache = getgenv().SutureHubPromptHoldCache
 
--- 重新执行脚本时，先把上一次即时互动留下的 0 秒交互恢复，避免 UI 显示关闭但实际仍开启
+-- 重新执行脚本时，先恢复上一次留下的 0 秒交互，避免状态错乱
 for prompt, oldHold in pairs(PromptHoldCache) do
     if typeof(prompt) == "Instance" and prompt:IsA("ProximityPrompt") and oldHold ~= nil then
         pcall(function()
@@ -463,7 +549,9 @@ local function setInstantPrompt(prompt)
         PromptHoldCache[prompt] = prompt.HoldDuration
     end
 
-    prompt.HoldDuration = 0
+    if prompt.HoldDuration ~= 0 then
+        prompt.HoldDuration = 0
+    end
 end
 
 local function restorePrompt(prompt)
@@ -471,14 +559,14 @@ local function restorePrompt(prompt)
 
     local oldHold = PromptHoldCache[prompt]
     if oldHold ~= nil then
-        prompt.HoldDuration = oldHold
+        pcall(function()
+            prompt.HoldDuration = oldHold
+        end)
         PromptHoldCache[prompt] = nil
     end
 end
 
-local function applyInstantInteract(state)
-    getgenv().InstantInteract = state
-
+local function scanInstantPrompts(state)
     for _, v in ipairs(workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") then
             if state then
@@ -490,10 +578,43 @@ local function applyInstantInteract(state)
     end
 end
 
+local function applyInstantInteract(state)
+    getgenv().InstantInteract = state
+    scanInstantPrompts(state)
+end
+
+if getgenv().SuturePromptAddedConn then
+    pcall(function()
+        getgenv().SuturePromptAddedConn:Disconnect()
+    end)
+    getgenv().SuturePromptAddedConn = nil
+end
+
+getgenv().SuturePromptAddedConn = workspace.DescendantAdded:Connect(function(v)
+    if getgenv().InstantInteract and v:IsA("ProximityPrompt") then
+        task.defer(function()
+            setInstantPrompt(v)
+        end)
+    end
+end)
+
+getgenv().SuturePromptToken = (getgenv().SuturePromptToken or 0) + 1
+local PromptToken = getgenv().SuturePromptToken
+
+task.spawn(function()
+    while getgenv().SuturePromptToken == PromptToken do
+        if getgenv().InstantInteract then
+            scanInstantPrompts(true)
+        end
+        task.wait(0.5)
+    end
+end)
+
 toolTab:Toggle({
     Title = "即时互动",
-    Desc = "开启后无需按住，关闭后恢复原交互时间",
+    Desc = "开启后无需按住，自动补锁新交互，关闭后恢复原值",
     Icon = "zap",
+    Type = "Checkbox",
     Value = false,
     Callback = function(s)
         applyInstantInteract(s)
