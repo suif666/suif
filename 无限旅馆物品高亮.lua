@@ -4,13 +4,12 @@ local CoreGui = game:GetService("CoreGui")
 
 local Running = false
 local HighlightFolder = nil
-
 local FillTransparency = 0.85
 local OutlineTransparency = 0
 local TextSize = 12
 
 local Enabled = {}
-
+local Registry = {}
 local ObjectIds = setmetatable({}, { __mode = "k" })
 local NextId = 0
 
@@ -61,31 +60,40 @@ local function getLabelAdornee(obj)
     return nil
 end
 
+local function getGroupRegistry(group)
+    Registry[group] = Registry[group] or setmetatable({}, { __mode = "k" })
+    return Registry[group]
+end
+
+local function destroyRecord(record)
+    if not record then return end
+    if record.Highlight then pcall(function() record.Highlight:Destroy() end) end
+    if record.Billboard then pcall(function() record.Billboard:Destroy() end) end
+end
+
 local function removeGroup(group)
-    if not HighlightFolder then return end
-    for _, obj in ipairs(HighlightFolder:GetChildren()) do
-        if obj:GetAttribute("Group") == group then
-            obj:Destroy()
-        end
+    local reg = Registry[group]
+    if not reg then return end
+    for obj, record in pairs(reg) do
+        destroyRecord(record)
+        reg[obj] = nil
     end
 end
 
 local function makeHighlight(group, obj, prefix, color, text)
-    if not Enabled[group] then return end
-    if not obj then return end
+    if not Enabled[group] or not obj or not obj.Parent then return end
+
+    local reg = getGroupRegistry(group)
+    local record = reg[obj]
+
+    if record and record.Highlight and record.Highlight.Parent then
+        return
+    end
+
+    destroyRecord(record)
 
     local folder = getFolder()
     local name = prefix .. "_" .. getId(obj)
-
-    local old = folder:FindFirstChild(name)
-    if old and old:IsA("Highlight") and old.Adornee == obj then
-        return
-    elseif old then
-        old:Destroy()
-    end
-
-    local oldText = folder:FindFirstChild(name .. "_Text")
-    if oldText then oldText:Destroy() end
 
     local h = Instance.new("Highlight")
     h.Name = name
@@ -99,9 +107,10 @@ local function makeHighlight(group, obj, prefix, color, text)
     h:SetAttribute("Group", group)
     h.Parent = folder
 
+    local bill = nil
     local adornee = getLabelAdornee(obj)
     if adornee then
-        local bill = Instance.new("BillboardGui")
+        bill = Instance.new("BillboardGui")
         bill.Name = name .. "_Text"
         bill.Adornee = adornee
         bill.AlwaysOnTop = true
@@ -121,20 +130,19 @@ local function makeHighlight(group, obj, prefix, color, text)
         label.Font = Enum.Font.SourceSansBold
         label.Parent = bill
     end
+
+    reg[obj] = {
+        Highlight = h,
+        Billboard = bill
+    }
 end
 
 local function cleanInvalid()
-    if not HighlightFolder then return end
-    for _, obj in ipairs(HighlightFolder:GetChildren()) do
-        if obj:IsA("Highlight") then
-            if not obj.Adornee or obj.Adornee.Parent == nil then
-                local text = HighlightFolder:FindFirstChild(obj.Name .. "_Text")
-                if text then text:Destroy() end
-                obj:Destroy()
-            end
-        elseif obj:IsA("BillboardGui") then
-            if not obj.Adornee or obj.Adornee.Parent == nil then
-                obj:Destroy()
+    for group, reg in pairs(Registry) do
+        for obj, record in pairs(reg) do
+            if not obj or not obj.Parent or not record or not record.Highlight or not record.Highlight.Parent then
+                destroyRecord(record)
+                reg[obj] = nil
             end
         end
     end
@@ -188,7 +196,6 @@ local function highlightDialShelfBox()
     if not Enabled.Box then return end
     local rooms = getRooms()
     if not rooms then return end
-
     for _, room in ipairs(rooms:GetChildren()) do
         local dialGimmick = room:FindFirstChild("DialGimmick")
         local dialShelf = dialGimmick and dialGimmick:FindFirstChild("DialShelf")
@@ -203,7 +210,6 @@ local function highlightAllTelevisions()
     if not Enabled.TV then return end
     local rooms = getRooms()
     if not rooms then return end
-
     for _, room in ipairs(rooms:GetChildren()) do
         local props = room:FindFirstChild("Props")
         if props then
@@ -223,7 +229,6 @@ local function highlightDolls()
     if not server then return end
     local spawned = server:FindFirstChild("SpawnedItems")
     if not spawned then return end
-
     for _, obj in ipairs(spawned:GetDescendants()) do
         if obj:IsA("Model") then
             local hasHead = obj:FindFirstChild("DollHead", true)
@@ -238,7 +243,6 @@ end
 local function highlightLighter()
     if not Enabled.Lighter then return end
     local root = getRoot()
-
     for _, obj in ipairs(root:GetDescendants()) do
         if obj:IsA("Model") then
             local hasOil = obj:FindFirstChild("oil", true)
@@ -256,7 +260,6 @@ end
 local function highlightPasswordBox()
     if not Enabled.PasswordBox then return end
     local root = getRoot()
-
     for _, obj in ipairs(root:GetDescendants()) do
         if obj:IsA("Model") then
             local hasBase = obj:FindFirstChild("base", true)
@@ -298,9 +301,7 @@ function M.Set(key, state)
         startLoop()
     else
         removeGroup(key)
-        if not anyEnabled() then
-            Running = false
-        end
+        if not anyEnabled() then Running = false end
     end
 end
 
