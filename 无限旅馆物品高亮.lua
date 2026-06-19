@@ -199,18 +199,20 @@ local function highlightDialShelfBox()
     end
 end
 
-local function highlightTelevisionW()
+local function highlightAllTelevisions()
     if not Enabled.TV then return end
     local rooms = getRooms()
     if not rooms then return end
 
     for _, room in ipairs(rooms:GetChildren()) do
         local props = room:FindFirstChild("Props")
-        local television = props and props:FindFirstChild("TelevisionW")
-        local baseModel = television and television:FindFirstChild("Base")
-        local base01 = baseModel and baseModel:FindFirstChild("base01")
-        if base01 then
-            makeHighlight("TV", base01, "TelevisionW", Color3.fromRGB(80, 170, 255), "电视")
+        if props then
+            for _, obj in ipairs(props:GetChildren()) do
+                local name = tostring(obj.Name):lower()
+                if name:find("^television") then
+                    makeHighlight("TV", obj, "Television", Color3.fromRGB(80, 170, 255), "电视")
+                end
+            end
         end
     end
 end
@@ -271,7 +273,7 @@ end
 local function scan()
     highlightSimpleObjects()
     highlightDialShelfBox()
-    highlightTelevisionW()
+    highlightAllTelevisions()
     highlightDolls()
     highlightLighter()
     highlightPasswordBox()
