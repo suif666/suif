@@ -4,14 +4,15 @@ local CoreGui = game:GetService("CoreGui")
 
 local Running = false
 local HighlightFolder = nil
-local Enabled = {}
-local Registry = {}
-local ObjectIds = setmetatable({}, { __mode = "k" })
-local NextId = 0
 
 local FillTransparency = 0.85
 local OutlineTransparency = 0
 local TextSize = 12
+
+local Enabled = {}
+
+local ObjectIds = setmetatable({}, { __mode = "k" })
+local NextId = 0
 
 local function getId(obj)
     if not ObjectIds[obj] then
@@ -22,7 +23,9 @@ local function getId(obj)
 end
 
 local function getFolder()
-    if HighlightFolder and HighlightFolder.Parent then return HighlightFolder end
+    if HighlightFolder and HighlightFolder.Parent then
+        return HighlightFolder
+    end
     local old = CoreGui:FindFirstChild("SutureItemHighlights")
     if old then old:Destroy() end
     HighlightFolder = Instance.new("Folder")
@@ -35,18 +38,16 @@ local function getServer()
     return workspace:FindFirstChild("Server")
 end
 
+local function getRoot()
+    return getServer() or workspace
+end
+
 local function getRooms()
     local server = getServer()
     if not server then return nil end
     local map = server:FindFirstChild("MapGenerated")
     if not map then return nil end
     return map:FindFirstChild("Rooms")
-end
-
-local function getSpawnedItems()
-    local server = getServer()
-    if not server then return nil end
-    return server:FindFirstChild("SpawnedItems")
 end
 
 local function getLabelAdornee(obj)
@@ -60,68 +61,31 @@ local function getLabelAdornee(obj)
     return nil
 end
 
-local function getGroupRegistry(group)
-    Registry[group] = Registry[group] or setmetatable({}, { __mode = "k" })
-    return Registry[group]
-end
-
-local function destroyRecord(record)
-    if not record then return end
-    if record.Highlight then pcall(function() record.Highlight:Destroy() end) end
-    if record.Billboard then pcall(function() record.Billboard:Destroy() end) end
-end
-
 local function removeGroup(group)
-    local reg = Registry[group]
-    if not reg then return end
-    for obj, record in pairs(reg) do
-        destroyRecord(record)
-        reg[obj] = nil
+    if not HighlightFolder then return end
+    for _, obj in ipairs(HighlightFolder:GetChildren()) do
+        if obj:GetAttribute("Group") == group then
+            obj:Destroy()
+        end
     end
-end
-
-local function makeBillboard(folder, name, group, adornee, text)
-    local bill = Instance.new("BillboardGui")
-    bill.Name = name .. "_Text"
-    bill.Adornee = adornee
-    bill.AlwaysOnTop = true
-    bill.Size = UDim2.new(0, 95, 0, 20)
-    bill.StudsOffset = Vector3.new(0, -2, 0)
-    bill:SetAttribute("Group", group)
-    bill.Parent = folder
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextStrokeTransparency = 0.25
-    label.TextScaled = false
-    label.TextSize = TextSize
-    label.Font = Enum.Font.SourceSansBold
-    label.Parent = bill
-    return bill
 end
 
 local function makeHighlight(group, obj, prefix, color, text)
-    if not Enabled[group] or not obj or not obj.Parent then return end
-
-    local reg = getGroupRegistry(group)
-    local record = reg[obj]
-
-    if record and record.Highlight and record.Highlight.Parent then
-        local h = record.Highlight
-        h.Adornee = obj
-        h.Enabled = true
-        h.FillTransparency = FillTransparency
-        h.OutlineTransparency = OutlineTransparency
-        return
-    end
-
-    destroyRecord(record)
+    if not Enabled[group] then return end
+    if not obj then return end
 
     local folder = getFolder()
     local name = prefix .. "_" .. getId(obj)
+
+    local old = folder:FindFirstChild(name)
+    if old and old:IsA("Highlight") and old.Adornee == obj then
+        return
+    elseif old then
+        old:Destroy()
+    end
+
+    local oldText = folder:FindFirstChild(name .. "_Text")
+    if oldText then oldText:Destroy() end
 
     local h = Instance.new("Highlight")
     h.Name = name
@@ -135,21 +99,42 @@ local function makeHighlight(group, obj, prefix, color, text)
     h:SetAttribute("Group", group)
     h.Parent = folder
 
-    local bill = nil
     local adornee = getLabelAdornee(obj)
     if adornee then
-        bill = makeBillboard(folder, name, group, adornee, text)
-    end
+        local bill = Instance.new("BillboardGui")
+        bill.Name = name .. "_Text"
+        bill.Adornee = adornee
+        bill.AlwaysOnTop = true
+        bill.Size = UDim2.new(0, 95, 0, 20)
+        bill.StudsOffset = Vector3.new(0, -2, 0)
+        bill:SetAttribute("Group", group)
+        bill.Parent = folder
 
-    reg[obj] = { Highlight = h, Billboard = bill }
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextStrokeTransparency = 0.25
+        label.TextScaled = false
+        label.TextSize = TextSize
+        label.Font = Enum.Font.SourceSansBold
+        label.Parent = bill
+    end
 end
 
 local function cleanInvalid()
-    for group, reg in pairs(Registry) do
-        for obj, record in pairs(reg) do
-            if not obj or not obj.Parent or not record or not record.Highlight or not record.Highlight.Parent then
-                destroyRecord(record)
-                reg[obj] = nil
+    if not HighlightFolder then return end
+    for _, obj in ipairs(HighlightFolder:GetChildren()) do
+        if obj:IsA("Highlight") then
+            if not obj.Adornee or obj.Adornee.Parent == nil then
+                local text = HighlightFolder:FindFirstChild(obj.Name .. "_Text")
+                if text then text:Destroy() end
+                obj:Destroy()
+            end
+        elseif obj:IsA("BillboardGui") then
+            if not obj.Adornee or obj.Adornee.Parent == nil then
+                obj:Destroy()
             end
         end
     end
@@ -162,100 +147,136 @@ local function anyEnabled()
     return false
 end
 
-local function scanRooms()
+local function highlightSimpleObjects()
+    if not (Enabled.Cabinet or Enabled.Box or Enabled.Safe or Enabled.HintPaper or Enabled.EvilRoom or Enabled.DollBlackHead or Enabled.Table or Enabled.Dish or Enabled.Sacrifice) then
+        return
+    end
+
+    local root = getRoot()
+    for _, obj in ipairs(root:GetDescendants()) do
+        if Enabled.Cabinet and obj.Name == "HideTansu" then
+            makeHighlight("Cabinet", obj, "Cabinet", Color3.fromRGB(255, 255, 0), "柜子")
+
+        elseif Enabled.Box and obj.Name == "BoxBottom" and obj.Parent and obj.Parent.Name == "OfudaBox2" then
+            makeHighlight("Box", obj, "Box", Color3.fromRGB(0, 255, 255), "箱子")
+
+        elseif Enabled.Safe and obj.Name == "Meshes/safe_Safe" then
+            makeHighlight("Safe", obj, "Safe", Color3.fromRGB(0, 255, 0), "保险柜")
+
+        elseif Enabled.HintPaper and obj.Name == "HintPaper" then
+            makeHighlight("HintPaper", obj, "HintPaper", Color3.fromRGB(255, 170, 255), "提示纸")
+
+        elseif Enabled.EvilRoom and obj.Name == "hanging scroll_base" then
+            makeHighlight("EvilRoom", obj, "EvilRoom", Color3.fromRGB(255, 0, 0), "邪恶房间")
+
+        elseif Enabled.DollBlackHead and obj.Name == "DollBlackHead" and obj:IsA("MeshPart") then
+            makeHighlight("DollBlackHead", obj, "DollBlackHead", Color3.fromRGB(255, 80, 80), "洋娃娃头")
+
+        elseif Enabled.Table and obj.Name == "Zataku" then
+            makeHighlight("Table", obj, "Table", Color3.fromRGB(255, 140, 0), "桌子")
+
+        elseif Enabled.Dish and obj.Name == "Dish" and obj:IsA("BasePart") then
+            makeHighlight("Dish", obj, "Dish", Color3.fromRGB(240, 240, 240), "盘子")
+
+        elseif Enabled.Sacrifice and obj.Name == "dirty sheet" and obj:IsA("MeshPart") then
+            makeHighlight("Sacrifice", obj, "Sacrifice", Color3.fromRGB(170, 100, 40), "祭祀")
+        end
+    end
+end
+
+local function highlightDialShelfBox()
+    if not Enabled.Box then return end
+    local rooms = getRooms()
+    if not rooms then return end
+
+    for _, room in ipairs(rooms:GetChildren()) do
+        local dialGimmick = room:FindFirstChild("DialGimmick")
+        local dialShelf = dialGimmick and dialGimmick:FindFirstChild("DialShelf")
+        local base = dialShelf and dialShelf:FindFirstChild("base")
+        if base then
+            makeHighlight("Box", base, "DialShelfBox", Color3.fromRGB(0, 255, 255), "箱子")
+        end
+    end
+end
+
+local function highlightAllTelevisions()
+    if not Enabled.TV then return end
     local rooms = getRooms()
     if not rooms then return end
 
     for _, room in ipairs(rooms:GetChildren()) do
         local props = room:FindFirstChild("Props")
-
-        -- workspace.Server.MapGenerated.Rooms.RoomF.Props.HideTansu
-        if Enabled.Cabinet and props then
-            local obj = props:FindFirstChild("HideTansu")
-            if obj then makeHighlight("Cabinet", obj, "Cabinet", Color3.fromRGB(255, 255, 0), "柜子") end
-        end
-
-        -- workspace.Server.MapGenerated.Rooms.Room.Props.Safe["Meshes/safe_Safe"]
-        if Enabled.Safe and props then
-            local safe = props:FindFirstChild("Safe")
-            local obj = safe and safe:FindFirstChild("Meshes/safe_Safe")
-            if obj then makeHighlight("Safe", obj, "Safe", Color3.fromRGB(0, 255, 0), "保险柜") end
-        end
-
-        -- workspace.Server.MapGenerated.Rooms.Room.DialGimmick.DialShelf.base
-        if Enabled.Box then
-            local dial = room:FindFirstChild("DialGimmick")
-            local shelf = dial and dial:FindFirstChild("DialShelf")
-            local obj = shelf and shelf:FindFirstChild("base")
-            if obj then makeHighlight("Box", obj, "DialShelfBox", Color3.fromRGB(0, 255, 255), "箱子") end
-        end
-
-        -- workspace.Server.MapGenerated.Rooms:GetChildren()[14].Props.TelevisionN
-        if Enabled.TV and props then
+        if props then
             for _, obj in ipairs(props:GetChildren()) do
-                local n = tostring(obj.Name)
-                if n == "TelevisionN" or n == "TelevisionW" or n == "TelevisionE" or n == "TelevisionS" then
+                local name = tostring(obj.Name):lower()
+                if name:find("^television") then
                     makeHighlight("TV", obj, "Television", Color3.fromRGB(80, 170, 255), "电视")
                 end
             end
         end
     end
+end
 
-    for _, obj in ipairs(rooms:GetDescendants()) do
-        if Enabled.HintPaper and obj.Name == "HintPaper" then
-            makeHighlight("HintPaper", obj, "HintPaper", Color3.fromRGB(255, 170, 255), "提示纸")
-        elseif Enabled.EvilRoom and obj.Name == "hanging scroll_base" then
-            makeHighlight("EvilRoom", obj, "EvilRoom", Color3.fromRGB(255, 0, 0), "邪恶房间")
-        elseif Enabled.Table and obj.Name == "Zataku" then
-            makeHighlight("Table", obj, "Table", Color3.fromRGB(255, 140, 0), "桌子")
-        elseif Enabled.Dish and obj.Name == "Dish" and obj:IsA("BasePart") then
-            makeHighlight("Dish", obj, "Dish", Color3.fromRGB(240, 240, 240), "盘子")
-        elseif Enabled.Sacrifice and obj.Name == "dirty sheet" and obj:IsA("MeshPart") then
-            makeHighlight("Sacrifice", obj, "Sacrifice", Color3.fromRGB(170, 100, 40), "祭祀")
-        elseif Enabled.Lighter and obj.Name == "oil" and obj:IsA("BasePart") then
-            makeHighlight("Lighter", obj, "Lighter", Color3.fromRGB(0, 255, 120), "打火机")
-        elseif Enabled.DollBlackHead and obj.Name == "DollBlackHead" and obj:IsA("MeshPart") then
-            makeHighlight("DollBlackHead", obj, "DollBlackHead", Color3.fromRGB(255, 80, 80), "洋娃娃头")
+local function highlightDolls()
+    if not Enabled.Doll then return end
+    local server = getServer()
+    if not server then return end
+    local spawned = server:FindFirstChild("SpawnedItems")
+    if not spawned then return end
+
+    for _, obj in ipairs(spawned:GetDescendants()) do
+        if obj:IsA("Model") then
+            local hasHead = obj:FindFirstChild("DollHead", true)
+            local hasTorso = obj:FindFirstChild("DollTorso", true)
+            if hasHead and hasTorso then
+                makeHighlight("Doll", obj, "Doll", Color3.fromRGB(255, 105, 180), "洋娃娃")
+            end
         end
     end
 end
 
-local function scanSpawned()
-    local spawned = getSpawnedItems()
-    if not spawned then return end
+local function highlightLighter()
+    if not Enabled.Lighter then return end
+    local root = getRoot()
 
-    -- workspace.Server.SpawnedItems.OfudaBox2.BoxBottom
-    if Enabled.Box then
-        local box = spawned:FindFirstChild("OfudaBox2")
-        local obj = box and box:FindFirstChild("BoxBottom")
-        if obj then makeHighlight("Box", obj, "OfudaBox", Color3.fromRGB(0, 255, 255), "箱子") end
-    end
-
-    for _, obj in ipairs(spawned:GetDescendants()) do
-        if Enabled.DollBlackHead and obj.Name == "DollBlackHead" and obj:IsA("MeshPart") then
-            makeHighlight("DollBlackHead", obj, "DollBlackHead", Color3.fromRGB(255, 80, 80), "洋娃娃头")
-        elseif Enabled.Lighter and obj.Name == "oil" and obj:IsA("BasePart") then
-            makeHighlight("Lighter", obj, "Lighter", Color3.fromRGB(0, 255, 120), "打火机")
+    for _, obj in ipairs(root:GetDescendants()) do
+        if obj:IsA("Model") then
+            local hasOil = obj:FindFirstChild("oil", true)
+            local hasMetal = obj:FindFirstChild("metal01", true)
+            local hasBase01 = obj:FindFirstChild("base01", true)
+            local hasBase02 = obj:FindFirstChild("base02", true)
+            local hasBase04 = obj:FindFirstChild("base04", true)
+            if hasOil and hasMetal and (hasBase01 or hasBase02 or hasBase04) then
+                makeHighlight("Lighter", obj, "Lighter", Color3.fromRGB(0, 255, 120), "打火机")
+            end
         end
     end
+end
 
-    if Enabled.Doll then
-        for _, obj in ipairs(spawned:GetDescendants()) do
-            if obj:IsA("Model") then
-                local hasHead = obj:FindFirstChild("DollHead", true)
-                local hasTorso = obj:FindFirstChild("DollTorso", true)
-                if hasHead and hasTorso then
-                    makeHighlight("Doll", obj, "Doll", Color3.fromRGB(255, 105, 180), "洋娃娃")
-                end
+local function highlightPasswordBox()
+    if not Enabled.PasswordBox then return end
+    local root = getRoot()
+
+    for _, obj in ipairs(root:GetDescendants()) do
+        if obj:IsA("Model") then
+            local hasBase = obj:FindFirstChild("base", true)
+            local hasRope01 = obj:FindFirstChild("rope01", true)
+            local hasRope02 = obj:FindFirstChild("rope02", true)
+            local hasRopeSpawn = obj:FindFirstChild("RopeSpawnPoint", true)
+            if hasBase and (hasRope01 or hasRope02 or hasRopeSpawn) then
+                makeHighlight("PasswordBox", obj, "PasswordBox", Color3.fromRGB(255, 215, 0), "密码箱")
             end
         end
     end
 end
 
 local function scan()
-    scanRooms()
-    scanSpawned()
-    -- 密码箱没有精准路径，暂不处理，避免误高亮。
+    highlightSimpleObjects()
+    highlightDialShelfBox()
+    highlightAllTelevisions()
+    highlightDolls()
+    highlightLighter()
+    highlightPasswordBox()
     cleanInvalid()
 end
 
@@ -277,7 +298,9 @@ function M.Set(key, state)
         startLoop()
     else
         removeGroup(key)
-        if not anyEnabled() then Running = false end
+        if not anyEnabled() then
+            Running = false
+        end
     end
 end
 
