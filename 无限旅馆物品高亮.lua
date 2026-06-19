@@ -10,6 +10,7 @@ local TextSize = 12
 
 local Enabled = {}
 local Registry = {}
+local ActiveTargets = setmetatable({}, { __mode = "k" })
 local ObjectIds = setmetatable({}, { __mode = "k" })
 local NextId = 0
 
@@ -71,17 +72,65 @@ local function destroyRecord(record)
     if record.Billboard then pcall(function() record.Billboard:Destroy() end) end
 end
 
+local function isRelated(a, b)
+    if not a or not b then return false end
+    if a == b then return true end
+
+    local ok1, res1 = pcall(function()
+        return a:IsDescendantOf(b)
+    end)
+    if ok1 and res1 then return true end
+
+    local ok2, res2 = pcall(function()
+        return b:IsDescendantOf(a)
+    end)
+    if ok2 and res2 then return true end
+
+    return false
+end
+
+local function hasConflict(group, obj)
+    for target, targetGroup in pairs(ActiveTargets) do
+        if not target or not target.Parent then
+            ActiveTargets[target] = nil
+        elseif targetGroup ~= group and isRelated(obj, target) then
+            return true
+        end
+    end
+    return false
+end
+
+local function occupyTarget(group, obj)
+    ActiveTargets[obj] = group
+end
+
+local function releaseGroupTargets(group)
+    for target, targetGroup in pairs(ActiveTargets) do
+        if targetGroup == group or not target or not target.Parent then
+            ActiveTargets[target] = nil
+        end
+    end
+end
+
 local function removeGroup(group)
     local reg = Registry[group]
-    if not reg then return end
-    for obj, record in pairs(reg) do
-        destroyRecord(record)
-        reg[obj] = nil
+    if reg then
+        for obj, record in pairs(reg) do
+            destroyRecord(record)
+            reg[obj] = nil
+        end
     end
+    releaseGroupTargets(group)
 end
 
 local function makeHighlight(group, obj, prefix, color, text)
     if not Enabled[group] or not obj or not obj.Parent then return end
+
+    if hasConflict(group, obj) then
+        return
+    end
+
+    occupyTarget(group, obj)
 
     local reg = getGroupRegistry(group)
     local record = reg[obj]
@@ -143,6 +192,7 @@ local function cleanInvalid()
             if not obj or not obj.Parent or not record or not record.Highlight or not record.Highlight.Parent then
                 destroyRecord(record)
                 reg[obj] = nil
+                ActiveTargets[obj] = nil
             end
         end
     end
@@ -314,6 +364,10 @@ function M.DisableAll()
         removeGroup(key)
     end
     Running = false
+    for target in pairs(ActiveTargets) do
+        ActiveTargets[target] = nil
+    end
+
     if HighlightFolder then
         HighlightFolder:Destroy()
         HighlightFolder = nil
