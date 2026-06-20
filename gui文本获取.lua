@@ -1,5 +1,3 @@
--- Roblox UI 文本提取器 v19 左侧功能区修正版
--- 功能：分区扫描 / 手动刷新 / 自动刷新勾选 / 搜索 / 复制 / 收藏栏 / 导出Lua / 删除 / 屏蔽 / 缩放 / 最小化圆圈
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -719,7 +717,6 @@ local function LayoutUI()
     local searchH = mobile and 24 or 28
     local gap = mobile and 4 or 5
 
-    -- 左侧高度自动压缩，防止按钮超过 UI 边界
     local actionCount = 7
     local totalRows = #Sections + actionCount
     local availableLeftH = math.max(120, h - titleH - pad * 2)
