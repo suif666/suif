@@ -1,4 +1,4 @@
--- UI 文本提取器 WindUI 混合版 v3｜绑定滚动列表
+-- UI 文本提取器 WindUI 混合版 v4｜左右绑定布局
 -- WindUI 负责控制区；自定义列表负责大量文本显示，避免 WindUI 大量组件卡顿
 
 local Players = game:GetService("Players")
@@ -263,8 +263,8 @@ local function Stroke(obj, color, trans)
 end
 
 local ListFrame = New("Frame", {
-    Size = UDim2.new(0, 430, 0, 330),
-    Position = UDim2.new(1, -450, 0.5, -165),
+    Size = UDim2.new(0, 300, 0, 360),
+    Position = UDim2.new(0, 460, 0.5, -180),
     BackgroundColor3 = Color3.fromRGB(16, 19, 27),
     BorderSizePixel = 0,
     Active = true,
@@ -331,15 +331,18 @@ local function ResizeList()
     local v = cam and cam.ViewportSize or Vector2.new(1280, 720)
     local mobile = v.X <= 900 or v.Y <= 600
     if mobile then
-        local w = math.floor(v.X * 0.82)
-        local h = math.floor(v.Y * 0.72)
-        ListFrame.Size = UDim2.new(0, math.max(300, w), 0, math.max(230, h))
-        ListFrame.Position = UDim2.new(0.5, -ListFrame.AbsoluteSize.X/2, 0.5, -ListFrame.AbsoluteSize.Y/2)
+        local w = math.floor(v.X * 0.34)
+        local h = math.floor(v.Y * 0.70)
+        ListFrame.Size = UDim2.new(0, math.clamp(w, 250, 330), 0, math.clamp(h, 230, 380))
+    else
+        ListFrame.Size = UDim2.new(0, 300, 0, 390)
     end
 end
 
 local BindListToWindUI = true
 local WindUIRootFrame = nil
+local AutoPlaceWindUI = true
+local WindUIAutoPlaced = false
 
 local function IsTextLike(obj)
     return obj and (obj:IsA("TextLabel") or obj:IsA("TextButton"))
@@ -385,16 +388,29 @@ local function SyncListToWindUI()
 
     local cam = workspace.CurrentCamera
     local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+
+    -- 初次创建时把 WindUI 自动放到屏幕左侧，后续不再强制，保留用户拖动
+    if AutoPlaceWindUI and not WindUIAutoPlaced then
+        local rs = WindUIRootFrame.AbsoluteSize
+        local leftX = 18
+        local centerY = math.clamp((vp.Y - rs.Y) / 2, 8, math.max(8, vp.Y - rs.Y - 8))
+        pcall(function()
+            WindUIRootFrame.Position = UDim2.fromOffset(leftX, centerY)
+        end)
+        WindUIAutoPlaced = true
+        task.wait()
+    end
+
     local rootPos = WindUIRootFrame.AbsolutePosition
     local rootSize = WindUIRootFrame.AbsoluteSize
     local listSize = ListFrame.AbsoluteSize
 
-    local gap = 10
+    local gap = 8
     local x = rootPos.X + rootSize.X + gap
     local y = rootPos.Y
 
-    -- 屏幕放不下时放到 WindUI 下方，避免移动端超出屏幕
-    if x + listSize.X > vp.X - 8 then
+    -- 优先固定在 WindUI 右侧；空间不够时才放到下方
+    if x + listSize.X > vp.X - 6 then
         x = rootPos.X
         y = rootPos.Y + rootSize.Y + gap
     end
@@ -535,10 +551,13 @@ if WindUI then
         Icon = "search",
         Author = "WindUI 混合版",
         Folder = "TextCollector",
-        Size = UDim2.fromOffset(520, 420),
+        Size = UDim2.fromOffset(420, 380),
         Transparent = true,
         Theme = "Dark",
     })
+
+    WindUIRootFrame = nil
+    WindUIAutoPlaced = false
 
     local MainTab = Window:Tab({Title = "文本提取", Icon = "scan-text"})
     local FavTab = Window:Tab({Title = "收藏栏", Icon = "bookmark"})
@@ -590,11 +609,12 @@ if WindUI then
         RefreshListDisplay({})
         Notify("清空", "已清空当前分区")
     end})
-    MainTab:Button({Title = "打开文本滚动列表", Desc = "重新显示主文本列表窗口", Callback = function()
-        ShowTextList()
-    end})
-    MainTab:Button({Title = "隐藏文本滚动列表", Callback = function()
-        HideListWindow()
+    MainTab:Button({Title = "显示/隐藏文本列表", Desc = "一个按钮控制文本滚动列表", Callback = function()
+        if ListFrame.Visible then
+            HideListWindow()
+        else
+            ShowTextList()
+        end
     end})
     MainTab:Toggle({Title = "绑定滚动列表", Desc = "拖动 WindUI 时让右侧列表跟随", Value = true, Callback = function(v)
         BindListToWindUI = v
@@ -605,11 +625,12 @@ if WindUI then
         Notify("绑定滚动列表", v and "已开启" or "已关闭")
     end})
 
-    FavTab:Button({Title = "打开收藏滚动列表", Desc = "显示用户收藏过的文本", Callback = function()
-        ShowFavoriteList()
-    end})
-    FavTab:Button({Title = "隐藏收藏滚动列表", Callback = function()
-        HideListWindow()
+    FavTab:Button({Title = "显示/隐藏收藏列表", Desc = "一个按钮控制收藏滚动列表", Callback = function()
+        if ListFrame.Visible and ListTitle.Text == "收藏列表" then
+            HideListWindow()
+        else
+            ShowFavoriteList()
+        end
     end})
     FavTab:Button({Title = "复制收藏全部", Callback = function()
         Clipboard(table.concat(FavoriteData.Texts, "\n"))
