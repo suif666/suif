@@ -1,4 +1,4 @@
--- UI 文本提取器 WindUI 混合版 v2
+-- UI 文本提取器 WindUI 混合版 v3｜绑定滚动列表
 -- WindUI 负责控制区；自定义列表负责大量文本显示，避免 WindUI 大量组件卡顿
 
 local Players = game:GetService("Players")
@@ -268,7 +268,7 @@ local ListFrame = New("Frame", {
     BackgroundColor3 = Color3.fromRGB(16, 19, 27),
     BorderSizePixel = 0,
     Active = true,
-    Draggable = true,
+    Draggable = false,
 }, ListGui)
 Corner(ListFrame, 14); Stroke(ListFrame, Color3.fromRGB(70, 80, 100), 0.36)
 
@@ -337,6 +337,80 @@ local function ResizeList()
         ListFrame.Position = UDim2.new(0.5, -ListFrame.AbsoluteSize.X/2, 0.5, -ListFrame.AbsoluteSize.Y/2)
     end
 end
+
+local BindListToWindUI = true
+local WindUIRootFrame = nil
+
+local function IsTextLike(obj)
+    return obj and (obj:IsA("TextLabel") or obj:IsA("TextButton"))
+end
+
+local function FindWindUIRootFrame()
+    local roots = {getHui(), CoreGui, PlayerGui}
+    for _, root in ipairs(roots) do
+        if root then
+            for _, obj in ipairs(root:GetDescendants()) do
+                if IsTextLike(obj) then
+                    local ok, text = pcall(function() return obj.Text end)
+                    if ok and type(text) == "string" and text:find("UI 文本提取器", 1, true) then
+                        local cur = obj
+                        local best = nil
+                        while cur and cur ~= root do
+                            if cur:IsA("Frame") or cur:IsA("CanvasGroup") then
+                                local size = cur.AbsoluteSize
+                                if size.X >= 260 and size.Y >= 180 then
+                                    best = cur
+                                end
+                            end
+                            cur = cur.Parent
+                        end
+                        if best then
+                            return best
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function SyncListToWindUI()
+    if not BindListToWindUI or not ListFrame or not ListFrame.Parent then return end
+
+    if not WindUIRootFrame or not WindUIRootFrame.Parent then
+        WindUIRootFrame = FindWindUIRootFrame()
+    end
+    if not WindUIRootFrame then return end
+
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+    local rootPos = WindUIRootFrame.AbsolutePosition
+    local rootSize = WindUIRootFrame.AbsoluteSize
+    local listSize = ListFrame.AbsoluteSize
+
+    local gap = 10
+    local x = rootPos.X + rootSize.X + gap
+    local y = rootPos.Y
+
+    -- 屏幕放不下时放到 WindUI 下方，避免移动端超出屏幕
+    if x + listSize.X > vp.X - 8 then
+        x = rootPos.X
+        y = rootPos.Y + rootSize.Y + gap
+    end
+
+    x = math.clamp(x, 6, math.max(6, vp.X - listSize.X - 6))
+    y = math.clamp(y, 6, math.max(6, vp.Y - listSize.Y - 6))
+
+    ListFrame.Position = UDim2.fromOffset(x, y)
+end
+
+task.spawn(function()
+    while ListGui and ListGui.Parent do
+        pcall(SyncListToWindUI)
+        task.wait(0.05)
+    end
+end)
 
 local function RefreshListDisplay(list)
     for _, child in ipairs(Scroll:GetChildren()) do
@@ -416,6 +490,7 @@ local function RefreshNow()
     ListStatus.Text = "当前分区：" .. CurrentSection .. "｜保存 " .. tostring(Count(CurrentSection)) .. " 条｜新增 " .. tostring(added) .. " 条"
     RefreshListDisplay(list)
     ResizeList()
+    SyncListToWindUI()
     Notify("刷新完成", "新增 " .. tostring(added) .. " 条")
 end
 
@@ -428,6 +503,7 @@ local function ShowTextList()
     ListStatus.Text = "当前分区：" .. CurrentSection .. "｜保存 " .. tostring(Count(CurrentSection)) .. " 条"
     RefreshListDisplay(list)
     ResizeList()
+    SyncListToWindUI()
 end
 
 local function ShowFavoriteList()
@@ -437,6 +513,7 @@ local function ShowFavoriteList()
     ListStatus.Text = "收藏数量：" .. tostring(#FavoriteData.Texts)
     RefreshListDisplay(FavoriteData.Texts)
     ResizeList()
+    SyncListToWindUI()
 end
 
 local function HideListWindow()
@@ -518,6 +595,14 @@ if WindUI then
     end})
     MainTab:Button({Title = "隐藏文本滚动列表", Callback = function()
         HideListWindow()
+    end})
+    MainTab:Toggle({Title = "绑定滚动列表", Desc = "拖动 WindUI 时让右侧列表跟随", Value = true, Callback = function(v)
+        BindListToWindUI = v
+        if v then
+            WindUIRootFrame = nil
+            SyncListToWindUI()
+        end
+        Notify("绑定滚动列表", v and "已开启" or "已关闭")
     end})
 
     FavTab:Button({Title = "打开收藏滚动列表", Desc = "显示用户收藏过的文本", Callback = function()
