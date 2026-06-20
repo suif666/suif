@@ -1,4 +1,4 @@
--- Roblox UI 文本提取器 v18 左侧功能区版
+-- Roblox UI 文本提取器 v19 左侧功能区修正版
 -- 功能：分区扫描 / 手动刷新 / 自动刷新勾选 / 搜索 / 复制 / 收藏栏 / 导出Lua / 删除 / 屏蔽 / 缩放 / 最小化圆圈
 
 local Players = game:GetService("Players")
@@ -337,7 +337,7 @@ local Main = New("Frame", {
 local MainCorner = Corner(Main, 18)
 Stroke(Main, Theme.Stroke, 1, 0.36)
 
-local Title = New("TextLabel", {BackgroundTransparency=1, Text="UI 文本提取器 - 左侧功能区", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, Main)
+local Title = New("TextLabel", {BackgroundTransparency=1, Text="UI 文本提取器", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, Main)
 local MinBtn = New("TextButton", {Text="-", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Card2}, Main)
 local CloseBtn = New("TextButton", {Text="X", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Red}, Main)
 StyleButton(MinBtn, Theme.Card2)
@@ -345,7 +345,7 @@ StyleButton(CloseBtn, Theme.Red)
 
 local Content = New("Frame", {BackgroundTransparency=1}, Main)
 local StatusLabel = New("TextLabel", {BackgroundTransparency=1, Text="状态：待刷新", TextColor3=Color3.fromRGB(200,200,205), Font=Enum.Font.SourceSans, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, Content)
-local SectionFrame = New("Frame", {BackgroundColor3=Theme.Panel2, BorderSizePixel=0}, Content)
+local SectionFrame = New("Frame", {BackgroundColor3=Theme.Panel2, BorderSizePixel=0, ClipsDescendants=true}, Content)
 Corner(SectionFrame,8); Stroke(SectionFrame, Theme.Stroke,1,0.38)
 
 local SearchBox = New("TextBox", {Text="", PlaceholderText="搜索当前分区文本...", ClearTextOnFocus=false, BackgroundColor3=Theme.Card, TextColor3=Color3.new(1,1,1), PlaceholderColor3=Color3.fromRGB(155,155,160), Font=Enum.Font.SourceSans}, Content)
@@ -357,7 +357,7 @@ local Scroll = New("ScrollingFrame", {BackgroundColor3=Theme.Card, BorderSizePix
 Corner(Scroll,8); Stroke(Scroll, Theme.Stroke,1,0.38)
 local ListLayout = New("UIListLayout", {Padding=UDim.new(0,4), SortOrder=Enum.SortOrder.LayoutOrder}, Scroll)
 
-local BottomBar = New("Frame", {BackgroundTransparency=1}, Content)
+local BottomBar = New("Frame", {BackgroundTransparency=1, ClipsDescendants=true}, Content)
 local RefreshBtn = New("TextButton", {Text="刷新", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.AccentDark}, BottomBar)
 local AutoCheckBtn = New("TextButton", {Text="☐ 自动刷新", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Yellow}, BottomBar)
 local CopyBtn = New("TextButton", {Text="复制显示", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Green}, BottomBar)
@@ -714,12 +714,22 @@ local function LayoutUI()
     local mobile = IsMobileLayout()
     local titleH = mobile and 30 or 36
     local pad = mobile and 6 or 10
-    local sideW = mobile and math.clamp(math.floor(w * 0.30), 112, 145) or 165
+    local sideW = mobile and math.clamp(math.floor(w * 0.28), 104, 132) or 150
     local statusH = mobile and 18 or 22
-    local searchH = mobile and 27 or 30
-    local sectionBtnH = mobile and 22 or 24
-    local actionH = mobile and 24 or 30
-    local gap = mobile and 5 or 7
+    local searchH = mobile and 24 or 28
+    local gap = mobile and 4 or 5
+
+    -- 左侧高度自动压缩，防止按钮超过 UI 边界
+    local actionCount = 7
+    local totalRows = #Sections + actionCount
+    local availableLeftH = math.max(120, h - titleH - pad * 2)
+    local fixedH = searchH + gap * 4 + gap * (#Sections + actionCount + 1)
+    local dynamicRowH = math.floor((availableLeftH - fixedH) / totalRows)
+    local rowH = math.clamp(dynamicRowH, mobile and 14 or 16, mobile and 22 or 26)
+    local sectionBtnH = rowH
+    local actionH = rowH
+    local sectionPanelH = #Sections * sectionBtnH + (#Sections + 1) * gap
+    local actionPanelH = actionCount * actionH + (actionCount - 1) * gap
 
     Title.Size = UDim2.new(1, -titleH * 2 - pad * 2, 0, titleH)
     Title.Position = UDim2.new(0, pad, 0, 0)
@@ -737,7 +747,7 @@ local function LayoutUI()
     Content.Position = UDim2.new(0, 0, 0, titleH)
 
     -- 左侧功能区：分区 + 搜索 + 功能按钮
-    SectionFrame.Size = UDim2.new(0, sideW, 0, #Sections * (sectionBtnH + gap) + gap)
+    SectionFrame.Size = UDim2.new(0, sideW, 0, sectionPanelH)
     SectionFrame.Position = UDim2.new(0, pad, 0, pad)
 
     for i, section in ipairs(Sections) do
@@ -757,7 +767,7 @@ local function LayoutUI()
 
     if SearchBoxOpened then
         SearchBox.Visible = true
-        SearchBox.Size = UDim2.new(0, sideW - searchH - pad, 0, searchH)
+        SearchBox.Size = UDim2.new(0, math.max(30, sideW - searchH - pad), 0, searchH)
         SearchBox.Position = UDim2.new(0, sideX + searchH + gap, 0, sideY)
         SearchBox.TextSize = mobile and 10 or 12
     else
@@ -767,7 +777,7 @@ local function LayoutUI()
     end
 
     -- 功能按钮全部放到文本列表左侧，不占太大屏幕比例
-    BottomBar.Size = UDim2.new(0, sideW, 0, math.max(40, h - titleH - sideY - searchH - pad * 2))
+    BottomBar.Size = UDim2.new(0, sideW, 0, actionPanelH)
     BottomBar.Position = UDim2.new(0, pad, 0, sideY + searchH + gap)
 
     local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}
