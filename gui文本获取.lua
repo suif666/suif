@@ -1,4 +1,4 @@
--- Roblox UI 文本提取器 v15 移动端精修版
+-- Roblox UI 文本提取器 v16 设计稿风格版
 -- 功能：分区扫描 / 手动刷新 / 自动刷新勾选 / 搜索 / 复制 / 收藏栏 / 导出Lua / 删除 / 屏蔽 / 缩放 / 最小化圆圈
 
 local Players = game:GetService("Players")
@@ -85,6 +85,7 @@ local AutoScrollToBottom = true
 local BlockMode = false
 local Minimized = false
 local CurrentDisplayText = ""
+local SearchBoxOpened = false
 local LastNormalSize = Vector2.new(520, 380)
 local LastNormalPosition = nil
 local MiniCircleSize = 46
@@ -333,7 +334,7 @@ local Main = New("Frame", {
     Active = true,
     Draggable = true,
 }, ScreenGui)
-local MainCorner = Corner(Main, 12)
+local MainCorner = Corner(Main, 18)
 Stroke(Main, Theme.Stroke, 1, 0.36)
 
 local Title = New("TextLabel", {BackgroundTransparency=1, Text="UI 文本提取器 - 分区版", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, Main)
@@ -349,7 +350,7 @@ Corner(SectionFrame,8); Stroke(SectionFrame, Theme.Stroke,1,0.38)
 
 local SearchBox = New("TextBox", {Text="", PlaceholderText="搜索当前分区文本...", ClearTextOnFocus=false, BackgroundColor3=Theme.Card, TextColor3=Color3.new(1,1,1), PlaceholderColor3=Color3.fromRGB(155,155,160), Font=Enum.Font.SourceSans}, Content)
 Corner(SearchBox,8); Stroke(SearchBox, Theme.Stroke,1,0.38)
-local SearchBtn = New("TextButton", {Text="搜索", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Purple}, Content)
+local SearchBtn = New("TextButton", {Text="⌕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Purple}, Content)
 StyleButton(SearchBtn, Theme.Purple)
 
 local Scroll = New("ScrollingFrame", {BackgroundColor3=Theme.Card, BorderSizePixel=0, CanvasSize=UDim2.new(0,0,0,0), ScrollBarThickness=8, ScrollingDirection=Enum.ScrollingDirection.Y, VerticalScrollBarInset=Enum.ScrollBarInset.Always, ScrollBarImageColor3=Color3.fromRGB(170,170,175), ClipsDescendants=true}, Content)
@@ -691,12 +692,12 @@ local function ApplyResponsiveShell()
         targetW = math.floor(v.X * 0.94)
         targetH = math.floor(v.Y * 0.82)
     else
-        targetW = math.min(620, math.floor(v.X * 0.55))
-        targetH = math.min(430, math.floor(v.Y * 0.70))
+        targetW = math.min(940, math.floor(v.X * 0.72))
+        targetH = math.min(560, math.floor(v.Y * 0.76))
     end
 
-    targetW = math.clamp(targetW, mobile and 330 or 460, mobile and math.max(330, v.X - 12) or 760)
-    targetH = math.clamp(targetH, mobile and 250 or 320, mobile and math.max(250, v.Y - 20) or 620)
+    targetW = math.clamp(targetW, mobile and 330 or 560, mobile and math.max(330, v.X - 12) or 980)
+    targetH = math.clamp(targetH, mobile and 250 or 360, mobile and math.max(250, v.Y - 20) or 640)
 
     Main.Size = UDim2.new(0, targetW, 0, targetH)
     Main.Position = UDim2.new(0.5, -targetW / 2, 0.5, -targetH / 2)
@@ -712,15 +713,15 @@ local function LayoutUI()
 
     local mobile = IsMobileLayout()
     local tiny = w < 390 or h < 300
-    local titleH = mobile and 30 or 34
-    local pad = mobile and 6 or 10
-    local statusH = mobile and 18 or 22
-    local searchH = mobile and 26 or 30
-    local buttonH = mobile and 30 or 34
-    local sectionCols = mobile and 3 or 4
+    local titleH = mobile and 30 or 38
+    local pad = mobile and 6 or 18
+    local statusH = mobile and 18 or 24
+    local searchH = mobile and 28 or 34
+    local buttonH = mobile and 32 or 46
+    local sectionCols = mobile and 3 or #Sections
     local sectionRows = math.ceil(#Sections / sectionCols)
-    local secBtnH = mobile and 22 or 25
-    local sectionH = sectionRows * secBtnH + (sectionRows + 1) * 4
+    local secBtnH = mobile and 24 or 42
+    local sectionH = sectionRows * secBtnH + (sectionRows + 1) * (mobile and 4 or 10)
 
     Title.Size = UDim2.new(1, -titleH * 2 - pad * 2, 0, titleH)
     Title.Position = UDim2.new(0, pad, 0, 0)
@@ -749,34 +750,54 @@ local function LayoutUI()
         local b = SectionButtons[section]
         local row = math.floor((i - 1) / sectionCols)
         local col = (i - 1) % sectionCols
-        b.Size = UDim2.new(colW, -5, 0, secBtnH)
-        b.Position = UDim2.new(col * colW, 3, 0, 4 + row * (secBtnH + 4))
-        b.TextSize = mobile and 9 or 11
+        b.Size = UDim2.new(colW, mobile and -5 or -10, 0, secBtnH)
+        b.Position = UDim2.new(col * colW, mobile and 3 or 5, 0, (mobile and 4 or 10) + row * (secBtnH + (mobile and 4 or 10)))
+        b.TextSize = mobile and 9 or 13
     end
 
-    local searchY = statusH + 3 + sectionH + 7
-    local searchBtnW = mobile and 56 or 70
-    SearchBox.Size = UDim2.new(1, -pad * 2 - searchBtnW - 6, 0, searchH)
-    SearchBox.Position = UDim2.new(0, pad, 0, searchY)
-    SearchBox.TextSize = mobile and 11 or 13
-
+    local searchY = statusH + 3 + sectionH + (mobile and 7 or 12)
+    local searchBtnW = mobile and 34 or 42
     SearchBtn.Size = UDim2.new(0, searchBtnW, 0, searchH)
-    SearchBtn.Position = UDim2.new(1, -pad - searchBtnW, 0, searchY)
-    SearchBtn.TextSize = mobile and 11 or 13
+    SearchBtn.Position = UDim2.new(0, pad, 0, searchY)
+    SearchBtn.Text = "⌕"
+    SearchBtn.TextSize = mobile and 15 or 18
+
+    if SearchBoxOpened then
+        SearchBox.Visible = true
+        SearchBox.Size = UDim2.new(1, -pad * 2 - searchBtnW - 8, 0, searchH)
+        SearchBox.Position = UDim2.new(0, pad + searchBtnW + 8, 0, searchY)
+        SearchBox.TextSize = mobile and 11 or 13
+    else
+        SearchBox.Visible = false
+        SearchBox.Size = UDim2.new(0, 0, 0, searchH)
+        SearchBox.Position = UDim2.new(0, pad + searchBtnW + 8, 0, searchY)
+    end
 
     BottomBar.Size = UDim2.new(1, -pad * 2, 0, buttonH)
     BottomBar.Position = UDim2.new(0, pad, 1, -buttonH - pad)
 
     local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}
-    local scale = 1 / #buttons
-    for i, b in ipairs(buttons) do
-        b.Size = UDim2.new(scale, -4, 1, 0)
-        b.Position = UDim2.new((i - 1) * scale, (i - 1) * 1, 0, 0)
-        b.TextSize = mobile and 8 or 11
+    if mobile then
+        local scale = 1 / #buttons
+        for i, b in ipairs(buttons) do
+            b.Size = UDim2.new(scale, -4, 1, 0)
+            b.Position = UDim2.new((i - 1) * scale, (i - 1) * 1, 0, 0)
+            b.TextSize = 8
+        end
+    else
+        local btnW = 74
+        local gap = 12
+        local total = #buttons * btnW + (#buttons - 1) * gap
+        local startX = math.max(0, (w - pad * 2 - total) / 2)
+        for i, b in ipairs(buttons) do
+            b.Size = UDim2.new(0, btnW, 0, buttonH)
+            b.Position = UDim2.new(0, startX + (i - 1) * (btnW + gap), 0, 0)
+            b.TextSize = 11
+        end
     end
 
-    local scrollY = searchY + searchH + 7
-    local scrollBottom = buttonH + pad + 7
+    local scrollY = searchY + searchH + (mobile and 7 or 14)
+    local scrollBottom = buttonH + pad + (mobile and 7 or 14)
     local scrollH = math.max(65, h - titleH - scrollY - scrollBottom)
     Scroll.Size = UDim2.new(1, -pad * 2, 0, scrollH)
     Scroll.Position = UDim2.new(0, pad, 0, scrollY)
@@ -826,8 +847,31 @@ ExportBtn.MouseButton1Click:Connect(function()
     local safeName = tostring(CurrentSection):gsub("[\\/:*?\"<>|]", "_")
     ExportLua(CurrentSection, data and data.Texts or {}, "UITextExport_"..safeName..".lua")
 end)
-SearchBtn.MouseButton1Click:Connect(function() SearchNow() end)
-SearchBox.FocusLost:Connect(function(enter) if enter then SearchNow() end end)
+SearchBtn.MouseButton1Click:Connect(function()
+    if not SearchBoxOpened then
+        SearchBoxOpened = true
+        LayoutUI()
+        task.defer(function() pcall(function() SearchBox:CaptureFocus() end) end)
+        UpdateStatus("搜索框已展开")
+    else
+        if CleanText(SearchBox.Text) ~= "" then
+            SearchNow()
+        else
+            SearchBoxOpened = false
+            LayoutUI()
+            SetDisplay(GetCurrentText(), false)
+            UpdateStatus("搜索框已收起")
+        end
+    end
+end)
+SearchBox.FocusLost:Connect(function(enter)
+    if enter then
+        SearchNow()
+    elseif CleanText(SearchBox.Text) == "" then
+        SearchBoxOpened = false
+        LayoutUI()
+    end
+end)
 ClearBtn.MouseButton1Click:Connect(function() ClearCurrent() end)
 
 MinBtn.MouseButton1Click:Connect(function()
@@ -854,7 +898,7 @@ MinBtn.MouseButton1Click:Connect(function()
         ResizeHandle.Visible = true
         Main.Size = UDim2.new(0,LastNormalSize.X,0,LastNormalSize.Y)
         if LastNormalPosition then Main.Position = LastNormalPosition end
-        MainCorner.CornerRadius = UDim.new(0,12)
+        MainCorner.CornerRadius = UDim.new(0,18)
         MinBtn.Text = "-"
         MinBtn.BackgroundColor3 = Theme.Card2
         MinBtn.ZIndex = 1
