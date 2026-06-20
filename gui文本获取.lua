@@ -1,4 +1,4 @@
--- Roblox UI 文本提取器 v16 设计稿风格版
+-- Roblox UI 文本提取器 v17 设计稿风格修正版
 -- 功能：分区扫描 / 手动刷新 / 自动刷新勾选 / 搜索 / 复制 / 收藏栏 / 导出Lua / 删除 / 屏蔽 / 缩放 / 最小化圆圈
 
 local Players = game:GetService("Players")
@@ -350,7 +350,7 @@ Corner(SectionFrame,8); Stroke(SectionFrame, Theme.Stroke,1,0.38)
 
 local SearchBox = New("TextBox", {Text="", PlaceholderText="搜索当前分区文本...", ClearTextOnFocus=false, BackgroundColor3=Theme.Card, TextColor3=Color3.new(1,1,1), PlaceholderColor3=Color3.fromRGB(155,155,160), Font=Enum.Font.SourceSans}, Content)
 Corner(SearchBox,8); Stroke(SearchBox, Theme.Stroke,1,0.38)
-local SearchBtn = New("TextButton", {Text="⌕", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Purple}, Content)
+local SearchBtn = New("TextButton", {Text="搜", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Purple}, Content)
 StyleButton(SearchBtn, Theme.Purple)
 
 local Scroll = New("ScrollingFrame", {BackgroundColor3=Theme.Card, BorderSizePixel=0, CanvasSize=UDim2.new(0,0,0,0), ScrollBarThickness=8, ScrollingDirection=Enum.ScrollingDirection.Y, VerticalScrollBarInset=Enum.ScrollBarInset.Always, ScrollBarImageColor3=Color3.fromRGB(170,170,175), ClipsDescendants=true}, Content)
@@ -689,15 +689,15 @@ local function ApplyResponsiveShell()
     local targetW, targetH
 
     if mobile then
-        targetW = math.floor(v.X * 0.94)
-        targetH = math.floor(v.Y * 0.82)
+        targetW = math.floor(v.X * 0.86)
+        targetH = math.floor(v.Y * 0.76)
     else
         targetW = math.min(940, math.floor(v.X * 0.72))
         targetH = math.min(560, math.floor(v.Y * 0.76))
     end
 
-    targetW = math.clamp(targetW, mobile and 330 or 560, mobile and math.max(330, v.X - 12) or 980)
-    targetH = math.clamp(targetH, mobile and 250 or 360, mobile and math.max(250, v.Y - 20) or 640)
+    targetW = math.clamp(targetW, mobile and 300 or 560, mobile and math.max(300, v.X - 24) or 980)
+    targetH = math.clamp(targetH, mobile and 240 or 360, mobile and math.max(240, v.Y - 28) or 640)
 
     Main.Size = UDim2.new(0, targetW, 0, targetH)
     Main.Position = UDim2.new(0.5, -targetW / 2, 0.5, -targetH / 2)
@@ -759,7 +759,7 @@ local function LayoutUI()
     local searchBtnW = mobile and 34 or 42
     SearchBtn.Size = UDim2.new(0, searchBtnW, 0, searchH)
     SearchBtn.Position = UDim2.new(0, pad, 0, searchY)
-    SearchBtn.Text = "⌕"
+    SearchBtn.Text = "搜"
     SearchBtn.TextSize = mobile and 15 or 18
 
     if SearchBoxOpened then
