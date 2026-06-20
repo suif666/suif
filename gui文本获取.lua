@@ -1,4 +1,4 @@
--- UI 文本提取器 WindUI 混合版 v1
+-- UI 文本提取器 WindUI 混合版 v2
 -- WindUI 负责控制区；自定义列表负责大量文本显示，避免 WindUI 大量组件卡顿
 
 local Players = game:GetService("Players")
@@ -23,6 +23,7 @@ local AutoRefresh = false
 local AutoRefreshInterval = 2
 local BlockMode = false
 local CurrentDisplayText = ""
+local ListGui = nil
 
 local SectionData, BlockedData = {}, {}
 for _, name in ipairs(Sections) do
@@ -236,7 +237,7 @@ pcall(function()
     if old then old:Destroy() end
 end)
 
-local ListGui = Instance.new("ScreenGui")
+ListGui = Instance.new("ScreenGui")
 ListGui.Name = "WindUITextCollectorList"
 ListGui.ResetOnSpawn = false
 ListGui.IgnoreGuiInset = true
@@ -418,8 +419,34 @@ local function RefreshNow()
     Notify("刷新完成", "新增 " .. tostring(added) .. " 条")
 end
 
+local function ShowTextList()
+    if not ListFrame or not ListFrame.Parent then return end
+    ListFrame.Visible = true
+    local list = GetCurrentList()
+    CurrentDisplayText = table.concat(list, "\n")
+    ListTitle.Text = "文本列表 - " .. CurrentSection
+    ListStatus.Text = "当前分区：" .. CurrentSection .. "｜保存 " .. tostring(Count(CurrentSection)) .. " 条"
+    RefreshListDisplay(list)
+    ResizeList()
+end
+
+local function ShowFavoriteList()
+    if not ListFrame or not ListFrame.Parent then return end
+    ListFrame.Visible = true
+    ListTitle.Text = "收藏列表"
+    ListStatus.Text = "收藏数量：" .. tostring(#FavoriteData.Texts)
+    RefreshListDisplay(FavoriteData.Texts)
+    ResizeList()
+end
+
+local function HideListWindow()
+    if ListFrame then
+        ListFrame.Visible = false
+    end
+end
+
 HideBtn.MouseButton1Click:Connect(function() ListFrame.Visible = not ListFrame.Visible end)
-CloseBtn.MouseButton1Click:Connect(function() ListGui:Destroy() end)
+CloseBtn.MouseButton1Click:Connect(function() ListFrame.Visible = false end)
 
 --====================================================
 -- WindUI 控制区
@@ -486,15 +513,18 @@ if WindUI then
         RefreshListDisplay({})
         Notify("清空", "已清空当前分区")
     end})
-    MainTab:Button({Title = "显示/隐藏文本列表", Callback = function()
-        ListFrame.Visible = not ListFrame.Visible
+    MainTab:Button({Title = "打开文本滚动列表", Desc = "重新显示主文本列表窗口", Callback = function()
+        ShowTextList()
+    end})
+    MainTab:Button({Title = "隐藏文本滚动列表", Callback = function()
+        HideListWindow()
     end})
 
-    FavTab:Button({Title = "刷新收藏栏", Callback = function()
-        ListTitle.Text = "收藏列表"
-        ListStatus.Text = "收藏数量：" .. tostring(#FavoriteData.Texts)
-        RefreshListDisplay(FavoriteData.Texts)
-        ListFrame.Visible = true
+    FavTab:Button({Title = "打开收藏滚动列表", Desc = "显示用户收藏过的文本", Callback = function()
+        ShowFavoriteList()
+    end})
+    FavTab:Button({Title = "隐藏收藏滚动列表", Callback = function()
+        HideListWindow()
     end})
     FavTab:Button({Title = "复制收藏全部", Callback = function()
         Clipboard(table.concat(FavoriteData.Texts, "\n"))
