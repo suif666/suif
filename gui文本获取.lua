@@ -1,4 +1,4 @@
--- Roblox UI 文本提取器 v13 重写稳定版
+-- Roblox UI 文本提取器 v15 移动端精修版
 -- 功能：分区扫描 / 手动刷新 / 自动刷新勾选 / 搜索 / 复制 / 收藏栏 / 导出Lua / 删除 / 屏蔽 / 缩放 / 最小化圆圈
 
 local Players = game:GetService("Players")
@@ -301,15 +301,15 @@ local function Stroke(obj, color, t, tr)
 end
 
 local Theme = {
-    Panel = Color3.fromRGB(18, 21, 29),
-    Panel2 = Color3.fromRGB(24, 28, 38),
-    Card = Color3.fromRGB(30, 35, 47),
-    Card2 = Color3.fromRGB(36, 42, 56),
+    Panel = Color3.fromRGB(15, 18, 25),
+    Panel2 = Color3.fromRGB(21, 25, 34),
+    Card = Color3.fromRGB(27, 32, 43),
+    Card2 = Color3.fromRGB(32, 38, 51),
     Text = Color3.fromRGB(235, 238, 245),
     Muted = Color3.fromRGB(155, 165, 185),
-    Stroke = Color3.fromRGB(70, 78, 96),
-    Accent = Color3.fromRGB(76, 142, 255),
-    AccentDark = Color3.fromRGB(42, 86, 160),
+    Stroke = Color3.fromRGB(58, 67, 84),
+    Accent = Color3.fromRGB(82, 145, 245),
+    AccentDark = Color3.fromRGB(48, 94, 168),
     Green = Color3.fromRGB(70, 150, 105),
     Red = Color3.fromRGB(180, 72, 78),
     Purple = Color3.fromRGB(105, 86, 150),
@@ -334,7 +334,7 @@ local Main = New("Frame", {
     Draggable = true,
 }, ScreenGui)
 local MainCorner = Corner(Main, 12)
-Stroke(Main, Theme.Stroke, 1, 0.2)
+Stroke(Main, Theme.Stroke, 1, 0.36)
 
 local Title = New("TextLabel", {BackgroundTransparency=1, Text="UI 文本提取器 - 分区版", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, Main)
 local MinBtn = New("TextButton", {Text="-", TextColor3=Color3.new(1,1,1), Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Card2}, Main)
@@ -470,9 +470,9 @@ local function RefreshFavoriteList()
         if obj:IsA("Frame") or obj:IsA("TextButton") then obj:Destroy() end
     end
     for i, text in ipairs(FavoriteData.Texts) do
-        local row = New("Frame", {Size=UDim2.new(1,-12,0,30), BackgroundColor3=Color3.fromRGB(48,48,56), BorderSizePixel=0, LayoutOrder=i}, FavoriteScroll)
-        Corner(row,6); Stroke(row, Color3.fromRGB(75,75,85),1,0.45)
-        local label = New("TextButton", {Size=UDim2.new(1,-100,1,0), Position=UDim2.new(0,6,0,0), BackgroundTransparency=1, Text=text, TextColor3=Color3.fromRGB(245,245,245), TextSize=13, Font=Enum.Font.Code, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, row)
+        local row = New("Frame", {Size=UDim2.new(1,-12,0,34), BackgroundColor3=Theme.Card2, BorderSizePixel=0, LayoutOrder=i}, FavoriteScroll)
+        Corner(row,6); Stroke(row, Theme.Stroke,1,0.45)
+        local label = New("TextButton", {Size=UDim2.new(1,-100,1,0), Position=UDim2.new(0,6,0,0), BackgroundTransparency=1, Text=text, TextColor3=Theme.Text, TextSize=13, Font=Enum.Font.Code, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, row)
         local del = New("TextButton", {Size=UDim2.new(0,42,0,24), Position=UDim2.new(1,-88,0.5,-12), Text="删除", TextColor3=Color3.new(1,1,1), TextSize=12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Red}, row)
         local copy = New("TextButton", {Size=UDim2.new(0,42,0,24), Position=UDim2.new(1,-44,0.5,-12), Text="复制", TextColor3=Color3.new(1,1,1), TextSize=12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Green}, row)
         StyleButton(del, del.BackgroundColor3); StyleButton(copy, copy.BackgroundColor3)
@@ -486,8 +486,8 @@ local function RefreshFavoriteList()
         end)
     end
     if #FavoriteData.Texts == 0 then
-        local empty = New("TextButton", {Size=UDim2.new(1,-12,0,30), BackgroundColor3=Color3.fromRGB(48,48,56), BorderSizePixel=0, Text="  收藏列表为空", TextColor3=Color3.fromRGB(180,180,180), TextSize=13, Font=Enum.Font.SourceSans, TextXAlignment=Enum.TextXAlignment.Left}, FavoriteScroll)
-        Corner(empty,6); Stroke(empty, Color3.fromRGB(75,75,85),1,0.45)
+        local empty = New("TextButton", {Size=UDim2.new(1,-12,0,34), BackgroundColor3=Theme.Card2, BorderSizePixel=0, Text="  收藏列表为空", TextColor3=Theme.Muted, TextSize=13, Font=Enum.Font.SourceSans, TextXAlignment=Enum.TextXAlignment.Left}, FavoriteScroll)
+        Corner(empty,6); Stroke(empty, Theme.Stroke,1,0.45)
     end
     task.defer(function() task.wait(); FavoriteScroll.CanvasSize = UDim2.new(0,0,0,FavoriteListLayout.AbsoluteContentSize.Y + 10) end)
 end
@@ -499,7 +499,7 @@ local function CreateFavoriteUI()
         if FavoriteStatus then FavoriteStatus.Text = "收藏列表｜共 "..#FavoriteData.Texts.." 条" end
         return
     end
-    FavoriteMain = New("Frame", {Size=UDim2.new(0,380,0,310), Position=UDim2.new(0.5,-190,0.5,-155), BackgroundColor3=Color3.fromRGB(24,24,28), BorderSizePixel=0, Active=true, Draggable=true}, ScreenGui)
+    FavoriteMain = New("Frame", {Size=UDim2.new(0,380,0,310), Position=UDim2.new(0.5,-190,0.5,-155), BackgroundColor3=Theme.Panel, BorderSizePixel=0, Active=true, Draggable=true}, ScreenGui)
     Corner(FavoriteMain,12); Stroke(FavoriteMain, Theme.Stroke,1,0.2)
     New("TextLabel", {Size=UDim2.new(1,-42,0,32), Position=UDim2.new(0,10,0,0), BackgroundTransparency=1, Text="收藏列表", TextColor3=Color3.new(1,1,1), TextSize=16, Font=Enum.Font.SourceSansBold, TextXAlignment=Enum.TextXAlignment.Left}, FavoriteMain)
     local close = New("TextButton", {Size=UDim2.new(0,32,0,32), Position=UDim2.new(1,-32,0,0), BackgroundColor3=Theme.Red, Text="X", TextColor3=Color3.new(1,1,1), TextSize=14, Font=Enum.Font.SourceSansBold}, FavoriteMain)
@@ -544,12 +544,20 @@ local function SetDisplay(text, autoBottom)
             index = index + 1
             local displayLine = line
             if #displayLine > 500 then displayLine = string.sub(displayLine,1,500).."..." end
-            local row = New("Frame", {Size=UDim2.new(1,-12,0,31), BackgroundColor3=Color3.fromRGB(48,48,56), BorderSizePixel=0, LayoutOrder=index}, Scroll)
-            Corner(row,6); Stroke(row, Color3.fromRGB(75,75,85),1,0.45)
-            local label = New("TextButton", {Size=UDim2.new(1,-150,1,0), Position=UDim2.new(0,6,0,0), BackgroundTransparency=1, Text=displayLine, TextColor3=Color3.fromRGB(245,245,245), TextSize=13, Font=Enum.Font.Code, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, TextWrapped=false, TextTruncate=Enum.TextTruncate.AtEnd}, row)
-            local add = New("TextButton", {Size=UDim2.new(0,42,0,24), Position=UDim2.new(1,-138,0.5,-12), Text="添加", TextColor3=Color3.new(1,1,1), TextSize=12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.AccentDark}, row)
-            local del = New("TextButton", {Size=UDim2.new(0,42,0,24), Position=UDim2.new(1,-92,0.5,-12), Text="删除", TextColor3=Color3.new(1,1,1), TextSize=12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Red}, row)
-            local copy = New("TextButton", {Size=UDim2.new(0,42,0,24), Position=UDim2.new(1,-46,0.5,-12), Text="复制", TextColor3=Color3.new(1,1,1), TextSize=12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Green}, row)
+            local compactRow = Main.AbsoluteSize.X < 520 or Main.AbsoluteSize.Y < 340
+            local rowH = compactRow and 34 or 38
+            local actionW = compactRow and 34 or 42
+            local actionH = compactRow and 22 or 24
+            local rightPad = compactRow and 6 or 8
+            local actionGap = 4
+            local actionsWidth = actionW * 3 + actionGap * 2 + rightPad + 6
+
+            local row = New("Frame", {Size=UDim2.new(1,-12,0,rowH), BackgroundColor3=Theme.Card2, BorderSizePixel=0, LayoutOrder=index}, Scroll)
+            Corner(row,7); Stroke(row, Theme.Stroke,1,0.50)
+            local label = New("TextButton", {Size=UDim2.new(1,-actionsWidth,1,0), Position=UDim2.new(0,8,0,0), BackgroundTransparency=1, Text=displayLine, TextColor3=Theme.Text, TextSize=compactRow and 11 or 13, Font=Enum.Font.Code, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Center, TextWrapped=false, TextTruncate=Enum.TextTruncate.AtEnd}, row)
+            local add = New("TextButton", {Size=UDim2.new(0,actionW,0,actionH), Position=UDim2.new(1,-(actionW*3 + actionGap*2 + rightPad),0.5,-actionH/2), Text=compactRow and "藏" or "添加", TextColor3=Color3.new(1,1,1), TextSize=compactRow and 10 or 12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.AccentDark}, row)
+            local del = New("TextButton", {Size=UDim2.new(0,actionW,0,actionH), Position=UDim2.new(1,-(actionW*2 + actionGap + rightPad),0.5,-actionH/2), Text=compactRow and "删" or "删除", TextColor3=Color3.new(1,1,1), TextSize=compactRow and 10 or 12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Red}, row)
+            local copy = New("TextButton", {Size=UDim2.new(0,actionW,0,actionH), Position=UDim2.new(1,-(actionW + rightPad),0.5,-actionH/2), Text=compactRow and "复" or "复制", TextColor3=Color3.new(1,1,1), TextSize=compactRow and 10 or 12, Font=Enum.Font.SourceSansBold, BackgroundColor3=Theme.Green}, row)
             StyleButton(add, add.BackgroundColor3); StyleButton(del, del.BackgroundColor3); StyleButton(copy, copy.BackgroundColor3)
             label.MouseButton1Click:Connect(function() CopyText(line, "已复制当前行") end)
             copy.MouseButton1Click:Connect(function() CopyText(line, "已复制当前行") end)
@@ -582,8 +590,8 @@ local function SetDisplay(text, autoBottom)
         end
     end
     if index == 0 then
-        local empty = New("TextButton", {Size=UDim2.new(1,-12,0,30), BackgroundColor3=Color3.fromRGB(48,48,56), BorderSizePixel=0, Text="  未检测到 UI 文本", TextColor3=Color3.fromRGB(180,180,180), TextSize=13, Font=Enum.Font.SourceSans, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=1}, Scroll)
-        Corner(empty,6); Stroke(empty, Color3.fromRGB(75,75,85),1,0.45)
+        local empty = New("TextButton", {Size=UDim2.new(1,-12,0,34), BackgroundColor3=Theme.Card2, BorderSizePixel=0, Text="  未检测到 UI 文本", TextColor3=Theme.Muted, TextSize=13, Font=Enum.Font.SourceSans, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=1}, Scroll)
+        Corner(empty,6); Stroke(empty, Theme.Stroke,1,0.45)
     end
     ResizeCanvas()
     if autoBottom then ScrollBottom() end
@@ -773,9 +781,9 @@ local function LayoutUI()
     Scroll.Size = UDim2.new(1, -pad * 2, 0, scrollH)
     Scroll.Position = UDim2.new(0, pad, 0, scrollY)
 
-    ResizeHandle.Visible = not mobile
-    ResizeHandle.Size = UDim2.new(0, 20, 0, 20)
-    ResizeHandle.Position = UDim2.new(1, -3, 1, -3)
+    ResizeHandle.Visible = true
+    ResizeHandle.Size = UDim2.new(0, mobile and 24 or 22, 0, mobile and 24 or 22)
+    ResizeHandle.Position = UDim2.new(1, -5, 1, -5)
 
     ResizeCanvas()
 end
@@ -871,8 +879,11 @@ UserInputService.InputChanged:Connect(function(input)
     if not resizing then return end
     if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
     local delta = input.Position - resizeStartPos
-    local newW = math.clamp(resizeStartSize.X + delta.X, 330, 820)
-    local newH = math.clamp(resizeStartSize.Y + delta.Y, 250, 620)
+    local vp = GetViewport()
+    local maxW = math.max(330, vp.X - 8)
+    local maxH = math.max(250, vp.Y - 12)
+    local newW = math.clamp(resizeStartSize.X + delta.X, 300, maxW)
+    local newH = math.clamp(resizeStartSize.Y + delta.Y, 240, maxH)
     Main.Size = UDim2.new(0,newW,0,newH)
     LastNormalSize = Vector2.new(newW,newH)
 end)
