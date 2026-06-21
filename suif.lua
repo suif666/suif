@@ -834,48 +834,41 @@ aboutTab:Button({
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
 
-task.spawn(function()
-    local label
+--// 胶囊栏对象扫描
+task.delay(5, function()
+    local roots = {}
 
-    local function isCapsule(v)
-        if not v then
-            return false
-        end
-
-        local text = tostring(v.Text or "")
-
-        if not text:find("Suture Hub", 1, true) then
-            return false
-        end
-
-        -- 只允许 TextButton，或者 TextButton 里面的 TextLabel
-        if v:IsA("TextButton") then
-            return true
-        end
-
-        if v:IsA("TextLabel") and v.Parent and v.Parent:IsA("TextButton") then
-            return true
-        end
-
-        return false
+    if gethui then
+        table.insert(roots, gethui())
     end
 
-    while not label do
-        local root = gethui and gethui() or game:GetService("CoreGui")
+    pcall(function()
+        table.insert(roots, game:GetService("CoreGui"))
+    end)
 
+    pcall(function()
+        table.insert(roots, lp:WaitForChild("PlayerGui"))
+    end)
+
+    for _, root in ipairs(roots) do
         for _, v in ipairs(root:GetDescendants()) do
-            if isCapsule(v) then
-                label = v
-                label.RichText = true
-                break
+            if (v:IsA("TextLabel") or v:IsA("TextButton"))
+                and v.Visible
+                and v.AbsoluteSize.Y <= 80
+            then
+                local text = tostring(v.Text or "")
+
+                if text ~= "" then
+                    print(
+                        "[CapsuleScan]",
+                        v.ClassName,
+                        "Name=" .. v.Name,
+                        "Text=" .. text,
+                        "Size=" .. tostring(v.AbsoluteSize),
+                        "Path=" .. v:GetFullName()
+                    )
+                end
             end
         end
-
-        task.wait(1)
-    end
-
-    while label and label.Parent do
-        label.Text = 'Suture Hub <font color="#00ffff" size="12">| ' .. os.date("%H:%M") .. '</font>'
-        task.wait(60)
     end
 end)
