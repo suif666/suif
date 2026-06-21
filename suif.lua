@@ -834,71 +834,73 @@ aboutTab:Button({
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
 
-
+--时间显示
 getgenv().SutureHubTitleClockToken = (getgenv().SutureHubTitleClockToken or 0) + 1
-local TitleClockToken = getgenv().SutureHubTitleClockToken
+local ClockToken = getgenv().SutureHubTitleClockToken
 
-local TitleTimeLabels = {}
-local LastTitleScan = 0
+local CLOCK_INTERVAL = 60
+local TitleLabel
 
-local function isSutureTitleLabel(v)
-    if not v or not v:IsA("TextLabel") then
-        return false
+local function findTitleLabel()
+    local roots = {}
+
+    if gethui then
+        table.insert(roots, gethui())
     end
 
-    local txt = tostring(v.Text or "")
-    if not string.find(txt, "Suture Hub", 1, true) then
-        return false
-    end
+    pcall(function()
+        table.insert(roots, game:GetService("CoreGui"))
+    end)
 
-    local parent = v.Parent
-    if v.Name == "Description" or v.Name == "Desc" or (parent and parent.Name == "Paragraph") then
-        return false
-    end
+    pcall(function()
+        table.insert(roots, lp:WaitForChild("PlayerGui"))
+    end)
 
-    return true
-end
+    for _, root in ipairs(roots) do
+        for _, v in ipairs(root:GetDescendants()) do
+            if v:IsA("TextLabel") then
+                local text = tostring(v.Text or "")
 
-local function scanSutureTitleLabels()
-    local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
-
-    for _, v in ipairs(uiContainer:GetDescendants()) do
-        if isSutureTitleLabel(v) then
-            TitleTimeLabels[v] = true
-            if not v.RichText then
-                v.RichText = true
+                if text:find("Suture Hub", 1, true)
+                    and v.Name ~= "Description"
+                    and v.Name ~= "Desc"
+                    and not text:find("欢迎使用", 1, true)
+                then
+                    return v
+                end
             end
         end
     end
 end
 
 task.spawn(function()
-    scanSutureTitleLabels()
+    for _ = 1, 5 do
+        TitleLabel = findTitleLabel()
 
-    while getgenv().SutureHubTitleClockToken == TitleClockToken do
-        -- 每 5 秒补扫一次，避免 WindUI 延迟创建标题导致找不到
-        local now = os.clock()
-        if now - LastTitleScan >= 60 then
-            LastTitleScan = now
-            scanSutureTitleLabels()
+        if TitleLabel then
+            break
         end
 
-        local timeColor = "#00ffff"
-        local timeSize = "12"
-        local timeString = os.date("%H:%M:%S")
-        local fullText = string.format('Suture Hub <font color="%s" size="%s">| %s</font>', timeColor, timeSize, timeString)
+        task.wait(0.5)
+    end
 
-        for label in pairs(TitleTimeLabels) do
-            if typeof(label) == "Instance" and label.Parent and label:IsA("TextLabel") then
-                if not label.RichText then
-                    label.RichText = true
-                end
-                label.Text = fullText
-            else
-                TitleTimeLabels[label] = nil
-            end
+    if not TitleLabel then
+        warn("标题时间显示：未找到 Suture Hub 标题")
+        return
+    end
+
+    TitleLabel.RichText = true
+
+    while getgenv().SutureHubTitleClockToken == ClockToken do
+        if not TitleLabel or not TitleLabel.Parent then
+            break
         end
 
-        task.wait(1)
+        TitleLabel.Text = string.format(
+            'Suture Hub <font color="#00ffff" size="12">| %s</font>',
+            os.date("%H:%M")
+        )
+
+        task.wait(CLOCK_INTERVAL)
     end
 end)
