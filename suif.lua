@@ -834,73 +834,30 @@ aboutTab:Button({
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
 
---时间显示
-getgenv().SutureHubTitleClockToken = (getgenv().SutureHubTitleClockToken or 0) + 1
-local ClockToken = getgenv().SutureHubTitleClockToken
+--// 最小化胶囊栏时间显示｜简化版
+task.spawn(function()
+    local label
 
-local CLOCK_INTERVAL = 60
-local TitleLabel
+    while not label do
+        local root = gethui and gethui() or game:GetService("CoreGui")
 
-local function findTitleLabel()
-    local roots = {}
-
-    if gethui then
-        table.insert(roots, gethui())
-    end
-
-    pcall(function()
-        table.insert(roots, game:GetService("CoreGui"))
-    end)
-
-    pcall(function()
-        table.insert(roots, lp:WaitForChild("PlayerGui"))
-    end)
-
-    for _, root in ipairs(roots) do
         for _, v in ipairs(root:GetDescendants()) do
-            if v:IsA("TextLabel") then
-                local text = tostring(v.Text or "")
-
-                if text:find("Suture Hub", 1, true)
-                    and v.Name ~= "Description"
-                    and v.Name ~= "Desc"
-                    and not text:find("欢迎使用", 1, true)
-                then
-                    return v
-                end
+            if (v:IsA("TextLabel") or v:IsA("TextButton"))
+                and tostring(v.Text or ""):find("Suture Hub", 1, true)
+                and v.AbsoluteSize.Y <= 55
+                and not tostring(v.Text or ""):find("欢迎使用", 1, true)
+            then
+                label = v
+                label.RichText = true
+                break
             end
         end
-    end
-end
 
-task.spawn(function()
-    for _ = 1, 5 do
-        TitleLabel = findTitleLabel()
-
-        if TitleLabel then
-            break
-        end
-
-        task.wait(0.5)
+        task.wait(1)
     end
 
-    if not TitleLabel then
-        warn("标题时间显示：未找到 Suture Hub 标题")
-        return
-    end
-
-    TitleLabel.RichText = true
-
-    while getgenv().SutureHubTitleClockToken == ClockToken do
-        if not TitleLabel or not TitleLabel.Parent then
-            break
-        end
-
-        TitleLabel.Text = string.format(
-            'Suture Hub <font color="#00ffff" size="12">| %s</font>',
-            os.date("%H:%M")
-        )
-
-        task.wait(CLOCK_INTERVAL)
+    while label and label.Parent do
+        label.Text = 'Suture Hub <font color="#00ffff" size="12">| ' .. os.date("%H:%M") .. '</font>'
+        task.wait(60)
     end
 end)
