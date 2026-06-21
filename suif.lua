@@ -93,7 +93,7 @@ local win = WindUI:CreateWindow({
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-win:Tag({ Title = "v1.0.0", Icon = "github", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+win:Tag({ Title = "免费", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
 local dialog
 dialog = win:Dialog({
@@ -117,20 +117,18 @@ end)
 
 -- tabs
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
-local aboutTab = win:Tab({ Title = "关于", Icon = "info", Locked = false })
 
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
+local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = false })
+local tyscriptTab = funcSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
 
-local visSec = win:Section({ Title = "视觉", Icon = "folder", Opened = false })
-local visualTab = visSec:Tab({ Title = "高亮类", Icon = "eye", Locked = false })
 
-local tyscriptTab = win:Tab({ Title = "通用", Icon = "folder", Opened = false })
-
-local scriptSec = win:Section({ Title = "缝合脚本", Icon = "folder", Opened = false })
+local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
+local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
 local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
 local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
 local stgTab = scriptSec:Tab({ Title = "死铁轨", Icon = "shell", Locked = false })
@@ -140,7 +138,6 @@ local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked =
 local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
 
-local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 -- WindUI 原生顶栏反馈入口
@@ -654,7 +651,7 @@ doorsTab:Button({
     Icon = "shell",
     Callback = function()
         getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
-        run("https://api.jnkie.com/api/v1/luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download", "Doors 脚本")
+        run("https://api.jnkie.com/api//luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download", "Doors 脚本")
     end
 })
 
@@ -824,10 +821,5 @@ settingsTab:Dropdown({
     end
 })
 
--- 关于
-aboutTab:Button({
-    Title = "复制作者B站链接", Desc = "",
-    Callback = function() copy("https://space.bilibili.com/3493268314655259", "链接已复制") end
-})
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
