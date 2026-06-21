@@ -389,7 +389,7 @@ function M.CreateUI(tab)
 
     tab:Dropdown({
         Title = "选择物品",
-        Desc = "可以多选",
+        Desc = "第一章1-6层[剩下的慢慢更新吧。。]",
         Values = Names,
         Value = {},
         Multi = true,
