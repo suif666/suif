@@ -93,7 +93,7 @@ local win = WindUI:CreateWindow({
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-win:Tag({ Title = "免费", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
 local dialog
 dialog = win:Dialog({
@@ -137,6 +137,7 @@ local fkgsTab = scriptSec:Tab({ Title = "方块故事", Icon = "shell", Locked =
 local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked = false })
 local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
+local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
