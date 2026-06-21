@@ -191,7 +191,7 @@ local function createFeedbackTab()
         Title = "反馈内容",
         Desc = "输入你想反馈的问题或建议",
         Type = "Textarea",
-        Placeholder = "例如：按钮失效、脚本打不开、UI显示异常...",
+        Placeholder = "例如：按钮失效、脚本打不开、UI显示异常等等/n或许你还可以向作者提出想要哪个游戏的脚本。。",
         Value = "",
         Callback = function(v)
             FeedbackText = tostring(v or "")
