@@ -601,7 +601,7 @@ stgTab:Button({
 })
 
 stgTab:Button({
-    Title = "ringta", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
+    Title = "ringta[suif汉化]", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
 })
 
