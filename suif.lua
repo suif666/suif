@@ -43,7 +43,6 @@ end
 local function copy(text, msg)
     if setclipboard then
         setclipboard(text)
-        notify("复制成功", msg or "内容已复制", "check", 2)
     else
         warn("复制失败：当前环境不支持 setclipboard")
     end
@@ -60,10 +59,8 @@ local function run(url, name)
     end)
 
     if ok then
-        notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
     else
         warn("执行失败: " .. tostring(err))
-        notify("执行失败", name or "脚本", "triangle-alert", 2)
     end
 end
 
@@ -72,7 +69,6 @@ local function getHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
-notify("Suture Hub", "正在加载...", "bird", 1.5)
 
 if not getgenv().SutureHubAntiAFK then
     getgenv().SutureHubAntiAFK = true
@@ -171,7 +167,7 @@ task.spawn(function()
     end)
 
     if not ok then
-        notify("反馈模块", "加载失败: " .. tostring(err), "triangle-alert", 4)
+        warn("反馈模块加载失败:", err)
     end
 end)
 
@@ -187,7 +183,6 @@ local function getItemHighlightLib()
     end
 
     if not ItemHighlightURL or ItemHighlightURL == "" then
-        notify("物品高亮", "URL为空", "triangle-alert", 3)
         return nil
     end
 
@@ -197,7 +192,6 @@ local function getItemHighlightLib()
 
     if not okHttp then
         warn("物品高亮获取失败:", source)
-        notify("物品高亮", "获取失败", "triangle-alert", 3)
         return nil
     end
 
@@ -205,39 +199,33 @@ local function getItemHighlightLib()
 
     if source:find("404") or source:find("Not Found") then
         warn("物品高亮链接404:", source)
-        notify("物品高亮", "链接404", "triangle-alert", 3)
         return nil
     end
 
     if source:find("<html") or source:find("<!DOCTYPE") then
         warn("物品高亮链接不是Raw链接")
-        notify("物品高亮", "不是Raw链接", "triangle-alert", 3)
         return nil
     end
 
     if source:find("```") then
         warn("物品高亮代码里包含Markdown代码块符号")
-        notify("物品高亮", "代码格式错误", "triangle-alert", 3)
         return nil
     end
 
     local fn, compileErr = loadstring(source)
     if not fn then
         warn("物品高亮语法错误:", compileErr)
-        notify("物品高亮", "语法错误", "triangle-alert", 3)
         return nil
     end
 
     local okRun, res = pcall(fn)
     if not okRun then
         warn("物品高亮运行错误:", res)
-        notify("物品高亮", "运行错误", "triangle-alert", 3)
         return nil
     end
 
     if type(res) ~= "table" or type(res.Set) ~= "function" then
         warn("物品高亮模块格式错误：需要 return M 且包含 M.Set")
-        notify("物品高亮", "模块格式错误", "triangle-alert", 3)
         return nil
     end
 
@@ -417,7 +405,6 @@ playerTab:Toggle({
         if s then
             applyMovement()
         end
-        notify("速度跳跃", s and "已锁定" or "已停止锁定", s and "lock" or "unlock", 1.5)
     end
 })
 
@@ -429,7 +416,6 @@ playerTab:Button({
         MoveCfg.JumpPower = 50
         MoveCfg.Lock = true
         applyMovement()
-        notify("恢复成功", "已恢复默认", "check", 2)
     end
 })
 
@@ -487,7 +473,6 @@ visualTab:Toggle({
     Callback = function(s)
         fb.Enabled = s
         applyFB()
-        notify("高亮环境", s and "已开启" or "已关闭", s and "sun" or "moon", 1.5)
     end
 })
 visualTab:Slider({
@@ -516,7 +501,6 @@ visualTab:Button({
         fb.FogEnd = 100000
         fb.Shadows = false
         applyFB()
-        notify("恢复成功", "已恢复执行前光照", "check", 2)
     end
 })
 
@@ -618,7 +602,6 @@ toolTab:Toggle({
     Value = false,
     Callback = function(s)
         applyInstantInteract(s)
-        notify("快速互动", s and "已开启" or "已关闭并恢复", "zap", 1.5)
     end
 })
 
@@ -664,7 +647,6 @@ doorsTab:Button({
         local link = "https://www.mspaint.cc/key"
         if setclipboard then
             setclipboard(link)
-            notify("mspaint", "已自动复制解卡链接", "check", 2)
         else
             warn("复制失败：当前环境不支持复制链接")
         end
@@ -698,13 +680,11 @@ doorsTab:Button({
     Title = "复制 Doors 刷复活脚本", Desc = "根据上面的参数生成脚本并复制", Icon = "copy",
     Callback = function()
         if reviveCfg.MainAccount == "" or reviveCfg.AltAccount == "" then
-            notify("缺少参数", "请先填写账号名", "triangle-alert", 2)
             return
         end
         local scriptText = 'MainAccount = ' .. luaStr(reviveCfg.MainAccount) .. ' -- 主号用户名\nAltAccount = ' .. luaStr(reviveCfg.AltAccount) .. ' -- 小号用户名\n\nDuplicationAmount = ' .. tostring(reviveCfg.DuplicationAmount) .. '\nloadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/refs/heads/main/doors/revives.lua"))()'
         if setclipboard then
             setclipboard(scriptText)
-            notify("复制成功", "脚本已复制到剪贴板", "check", 2)
         else
             warn("复制失败：环境不支持，已输出至控制台")
             print(scriptText)
@@ -822,7 +802,6 @@ settingsTab:Dropdown({
         local real = themeMap[name]
         uiSet.Theme = real
         if WindUI.SetTheme then WindUI:SetTheme(real) elseif win.SetTheme then win:SetTheme(real) end
-        notify("主题切换", "当前：" .. name, "palette", 2)
     end
 })
 
@@ -833,42 +812,3 @@ aboutTab:Button({
 })
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
-
---// 胶囊栏对象扫描
-task.delay(5, function()
-    local roots = {}
-
-    if gethui then
-        table.insert(roots, gethui())
-    end
-
-    pcall(function()
-        table.insert(roots, game:GetService("CoreGui"))
-    end)
-
-    pcall(function()
-        table.insert(roots, lp:WaitForChild("PlayerGui"))
-    end)
-
-    for _, root in ipairs(roots) do
-        for _, v in ipairs(root:GetDescendants()) do
-            if (v:IsA("TextLabel") or v:IsA("TextButton"))
-                and v.Visible
-                and v.AbsoluteSize.Y <= 80
-            then
-                local text = tostring(v.Text or "")
-
-                if text ~= "" then
-                    print(
-                        "[CapsuleScan]",
-                        v.ClassName,
-                        "Name=" .. v.Name,
-                        "Text=" .. text,
-                        "Size=" .. tostring(v.AbsoluteSize),
-                        "Path=" .. v:GetFullName()
-                    )
-                end
-            end
-        end
-    end
-end)
