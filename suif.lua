@@ -834,19 +834,37 @@ aboutTab:Button({
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
 
---// 最小化胶囊栏时间显示｜简化版
 task.spawn(function()
     local label
+
+    local function isCapsule(v)
+        if not v then
+            return false
+        end
+
+        local text = tostring(v.Text or "")
+
+        if not text:find("Suture Hub", 1, true) then
+            return false
+        end
+
+        -- 只允许 TextButton，或者 TextButton 里面的 TextLabel
+        if v:IsA("TextButton") then
+            return true
+        end
+
+        if v:IsA("TextLabel") and v.Parent and v.Parent:IsA("TextButton") then
+            return true
+        end
+
+        return false
+    end
 
     while not label do
         local root = gethui and gethui() or game:GetService("CoreGui")
 
         for _, v in ipairs(root:GetDescendants()) do
-            if (v:IsA("TextLabel") or v:IsA("TextButton"))
-                and tostring(v.Text or ""):find("Suture Hub", 1, true)
-                and v.AbsoluteSize.Y <= 55
-                and not tostring(v.Text or ""):find("欢迎使用", 1, true)
-            then
+            if isCapsule(v) then
                 label = v
                 label.RichText = true
                 break
