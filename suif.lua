@@ -59,6 +59,7 @@ local function run(url, name)
     end)
 
     if ok then
+        notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
     else
         warn("执行失败: " .. tostring(err))
     end
@@ -145,11 +146,29 @@ local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Loc
 -- WindUI 原生顶栏反馈入口
 local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
 
+-- 屏蔽“执行脚本时反馈模块自己弹出的加载通知”
+-- 但保留用户真正发送反馈时可能需要的成功/失败提示
+local function feedbackNotify(title, content, icon, duration)
+    local msg = tostring(title or "") .. " " .. tostring(content or "")
+
+    if msg:find("加载", 1, true)
+        or msg:find("初始化", 1, true)
+        or msg:find("入口", 1, true)
+        or msg:find("已启动", 1, true)
+        or msg:find("已就绪", 1, true)
+    then
+        warn("已屏蔽反馈启动通知:", msg)
+        return
+    end
+
+    notify(title, content, icon, duration)
+end
+
 getgenv().SutureHubFeedback = {
     API = "https://suture-feedback.sfbdsl666.workers.dev/",
     WindUI = WindUI,
     Window = win,
-    Notify = notify
+    Notify = feedbackNotify
 }
 
 task.spawn(function()
