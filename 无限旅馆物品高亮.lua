@@ -328,4 +328,79 @@ function M.IsEnabled(key)
     return Enabled[key] == true
 end
 
+
+--// 在 WindUI Tab 里创建“开启ESP + 多选下拉菜单”
+function M.CreateUI(tab)
+    if not tab then
+        return M
+    end
+
+    local EspEnabled = false
+    local SelectedItems = {}
+
+    local Items = {
+        { "柜子", "Cabinet" },
+        { "箱子", "Box" },
+        { "保险柜", "Safe" },
+        { "提示纸", "HintPaper" },
+        { "邪恶房间", "EvilRoom" },
+        { "洋娃娃", "Doll" },
+        { "洋娃娃头", "DollBlackHead" },
+        { "桌子", "Table" },
+        { "盘子", "Dish" },
+        { "电视机", "TV" },
+        { "打火机", "Lighter" },
+        { "祭祀", "Sacrifice" },
+        { "密码箱", "PasswordBox" },
+    }
+
+    local Names = {}
+    for _, item in ipairs(Items) do
+        table.insert(Names, item[1])
+    end
+
+    local function Apply()
+        if not EspEnabled then
+            M.DisableAll()
+            return
+        end
+
+        local selectedMap = {}
+        for _, name in ipairs(SelectedItems or {}) do
+            selectedMap[name] = true
+        end
+
+        for _, item in ipairs(Items) do
+            M.Set(item[2], selectedMap[item[1]] == true)
+        end
+    end
+
+    tab:Toggle({
+        Title = "开启ESP",
+        Desc = "开启后高亮下拉菜单中选择的物品",
+        Icon = "eye",
+        Type = "Checkbox",
+        Value = false,
+        Callback = function(state)
+            EspEnabled = state
+            Apply()
+        end
+    })
+
+    tab:Dropdown({
+        Title = "选择物品",
+        Desc = "可以多选",
+        Values = Names,
+        Value = {},
+        Multi = true,
+        AllowNone = true,
+        Callback = function(options)
+            SelectedItems = options or {}
+            Apply()
+        end
+    })
+
+    return M
+end
+
 return M
