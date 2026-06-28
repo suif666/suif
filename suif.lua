@@ -778,4 +778,192 @@ settingsTab:Dropdown({
 })
 
 
+--// UI背景图片｜本地导入版
+--// 图片默认目录：/storage/emulated/0/Delta/Workspace/
+local BG_BASE_PATH = "/storage/emulated/0/Delta/Workspace/"
+local BG_SAVE_FILE = "SutureHub_BackgroundPath.txt"
+local BG_ALPHA_FILE = "SutureHub_BackgroundAlpha.txt"
+
+local BackgroundImagePath = ""
+local BackgroundImageAlpha = 0.35
+local BackgroundImageLabel = nil
+
+pcall(function()
+    if isfile and isfile(BG_SAVE_FILE) then
+        BackgroundImagePath = tostring(readfile(BG_SAVE_FILE) or "")
+    end
+end)
+
+pcall(function()
+    if isfile and isfile(BG_ALPHA_FILE) then
+        local savedAlpha = tonumber(readfile(BG_ALPHA_FILE))
+        if savedAlpha then
+            BackgroundImageAlpha = math.clamp(savedAlpha, 0, 1)
+        end
+    end
+end)
+
+local function normalizeBackgroundPath(path)
+    path = tostring(path or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if path == "" then return "" end
+
+    if path:match("^rbxassetid://") or path:match("^http://") or path:match("^https://") then
+        return path
+    end
+
+    if path:sub(1, 1) == "/" then
+        return path
+    end
+
+    return BG_BASE_PATH .. path
+end
+
+local function getMainWindowFrame()
+    return win and win.UIElements and win.UIElements.Main
+end
+
+local function ensureBackgroundImage()
+    local main = getMainWindowFrame()
+    if not main then return nil end
+
+    if BackgroundImageLabel and BackgroundImageLabel.Parent == main then
+        return BackgroundImageLabel
+    end
+
+    local old = main:FindFirstChild("SutureCustomBackground")
+    if old then old:Destroy() end
+
+    local img = Instance.new("ImageLabel")
+    img.Name = "SutureCustomBackground"
+    img.Size = UDim2.new(1, 0, 1, 0)
+    img.Position = UDim2.new(0, 0, 0, 0)
+    img.BackgroundTransparency = 1
+    img.ImageTransparency = BackgroundImageAlpha
+    img.ScaleType = Enum.ScaleType.Crop
+    img.Active = false
+    img.Selectable = false
+    img.ZIndex = 0
+    img.Parent = main
+
+    BackgroundImageLabel = img
+    return img
+end
+
+local function setBackgroundImage(path)
+    path = normalizeBackgroundPath(path)
+    if path == "" then
+        notify("背景图片", "请填写图片文件名或完整路径", "triangle-alert", 2)
+        return
+    end
+
+    local imageSource = path
+
+    if not path:match("^rbxassetid://") and not path:match("^http://") and not path:match("^https://") then
+        if isfile and not isfile(path) then
+            notify("背景图片", "文件不存在：" .. path, "triangle-alert", 3)
+            return
+        end
+
+        if getcustomasset then
+            imageSource = getcustomasset(path)
+        end
+    end
+
+    local img = ensureBackgroundImage()
+    if not img then
+        notify("背景图片", "找不到主窗口", "triangle-alert", 2)
+        return
+    end
+
+    img.Image = imageSource
+    img.ImageTransparency = BackgroundImageAlpha
+    BackgroundImagePath = path
+
+    pcall(function()
+        if writefile then
+            writefile(BG_SAVE_FILE, BackgroundImagePath)
+        end
+    end)
+
+    notify("背景图片", "已应用", "check", 2)
+end
+
+local function setBackgroundImageAlpha(alpha)
+    BackgroundImageAlpha = math.clamp(tonumber(alpha) or 0.35, 0, 1)
+
+    if BackgroundImageLabel then
+        BackgroundImageLabel.ImageTransparency = BackgroundImageAlpha
+    end
+
+    pcall(function()
+        if writefile then
+            writefile(BG_ALPHA_FILE, tostring(BackgroundImageAlpha))
+        end
+    end)
+end
+
+settingsTab:Divider({
+    Title = "背景图片"
+})
+
+settingsTab:Input({
+    Title = "导入背景图片",
+    Desc = "填写文件名即可，例如 bg.png；目录固定为 /storage/emulated/0/Delta/Workspace/",
+    Placeholder = "bg.png",
+    Value = BackgroundImagePath ~= "" and BackgroundImagePath or "",
+    Callback = function(v)
+        BackgroundImagePath = tostring(v or "")
+    end
+})
+
+settingsTab:Button({
+    Title = "应用背景图片",
+    Desc = "从 /storage/emulated/0/Delta/Workspace/ 读取图片",
+    Icon = "image",
+    Callback = function()
+        setBackgroundImage(BackgroundImagePath)
+    end
+})
+
+settingsTab:Slider({
+    Title = "背景图透明度",
+    Desc = "只控制背景图片透明度，不改变UI本身透明度",
+    Step = 0.05,
+    Value = {
+        Min = 0,
+        Max = 1,
+        Default = BackgroundImageAlpha
+    },
+    Callback = function(v)
+        setBackgroundImageAlpha(v)
+    end
+})
+
+settingsTab:Button({
+    Title = "移除背景图片",
+    Desc = "只移除图片，不影响彩色外框和主题",
+    Icon = "trash-2",
+    Callback = function()
+        if BackgroundImageLabel then
+            BackgroundImageLabel:Destroy()
+            BackgroundImageLabel = nil
+        end
+        BackgroundImagePath = ""
+        pcall(function()
+            if writefile then
+                writefile(BG_SAVE_FILE, "")
+            end
+        end)
+        notify("背景图片", "已移除", "check", 2)
+    end
+})
+
+-- 自动恢复上次保存的背景图
+if BackgroundImagePath ~= "" then
+    task.delay(1.2, function()
+        setBackgroundImage(BackgroundImagePath)
+    end)
+end
+
+
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
