@@ -227,10 +227,17 @@ getgenv().SutureHubFeedback = {
 }
 
 task.spawn(function()
-    task.wait(0.5)
+    -- 等 WindUI 顶栏完全初始化后再加载反馈模块，避免按钮创建过早导致失效
+    task.wait(1.5)
 
     local ok, err = pcall(function()
-        local src = game:HttpGet(FeedbackURL)
+        -- 防止 GitHub Raw 缓存旧反馈脚本
+        local url = FeedbackURL .. "?v=" .. tostring(os.time())
+        local src = game:HttpGet(url)
+
+        print("反馈模块已下载，长度：", #src)
+        print("反馈模块开头：", string.sub(src, 1, 80))
+
         local fn, loadErr = loadstring(src)
 
         if not fn then
@@ -242,6 +249,7 @@ task.spawn(function()
 
     if not ok then
         warn("反馈模块加载失败:", err)
+        notify("反馈模块", "加载失败：" .. tostring(err), "triangle-alert", 5)
     end
 end)
 
