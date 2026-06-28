@@ -778,15 +778,18 @@ settingsTab:Dropdown({
 })
 
 
---// UI背景图片｜本地导入版
+--// 夜脚本风格背景｜本地图片 + 玻璃背景 + 柔光球
 --// 图片默认目录：/storage/emulated/0/Delta/Workspace/
 local BG_BASE_PATH = "/storage/emulated/0/Delta/Workspace/"
 local BG_SAVE_FILE = "SutureHub_BackgroundPath.txt"
 local BG_ALPHA_FILE = "SutureHub_BackgroundAlpha.txt"
 
 local BackgroundImagePath = ""
-local BackgroundImageAlpha = 0.35
+local BackgroundImageAlpha = 0.15 -- 数值越小图片越清楚，0=完全清楚
+local BackgroundLayer = nil
 local BackgroundImageLabel = nil
+local BackgroundDim = nil
+local GlowFolder = nil
 
 pcall(function()
     if isfile and isfile(BG_SAVE_FILE) then
@@ -822,16 +825,145 @@ local function getMainWindowFrame()
     return win and win.UIElements and win.UIElements.Main
 end
 
-local function ensureBackgroundImage()
+-- 把原来的纯色窗口改成玻璃质感。不是滑块控制 UI 透明度，只是为了让背景能像夜脚本那样透出来。
+local function applyNightGlass()
+    local main = getMainWindowFrame()
+    if not main then return end
+
+    pcall(function()
+        main.ClipsDescendants = true
+        if main.BackgroundTransparency < 0.18 then
+            main.BackgroundTransparency = 0.18
+        end
+    end)
+
+    task.delay(0.2, function()
+        local main2 = getMainWindowFrame()
+        if not main2 then return end
+
+        for _, obj in ipairs(main2:GetDescendants()) do
+            if obj ~= BackgroundLayer
+                and not obj:IsDescendantOf(BackgroundLayer or main2)
+            then
+                -- 保留文字/按钮可读性，只轻微玻璃化较大的背景容器。
+            end
+        end
+
+        for _, obj in ipairs(main2:GetDescendants()) do
+            if obj:IsA("Frame") and obj.Name ~= "SutureBackgroundLayer" and obj.Name ~= "SutureGlowFolder" then
+                local size = obj.AbsoluteSize
+                if size.X >= 100 and size.Y >= 30 then
+                    pcall(function()
+                        if obj.BackgroundTransparency < 0.28 then
+                            obj.BackgroundTransparency = 0.28
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+local function bringContentAboveBackground()
+    local main = getMainWindowFrame()
+    if not main then return end
+
+    for _, obj in ipairs(main:GetDescendants()) do
+        if obj ~= BackgroundLayer and not obj:IsDescendantOf(BackgroundLayer or main) then
+            -- 占位，下面的循环负责处理
+        end
+    end
+
+    for _, obj in ipairs(main:GetDescendants()) do
+        if BackgroundLayer and obj:IsDescendantOf(BackgroundLayer) then
+            continue
+        end
+
+        if obj:IsA("GuiObject") then
+            pcall(function()
+                if obj.ZIndex < 5 then
+                    obj.ZIndex = 5
+                end
+            end)
+        elseif obj:IsA("UIStroke") then
+            pcall(function()
+                obj.ZIndex = 6
+            end)
+        end
+    end
+end
+
+local function createGlowBall(parent, index)
+    local TweenService = game:GetService("TweenService")
+
+    local ball = Instance.new("Frame")
+    ball.Name = "GlowBall_" .. tostring(index)
+    local size = math.random(70, 150)
+    ball.Size = UDim2.new(0, size, 0, size)
+    ball.Position = UDim2.new(math.random(-15, 100) / 100, 0, math.random(-15, 100) / 100, 0)
+    ball.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ball.BackgroundTransparency = 0.78
+    ball.BorderSizePixel = 0
+    ball.ZIndex = 1
+    ball.Parent = parent
+
+    Instance.new("UICorner", ball).CornerRadius = UDim.new(1, 0)
+
+    local gradient = Instance.new("UIGradient")
+    gradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromHSV(math.random(), 0.55, 1)),
+        ColorSequenceKeypoint.new(1, Color3.fromHSV(math.random(), 0.55, 1))
+    })
+    gradient.Rotation = math.random(0, 360)
+    gradient.Parent = ball
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Transparency = 0.72
+    stroke.Color = Color3.fromHSV(math.random(), 0.9, 1)
+    stroke.Parent = ball
+
+    task.spawn(function()
+        while ball.Parent do
+            local tween = TweenService:Create(
+                ball,
+                TweenInfo.new(math.random(5, 9), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+                {
+                    Position = UDim2.new(
+                        math.random(-10, 100) / 100,
+                        math.random(-40, 40),
+                        math.random(-10, 100) / 100,
+                        math.random(-40, 40)
+                    ),
+                    BackgroundTransparency = math.random(78, 88) / 100
+                }
+            )
+            tween:Play()
+            tween.Completed:Wait()
+        end
+    end)
+end
+
+local function ensureBackgroundLayer()
     local main = getMainWindowFrame()
     if not main then return nil end
 
-    if BackgroundImageLabel and BackgroundImageLabel.Parent == main then
-        return BackgroundImageLabel
+    if BackgroundLayer and BackgroundLayer.Parent == main then
+        return BackgroundLayer
     end
 
-    local old = main:FindFirstChild("SutureCustomBackground")
+    local old = main:FindFirstChild("SutureBackgroundLayer")
     if old then old:Destroy() end
+
+    local layer = Instance.new("Frame")
+    layer.Name = "SutureBackgroundLayer"
+    layer.Size = UDim2.new(1, 0, 1, 0)
+    layer.Position = UDim2.new(0, 0, 0, 0)
+    layer.BackgroundTransparency = 1
+    layer.BorderSizePixel = 0
+    layer.ClipsDescendants = true
+    layer.ZIndex = 0
+    layer.Parent = main
 
     local img = Instance.new("ImageLabel")
     img.Name = "SutureCustomBackground"
@@ -843,10 +975,41 @@ local function ensureBackgroundImage()
     img.Active = false
     img.Selectable = false
     img.ZIndex = 0
-    img.Parent = main
+    img.Parent = layer
 
+    local dim = Instance.new("Frame")
+    dim.Name = "SutureBackgroundDim"
+    dim.Size = UDim2.new(1, 0, 1, 0)
+    dim.Position = UDim2.new(0, 0, 0, 0)
+    dim.BorderSizePixel = 0
+    dim.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+    dim.BackgroundTransparency = 0.62
+    dim.ZIndex = 1
+    dim.Parent = layer
+
+    local glow = Instance.new("Frame")
+    glow.Name = "SutureGlowFolder"
+    glow.Size = UDim2.new(1, 0, 1, 0)
+    glow.Position = UDim2.new(0, 0, 0, 0)
+    glow.BackgroundTransparency = 1
+    glow.BorderSizePixel = 0
+    glow.ClipsDescendants = true
+    glow.ZIndex = 1
+    glow.Parent = layer
+
+    for i = 1, 8 do
+        createGlowBall(glow, i)
+    end
+
+    BackgroundLayer = layer
     BackgroundImageLabel = img
-    return img
+    BackgroundDim = dim
+    GlowFolder = glow
+
+    applyNightGlass()
+    bringContentAboveBackground()
+
+    return layer
 end
 
 local function setBackgroundImage(path)
@@ -869,14 +1032,14 @@ local function setBackgroundImage(path)
         end
     end
 
-    local img = ensureBackgroundImage()
-    if not img then
+    local layer = ensureBackgroundLayer()
+    if not layer or not BackgroundImageLabel then
         notify("背景图片", "找不到主窗口", "triangle-alert", 2)
         return
     end
 
-    img.Image = imageSource
-    img.ImageTransparency = BackgroundImageAlpha
+    BackgroundImageLabel.Image = imageSource
+    BackgroundImageLabel.ImageTransparency = BackgroundImageAlpha
     BackgroundImagePath = path
 
     pcall(function()
@@ -885,11 +1048,11 @@ local function setBackgroundImage(path)
         end
     end)
 
-    notify("背景图片", "已应用", "check", 2)
+    notify("背景图片", "已应用夜风格背景", "check", 2)
 end
 
 local function setBackgroundImageAlpha(alpha)
-    BackgroundImageAlpha = math.clamp(tonumber(alpha) or 0.35, 0, 1)
+    BackgroundImageAlpha = math.clamp(tonumber(alpha) or 0.15, 0, 1)
 
     if BackgroundImageLabel then
         BackgroundImageLabel.ImageTransparency = BackgroundImageAlpha
@@ -917,8 +1080,8 @@ settingsTab:Input({
 })
 
 settingsTab:Button({
-    Title = "应用背景图片",
-    Desc = "从 /storage/emulated/0/Delta/Workspace/ 读取图片",
+    Title = "应用夜风格背景",
+    Desc = "图片 + 柔光球 + 玻璃窗口，效果更接近夜脚本",
     Icon = "image",
     Callback = function()
         setBackgroundImage(BackgroundImagePath)
@@ -927,7 +1090,7 @@ settingsTab:Button({
 
 settingsTab:Slider({
     Title = "背景图透明度",
-    Desc = "只控制背景图片透明度，不改变UI本身透明度",
+    Desc = "只控制图片本身透明度；0最清楚，1完全透明",
     Step = 0.05,
     Value = {
         Min = 0,
@@ -941,12 +1104,15 @@ settingsTab:Slider({
 
 settingsTab:Button({
     Title = "移除背景图片",
-    Desc = "只移除图片，不影响彩色外框和主题",
+    Desc = "移除图片和柔光球，不影响彩色外框和主题",
     Icon = "trash-2",
     Callback = function()
-        if BackgroundImageLabel then
-            BackgroundImageLabel:Destroy()
+        if BackgroundLayer then
+            BackgroundLayer:Destroy()
+            BackgroundLayer = nil
             BackgroundImageLabel = nil
+            BackgroundDim = nil
+            GlowFolder = nil
         end
         BackgroundImagePath = ""
         pcall(function()
