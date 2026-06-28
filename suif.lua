@@ -219,6 +219,62 @@ local function feedbackNotify(title, content, icon, duration)
     notify(title, content, icon, duration)
 end
 
+-- 隐藏反馈模块在左侧 Tab 列表里生成的入口，只保留顶栏 [反馈]
+local function hideFeedbackSidebarTab()
+    local main = win.UIElements and win.UIElements.Main
+    if not main then return end
+
+    local sidebarLimit = main.AbsolutePosition.X + 240
+
+    local function isFeedbackText(obj)
+        if not (obj:IsA("TextLabel") or obj:IsA("TextButton")) then
+            return false
+        end
+
+        local text = tostring(obj.Text or "")
+        text = text:gsub("%s+", "")
+        return text == "反馈" or text == "[反馈]"
+    end
+
+    local function hideRowFromText(textObj)
+        -- 只处理左侧栏里的“反馈”，避免误隐藏右上角顶栏 [反馈]
+        if textObj.AbsolutePosition.X > sidebarLimit then
+            return
+        end
+
+        local node = textObj
+        local candidate = textObj
+
+        for _ = 1, 8 do
+            if not node or node == main then break end
+
+            if node:IsA("TextButton") or node:IsA("Frame") then
+                candidate = node
+            end
+
+            local parent = node.Parent
+            if parent and parent:FindFirstChildOfClass("UIListLayout") then
+                candidate = node
+                break
+            end
+
+            node = parent
+        end
+
+        if candidate and candidate ~= main then
+            candidate.Visible = false
+            candidate.Size = UDim2.new(0, 0, 0, 0)
+            candidate.Name = "HiddenFeedbackSidebarTab"
+        end
+    end
+
+    for _, obj in ipairs(main:GetDescendants()) do
+        if isFeedbackText(obj) then
+            hideRowFromText(obj)
+        end
+    end
+end
+
 getgenv().SutureHubFeedback = {
     API = "https://suture-feedback.sfbdsl666.workers.dev/",
     WindUI = WindUI,
@@ -239,6 +295,11 @@ task.spawn(function()
 
         fn()
     end)
+
+    -- 反馈远程模块可能会异步创建 Tab，多补几次隐藏左侧入口
+    for i = 1, 8 do
+        task.delay(i * 0.25, hideFeedbackSidebarTab)
+    end
 
     if not ok then
         warn("反馈模块加载失败:", err)
