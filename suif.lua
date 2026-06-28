@@ -95,6 +95,63 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
+--// Suture Hub 彩色外框｜轻量版
+--// 只给 WindUI 主窗口加 UIStroke + UIGradient，不扫描 workspace
+
+task.delay(0.3, function()
+    local ok, err = pcall(function()
+        local runService = game:GetService("RunService")
+        local main = win.UIElements and win.UIElements.Main
+        if not main then
+            warn("彩色外框：未找到 win.UIElements.Main")
+            return
+        end
+
+        local old = main:FindFirstChild("SutureRainbowBorder")
+        if old then
+            old:Destroy()
+        end
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Name = "SutureRainbowBorder"
+        stroke.Thickness = 3
+        stroke.Color = Color3.new(1, 1, 1)
+        stroke.Transparency = 0
+        stroke.LineJoinMode = Enum.LineJoinMode.Round
+        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        stroke.Parent = main
+
+        local gradient = Instance.new("UIGradient")
+        gradient.Name = "SutureRainbowGradient"
+        gradient.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 255, 0)),
+            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
+            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
+            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
+        })
+        gradient.Parent = stroke
+
+        getgenv().SutureRainbowBorderToken = (getgenv().SutureRainbowBorderToken or 0) + 1
+        local token = getgenv().SutureRainbowBorderToken
+        local angle = 0
+
+        runService.RenderStepped:Connect(function(dt)
+            if getgenv().SutureRainbowBorderToken ~= token then return end
+            if not gradient.Parent then return end
+            angle = (angle + dt * 100) % 360
+            gradient.Rotation = angle
+        end)
+    end)
+
+    if not ok then
+        warn("彩色外框加载失败:", err)
+    end
+end)
+
+
 local dialog
 dialog = win:Dialog({
     Icon = "megaphone", Title = "公告", Content = "写什么。。是个问题",
@@ -256,7 +313,8 @@ task.spawn(function()
         if MoveCfg.Lock then
             applyMovement()
         end
-        task.wait(0.25)
+        -- 优化：原来 0.25 秒一次，低端设备容易造成 UI 动画卡顿
+        task.wait(1)
     end
 end)
 
@@ -488,7 +546,8 @@ task.spawn(function()
         if getgenv().InstantInteract then
             scanInstantPrompts(true)
         end
-        task.wait(0.5)
+        -- 优化：即时互动开启后才扫描，扫描间隔从 0.5 秒改为 2 秒
+        task.wait(2)
     end
 end)
 
@@ -638,8 +697,19 @@ wqkTab:Button({
     end
 })
 
---无限旅馆
-loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"))().CreateUI(wxlgTab)
+-- 无限旅馆：延迟加载，避免 WindUI 刚创建时卡顿
+task.delay(1, function()
+    local ok, err = pcall(function()
+        local mod = loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"))()
+        if mod and mod.CreateUI then
+            mod.CreateUI(wxlgTab)
+        end
+    end)
+
+    if not ok then
+        warn("无限旅馆模块加载失败:", err)
+    end
+end)
 --------
 
 fescriptTab:Button({
