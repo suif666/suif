@@ -43,6 +43,7 @@ end
 local function copy(text, msg)
     if setclipboard then
         setclipboard(text)
+        notify("复制成功", msg or "内容已复制", "check", 2)
     else
         warn("复制失败：当前环境不支持 setclipboard")
     end
@@ -62,6 +63,7 @@ local function run(url, name)
         notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
     else
         warn("执行失败: " .. tostring(err))
+        notify("执行失败", name or "脚本", "triangle-alert", 2)
     end
 end
 
@@ -70,6 +72,7 @@ local function getHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
+notify("Suture Hub", "正在加载...", "bird", 1.5)
 
 if not getgenv().SutureHubAntiAFK then
     getgenv().SutureHubAntiAFK = true
@@ -93,64 +96,7 @@ local win = WindUI:CreateWindow({
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
-
---// Suture Hub 彩色外框｜轻量版
---// 只给 WindUI 主窗口加 UIStroke + UIGradient，不扫描 workspace
-
-task.delay(0.3, function()
-    local ok, err = pcall(function()
-        local runService = game:GetService("RunService")
-        local main = win.UIElements and win.UIElements.Main
-        if not main then
-            warn("彩色外框：未找到 win.UIElements.Main")
-            return
-        end
-
-        local old = main:FindFirstChild("SutureRainbowBorder")
-        if old then
-            old:Destroy()
-        end
-
-        local stroke = Instance.new("UIStroke")
-        stroke.Name = "SutureRainbowBorder"
-        stroke.Thickness = 3
-        stroke.Color = Color3.new(1, 1, 1)
-        stroke.Transparency = 0
-        stroke.LineJoinMode = Enum.LineJoinMode.Round
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        stroke.Parent = main
-
-        local gradient = Instance.new("UIGradient")
-        gradient.Name = "SutureRainbowGradient"
-        gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 255, 0)),
-            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
-            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
-            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
-            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
-        })
-        gradient.Parent = stroke
-
-        getgenv().SutureRainbowBorderToken = (getgenv().SutureRainbowBorderToken or 0) + 1
-        local token = getgenv().SutureRainbowBorderToken
-        local angle = 0
-
-        runService.RenderStepped:Connect(function(dt)
-            if getgenv().SutureRainbowBorderToken ~= token then return end
-            if not gradient.Parent then return end
-            angle = (angle + dt * 100) % 360
-            gradient.Rotation = angle
-        end)
-    end)
-
-    if not ok then
-        warn("彩色外框加载失败:", err)
-    end
-end)
-
+win:Tag({ Title = "v1.0.0", Icon = "github", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
 local dialog
 dialog = win:Dialog({
@@ -174,18 +120,20 @@ end)
 
 -- tabs
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
+local aboutTab = win:Tab({ Title = "关于", Icon = "info", Locked = false })
 
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
-local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = false })
-local tyscriptTab = funcSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
 
+local visSec = win:Section({ Title = "视觉", Icon = "folder", Opened = false })
+local visualTab = visSec:Tab({ Title = "高亮类", Icon = "eye", Locked = false })
 
-local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
-local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
+local tyscriptTab = win:Tab({ Title = "通用", Icon = "folder", Opened = false })
+
+local scriptSec = win:Section({ Title = "缝合脚本", Icon = "folder", Opened = false })
 local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
 local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
 local stgTab = scriptSec:Tab({ Title = "死铁轨", Icon = "shell", Locked = false })
@@ -194,59 +142,122 @@ local fkgsTab = scriptSec:Tab({ Title = "方块故事", Icon = "shell", Locked =
 local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked = false })
 local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
-local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
 
+local fescriptTab = win:Tab({ Title = "Fe脚本", Icon = "folder", Opened = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
--- WindUI 原生顶栏反馈入口
+-- WindUI 独立反馈窗口模块：主脚本只保留配置和加载
 local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
-
--- 屏蔽“执行脚本时反馈模块自己弹出的加载通知”
--- 但保留用户真正发送反馈时可能需要的成功/失败提示
-local function feedbackNotify(title, content, icon, duration)
-    local msg = tostring(title or "") .. " " .. tostring(content or "")
-
-    if msg:find("加载", 1, true)
-        or msg:find("初始化", 1, true)
-        or msg:find("入口", 1, true)
-        or msg:find("已启动", 1, true)
-        or msg:find("已就绪", 1, true)
-    then
-        warn("已屏蔽反馈启动通知:", msg)
-        return
-    end
-
-    notify(title, content, icon, duration)
-end
 
 getgenv().SutureHubFeedback = {
     API = "https://suture-feedback.sfbdsl666.workers.dev/",
     WindUI = WindUI,
     Window = win,
-    Notify = feedbackNotify
+    Notify = notify
 }
 
 task.spawn(function()
     task.wait(0.5)
 
     local ok, err = pcall(function()
-        local src = game:HttpGet(FeedbackURL)
-        local fn, loadErr = loadstring(src)
-
+        local source = game:HttpGet(FeedbackURL)
+        local fn, compileErr = loadstring(source)
         if not fn then
-            error(loadErr)
+            error(compileErr)
         end
-
         fn()
     end)
 
     if not ok then
-        warn("反馈模块加载失败:", err)
+        notify("反馈模块", "加载失败: " .. tostring(err), "triangle-alert", 4)
     end
 end)
 
 
--- 物品高亮按钮版已删除，当前使用下方 wxlgTab 的远程 CreateUI 入口
+local ItemHighlightURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"
+
+local ItemHighlightLib = nil
+
+local function getItemHighlightLib()
+    if ItemHighlightLib then
+        return ItemHighlightLib
+    end
+
+    local ok, res = pcall(function()
+        return loadstring(game:HttpGet(ItemHighlightURL))()
+    end)
+
+    if ok and type(res) == "table" and res.Set then
+        ItemHighlightLib = res
+        return ItemHighlightLib
+    else
+        warn("物品高亮加载失败:", res)
+        notify("物品高亮", "加载失败", "triangle-alert", 3)
+        return nil
+    end
+end
+
+local itemHLSection = win:Section({
+    Title = "物品高亮",
+    Icon = "eye",
+    Opened = false
+})
+
+local itemHLTab = itemHLSection:Tab({
+    Title = "高亮开关",
+    Icon = "eye",
+    Locked = false
+})
+
+local function addItemToggle(title, key, desc)
+    itemHLTab:Toggle({
+        Title = title,
+        Desc = desc or "",
+        Icon = "eye",
+        Type = "Checkbox",
+        Value = false,
+        Callback = function(state)
+            local lib = getItemHighlightLib()
+            if not lib then return end
+
+            lib.Set(key, state)
+
+            notify(
+                title,
+                state and "已开启" or "已关闭",
+                state and "eye" or "eye-off",
+                2
+            )
+        end
+    })
+end
+
+addItemToggle("柜子高亮", "Cabinet", "HideTansu")
+addItemToggle("箱子高亮", "Box", "OfudaBox2.BoxBottom")
+addItemToggle("保险柜高亮", "Safe", "safe_Safe")
+addItemToggle("提示纸高亮", "HintPaper", "HintPaper")
+addItemToggle("邪恶房间高亮", "EvilRoom", "hanging scroll_base")
+addItemToggle("洋娃娃高亮", "Doll", "DollHead + DollTorso")
+addItemToggle("洋娃娃头高亮", "DollBlackHead", "DollBlackHead")
+addItemToggle("桌子高亮", "Table", "Zataku")
+addItemToggle("盘子高亮", "Dish", "Dish")
+addItemToggle("电视机高亮", "TV", "base0 + base02 + Point1")
+addItemToggle("打火机高亮", "Lighter", "oil + metal01")
+addItemToggle("祭祀高亮", "Sacrifice", "dirty sheet")
+addItemToggle("密码箱高亮", "PasswordBox", "base + rope")
+
+itemHLTab:Button({
+    Title = "关闭全部高亮",
+    Desc = "关闭所有物品高亮",
+    Icon = "eye-off",
+    Callback = function()
+        local lib = getItemHighlightLib()
+        if lib and lib.DisableAll then
+            lib.DisableAll()
+            notify("物品高亮", "已关闭全部", "eye-off", 2)
+        end
+    end
+})
 
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
@@ -272,118 +283,32 @@ end
 
 task.spawn(updateCount)
 
--- 玩家：稳定版速度 / 跳跃
-getgenv().SutureMoveCfg = getgenv().SutureMoveCfg or {
-    WalkSpeed = 16,
-    JumpPower = 50,
-    Lock = true
-}
-
-local MoveCfg = getgenv().SutureMoveCfg
-
-local function applyMovementToHumanoid(h)
-    if not h or not h.Parent then return end
-
-    pcall(function()
-        if h.WalkSpeed ~= MoveCfg.WalkSpeed then
-            h.WalkSpeed = MoveCfg.WalkSpeed
-        end
-    end)
-
-    pcall(function()
-        h.UseJumpPower = true
-        if h.JumpPower ~= MoveCfg.JumpPower then
-            h.JumpPower = MoveCfg.JumpPower
-        end
-    end)
-end
-
-local function applyMovement()
-    local h = getHum()
-    if h then
-        applyMovementToHumanoid(h)
-    end
-end
-
-getgenv().SutureMoveToken = (getgenv().SutureMoveToken or 0) + 1
-local MoveToken = getgenv().SutureMoveToken
-
-task.spawn(function()
-    while getgenv().SutureMoveToken == MoveToken do
-        if MoveCfg.Lock then
-            applyMovement()
-        end
-        -- 优化：原来 0.25 秒一次，低端设备容易造成 UI 动画卡顿
-        task.wait(1)
-    end
-end)
-
-lp.CharacterAdded:Connect(function(char)
-    task.spawn(function()
-        local h = char:WaitForChild("Humanoid", 8)
-        if h then
-            task.wait(0.2)
-            applyMovementToHumanoid(h)
-        end
-    end)
-end)
-
+-- 玩家
 playerTab:Slider({
-    Title = "移动速度",
-    Desc = "修改并锁定 WalkSpeed，防止被游戏重置",
-    Step = 1,
-    Value = { Min = 16, Max = 100, Default = MoveCfg.WalkSpeed or 16 },
-    Callback = function(v)
-        MoveCfg.WalkSpeed = tonumber(v) or 16
-        applyMovement()
-    end
+    Title = "移动速度", Desc = "修改 WalkSpeed", Step = 1,
+    Value = { Min = 16, Max = 100, Default = 16 },
+    Callback = function(v) local h = getHum() if h then h.WalkSpeed = v end end
 })
-
 playerTab:Slider({
-    Title = "跳跃高度",
-    Desc = "修改并锁定 JumpPower，防止被游戏重置",
-    Step = 1,
-    Value = { Min = 50, Max = 200, Default = MoveCfg.JumpPower or 50 },
-    Callback = function(v)
-        MoveCfg.JumpPower = tonumber(v) or 50
-        applyMovement()
-    end
+    Title = "跳跃高度", Desc = "修改 JumpPower", Step = 1,
+    Value = { Min = 50, Max = 200, Default = 50 },
+    Callback = function(v) local h = getHum() if h then h.UseJumpPower = true h.JumpPower = v end end
 })
-
-playerTab:Toggle({
-    Title = "锁定速度跳跃",
-    Desc = "开启后会持续维持上面的速度和跳跃数值",
-    Icon = "lock",
-    Type = "Checkbox",
-    Value = MoveCfg.Lock,
-    Callback = function(s)
-        MoveCfg.Lock = s
-        if s then
-            applyMovement()
-        end
-    end
-})
-
 playerTab:Button({
-    Title = "恢复默认属性",
-    Desc = "恢复默认速度和跳跃，并继续锁定默认值",
-    Callback = function()
-        MoveCfg.WalkSpeed = 16
-        MoveCfg.JumpPower = 50
-        MoveCfg.Lock = true
-        applyMovement()
-    end
-})
-
-playerTab:Button({
-    Title = "重置角色",
-    Desc = "让自己的角色重生",
+    Title = "恢复默认属性", Desc = "恢复默认速度和跳跃",
     Callback = function()
         local h = getHum()
         if h then
-            h.Health = 0
+            h.WalkSpeed = 16
+            h.UseJumpPower = true
+            h.JumpPower = 50
         end
+        notify("恢复成功", "已恢复默认", "check", 2)
     end
+})
+playerTab:Button({
+    Title = "重置角色", Desc = "让自己的角色重生",
+    Callback = function() local h = getHum() if h then h.Health = 0 end end
 })
 
 fyTab:Button({
@@ -429,6 +354,7 @@ visualTab:Toggle({
     Callback = function(s)
         fb.Enabled = s
         applyFB()
+        notify("高亮环境", s and "已开启" or "已关闭", s and "sun" or "moon", 1.5)
     end
 })
 visualTab:Slider({
@@ -457,6 +383,7 @@ visualTab:Button({
         fb.FogEnd = 100000
         fb.Shadows = false
         applyFB()
+        notify("恢复成功", "已恢复执行前光照", "check", 2)
     end
 })
 
@@ -466,11 +393,12 @@ toolTab:Button({
     Callback = function() teleport:Teleport(game.PlaceId, lp) end
 })
 
--- 即时互动：稳定版，支持新生成交互、循环补锁、关闭后恢复原值
+-- 即时互动：开启时记录原始交互时间，关闭时恢复原值
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
+
 local PromptHoldCache = getgenv().SutureHubPromptHoldCache
 
--- 重新执行脚本时，先恢复上一次留下的 0 秒交互，避免状态错乱
+-- 重新执行脚本时，先把上一次即时互动留下的 0 秒交互恢复，避免 UI 显示关闭但实际仍开启
 for prompt, oldHold in pairs(PromptHoldCache) do
     if typeof(prompt) == "Instance" and prompt:IsA("ProximityPrompt") and oldHold ~= nil then
         pcall(function()
@@ -489,9 +417,7 @@ local function setInstantPrompt(prompt)
         PromptHoldCache[prompt] = prompt.HoldDuration
     end
 
-    if prompt.HoldDuration ~= 0 then
-        prompt.HoldDuration = 0
-    end
+    prompt.HoldDuration = 0
 end
 
 local function restorePrompt(prompt)
@@ -499,14 +425,14 @@ local function restorePrompt(prompt)
 
     local oldHold = PromptHoldCache[prompt]
     if oldHold ~= nil then
-        pcall(function()
-            prompt.HoldDuration = oldHold
-        end)
+        prompt.HoldDuration = oldHold
         PromptHoldCache[prompt] = nil
     end
 end
 
-local function scanInstantPrompts(state)
+local function applyInstantInteract(state)
+    getgenv().InstantInteract = state
+
     for _, v in ipairs(workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") then
             if state then
@@ -518,47 +444,14 @@ local function scanInstantPrompts(state)
     end
 end
 
-local function applyInstantInteract(state)
-    getgenv().InstantInteract = state
-    scanInstantPrompts(state)
-end
-
-if getgenv().SuturePromptAddedConn then
-    pcall(function()
-        getgenv().SuturePromptAddedConn:Disconnect()
-    end)
-    getgenv().SuturePromptAddedConn = nil
-end
-
-getgenv().SuturePromptAddedConn = workspace.DescendantAdded:Connect(function(v)
-    if getgenv().InstantInteract and v:IsA("ProximityPrompt") then
-        task.defer(function()
-            setInstantPrompt(v)
-        end)
-    end
-end)
-
-getgenv().SuturePromptToken = (getgenv().SuturePromptToken or 0) + 1
-local PromptToken = getgenv().SuturePromptToken
-
-task.spawn(function()
-    while getgenv().SuturePromptToken == PromptToken do
-        if getgenv().InstantInteract then
-            scanInstantPrompts(true)
-        end
-        -- 优化：即时互动开启后才扫描，扫描间隔从 0.5 秒改为 2 秒
-        task.wait(2)
-    end
-end)
-
 toolTab:Toggle({
     Title = "即时互动",
-    Desc = "开启后无需按住，自动补锁新交互，关闭后恢复原值",
+    Desc = "开启后无需按住，关闭后恢复原交互时间",
     Icon = "zap",
-    Type = "Checkbox",
     Value = false,
     Callback = function(s)
         applyInstantInteract(s)
+        notify("快速互动", s and "已开启" or "已关闭并恢复", "zap", 1.5)
     end
 })
 
@@ -592,7 +485,7 @@ doorsTab:Button({
     Icon = "shell",
     Callback = function()
         getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
-        run("https://api.jnkie.com/api//luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download", "Doors 脚本")
+        run("https://api.jnkie.com/api/v1/luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download", "Doors 脚本")
     end
 })
 
@@ -604,6 +497,7 @@ doorsTab:Button({
         local link = "https://www.mspaint.cc/key"
         if setclipboard then
             setclipboard(link)
+            notify("mspaint", "已自动复制解卡链接", "check", 2)
         else
             warn("复制失败：当前环境不支持复制链接")
         end
@@ -637,11 +531,13 @@ doorsTab:Button({
     Title = "复制 Doors 刷复活脚本", Desc = "根据上面的参数生成脚本并复制", Icon = "copy",
     Callback = function()
         if reviveCfg.MainAccount == "" or reviveCfg.AltAccount == "" then
+            notify("缺少参数", "请先填写账号名", "triangle-alert", 2)
             return
         end
         local scriptText = 'MainAccount = ' .. luaStr(reviveCfg.MainAccount) .. ' -- 主号用户名\nAltAccount = ' .. luaStr(reviveCfg.AltAccount) .. ' -- 小号用户名\n\nDuplicationAmount = ' .. tostring(reviveCfg.DuplicationAmount) .. '\nloadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/refs/heads/main/doors/revives.lua"))()'
         if setclipboard then
             setclipboard(scriptText)
+            notify("复制成功", "脚本已复制到剪贴板", "check", 2)
         else
             warn("复制失败：环境不支持，已输出至控制台")
             print(scriptText)
@@ -661,7 +557,7 @@ stgTab:Button({
 
 stgTab:Button({
     Title = "ringta", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
+    Callback = function() run("https://raw.githubusercontent.com/erewe23/deadrailsring.github.io/refs/heads/main/ringta.lua", "死铁轨ringta") end
 })
 
 slTab:Button({
@@ -696,21 +592,6 @@ wqkTab:Button({
         run("https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua", "武器库")
     end
 })
-
--- 无限旅馆：延迟加载，避免 WindUI 刚创建时卡顿
-task.delay(1, function()
-    local ok, err = pcall(function()
-        local mod = loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"))()
-        if mod and mod.CreateUI then
-            mod.CreateUI(wxlgTab)
-        end
-    end)
-
-    if not ok then
-        warn("无限旅馆模块加载失败:", err)
-    end
-end)
---------
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
@@ -774,362 +655,83 @@ settingsTab:Dropdown({
         local real = themeMap[name]
         uiSet.Theme = real
         if WindUI.SetTheme then WindUI:SetTheme(real) elseif win.SetTheme then win:SetTheme(real) end
+        notify("主题切换", "当前：" .. name, "palette", 2)
     end
 })
 
-
---// 夜脚本风格背景｜本地图片 + 玻璃背景 + 柔光球
---// 图片默认目录：/storage/emulated/0/Delta/Workspace/
-local BG_BASE_PATH = "/storage/emulated/0/Delta/Workspace/"
-local BG_SAVE_FILE = "SutureHub_BackgroundPath.txt"
-local BG_ALPHA_FILE = "SutureHub_BackgroundAlpha.txt"
-
-local BackgroundImagePath = ""
-local BackgroundImageAlpha = 0.15 -- 数值越小图片越清楚，0=完全清楚
-local BackgroundLayer = nil
-local BackgroundImageLabel = nil
-local BackgroundDim = nil
-local GlowFolder = nil
-
-pcall(function()
-    if isfile and isfile(BG_SAVE_FILE) then
-        BackgroundImagePath = tostring(readfile(BG_SAVE_FILE) or "")
-    end
-end)
-
-pcall(function()
-    if isfile and isfile(BG_ALPHA_FILE) then
-        local savedAlpha = tonumber(readfile(BG_ALPHA_FILE))
-        if savedAlpha then
-            BackgroundImageAlpha = math.clamp(savedAlpha, 0, 1)
-        end
-    end
-end)
-
-local function normalizeBackgroundPath(path)
-    path = tostring(path or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if path == "" then return "" end
-
-    if path:match("^rbxassetid://") or path:match("^http://") or path:match("^https://") then
-        return path
-    end
-
-    if path:sub(1, 1) == "/" then
-        return path
-    end
-
-    return BG_BASE_PATH .. path
-end
-
-local function getMainWindowFrame()
-    return win and win.UIElements and win.UIElements.Main
-end
-
--- 把原来的纯色窗口改成玻璃质感。不是滑块控制 UI 透明度，只是为了让背景能像夜脚本那样透出来。
-local function applyNightGlass()
-    local main = getMainWindowFrame()
-    if not main then return end
-
-    pcall(function()
-        main.ClipsDescendants = true
-        if main.BackgroundTransparency < 0.18 then
-            main.BackgroundTransparency = 0.18
-        end
-    end)
-
-    task.delay(0.2, function()
-        local main2 = getMainWindowFrame()
-        if not main2 then return end
-
-        for _, obj in ipairs(main2:GetDescendants()) do
-            if obj ~= BackgroundLayer
-                and not obj:IsDescendantOf(BackgroundLayer or main2)
-            then
-                -- 保留文字/按钮可读性，只轻微玻璃化较大的背景容器。
-            end
-        end
-
-        for _, obj in ipairs(main2:GetDescendants()) do
-            if obj:IsA("Frame") and obj.Name ~= "SutureBackgroundLayer" and obj.Name ~= "SutureGlowFolder" then
-                local size = obj.AbsoluteSize
-                if size.X >= 100 and size.Y >= 30 then
-                    pcall(function()
-                        if obj.BackgroundTransparency < 0.28 then
-                            obj.BackgroundTransparency = 0.28
-                        end
-                    end)
-                end
-            end
-        end
-    end)
-end
-
-local function bringContentAboveBackground()
-    local main = getMainWindowFrame()
-    if not main then return end
-
-    for _, obj in ipairs(main:GetDescendants()) do
-        if obj ~= BackgroundLayer and not obj:IsDescendantOf(BackgroundLayer or main) then
-            -- 占位，下面的循环负责处理
-        end
-    end
-
-    for _, obj in ipairs(main:GetDescendants()) do
-        if BackgroundLayer and obj:IsDescendantOf(BackgroundLayer) then
-            continue
-        end
-
-        if obj:IsA("GuiObject") then
-            pcall(function()
-                if obj.ZIndex < 5 then
-                    obj.ZIndex = 5
-                end
-            end)
-        elseif obj:IsA("UIStroke") then
-            pcall(function()
-                obj.ZIndex = 6
-            end)
-        end
-    end
-end
-
-local function createGlowBall(parent, index)
-    local TweenService = game:GetService("TweenService")
-
-    local ball = Instance.new("Frame")
-    ball.Name = "GlowBall_" .. tostring(index)
-    local size = math.random(70, 150)
-    ball.Size = UDim2.new(0, size, 0, size)
-    ball.Position = UDim2.new(math.random(-15, 100) / 100, 0, math.random(-15, 100) / 100, 0)
-    ball.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ball.BackgroundTransparency = 0.78
-    ball.BorderSizePixel = 0
-    ball.ZIndex = 1
-    ball.Parent = parent
-
-    Instance.new("UICorner", ball).CornerRadius = UDim.new(1, 0)
-
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromHSV(math.random(), 0.55, 1)),
-        ColorSequenceKeypoint.new(1, Color3.fromHSV(math.random(), 0.55, 1))
-    })
-    gradient.Rotation = math.random(0, 360)
-    gradient.Parent = ball
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 1.5
-    stroke.Transparency = 0.72
-    stroke.Color = Color3.fromHSV(math.random(), 0.9, 1)
-    stroke.Parent = ball
-
-    task.spawn(function()
-        while ball.Parent do
-            local tween = TweenService:Create(
-                ball,
-                TweenInfo.new(math.random(5, 9), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
-                {
-                    Position = UDim2.new(
-                        math.random(-10, 100) / 100,
-                        math.random(-40, 40),
-                        math.random(-10, 100) / 100,
-                        math.random(-40, 40)
-                    ),
-                    BackgroundTransparency = math.random(78, 88) / 100
-                }
-            )
-            tween:Play()
-            tween.Completed:Wait()
-        end
-    end)
-end
-
-local function ensureBackgroundLayer()
-    local main = getMainWindowFrame()
-    if not main then return nil end
-
-    if BackgroundLayer and BackgroundLayer.Parent == main then
-        return BackgroundLayer
-    end
-
-    local old = main:FindFirstChild("SutureBackgroundLayer")
-    if old then old:Destroy() end
-
-    local layer = Instance.new("Frame")
-    layer.Name = "SutureBackgroundLayer"
-    layer.Size = UDim2.new(1, 0, 1, 0)
-    layer.Position = UDim2.new(0, 0, 0, 0)
-    layer.BackgroundTransparency = 1
-    layer.BorderSizePixel = 0
-    layer.ClipsDescendants = true
-    layer.ZIndex = 0
-    layer.Parent = main
-
-    local img = Instance.new("ImageLabel")
-    img.Name = "SutureCustomBackground"
-    img.Size = UDim2.new(1, 0, 1, 0)
-    img.Position = UDim2.new(0, 0, 0, 0)
-    img.BackgroundTransparency = 1
-    img.ImageTransparency = BackgroundImageAlpha
-    img.ScaleType = Enum.ScaleType.Crop
-    img.Active = false
-    img.Selectable = false
-    img.ZIndex = 0
-    img.Parent = layer
-
-    local dim = Instance.new("Frame")
-    dim.Name = "SutureBackgroundDim"
-    dim.Size = UDim2.new(1, 0, 1, 0)
-    dim.Position = UDim2.new(0, 0, 0, 0)
-    dim.BorderSizePixel = 0
-    dim.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-    dim.BackgroundTransparency = 0.62
-    dim.ZIndex = 1
-    dim.Parent = layer
-
-    local glow = Instance.new("Frame")
-    glow.Name = "SutureGlowFolder"
-    glow.Size = UDim2.new(1, 0, 1, 0)
-    glow.Position = UDim2.new(0, 0, 0, 0)
-    glow.BackgroundTransparency = 1
-    glow.BorderSizePixel = 0
-    glow.ClipsDescendants = true
-    glow.ZIndex = 1
-    glow.Parent = layer
-
-    for i = 1, 8 do
-        createGlowBall(glow, i)
-    end
-
-    BackgroundLayer = layer
-    BackgroundImageLabel = img
-    BackgroundDim = dim
-    GlowFolder = glow
-
-    applyNightGlass()
-    bringContentAboveBackground()
-
-    return layer
-end
-
-local function setBackgroundImage(path)
-    path = normalizeBackgroundPath(path)
-    if path == "" then
-        notify("背景图片", "请填写图片文件名或完整路径", "triangle-alert", 2)
-        return
-    end
-
-    local imageSource = path
-
-    if not path:match("^rbxassetid://") and not path:match("^http://") and not path:match("^https://") then
-        if isfile and not isfile(path) then
-            notify("背景图片", "文件不存在：" .. path, "triangle-alert", 3)
-            return
-        end
-
-        if getcustomasset then
-            imageSource = getcustomasset(path)
-        end
-    end
-
-    local layer = ensureBackgroundLayer()
-    if not layer or not BackgroundImageLabel then
-        notify("背景图片", "找不到主窗口", "triangle-alert", 2)
-        return
-    end
-
-    BackgroundImageLabel.Image = imageSource
-    BackgroundImageLabel.ImageTransparency = BackgroundImageAlpha
-    BackgroundImagePath = path
-
-    pcall(function()
-        if writefile then
-            writefile(BG_SAVE_FILE, BackgroundImagePath)
-        end
-    end)
-
-    notify("背景图片", "已应用夜风格背景", "check", 2)
-end
-
-local function setBackgroundImageAlpha(alpha)
-    BackgroundImageAlpha = math.clamp(tonumber(alpha) or 0.15, 0, 1)
-
-    if BackgroundImageLabel then
-        BackgroundImageLabel.ImageTransparency = BackgroundImageAlpha
-    end
-
-    pcall(function()
-        if writefile then
-            writefile(BG_ALPHA_FILE, tostring(BackgroundImageAlpha))
-        end
-    end)
-end
-
-settingsTab:Divider({
-    Title = "背景图片"
+-- 关于
+aboutTab:Button({
+    Title = "复制作者B站链接", Desc = "",
+    Callback = function() copy("https://space.bilibili.com/3493268314655259", "链接已复制") end
 })
-
-settingsTab:Input({
-    Title = "导入背景图片",
-    Desc = "填写文件名即可，例如 bg.png；目录固定为 /storage/emulated/0/Delta/Workspace/",
-    Placeholder = "bg.png",
-    Value = BackgroundImagePath ~= "" and BackgroundImagePath or "",
-    Callback = function(v)
-        BackgroundImagePath = tostring(v or "")
-    end
-})
-
-settingsTab:Button({
-    Title = "应用夜风格背景",
-    Desc = "图片 + 柔光球 + 玻璃窗口，效果更接近夜脚本",
-    Icon = "image",
-    Callback = function()
-        setBackgroundImage(BackgroundImagePath)
-    end
-})
-
-settingsTab:Slider({
-    Title = "背景图透明度",
-    Desc = "只控制图片本身透明度；0最清楚，1完全透明",
-    Step = 0.05,
-    Value = {
-        Min = 0,
-        Max = 1,
-        Default = BackgroundImageAlpha
-    },
-    Callback = function(v)
-        setBackgroundImageAlpha(v)
-    end
-})
-
-settingsTab:Button({
-    Title = "移除背景图片",
-    Desc = "移除图片和柔光球，不影响彩色外框和主题",
-    Icon = "trash-2",
-    Callback = function()
-        if BackgroundLayer then
-            BackgroundLayer:Destroy()
-            BackgroundLayer = nil
-            BackgroundImageLabel = nil
-            BackgroundDim = nil
-            GlowFolder = nil
-        end
-        BackgroundImagePath = ""
-        pcall(function()
-            if writefile then
-                writefile(BG_SAVE_FILE, "")
-            end
-        end)
-        notify("背景图片", "已移除", "check", 2)
-    end
-})
-
--- 自动恢复上次保存的背景图
-if BackgroundImagePath ~= "" then
-    task.delay(1.2, function()
-        setBackgroundImage(BackgroundImagePath)
-    end)
-end
-
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
+
+
+getgenv().SutureHubTitleClockToken = (getgenv().SutureHubTitleClockToken or 0) + 1
+local TitleClockToken = getgenv().SutureHubTitleClockToken
+
+local TitleTimeLabels = {}
+local LastTitleScan = 0
+
+local function isSutureTitleLabel(v)
+    if not v or not v:IsA("TextLabel") then
+        return false
+    end
+
+    local txt = tostring(v.Text or "")
+    if not string.find(txt, "Suture Hub", 1, true) then
+        return false
+    end
+
+    local parent = v.Parent
+    if v.Name == "Description" or v.Name == "Desc" or (parent and parent.Name == "Paragraph") then
+        return false
+    end
+
+    return true
+end
+
+local function scanSutureTitleLabels()
+    local uiContainer = game:GetService("CoreGui") or lp:WaitForChild("PlayerGui")
+
+    for _, v in ipairs(uiContainer:GetDescendants()) do
+        if isSutureTitleLabel(v) then
+            TitleTimeLabels[v] = true
+            if not v.RichText then
+                v.RichText = true
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    scanSutureTitleLabels()
+
+    while getgenv().SutureHubTitleClockToken == TitleClockToken do
+        -- 每 5 秒补扫一次，避免 WindUI 延迟创建标题导致找不到
+        local now = os.clock()
+        if now - LastTitleScan >= 60 then
+            LastTitleScan = now
+            scanSutureTitleLabels()
+        end
+
+        local timeColor = "#00ffff"
+        local timeSize = "12"
+        local timeString = os.date("%H:%M:%S")
+        local fullText = string.format('Suture Hub <font color="%s" size="%s">| %s</font>', timeColor, timeSize, timeString)
+
+        for label in pairs(TitleTimeLabels) do
+            if typeof(label) == "Instance" and label.Parent and label:IsA("TextLabel") then
+                if not label.RichText then
+                    label.RichText = true
+                end
+                label.Text = fullText
+            else
+                TitleTimeLabels[label] = nil
+            end
+        end
+
+        task.wait(1)
+    end
+end)
