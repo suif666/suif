@@ -1,4 +1,4 @@
---// Suture Hub Feedback | WindUI 原生顶栏版
+--// Suture Hub Feedback | 无左侧Tab版
 local cfg = getgenv().SutureHubFeedback or {}
 
 local WindUI = cfg.WindUI
@@ -48,11 +48,13 @@ end
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
-local lp = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 
+local lp = Players.LocalPlayer
 local busy = false
-local FeedbackTab = nil
-local FeedbackText = ""
+local gui
+local panel
+local inputBox
 
 local function requestFunc()
     return (syn and syn.request)
@@ -90,18 +92,19 @@ local function callRequest(method, url, body)
         return false, "当前执行器不支持 request"
     end
 
-    local headers = {
-        ["Content-Type"] = "application/json",
-        ["User-Agent"] = "SutureHub"
-    }
-
     local data = {
         Url = url,
         url = url,
         Method = method,
         method = method,
-        Headers = headers,
-        headers = headers,
+        Headers = {
+            ["Content-Type"] = "application/json",
+            ["User-Agent"] = "SutureHub"
+        },
+        headers = {
+            ["Content-Type"] = "application/json",
+            ["User-Agent"] = "SutureHub"
+        },
         Body = body,
         body = body
     }
@@ -150,87 +153,135 @@ local function sendFeedback(msg)
     return false, tostring(err3)
 end
 
-local function selectFeedbackTab()
-    if FeedbackTab and FeedbackTab.Select then
-        local ok = pcall(function()
-            FeedbackTab:Select()
-        end)
-        if ok then return true end
-    end
-
-    if Window.SelectTab then
-        local ok = pcall(function()
-            Window:SelectTab(FeedbackTab)
-        end)
-        if ok then return true end
-    end
-
-    return false
-end
-
-local function createFeedbackTab()
-    if FeedbackTab then
-        if not selectFeedbackTab() then
-            notify("反馈模块", "请在左侧点击反馈页", "info", 3)
-        end
+local function createFeedbackPanel()
+    if gui and gui.Parent then
         return
     end
 
-    FeedbackTab = Window:Tab({
-        Title = "反馈",
-        Icon = "message-square",
-        Locked = false
-    })
+    local old = CoreGui:FindFirstChild("SutureFeedbackPanel")
+    if old then
+        old:Destroy()
+    end
 
-    FeedbackTab:Paragraph({
-        Title = "反馈",
-        Desc = "这里可以向作者发送建议或Bug反馈。"
-    })
+    gui = Instance.new("ScreenGui")
+    gui.Name = "SutureFeedbackPanel"
+    gui.ResetOnSpawn = false
+    gui.Parent = CoreGui
 
-    FeedbackTab:Input({
-        Title = "反馈内容",
-        Desc = "输入你想反馈的问题或建议",
-        Type = "Textarea",
-        Placeholder = "例如：按钮失效、脚本打不开、UI显示异常等等\n或许你还可以向作者提出想要哪个游戏的脚本。。[记得发游戏英文名]",
-        Value = "",
-        Callback = function(v)
-            FeedbackText = tostring(v or "")
+    panel = Instance.new("Frame")
+    panel.Name = "Panel"
+    panel.Size = UDim2.new(0, 330, 0, 210)
+    panel.Position = UDim2.new(0.5, -165, 0.5, -105)
+    panel.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    panel.Visible = false
+    panel.ZIndex = 100
+    panel.Parent = gui
+
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 14)
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.5
+    stroke.Color = Color3.fromRGB(80, 160, 255)
+    stroke.Transparency = 0.15
+    stroke.Parent = panel
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -50, 0, 36)
+    title.Position = UDim2.new(0, 14, 0, 8)
+    title.BackgroundTransparency = 1
+    title.Text = "反馈"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 101
+    title.Parent = panel
+
+    local close = Instance.new("TextButton")
+    close.Size = UDim2.new(0, 30, 0, 30)
+    close.Position = UDim2.new(1, -40, 0, 8)
+    close.BackgroundTransparency = 1
+    close.Text = "×"
+    close.TextColor3 = Color3.fromRGB(255, 255, 255)
+    close.TextSize = 24
+    close.Font = Enum.Font.GothamBold
+    close.ZIndex = 101
+    close.Parent = panel
+
+    inputBox = Instance.new("TextBox")
+    inputBox.Size = UDim2.new(1, -28, 0, 105)
+    inputBox.Position = UDim2.new(0, 14, 0, 50)
+    inputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+    inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    inputBox.PlaceholderText = "请输入反馈内容..."
+    inputBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    inputBox.Text = ""
+    inputBox.TextWrapped = true
+    inputBox.TextXAlignment = Enum.TextXAlignment.Left
+    inputBox.TextYAlignment = Enum.TextYAlignment.Top
+    inputBox.ClearTextOnFocus = false
+    inputBox.MultiLine = true
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.TextSize = 14
+    inputBox.ZIndex = 101
+    inputBox.Parent = panel
+
+    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 10)
+
+    local send = Instance.new("TextButton")
+    send.Size = UDim2.new(1, -28, 0, 36)
+    send.Position = UDim2.new(0, 14, 1, -46)
+    send.BackgroundColor3 = Color3.fromRGB(45, 120, 255)
+    send.TextColor3 = Color3.fromRGB(255, 255, 255)
+    send.Text = "发送反馈"
+    send.TextSize = 15
+    send.Font = Enum.Font.GothamBold
+    send.ZIndex = 101
+    send.Parent = panel
+
+    Instance.new("UICorner", send).CornerRadius = UDim.new(0, 10)
+
+    close.MouseButton1Click:Connect(function()
+        panel.Visible = false
+    end)
+
+    send.MouseButton1Click:Connect(function()
+        if busy then
+            return notify("反馈", "正在发送中", "loader", 2)
         end
-    })
 
-    FeedbackTab:Button({
-        Title = "发送反馈",
-        Desc = "将反馈发送给作者",
-        Icon = "send",
-        Callback = function()
-            if busy then
-                return notify("反馈", "正在发送中", "loader", 2)
-            end
+        local text = tostring(inputBox.Text or "")
 
-            if #FeedbackText < 2 then
-                return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
-            end
-
-            busy = true
-            local ok, err = sendFeedback(FeedbackText)
-            busy = false
-
-            if ok then
-                FeedbackText = ""
-                notify("反馈成功", "已发送给作者", "check", 3)
-            else
-                notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
-            end
+        if #text < 2 then
+            return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
         end
-    })
 
-    if not selectFeedbackTab() then
-        notify("反馈模块", "反馈页已创建，请在左侧点击反馈", "info", 3)
+        busy = true
+        send.Text = "发送中..."
+
+        local ok, err = sendFeedback(text)
+
+        busy = false
+        send.Text = "发送反馈"
+
+        if ok then
+            inputBox.Text = ""
+            panel.Visible = false
+            notify("反馈成功", "已发送给作者", "check", 3)
+        else
+            notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
+        end
+    end)
+end
+
+local function toggleFeedbackPanel()
+    createFeedbackPanel()
+
+    if panel then
+        panel.Visible = not panel.Visible
     end
 end
 
 Window:CreateTopbarButton("suture-feedback", "message-square", function()
-    createFeedbackTab()
+    toggleFeedbackPanel()
 end, 989)
-
-notify("反馈模块", "WindUI顶栏入口已加载", "check", 2)
