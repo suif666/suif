@@ -95,63 +95,6 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
---// Suture Hub 彩色外框｜轻量版
---// 只给 WindUI 主窗口加 UIStroke + UIGradient，不扫描 workspace
-
-task.delay(0.3, function()
-    local ok, err = pcall(function()
-        local runService = game:GetService("RunService")
-        local main = win.UIElements and win.UIElements.Main
-        if not main then
-            warn("彩色外框：未找到 win.UIElements.Main")
-            return
-        end
-
-        local old = main:FindFirstChild("SutureRainbowBorder")
-        if old then
-            old:Destroy()
-        end
-
-        local stroke = Instance.new("UIStroke")
-        stroke.Name = "SutureRainbowBorder"
-        stroke.Thickness = 3
-        stroke.Color = Color3.new(1, 1, 1)
-        stroke.Transparency = 0
-        stroke.LineJoinMode = Enum.LineJoinMode.Round
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        stroke.Parent = main
-
-        local gradient = Instance.new("UIGradient")
-        gradient.Name = "SutureRainbowGradient"
-        gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 255, 0)),
-            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
-            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
-            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
-            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
-        })
-        gradient.Parent = stroke
-
-        getgenv().SutureRainbowBorderToken = (getgenv().SutureRainbowBorderToken or 0) + 1
-        local token = getgenv().SutureRainbowBorderToken
-        local angle = 0
-
-        runService.RenderStepped:Connect(function(dt)
-            if getgenv().SutureRainbowBorderToken ~= token then return end
-            if not gradient.Parent then return end
-            angle = (angle + dt * 100) % 360
-            gradient.Rotation = angle
-        end)
-    end)
-
-    if not ok then
-        warn("彩色外框加载失败:", err)
-    end
-end)
-
-
 local dialog
 dialog = win:Dialog({
     Icon = "megaphone", Title = "公告", Content = "写什么。。是个问题",
@@ -227,17 +170,10 @@ getgenv().SutureHubFeedback = {
 }
 
 task.spawn(function()
-    -- 等 WindUI 顶栏完全初始化后再加载反馈模块，避免按钮创建过早导致失效
-    task.wait(1.5)
+    task.wait(0.5)
 
     local ok, err = pcall(function()
-        -- 防止 GitHub Raw 缓存旧反馈脚本
-        local url = FeedbackURL .. "?v=" .. tostring(os.time())
-        local src = game:HttpGet(url)
-
-        print("反馈模块已下载，长度：", #src)
-        print("反馈模块开头：", string.sub(src, 1, 80))
-
+        local src = game:HttpGet(FeedbackURL)
         local fn, loadErr = loadstring(src)
 
         if not fn then
@@ -249,7 +185,6 @@ task.spawn(function()
 
     if not ok then
         warn("反馈模块加载失败:", err)
-        notify("反馈模块", "加载失败：" .. tostring(err), "triangle-alert", 5)
     end
 end)
 
@@ -321,8 +256,7 @@ task.spawn(function()
         if MoveCfg.Lock then
             applyMovement()
         end
-        -- 优化：原来 0.25 秒一次，低端设备容易造成 UI 动画卡顿
-        task.wait(1)
+        task.wait(0.25)
     end
 end)
 
@@ -554,8 +488,7 @@ task.spawn(function()
         if getgenv().InstantInteract then
             scanInstantPrompts(true)
         end
-        -- 优化：即时互动开启后才扫描，扫描间隔从 0.5 秒改为 2 秒
-        task.wait(2)
+        task.wait(0.5)
     end
 end)
 
@@ -668,7 +601,7 @@ stgTab:Button({
 })
 
 stgTab:Button({
-    Title = "ringta", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
+    Title = "ringta[suif汉化]", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
 })
 
@@ -705,19 +638,8 @@ wqkTab:Button({
     end
 })
 
--- 无限旅馆：延迟加载，避免 WindUI 刚创建时卡顿
-task.delay(1, function()
-    local ok, err = pcall(function()
-        local mod = loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"))()
-        if mod and mod.CreateUI then
-            mod.CreateUI(wxlgTab)
-        end
-    end)
-
-    if not ok then
-        warn("无限旅馆模块加载失败:", err)
-    end
-end)
+--无限旅馆
+loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"))().CreateUI(wxlgTab)
 --------
 
 fescriptTab:Button({
@@ -784,360 +706,6 @@ settingsTab:Dropdown({
         if WindUI.SetTheme then WindUI:SetTheme(real) elseif win.SetTheme then win:SetTheme(real) end
     end
 })
-
-
---// 夜脚本风格背景｜本地图片 + 玻璃背景 + 柔光球
---// 图片默认目录：/storage/emulated/0/Delta/Workspace/
-local BG_BASE_PATH = "/storage/emulated/0/Delta/Workspace/"
-local BG_SAVE_FILE = "SutureHub_BackgroundPath.txt"
-local BG_ALPHA_FILE = "SutureHub_BackgroundAlpha.txt"
-
-local BackgroundImagePath = ""
-local BackgroundImageAlpha = 0.15 -- 数值越小图片越清楚，0=完全清楚
-local BackgroundLayer = nil
-local BackgroundImageLabel = nil
-local BackgroundDim = nil
-local GlowFolder = nil
-
-pcall(function()
-    if isfile and isfile(BG_SAVE_FILE) then
-        BackgroundImagePath = tostring(readfile(BG_SAVE_FILE) or "")
-    end
-end)
-
-pcall(function()
-    if isfile and isfile(BG_ALPHA_FILE) then
-        local savedAlpha = tonumber(readfile(BG_ALPHA_FILE))
-        if savedAlpha then
-            BackgroundImageAlpha = math.clamp(savedAlpha, 0, 1)
-        end
-    end
-end)
-
-local function normalizeBackgroundPath(path)
-    path = tostring(path or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if path == "" then return "" end
-
-    if path:match("^rbxassetid://") or path:match("^http://") or path:match("^https://") then
-        return path
-    end
-
-    if path:sub(1, 1) == "/" then
-        return path
-    end
-
-    return BG_BASE_PATH .. path
-end
-
-local function getMainWindowFrame()
-    return win and win.UIElements and win.UIElements.Main
-end
-
--- 把原来的纯色窗口改成玻璃质感。不是滑块控制 UI 透明度，只是为了让背景能像夜脚本那样透出来。
-local function applyNightGlass()
-    local main = getMainWindowFrame()
-    if not main then return end
-
-    pcall(function()
-        main.ClipsDescendants = true
-        if main.BackgroundTransparency < 0.18 then
-            main.BackgroundTransparency = 0.18
-        end
-    end)
-
-    task.delay(0.2, function()
-        local main2 = getMainWindowFrame()
-        if not main2 then return end
-
-        for _, obj in ipairs(main2:GetDescendants()) do
-            if obj ~= BackgroundLayer
-                and not obj:IsDescendantOf(BackgroundLayer or main2)
-            then
-                -- 保留文字/按钮可读性，只轻微玻璃化较大的背景容器。
-            end
-        end
-
-        for _, obj in ipairs(main2:GetDescendants()) do
-            if obj:IsA("Frame") and obj.Name ~= "SutureBackgroundLayer" and obj.Name ~= "SutureGlowFolder" then
-                local size = obj.AbsoluteSize
-                if size.X >= 100 and size.Y >= 30 then
-                    pcall(function()
-                        if obj.BackgroundTransparency < 0.28 then
-                            obj.BackgroundTransparency = 0.28
-                        end
-                    end)
-                end
-            end
-        end
-    end)
-end
-
-local function bringContentAboveBackground()
-    local main = getMainWindowFrame()
-    if not main then return end
-
-    for _, obj in ipairs(main:GetDescendants()) do
-        if obj ~= BackgroundLayer and not obj:IsDescendantOf(BackgroundLayer or main) then
-            -- 占位，下面的循环负责处理
-        end
-    end
-
-    for _, obj in ipairs(main:GetDescendants()) do
-        if BackgroundLayer and obj:IsDescendantOf(BackgroundLayer) then
-            continue
-        end
-
-        if obj:IsA("GuiObject") then
-            pcall(function()
-                if obj.ZIndex < 5 then
-                    obj.ZIndex = 5
-                end
-            end)
-        elseif obj:IsA("UIStroke") then
-            pcall(function()
-                obj.ZIndex = 6
-            end)
-        end
-    end
-end
-
-local function createGlowBall(parent, index)
-    local TweenService = game:GetService("TweenService")
-
-    local ball = Instance.new("Frame")
-    ball.Name = "GlowBall_" .. tostring(index)
-    local size = math.random(70, 150)
-    ball.Size = UDim2.new(0, size, 0, size)
-    ball.Position = UDim2.new(math.random(-15, 100) / 100, 0, math.random(-15, 100) / 100, 0)
-    ball.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ball.BackgroundTransparency = 0.78
-    ball.BorderSizePixel = 0
-    ball.ZIndex = 1
-    ball.Parent = parent
-
-    Instance.new("UICorner", ball).CornerRadius = UDim.new(1, 0)
-
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromHSV(math.random(), 0.55, 1)),
-        ColorSequenceKeypoint.new(1, Color3.fromHSV(math.random(), 0.55, 1))
-    })
-    gradient.Rotation = math.random(0, 360)
-    gradient.Parent = ball
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 1.5
-    stroke.Transparency = 0.72
-    stroke.Color = Color3.fromHSV(math.random(), 0.9, 1)
-    stroke.Parent = ball
-
-    task.spawn(function()
-        while ball.Parent do
-            local tween = TweenService:Create(
-                ball,
-                TweenInfo.new(math.random(5, 9), Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
-                {
-                    Position = UDim2.new(
-                        math.random(-10, 100) / 100,
-                        math.random(-40, 40),
-                        math.random(-10, 100) / 100,
-                        math.random(-40, 40)
-                    ),
-                    BackgroundTransparency = math.random(78, 88) / 100
-                }
-            )
-            tween:Play()
-            tween.Completed:Wait()
-        end
-    end)
-end
-
-local function ensureBackgroundLayer()
-    local main = getMainWindowFrame()
-    if not main then return nil end
-
-    if BackgroundLayer and BackgroundLayer.Parent == main then
-        return BackgroundLayer
-    end
-
-    local old = main:FindFirstChild("SutureBackgroundLayer")
-    if old then old:Destroy() end
-
-    local layer = Instance.new("Frame")
-    layer.Name = "SutureBackgroundLayer"
-    layer.Size = UDim2.new(1, 0, 1, 0)
-    layer.Position = UDim2.new(0, 0, 0, 0)
-    layer.BackgroundTransparency = 1
-    layer.BorderSizePixel = 0
-    layer.ClipsDescendants = true
-    layer.ZIndex = 0
-    layer.Parent = main
-
-    local img = Instance.new("ImageLabel")
-    img.Name = "SutureCustomBackground"
-    img.Size = UDim2.new(1, 0, 1, 0)
-    img.Position = UDim2.new(0, 0, 0, 0)
-    img.BackgroundTransparency = 1
-    img.ImageTransparency = BackgroundImageAlpha
-    img.ScaleType = Enum.ScaleType.Crop
-    img.Active = false
-    img.Selectable = false
-    img.ZIndex = 0
-    img.Parent = layer
-
-    local dim = Instance.new("Frame")
-    dim.Name = "SutureBackgroundDim"
-    dim.Size = UDim2.new(1, 0, 1, 0)
-    dim.Position = UDim2.new(0, 0, 0, 0)
-    dim.BorderSizePixel = 0
-    dim.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-    dim.BackgroundTransparency = 0.62
-    dim.ZIndex = 1
-    dim.Parent = layer
-
-    local glow = Instance.new("Frame")
-    glow.Name = "SutureGlowFolder"
-    glow.Size = UDim2.new(1, 0, 1, 0)
-    glow.Position = UDim2.new(0, 0, 0, 0)
-    glow.BackgroundTransparency = 1
-    glow.BorderSizePixel = 0
-    glow.ClipsDescendants = true
-    glow.ZIndex = 1
-    glow.Parent = layer
-
-    for i = 1, 8 do
-        createGlowBall(glow, i)
-    end
-
-    BackgroundLayer = layer
-    BackgroundImageLabel = img
-    BackgroundDim = dim
-    GlowFolder = glow
-
-    applyNightGlass()
-    bringContentAboveBackground()
-
-    return layer
-end
-
-local function setBackgroundImage(path)
-    path = normalizeBackgroundPath(path)
-    if path == "" then
-        notify("背景图片", "请填写图片文件名或完整路径", "triangle-alert", 2)
-        return
-    end
-
-    local imageSource = path
-
-    if not path:match("^rbxassetid://") and not path:match("^http://") and not path:match("^https://") then
-        if isfile and not isfile(path) then
-            notify("背景图片", "文件不存在：" .. path, "triangle-alert", 3)
-            return
-        end
-
-        if getcustomasset then
-            imageSource = getcustomasset(path)
-        end
-    end
-
-    local layer = ensureBackgroundLayer()
-    if not layer or not BackgroundImageLabel then
-        notify("背景图片", "找不到主窗口", "triangle-alert", 2)
-        return
-    end
-
-    BackgroundImageLabel.Image = imageSource
-    BackgroundImageLabel.ImageTransparency = BackgroundImageAlpha
-    BackgroundImagePath = path
-
-    pcall(function()
-        if writefile then
-            writefile(BG_SAVE_FILE, BackgroundImagePath)
-        end
-    end)
-
-    notify("背景图片", "已应用夜风格背景", "check", 2)
-end
-
-local function setBackgroundImageAlpha(alpha)
-    BackgroundImageAlpha = math.clamp(tonumber(alpha) or 0.15, 0, 1)
-
-    if BackgroundImageLabel then
-        BackgroundImageLabel.ImageTransparency = BackgroundImageAlpha
-    end
-
-    pcall(function()
-        if writefile then
-            writefile(BG_ALPHA_FILE, tostring(BackgroundImageAlpha))
-        end
-    end)
-end
-
-settingsTab:Divider({
-    Title = "背景图片"
-})
-
-settingsTab:Input({
-    Title = "导入背景图片",
-    Desc = "填写文件名即可，例如 bg.png；目录固定为 /storage/emulated/0/Delta/Workspace/",
-    Placeholder = "bg.png",
-    Value = BackgroundImagePath ~= "" and BackgroundImagePath or "",
-    Callback = function(v)
-        BackgroundImagePath = tostring(v or "")
-    end
-})
-
-settingsTab:Button({
-    Title = "应用夜风格背景",
-    Desc = "图片 + 柔光球 + 玻璃窗口，效果更接近夜脚本",
-    Icon = "image",
-    Callback = function()
-        setBackgroundImage(BackgroundImagePath)
-    end
-})
-
-settingsTab:Slider({
-    Title = "背景图透明度",
-    Desc = "只控制图片本身透明度；0最清楚，1完全透明",
-    Step = 0.05,
-    Value = {
-        Min = 0,
-        Max = 1,
-        Default = BackgroundImageAlpha
-    },
-    Callback = function(v)
-        setBackgroundImageAlpha(v)
-    end
-})
-
-settingsTab:Button({
-    Title = "移除背景图片",
-    Desc = "移除图片和柔光球，不影响彩色外框和主题",
-    Icon = "trash-2",
-    Callback = function()
-        if BackgroundLayer then
-            BackgroundLayer:Destroy()
-            BackgroundLayer = nil
-            BackgroundImageLabel = nil
-            BackgroundDim = nil
-            GlowFolder = nil
-        end
-        BackgroundImagePath = ""
-        pcall(function()
-            if writefile then
-                writefile(BG_SAVE_FILE, "")
-            end
-        end)
-        notify("背景图片", "已移除", "check", 2)
-    end
-})
-
--- 自动恢复上次保存的背景图
-if BackgroundImagePath ~= "" then
-    task.delay(1.2, function()
-        setBackgroundImage(BackgroundImagePath)
-    end)
-end
 
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
