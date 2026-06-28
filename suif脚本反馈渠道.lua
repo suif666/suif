@@ -1,10 +1,15 @@
---// Suture Hub Feedback | WindUI 原生顶栏版
---// 作者注释位：你的B站UID
+--// Suture Hub Feedback | WindUI 独立窗口版
+--// 用法：主脚本传入 getgenv().SutureHubFeedback = { API, WindUI, Window, Notify }
 
 local cfg = getgenv().SutureHubFeedback or {}
 
+local API = tostring(cfg.API or cfg.Url or cfg.FeedbackAPI or ""):gsub("%s+", "")
 local WindUI = cfg.WindUI
-local Window = cfg.Window
+local MainWindow = cfg.Window
+
+if API ~= "" and not API:match("^https?://") then
+    API = "https://" .. API
+end
 
 local function notify(t, c, i, d)
     if cfg.Notify then
@@ -25,36 +30,25 @@ local function notify(t, c, i, d)
     end
 end
 
-local function cleanUrl(u)
-    u = tostring(u or ""):gsub("%s+", "")
-    if u == "" then return "" end
-    if not u:match("^https?://") then
-        u = "https://" .. u
-    end
-    return u
+if not WindUI then
+    return notify("反馈模块", "缺少 WindUI", "triangle-alert", 4)
 end
 
-local API = cleanUrl(cfg.API or cfg.Url or cfg.FeedbackAPI or getgenv().FeedbackAPI or _G.FeedbackAPI)
+if not MainWindow then
+    return notify("反馈模块", "缺少主窗口 Window", "triangle-alert", 4)
+end
 
 if API == "" then
-    return notify("反馈模块", "API为空，请检查配置", "triangle-alert", 4)
-end
-
-if not Window then
-    return notify("反馈模块", "缺少 Window = win", "triangle-alert", 4)
-end
-
-if not Window.CreateTopbarButton then
-    return notify("反馈模块", "当前WindUI不支持顶栏按钮", "triangle-alert", 4)
+    return notify("反馈模块", "API为空", "triangle-alert", 4)
 end
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local lp = Players.LocalPlayer
 
+local feedbackWindow = nil
+local feedbackText = ""
 local busy = false
-local FeedbackTab = nil
-local FeedbackText = ""
 
 local function requestFunc()
     return (syn and syn.request)
@@ -67,7 +61,7 @@ local function enc(v)
     return HttpService:UrlEncode(tostring(v or ""))
 end
 
-local function getUrl(msg)
+local function buildGetUrl(msg)
     local sep = API:find("?", 1, true) and "&" or "?"
 
     return API .. sep
@@ -97,19 +91,20 @@ local function callRequest(method, url, body)
         ["User-Agent"] = "SutureHub"
     }
 
-    local data = {
-        Url = url,
-        url = url,
-        Method = method,
-        method = method,
-        Headers = headers,
-        headers = headers,
-        Body = body,
-        body = body
-    }
-
     local ok, res = pcall(function()
-        return req(data)
+        return req({
+            Url = url,
+            url = url,
+
+            Method = method,
+            method = method,
+
+            Headers = headers,
+            headers = headers,
+
+            Body = body,
+            body = body
+        })
     end)
 
     if ok and okStatus(res) then
@@ -136,71 +131,100 @@ local function sendFeedback(msg)
     })
 
     local ok1 = callRequest("POST", API, body)
-    if ok1 then return true end
+    if ok1 then
+        return true
+    end
 
-    local url = getUrl(msg)
+    local getUrl = buildGetUrl(msg)
 
-    local ok2 = callRequest("GET", url)
-    if ok2 then return true end
+    local ok2 = callRequest("GET", getUrl)
+    if ok2 then
+        return true
+    end
 
     local ok3, err3 = pcall(function()
-        return game:HttpGet(url)
+        return game:HttpGet(getUrl)
     end)
 
-    if ok3 then return true end
+    if ok3 then
+        return true
+    end
 
     return false, tostring(err3)
 end
 
-local function selectFeedbackTab()
-    if FeedbackTab and FeedbackTab.Select then
-        local ok = pcall(function()
-            FeedbackTab:Select()
-        end)
-        if ok then return true end
-    end
-
-    if Window.SelectTab then
-        local ok = pcall(function()
-            Window:SelectTab(FeedbackTab)
-        end)
-        if ok then return true end
-    end
-
-    return false
-end
-
-local function createFeedbackTab()
-    if FeedbackTab then
-        if not selectFeedbackTab() then
-            notify("反馈模块", "请在左侧点击反馈页", "info", 3)
-        end
+local function closeFeedbackWindow()
+    if not feedbackWindow then
         return
     end
 
-    FeedbackTab = Window:Tab({
+    local closed = false
+
+    pcall(function()
+        if feedbackWindow.Close then
+            feedbackWindow:Close()
+            closed = true
+        end
+    end)
+
+    pcall(function()
+        if not closed and feedbackWindow.Destroy then
+            feedbackWindow:Destroy()
+            closed = true
+        end
+    end)
+
+    feedbackWindow = nil
+    feedbackText = ""
+end
+
+local function showFeedbackWindow()
+    if feedbackWindow then
+        notify("反馈", "反馈窗口已打开", "message-square", 2)
+        return
+    end
+
+    feedbackWindow = WindUI:CreateWindow({
         Title = "反馈",
         Icon = "message-square",
+        Author = "Suture Hub",
+        Folder = "SutureHubFeedback",
+
+        Size = UDim2.fromOffset(420, 310),
+        MinSize = Vector2.new(380, 260),
+        MaxSize = Vector2.new(520, 420),
+
+        Transparent = true,
+        Theme = "Dark",
+        Resizable = true,
+        SideBarWidth = 130,
+        HideSearchBar = true,
+        ScrollBarEnabled = true,
+        NewElements = true
+    })
+
+    local tab = feedbackWindow:Tab({
+        Title = "反馈",
+        Icon = "send",
         Locked = false
     })
 
-    FeedbackTab:Paragraph({
-        Title = "反馈",
-        Desc = "这里可以向作者发送问题、建议或Bug反馈。"
+    tab:Paragraph({
+        Title = "反馈说明",
+        Desc = "这里可以向作者发送问题、建议或 Bug 反馈。"
     })
 
-    FeedbackTab:Input({
+    tab:Input({
         Title = "反馈内容",
-        Desc = "输入你想反馈的问题或建议",
-        Type = "Textarea",
+        Desc = "请输入你想反馈的问题或建议",
         Placeholder = "例如：按钮失效、脚本打不开、UI显示异常...",
         Value = "",
         Callback = function(v)
-            FeedbackText = tostring(v or "")
+            feedbackText = tostring(v or "")
         end
     })
 
-    FeedbackTab:Button({
+    tab:Button({
         Title = "发送反馈",
         Desc = "将反馈发送给作者",
         Icon = "send",
@@ -209,16 +233,18 @@ local function createFeedbackTab()
                 return notify("反馈", "正在发送中", "loader", 2)
             end
 
-            if #FeedbackText < 2 then
+            if #feedbackText < 2 then
                 return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
             end
 
             busy = true
-            local ok, err = sendFeedback(FeedbackText)
+
+            local ok, err = sendFeedback(feedbackText)
+
             busy = false
 
             if ok then
-                FeedbackText = ""
+                feedbackText = ""
                 notify("反馈成功", "已发送给作者", "check", 3)
             else
                 notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
@@ -226,13 +252,46 @@ local function createFeedbackTab()
         end
     })
 
-    if not selectFeedbackTab() then
-        notify("反馈模块", "反馈页已创建，请在左侧点击反馈", "info", 3)
-    end
+    tab:Button({
+        Title = "关闭反馈窗口",
+        Desc = "关闭当前反馈窗口",
+        Icon = "x",
+        Callback = closeFeedbackWindow
+    })
+
+    notify("反馈", "反馈窗口已打开", "message-square", 2)
 end
 
-Window:CreateTopbarButton("suture-feedback", "message-square", function()
-    createFeedbackTab()
-end, 989)
+local function createEntry()
+    if getgenv().SutureHubFeedbackEntryCreated then
+        return
+    end
 
-notify("反馈模块", "WindUI顶栏入口已加载", "check", 2)
+    getgenv().SutureHubFeedbackEntryCreated = true
+
+    if MainWindow.CreateTopbarButton then
+        MainWindow:CreateTopbarButton("suture-feedback", "message-square", function()
+            showFeedbackWindow()
+        end, 989)
+
+        notify("反馈模块", "顶栏入口已加载", "check", 2)
+        return
+    end
+
+    local tab = MainWindow:Tab({
+        Title = "反馈入口",
+        Icon = "message-square",
+        Locked = false
+    })
+
+    tab:Button({
+        Title = "打开反馈窗口",
+        Desc = "点击后打开独立反馈窗口",
+        Icon = "message-square",
+        Callback = showFeedbackWindow
+    })
+
+    notify("反馈模块", "反馈入口已加载", "check", 2)
+end
+
+createEntry()
