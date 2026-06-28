@@ -3,7 +3,7 @@ local cfg = getgenv().SutureHubFeedback or {}
 
 local WindUI = cfg.WindUI
 local MainWindow = cfg.Window
-
+  
 local function notify(t, c, i, d)
     if cfg.Notify then
         return cfg.Notify(t, c, i, d)
