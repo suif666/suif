@@ -82,7 +82,92 @@ if not getgenv().SutureHubAntiAFK then
     notify("防挂机", "正在运行", "info", 2)
 end
 
-local uiSet = { Theme = "Dark", Transparent = true, HideSearchBar = false, SideBarWidth = 180 }
+
+--// Suture Hub 自定义主题｜仿夜脚本背景质感
+pcall(function()
+    WindUI:AddTheme({
+        Name = "SutureAurora",
+        Background = Color3.fromRGB(18, 18, 22),
+        WindowBackground = Color3.fromRGB(18, 18, 22),
+        ElementBackground = Color3.fromRGB(72, 72, 82),
+        Button = Color3.fromRGB(105, 95, 160),
+        Hover = Color3.fromRGB(255, 255, 255),
+        Text = Color3.fromRGB(235, 235, 245),
+        Placeholder = Color3.fromRGB(140, 140, 160),
+        Icon = Color3.fromRGB(170, 150, 255),
+        Outline = Color3.fromRGB(80, 80, 100),
+        Accent = WindUI:Gradient({
+            ["0"] = { Color = Color3.fromRGB(140, 100, 255), Transparency = 0.45 },
+            ["100"] = { Color = Color3.fromRGB(0, 200, 255), Transparency = 0.45 },
+        }, { Rotation = 45 }),
+        TabTitle = Color3.fromRGB(235, 235, 245),
+        TabIcon = Color3.fromRGB(170, 150, 255),
+        ElementTitle = Color3.fromRGB(235, 235, 245),
+        ElementDesc = Color3.fromRGB(150, 150, 170),
+        Toggle = Color3.fromRGB(90, 80, 150),
+        ToggleBar = Color3.fromRGB(255, 255, 255),
+        Slider = Color3.fromRGB(90, 80, 150),
+        SliderThumb = Color3.fromRGB(255, 255, 255),
+        Checkbox = Color3.fromRGB(90, 80, 150),
+        CheckboxIcon = Color3.fromRGB(255, 255, 255),
+    })
+
+    WindUI:AddTheme({
+        Name = "SutureCyan",
+        Background = Color3.fromRGB(10, 18, 20),
+        WindowBackground = Color3.fromRGB(10, 18, 20),
+        ElementBackground = Color3.fromRGB(62, 88, 90),
+        Button = Color3.fromRGB(70, 135, 150),
+        Hover = Color3.fromRGB(255, 255, 255),
+        Text = Color3.fromRGB(220, 245, 245),
+        Placeholder = Color3.fromRGB(130, 170, 170),
+        Icon = Color3.fromRGB(80, 220, 200),
+        Outline = Color3.fromRGB(70, 110, 110),
+        Accent = WindUI:Gradient({
+            ["0"] = { Color = Color3.fromRGB(0, 200, 180), Transparency = 0.45 },
+            ["100"] = { Color = Color3.fromRGB(0, 120, 220), Transparency = 0.45 },
+        }, { Rotation = 45 }),
+        TabTitle = Color3.fromRGB(220, 245, 245),
+        TabIcon = Color3.fromRGB(80, 220, 200),
+        ElementTitle = Color3.fromRGB(220, 245, 245),
+        ElementDesc = Color3.fromRGB(150, 190, 190),
+        Toggle = Color3.fromRGB(70, 120, 125),
+        ToggleBar = Color3.fromRGB(255, 255, 255),
+        Slider = Color3.fromRGB(70, 120, 125),
+        SliderThumb = Color3.fromRGB(255, 255, 255),
+        Checkbox = Color3.fromRGB(70, 120, 125),
+        CheckboxIcon = Color3.fromRGB(255, 255, 255),
+    })
+
+    WindUI:AddTheme({
+        Name = "SutureBlackGold",
+        Background = Color3.fromRGB(8, 8, 10),
+        WindowBackground = Color3.fromRGB(8, 8, 10),
+        ElementBackground = Color3.fromRGB(76, 72, 66),
+        Button = Color3.fromRGB(125, 105, 70),
+        Hover = Color3.fromRGB(255, 255, 255),
+        Text = Color3.fromRGB(238, 232, 220),
+        Placeholder = Color3.fromRGB(145, 135, 120),
+        Icon = Color3.fromRGB(220, 170, 80),
+        Outline = Color3.fromRGB(85, 75, 55),
+        Accent = WindUI:Gradient({
+            ["0"] = { Color = Color3.fromRGB(220, 170, 80), Transparency = 0.45 },
+            ["100"] = { Color = Color3.fromRGB(120, 85, 35), Transparency = 0.45 },
+        }, { Rotation = 35 }),
+        TabTitle = Color3.fromRGB(238, 232, 220),
+        TabIcon = Color3.fromRGB(220, 170, 80),
+        ElementTitle = Color3.fromRGB(238, 232, 220),
+        ElementDesc = Color3.fromRGB(165, 150, 130),
+        Toggle = Color3.fromRGB(110, 80, 40),
+        ToggleBar = Color3.fromRGB(255, 255, 255),
+        Slider = Color3.fromRGB(110, 80, 40),
+        SliderThumb = Color3.fromRGB(255, 255, 255),
+        Checkbox = Color3.fromRGB(110, 80, 40),
+        CheckboxIcon = Color3.fromRGB(255, 255, 255),
+    })
+end)
+
+local uiSet = { Theme = "SutureAurora", Transparent = true, HideSearchBar = false, SideBarWidth = 180, UIAlpha = 0.15 }
 
 local win = WindUI:CreateWindow({
     Title = "Suture Hub", Icon = "aperture", Author = "by suif", Folder = "SutureHub",
@@ -93,7 +178,7 @@ local win = WindUI:CreateWindow({
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-win:Tag({ Title = "永久免费", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
 --// Suture Hub 彩色外框｜轻量版
 --// 只给 WindUI 主窗口加 UIStroke + UIGradient，不扫描 workspace
@@ -149,6 +234,46 @@ task.delay(0.3, function()
     if not ok then
         warn("彩色外框加载失败:", err)
     end
+end)
+
+
+--// Suture Hub 背景透明度控制
+local function SetSutureWindowTransparency(alpha)
+    alpha = math.clamp(tonumber(alpha) or 0.15, 0, 0.85)
+    uiSet.UIAlpha = alpha
+
+    local main = win.UIElements and win.UIElements.Main
+    if not main then return end
+
+    local function shouldChange(obj)
+        local n = tostring(obj.Name or ""):lower()
+        if obj == main then return true end
+        return n:find("main")
+            or n:find("background")
+            or n:find("window")
+            or n:find("container")
+            or n:find("canvas")
+            or n:find("holder")
+            or n:find("content")
+    end
+
+    for _, obj in ipairs(main:GetDescendants()) do
+        if obj:IsA("Frame") and shouldChange(obj) then
+            pcall(function()
+                obj.BackgroundTransparency = alpha
+            end)
+        end
+    end
+
+    if main:IsA("Frame") then
+        pcall(function()
+            main.BackgroundTransparency = alpha
+        end)
+    end
+end
+
+task.delay(0.8, function()
+    SetSutureWindowTransparency(uiSet.UIAlpha)
 end)
 
 
@@ -219,62 +344,6 @@ local function feedbackNotify(title, content, icon, duration)
     notify(title, content, icon, duration)
 end
 
--- 隐藏反馈模块在左侧 Tab 列表里生成的入口，只保留顶栏 [反馈]
-local function hideFeedbackSidebarTab()
-    local main = win.UIElements and win.UIElements.Main
-    if not main then return end
-
-    local sidebarLimit = main.AbsolutePosition.X + 240
-
-    local function isFeedbackText(obj)
-        if not (obj:IsA("TextLabel") or obj:IsA("TextButton")) then
-            return false
-        end
-
-        local text = tostring(obj.Text or "")
-        text = text:gsub("%s+", "")
-        return text == "反馈" or text == "[反馈]"
-    end
-
-    local function hideRowFromText(textObj)
-        -- 只处理左侧栏里的“反馈”，避免误隐藏右上角顶栏 [反馈]
-        if textObj.AbsolutePosition.X > sidebarLimit then
-            return
-        end
-
-        local node = textObj
-        local candidate = textObj
-
-        for _ = 1, 8 do
-            if not node or node == main then break end
-
-            if node:IsA("TextButton") or node:IsA("Frame") then
-                candidate = node
-            end
-
-            local parent = node.Parent
-            if parent and parent:FindFirstChildOfClass("UIListLayout") then
-                candidate = node
-                break
-            end
-
-            node = parent
-        end
-
-        if candidate and candidate ~= main then
-            candidate.Visible = false
-            candidate.Size = UDim2.new(0, 0, 0, 0)
-            candidate.Name = "HiddenFeedbackSidebarTab"
-        end
-    end
-
-    for _, obj in ipairs(main:GetDescendants()) do
-        if isFeedbackText(obj) then
-            hideRowFromText(obj)
-        end
-    end
-end
-
 getgenv().SutureHubFeedback = {
     API = "https://suture-feedback.sfbdsl666.workers.dev/",
     WindUI = WindUI,
@@ -295,11 +364,6 @@ task.spawn(function()
 
         fn()
     end)
-
-    -- 反馈远程模块可能会异步创建 Tab，多补几次隐藏左侧入口
-    for i = 1, 8 do
-        task.delay(i * 0.25, hideFeedbackSidebarTab)
-    end
 
     if not ok then
         warn("反馈模块加载失败:", err)
@@ -824,17 +888,47 @@ tyscriptTab:Button({
 
 -- UI设置
 local themeMap = {
-    ["深色"]="Dark", ["浅色"]="Light", ["玫瑰"]="Rose", ["植物"]="Plant", ["红色"]="Red",
-    ["靛蓝"]="Indigo", ["天空蓝"]="Sky", ["紫罗兰"]="Violet", ["琥珀"]="Amber"
+    ["幻彩紫"] = "SutureAurora",
+    ["青蓝"] = "SutureCyan",
+    ["黑金"] = "SutureBlackGold",
+    ["深色"] = "Dark",
+    ["浅色"] = "Light",
+    ["玫瑰"] = "Rose",
+    ["植物"] = "Plant",
+    ["红色"] = "Red",
+    ["靛蓝"] = "Indigo",
+    ["天空蓝"] = "Sky",
+    ["紫罗兰"] = "Violet",
+    ["琥珀"] = "Amber"
 }
+
 settingsTab:Dropdown({
-    Title = "UI 主题", Desc = "切换 UI 主题",
-    Values = { "深色","浅色","玫瑰","植物","红色","靛蓝","天空蓝","紫罗兰","琥珀" },
-    Value = "深色",
+    Title = "UI 主题",
+    Desc = "前三个是仿夜脚本风格主题",
+    Values = { "幻彩紫", "青蓝", "黑金", "深色", "浅色", "玫瑰", "植物", "红色", "靛蓝", "天空蓝", "紫罗兰", "琥珀" },
+    Value = "幻彩紫",
     Callback = function(name)
         local real = themeMap[name]
+        if not real then return end
         uiSet.Theme = real
-        if WindUI.SetTheme then WindUI:SetTheme(real) elseif win.SetTheme then win:SetTheme(real) end
+        if WindUI.SetTheme then
+            WindUI:SetTheme(real)
+        elseif win.SetTheme then
+            win:SetTheme(real)
+        end
+        task.delay(0.1, function()
+            SetSutureWindowTransparency(uiSet.UIAlpha)
+        end)
+    end
+})
+
+settingsTab:Slider({
+    Title = "UI背景透明度",
+    Desc = "数值越大背景越透明",
+    Step = 0.05,
+    Value = { Min = 0, Max = 0.85, Default = uiSet.UIAlpha or 0.15 },
+    Callback = function(v)
+        SetSutureWindowTransparency(v)
     end
 })
 
