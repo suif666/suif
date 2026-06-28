@@ -1,9 +1,9 @@
---// Suture Hub Feedback | 独立 WindUI 窗口修复版
+--// Suture Hub Feedback | 独立 WindUI 窗口修复版 v3
 local cfg = getgenv().SutureHubFeedback or {}
 
 local WindUI = cfg.WindUI
 local MainWindow = cfg.Window
-  
+
 local function notify(t, c, i, d)
     if cfg.Notify then
         return cfg.Notify(t, c, i, d)
@@ -156,15 +156,24 @@ local function sendFeedback(msg)
 end
 
 local function showFeedbackWindow()
-    if FeedbackWindow then
+    -- 如果之前创建到一半失败，强制清空，避免后续点击卡在 FeedbackWindow ~= nil。
+    if FeedbackWindow and not FeedbackTab then
+        FeedbackWindow = nil
+    end
+
+    if FeedbackWindow and FeedbackTab then
         pcall(function()
             if FeedbackWindow.Show then
                 FeedbackWindow:Show()
+            elseif FeedbackWindow.Open then
+                FeedbackWindow:Open()
+            elseif FeedbackWindow.SetVisible then
+                FeedbackWindow:SetVisible(true)
             end
         end)
 
         pcall(function()
-            if FeedbackTab and FeedbackTab.Select then
+            if FeedbackTab.Select then
                 FeedbackTab:Select()
             end
         end)
@@ -172,74 +181,102 @@ local function showFeedbackWindow()
         return
     end
 
-    FeedbackWindow = WindUI:CreateWindow({
-        Title = "反馈",
-        Icon = "message-square",
-        Author = "Suture Hub",
-        Folder = "SutureHubFeedback",
-        Size = UDim2.fromOffset(420, 300),
-        MinSize = Vector2.new(360, 260),
-        MaxSize = Vector2.new(520, 380),
-        Transparent = true,
-        Theme = "Dark",
-        Resizable = true,
-        SideBarWidth = 120,
-        HideSearchBar = true,
-        ScrollBarEnabled = true,
-        NewElements = true
-    })
+    local newWindow
+    local okCreate, errCreate = pcall(function()
+        newWindow = WindUI:CreateWindow({
+            Title = "反馈",
+            Icon = "message-square",
+            Author = "Suture Hub",
+            Folder = "SutureHubFeedback_" .. tostring(math.random(1000, 9999)),
+            Size = UDim2.fromOffset(420, 300),
+            MinSize = Vector2.new(360, 260),
+            MaxSize = Vector2.new(520, 380),
+            ToggleKey = Enum.KeyCode.RightControl,
+            Transparent = true,
+            Theme = "Dark",
+            Resizable = true,
+            SideBarWidth = 120,
+            HideSearchBar = true,
+            ScrollBarEnabled = true,
+            NewElements = true
+        })
+    end)
 
-    FeedbackTab = FeedbackWindow:Tab({
-        Title = "反馈",
-        Icon = "message-square",
-        Locked = false
-    })
+    if not okCreate or not newWindow then
+        warn("反馈窗口创建失败:", errCreate)
+        notify("反馈失败", "窗口创建失败", "triangle-alert", 3)
+        FeedbackWindow = nil
+        FeedbackTab = nil
+        return
+    end
 
-    FeedbackTab:Paragraph({
-        Title = "反馈",
-        Desc = "这里可以向作者发送建议或 Bug 反馈。"
-    })
+    FeedbackWindow = newWindow
 
-    FeedbackTab:Input({
-        Title = "反馈内容",
-        Desc = "输入你想反馈的问题或建议",
-        Type = "Textarea",
-        Placeholder = "例如：按钮失效、脚本打不开、UI显示异常等等\n也可以提出想要哪个游戏的脚本，记得发游戏英文名。",
-        Value = "",
-        Callback = function(v)
-            FeedbackText = tostring(v or "")
-        end
-    })
+    local okTab, errTab = pcall(function()
+        FeedbackTab = FeedbackWindow:Tab({
+            Title = "反馈",
+            Icon = "message-square",
+            Locked = false
+        })
 
-    FeedbackTab:Button({
-        Title = "发送反馈",
-        Desc = "将反馈发送给作者",
-        Icon = "send",
-        Callback = function()
-            if busy then
-                return notify("反馈", "正在发送中", "loader", 2)
+        FeedbackTab:Paragraph({
+            Title = "反馈",
+            Desc = "这里可以向作者发送建议或 Bug 反馈。"
+        })
+
+        FeedbackTab:Input({
+            Title = "反馈内容",
+            Desc = "输入你想反馈的问题或建议",
+            Type = "Textarea",
+            Placeholder = "例如：按钮失效、脚本打不开、UI显示异常等等\n也可以提出想要哪个游戏的脚本，记得发游戏英文名。",
+            Value = "",
+            Callback = function(v)
+                FeedbackText = tostring(v or "")
             end
+        })
 
-            if #FeedbackText < 2 then
-                return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
+        FeedbackTab:Button({
+            Title = "发送反馈",
+            Desc = "将反馈发送给作者",
+            Icon = "send",
+            Callback = function()
+                if busy then
+                    return notify("反馈", "正在发送中", "loader", 2)
+                end
+
+                if #FeedbackText < 2 then
+                    return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
+                end
+
+                busy = true
+                local ok, err = sendFeedback(FeedbackText)
+                busy = false
+
+                if ok then
+                    FeedbackText = ""
+                    notify("反馈成功", "已发送给作者", "check", 3)
+                else
+                    notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
+                end
             end
+        })
+    end)
 
-            busy = true
-            local ok, err = sendFeedback(FeedbackText)
-            busy = false
-
-            if ok then
-                FeedbackText = ""
-                notify("反馈成功", "已发送给作者", "check", 3)
-            else
-                notify("反馈失败", tostring(err or "发送失败"), "triangle-alert", 5)
-            end
-        end
-    })
+    if not okTab then
+        warn("反馈页面创建失败:", errTab)
+        notify("反馈失败", "页面创建失败", "triangle-alert", 3)
+        FeedbackWindow = nil
+        FeedbackTab = nil
+        return
+    end
 
     pcall(function()
         if FeedbackWindow.Show then
             FeedbackWindow:Show()
+        elseif FeedbackWindow.Open then
+            FeedbackWindow:Open()
+        elseif FeedbackWindow.SetVisible then
+            FeedbackWindow:SetVisible(true)
         end
     end)
 
@@ -250,10 +287,26 @@ local function showFeedbackWindow()
     end)
 end
 
-MainWindow:CreateTopbarButton("suture-feedback", "message-square", function()
+local function openFeedback()
     local ok, err = pcall(showFeedbackWindow)
     if not ok then
         warn("反馈窗口打开失败:", err)
-        notify("反馈模块", "反馈窗口打开失败", "triangle-alert", 3)
+        notify("反馈失败", tostring(err), "triangle-alert", 5)
     end
-end, 989)
+end
+
+task.delay(1, function()
+    local ok, err = pcall(function()
+        MainWindow:CreateTopbarButton(
+            "suture-feedback-window-v3",
+            "message-square",
+            openFeedback,
+            989
+        )
+    end)
+
+    if not ok then
+        warn("反馈顶栏按钮创建失败:", err)
+        notify("反馈模块", "顶栏按钮创建失败", "triangle-alert", 3)
+    end
+end)
