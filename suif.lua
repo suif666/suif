@@ -93,7 +93,7 @@ local win = WindUI:CreateWindow({
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+win:Tag({ Title = "永久免费", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
 --// Suture Hub 彩色外框｜轻量版
 --// 只给 WindUI 主窗口加 UIStroke + UIGradient，不扫描 workspace
