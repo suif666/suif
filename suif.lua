@@ -564,7 +564,7 @@ toolTab:Toggle({
 
 toolTab:Button({
     Title = "Gui文本获取", Desc = "自制 依旧ai神力", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/gui%E6%96%87%E6%9C%AC%E8%8E%B7%E5%8F%96.lua", "Gui文本获取") end
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/UI_Text_Collector_Optimized_v21.lua", "Gui文本获取") end
 })
 
 toolTab:Button({
