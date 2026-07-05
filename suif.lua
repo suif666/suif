@@ -197,6 +197,8 @@ local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked =
 local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
 local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
+local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
+
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -747,6 +749,20 @@ tyscriptTab:Button({
     Callback = function()
         getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E6%B1%89%E5%8C%96.lua", "npc控制")
+    end
+})
+
+dwyyTab:Button({
+    Title = "动物医院 自动类[suif汉化]", Desc = "无卡密 有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/HBtj3VFu", "动物医院")
+    end
+})
+
+dwyyTab:Button({
+    Title = "动物医院 自动类02[suif汉化]", Desc = "需卡密 有些事件需要手动去完成 没测试最高多少天", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/pFzZvHum", "动物医院02")
     end
 })
 
