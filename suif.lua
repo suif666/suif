@@ -180,13 +180,13 @@ local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
+local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
-local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = false })
-local tyscriptTab = funcSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
 
 
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
+local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
 local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
 local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
 local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
