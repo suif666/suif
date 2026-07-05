@@ -766,6 +766,13 @@ dwyyTab:Button({
     end
 })
 
+dwyyTab:Button({
+    Title = "动物医院 自动类03[suif汉化]", Desc = "需卡密 高度自定义 至少ui挺好看 适合演戏", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8C.lua", "动物医院03")
+    end
+})
+
 -- UI设置
 local themeMap = {
     ["深色"]="Dark", ["浅色"]="Light", ["玫瑰"]="Rose", ["植物"]="Plant", ["红色"]="Red",
