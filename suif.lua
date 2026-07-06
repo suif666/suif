@@ -22,6 +22,7 @@ local plrs = game:GetService("Players")
 local lighting = game:GetService("Lighting")
 local teleport = game:GetService("TeleportService")
 local httpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
 local lp = plrs.LocalPlayer
 
 -- 【视觉体积优化版】全局通知函数：合并内容为单行，让气泡体积缩到最小
@@ -70,6 +71,8 @@ local function getHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
+-- 全局通用防爆杀 (Adonis Bypass) 提前放置在顶部
+getgenv().bypass_adonis = true
 
 if not getgenv().SutureHubAntiAFK then
     getgenv().SutureHubAntiAFK = true
@@ -95,12 +98,9 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
---// Suture Hub 彩虹边框｜轻量版
---// 只给 WindUI 主窗口加 UIStroke + UIGradient，不改功能、不创建新窗口
-
+--// Suture Hub 彩虹边框｜安全防泄漏轻量版
 task.delay(0.3, function()
     local ok, err = pcall(function()
-        local RunService = game:GetService("RunService")
         local main = win.UIElements and win.UIElements.Main
 
         if not main then
@@ -116,8 +116,6 @@ task.delay(0.3, function()
         local stroke = Instance.new("UIStroke")
         stroke.Name = "SutureRainbowBorder"
         stroke.Thickness = 3
-        stroke.Color = Color3.new(1, 1, 1)
-        stroke.Transparency = 0
         stroke.LineJoinMode = Enum.LineJoinMode.Round
         stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
         stroke.Parent = main
@@ -139,10 +137,16 @@ task.delay(0.3, function()
         local token = getgenv().SutureRainbowBorderToken
         local angle = 0
 
-        RunService.RenderStepped:Connect(function(dt)
-            if getgenv().SutureRainbowBorderToken ~= token then return end
-            if not gradient.Parent then return end
-
+        local borderConnection
+        borderConnection = RunService.Heartbeat:Connect(function(dt)
+            -- 当重新加载脚本(Token改变) 或 UI被意外销毁时，主动断开连接，彻底防内存泄漏
+            if getgenv().SutureRainbowBorderToken ~= token or not gradient.Parent then
+                if borderConnection then
+                    borderConnection:Disconnect()
+                end
+                return
+            end
+            -- 使用 dt 确保开 FPS 解锁器时旋转速度不超速
             angle = (angle + dt * 100) % 360
             gradient.Rotation = angle
         end)
@@ -206,7 +210,6 @@ local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Loc
 local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
 
 -- 屏蔽“执行脚本时反馈模块自己弹出的加载通知”
--- 但保留用户真正发送反馈时可能需要的成功/失败提示
 local function feedbackNotify(title, content, icon, duration)
     local msg = tostring(title or "") .. " " .. tostring(content or "")
 
@@ -250,8 +253,6 @@ task.spawn(function()
 end)
 
 
--- 物品高亮按钮版已删除，当前使用下方 wxlgTab 的远程 CreateUI 入口
-
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
 local countText = mainTab:Paragraph({ Title = "全网执行次数", Desc = "正在获取..." })
@@ -276,7 +277,7 @@ end
 
 task.spawn(updateCount)
 
--- 玩家：稳定版速度 / 跳跃
+-- 玩家：轻量高效版属性锁定逻辑
 getgenv().SutureMoveCfg = getgenv().SutureMoveCfg or {
     WalkSpeed = 16,
     JumpPower = 50,
@@ -288,18 +289,18 @@ local MoveCfg = getgenv().SutureMoveCfg
 local function applyMovementToHumanoid(h)
     if not h or not h.Parent then return end
 
-    pcall(function()
-        if h.WalkSpeed ~= MoveCfg.WalkSpeed then
-            h.WalkSpeed = MoveCfg.WalkSpeed
-        end
-    end)
+    -- 去除高频 pcall，采用值对比，防止反复触发属性变动造成的卡顿
+    if h.WalkSpeed ~= MoveCfg.WalkSpeed then
+        h.WalkSpeed = MoveCfg.WalkSpeed
+    end
 
-    pcall(function()
+    if not h.UseJumpPower then
         h.UseJumpPower = true
-        if h.JumpPower ~= MoveCfg.JumpPower then
-            h.JumpPower = MoveCfg.JumpPower
-        end
-    end)
+    end
+
+    if h.JumpPower ~= MoveCfg.JumpPower then
+        h.JumpPower = MoveCfg.JumpPower
+    end
 end
 
 local function applyMovement()
@@ -392,7 +393,6 @@ playerTab:Button({
 fyTab:Button({
     Title = "devastate翻译", Desc = "字面意思", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/dream6-e/rbx/refs/heads/main/%E7%BF%BB%E8%AF%91%E8%84%9A%E6%9C%AC.lua", "devastate翻译")
     end
 })
@@ -694,19 +694,29 @@ xesqTab:Button({
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "无卡密 没有esp..", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua", "武器库")
     end
 })
 
---无限旅馆
-loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua"))().CreateUI(wxlgTab)
---------
+-- 无限旅馆安全加载处理（防止网络崩溃拖垮整个脚本）
+task.spawn(function()
+    local ok, err = pcall(function()
+        local src = game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua")
+        local fn = loadstring(src)
+        if fn then
+            fn().CreateUI(wxlgTab)
+        else
+            error("解析无限旅馆代码失败")
+        end
+    end)
+    if not ok then
+        warn("无限旅馆物品高亮加载失败:", err)
+    end
+end)
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "无敌少侠")
     end
 })
@@ -714,7 +724,6 @@ fescriptTab:Button({
 fescriptTab:Button({
     Title = "fe祖国人[suif汉化]", Desc = "晚安,阿祖", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96.lua", "祖国人")
     end
 })
@@ -722,15 +731,13 @@ fescriptTab:Button({
 fescriptTab:Button({
     Title = "fe火车头[suif汉化]", Desc = "情侣拆散器", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%AB%E8%BD%A6%E5%A4%B4%E6%B1%89%E5%8C%96.lua", "火车头")
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%火%E8%BD%A4%E6%B1%89%E5%8C%96.lua", "火车头")
     end
 })
 
 fescriptTab:Button({
     Title = "fe死亡[suif汉化]", Desc = "他人可见 优质的动作脚本。。", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/uhhhhhh.lua", "uhhhh")
     end
 })
@@ -739,7 +746,6 @@ fescriptTab:Button({
 tyscriptTab:Button({
     Title = "飞行V3", Desc = "顾名思义", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/FlyGuiV3.lua", "飞行V3")
     end
 })
@@ -747,7 +753,6 @@ tyscriptTab:Button({
 tyscriptTab:Button({
     Title = "npc控制[suif汉化]", Desc = "可以控制npc", Icon = "shell",
     Callback = function()
-        getgenv().bypass_adonis = true
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E6%B1%89%E5%8C%96.lua", "npc控制")
     end
 })
@@ -788,6 +793,5 @@ settingsTab:Dropdown({
         if WindUI.SetTheme then WindUI:SetTheme(real) elseif win.SetTheme then win:SetTheme(real) end
     end
 })
-
 
 notify("Suture Hub", "成功加载全部功能！", "bird", 3)
