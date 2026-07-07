@@ -1,0 +1,64 @@
+--========================================
+-- Suture Hub 终极安全加载器 (云端隐藏版)
+--========================================
+
+-- 1. 前置环境铺垫预加载
+getgenv().bypass_adonis = true
+
+if not getgenv().SutureHubAntiAFK then
+    getgenv().SutureHubAntiAFK = true
+    local lp = game:GetService("Players").LocalPlayer
+    local vu = game:GetService("VirtualUser")
+    if lp then
+        lp.Idled:Connect(function()
+            vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end)
+    end
+end
+
+local lighting = game:GetService("Lighting")
+if not getgenv().SutureDefaultLighting then
+    getgenv().SutureDefaultLighting = {
+        Brightness = lighting.Brightness,
+        ClockTime = lighting.ClockTime,
+        FogStart = lighting.FogStart,
+        FogEnd = lighting.FogEnd,
+        GlobalShadows = lighting.GlobalShadows
+    }
+end
+
+getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
+
+-- 2. 统一调用强力网络请求
+local function httpGet(url)
+    local s, r = pcall(function()
+        if game and game.HttpGet then return game:HttpGet(url)
+        elseif syn and syn.request then return syn.request({Url = url, Method = "GET"}).Body
+        elseif http and http.request then return http.request({Url = url, Method = "GET"}).Body
+        elseif request then return request({Url = url, Method = "GET"}).Body
+        else error("不支持网络请求") end
+    end)
+    return s and r or nil
+end
+getgenv().SutureHttpGet = httpGet
+
+-- 3. 请求你的专属 Cloudflare 云端中转接口
+local cloudflareUrl = "https://suture-hub-loader.sfbdsl666.workers.dev"
+
+-- 如果你在 Cloudflare 里使用了带有“动态密码鉴权”的版本，则将上面这行替换为：
+-- local osTime = os.date("!*t")
+-- local todayToken = "SutureHub_" .. osTime.year .. osTime.month .. osTime.day
+-- local cloudflareUrl = "https://suture-hub-loader.sfbdsl666.workers.dev/?token=" .. todayToken
+
+local hubCode = httpGet(cloudflareUrl)
+
+if hubCode then
+    local s, e = pcall(function()
+        loadstring(hubCode)()
+    end)
+    if not s then warn("[Suture Hub] 运行异常，请联系作者") end
+else
+    warn("[Suture Hub] 连接失败，请检查网络")
+end
