@@ -139,14 +139,12 @@ task.delay(0.3, function()
 
         local borderConnection
         borderConnection = RunService.Heartbeat:Connect(function(dt)
-            -- 当重新加载脚本(Token改变) 或 UI被意外销毁时，主动断开连接，彻底防内存泄漏
             if getgenv().SutureRainbowBorderToken ~= token or not gradient.Parent then
                 if borderConnection then
                     borderConnection:Disconnect()
                 end
                 return
             end
-            -- 使用 dt 确保开 FPS 解锁器时旋转速度不超速
             angle = (angle + dt * 100) % 360
             gradient.Rotation = angle
         end)
@@ -206,52 +204,6 @@ local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked =
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
--- WindUI 原生顶栏反馈入口
-local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
-
--- 屏蔽“执行脚本时反馈模块自己弹出的加载通知”
-local function feedbackNotify(title, content, icon, duration)
-    local msg = tostring(title or "") .. " " .. tostring(content or "")
-
-    if msg:find("加载", 1, true)
-        or msg:find("初始化", 1, true)
-        or msg:find("入口", 1, true)
-        or msg:find("已启动", 1, true)
-        or msg:find("已就绪", 1, true)
-    then
-        warn("已屏蔽反馈启动通知:", msg)
-        return
-    end
-
-    notify(title, content, icon, duration)
-end
-
-getgenv().SutureHubFeedback = {
-    API = "https://suture-feedback.sfbdsl666.workers.dev/",
-    WindUI = WindUI,
-    Window = win,
-    Notify = feedbackNotify
-}
-
-task.spawn(function()
-    task.wait(0.5)
-
-    local ok, err = pcall(function()
-        local src = game:HttpGet(FeedbackURL)
-        local fn, loadErr = loadstring(src)
-
-        if not fn then
-            error(loadErr)
-        end
-
-        fn()
-    end)
-
-    if not ok then
-        warn("反馈模块加载失败:", err)
-    end
-end)
-
 
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
@@ -289,7 +241,6 @@ local MoveCfg = getgenv().SutureMoveCfg
 local function applyMovementToHumanoid(h)
     if not h or not h.Parent then return end
 
-    -- 去除高频 pcall，采用值对比，防止反复触发属性变动造成的卡顿
     if h.WalkSpeed ~= MoveCfg.WalkSpeed then
         h.WalkSpeed = MoveCfg.WalkSpeed
     end
@@ -473,7 +424,6 @@ toolTab:Button({
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
 local PromptHoldCache = getgenv().SutureHubPromptHoldCache
 
--- 重新执行脚本时，先恢复上一次留下的 0 秒交互，避免状态错乱
 for prompt, oldHold in pairs(PromptHoldCache) do
     if typeof(prompt) == "Instance" and prompt:IsA("ProximityPrompt") and oldHold ~= nil then
         pcall(function()
@@ -698,21 +648,13 @@ wqkTab:Button({
     end
 })
 
--- 无限旅馆安全加载处理（防止网络崩溃拖垮整个脚本）
-task.spawn(function()
-    local ok, err = pcall(function()
-        local src = game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua")
-        local fn = loadstring(src)
-        if fn then
-            fn().CreateUI(wxlgTab)
-        else
-            error("解析无限旅馆代码失败")
-        end
-    end)
-    if not ok then
-        warn("无限旅馆物品高亮加载失败:", err)
+-- 无限旅馆：通过云端加载核心模块，移除本地耦合的 UI 渲染死代码
+wxlgTab:Button({
+    Title = "加载 无限旅馆 核心脚本", Desc = "从云端获取高亮及物品交互支持", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua", "无限旅馆")
     end
-end)
+})
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
@@ -731,7 +673,7 @@ fescriptTab:Button({
 fescriptTab:Button({
     Title = "fe火车头[suif汉化]", Desc = "情侣拆散器", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%火%E8%BD%A4%E6%B1%89%E5%8C%96.lua", "火车头")
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%B3%E8%BD%A4%E6%B1%89%E5%8C%96.lua", "火车头")
     end
 })
 
@@ -774,7 +716,7 @@ dwyyTab:Button({
 dwyyTab:Button({
     Title = "动物医院 自动类03[suif汉化]", Desc = "需卡密 高度自定义 至少ui挺好看 不好用", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8C.lua", "动物医院03")
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8F.lua", "动物医院03")
     end
 })
 
