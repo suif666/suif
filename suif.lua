@@ -701,7 +701,7 @@ tyscriptTab:Button({
 })
 
 dwyyTab:Button({
-    Title = "动物医院 自动类[suif汉化]", Desc = "无卡密 有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
+    Title = "动物医院 自动类01[suif汉化]", Desc = "有卡密 有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/HBtj3VFu", "动物医院")
     end
@@ -724,7 +724,7 @@ dwyyTab:Button({
 pghsTab:Button({
     Title = "排干湖水 自动类01[suif汉化]", Desc = "无卡密    离售卖机远了没法自动售卖  15分钟通关", Icon = "shell",
     Callback = function()
-        run("", "排干湖水01")
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
     end
 })
 
