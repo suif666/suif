@@ -1,8 +1,3 @@
---========================================
--- Suture Hub 终极安全加载器 (云端隐藏版)
---========================================
-
--- 1. 前置环境铺垫预加载
 getgenv().bypass_adonis = true
 
 if not getgenv().SutureHubAntiAFK then
@@ -31,7 +26,6 @@ end
 
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
 
--- 2. 统一调用强力网络请求
 local function httpGet(url)
     local s, r = pcall(function()
         if game and game.HttpGet then return game:HttpGet(url)
@@ -44,13 +38,8 @@ local function httpGet(url)
 end
 getgenv().SutureHttpGet = httpGet
 
--- 3. 请求你的专属 Cloudflare 云端中转接口
 local cloudflareUrl = "https://suture-hub-loader.sfbdsl666.workers.dev"
 
--- 如果你在 Cloudflare 里使用了带有“动态密码鉴权”的版本，则将上面这行替换为：
--- local osTime = os.date("!*t")
--- local todayToken = "SutureHub_" .. osTime.year .. osTime.month .. osTime.day
--- local cloudflareUrl = "https://suture-hub-loader.sfbdsl666.workers.dev/?token=" .. todayToken
 
 local hubCode = httpGet(cloudflareUrl)
 
