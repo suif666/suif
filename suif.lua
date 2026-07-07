@@ -200,6 +200,7 @@ local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "s
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
 local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
 local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
+local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
 
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
@@ -717,6 +718,13 @@ dwyyTab:Button({
     Title = "动物医院 自动类03[suif汉化]", Desc = "需卡密 高度自定义 至少ui挺好看 不好用", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8F.lua", "动物医院03")
+    end
+})
+
+pghsTab:Button({
+    Title = "排干湖水 自动类01[suif汉化]", Desc = "无卡密    离售卖机远了没法自动售卖  15分钟通关", Icon = "shell",
+    Callback = function()
+        run("", "排干湖水01")
     end
 })
 
