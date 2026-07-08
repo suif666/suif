@@ -620,17 +620,11 @@ wqkTab:Button({
     end
 })
 
-getgenv().SutureHotel = {
-    Tab = wxlgTab,
-    Notify = notify,
-    Run = run,
-    Window = win,
-    WindUI = WindUI
+getgenv().Tabs = {
+    wxlgTab = wxlgTab
 }
 
-task.spawn(function()
-    run("https://pastebin.com/raw/wV07BGnS", "无限旅馆")
-end)
+run("https://pastebin.com/raw/wV07BGnS")
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
