@@ -25,7 +25,7 @@ local httpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local lp = plrs.LocalPlayer
 
--- 【视觉体积优化版】全局通知函数：合并内容为单行，让气泡体积缩到最小
+-- 【视觉体积优化版】全局通知函数
 local function notify(title, content, icon, duration)
     local shortText = title
     if content and content ~= "" then
@@ -71,7 +71,7 @@ local function getHum()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
 
--- 全局通用防爆杀 (Adonis Bypass) 提前放置在顶部
+-- 全局通用防爆杀 (Adonis Bypass)
 getgenv().bypass_adonis = true
 
 if not getgenv().SutureHubAntiAFK then
@@ -98,60 +98,31 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
---// Suture Hub 彩虹边框｜安全防泄漏轻量版
-task.delay(0.3, function()
-    local ok, err = pcall(function()
-        local main = win.UIElements and win.UIElements.Main
+--// 【彩虹边框】原版 while 逻辑回归
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(255, 255, 255)
+UIStroke.Thickness = 3
+UIStroke.LineJoinMode = Enum.LineJoinMode.Round
+UIStroke.Parent = win.UIElements.Main
 
-        if not main then
-            warn("彩虹边框：未找到 win.UIElements.Main")
-            return
+local UIGradient = Instance.new("UIGradient")
+UIGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+    ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 255, 0)),
+    ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+    ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
+    ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+}
+UIGradient.Parent = UIStroke
+
+task.spawn(function()
+    while true do
+        for i = 0, 360, 1 do
+            UIGradient.Rotation = i
+            task.wait(0.005)
         end
-
-        local old = main:FindFirstChild("SutureRainbowBorder")
-        if old then
-            old:Destroy()
-        end
-
-        local stroke = Instance.new("UIStroke")
-        stroke.Name = "SutureRainbowBorder"
-        stroke.Thickness = 3
-        stroke.LineJoinMode = Enum.LineJoinMode.Round
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        stroke.Parent = main
-
-        local gradient = Instance.new("UIGradient")
-        gradient.Name = "SutureRainbowGradient"
-        gradient.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
-            ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 255, 0)),
-            ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
-            ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
-            ColorSequenceKeypoint.new(0.66, Color3.fromRGB(0, 0, 255)),
-            ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
-        })
-        gradient.Parent = stroke
-
-        getgenv().SutureRainbowBorderToken = (getgenv().SutureRainbowBorderToken or 0) + 1
-        local token = getgenv().SutureRainbowBorderToken
-        local angle = 0
-
-        local borderConnection
-        borderConnection = RunService.Heartbeat:Connect(function(dt)
-            if getgenv().SutureRainbowBorderToken ~= token or not gradient.Parent then
-                if borderConnection then
-                    borderConnection:Disconnect()
-                end
-                return
-            end
-            angle = (angle + dt * 100) % 360
-            gradient.Rotation = angle
-        end)
-    end)
-
-    if not ok then
-        warn("彩虹边框加载失败:", err)
     end
 end)
 
@@ -230,7 +201,7 @@ end
 
 task.spawn(updateCount)
 
--- 玩家：轻量高效版属性锁定逻辑
+-- 玩家
 getgenv().SutureMoveCfg = getgenv().SutureMoveCfg or {
     WalkSpeed = 16,
     JumpPower = 50,
@@ -421,7 +392,7 @@ toolTab:Button({
     Callback = function() teleport:Teleport(game.PlaceId, lp) end
 })
 
--- 即时互动：稳定版，支持新生成交互、循环补锁、关闭后恢复原值
+-- 即时互动
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
 local PromptHoldCache = getgenv().SutureHubPromptHoldCache
 
@@ -649,13 +620,10 @@ wqkTab:Button({
     end
 })
 
--- 无限旅馆：通过云端加载核心模块，移除本地耦合的 UI 渲染死代码
-wxlgTab:Button({
-    Title = "加载 无限旅馆 核心脚本", Desc = "从云端获取高亮及物品交互支持", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%97%A0%E9%99%90%E6%97%85%E9%A6%86%E7%89%A9%E5%93%81%E9%AB%98%E4%BA%AE.lua", "无限旅馆")
-    end
-})
+getgenv().wxlgTab = wxlgTab
+task.spawn(function()
+    run("https://pastebin.com/raw/wV07BGnS", "无限旅馆")
+end)
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
