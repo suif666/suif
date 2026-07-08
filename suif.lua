@@ -578,6 +578,12 @@ byqTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/fa%E6%B1%89%E5%8C%96", "被遗弃脚本") end
 })
 
+byqTab:Button({
+    Title = "jnkie", Desc = "无卡密 依旧国外大手子制作", Icon = "shell",
+    Callback = function() run("https://api.jnkie.com/api/v1/luascripts/public/d36d2b96db2abcbb0f20b5c556b53cc5260ff74db0f8bfc3bea83eaa1da7947f/download", "被遗弃脚本02") 
+end
+})
+
 stgTab:Button({
     Title = "叶子", Desc = "需卡密 好长时间都没有更新了...", Icon = "shell",
     Callback = function() run("https://getnative.cc/script/loader", "死铁轨叶子") end
