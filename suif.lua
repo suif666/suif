@@ -1,4 +1,4 @@
--- 1. 远程加载 WindUI 库
+
 local WindUI
 do
     local ok, res = pcall(function()
@@ -620,8 +620,13 @@ wqkTab:Button({
     end
 })
 
-getgenv().Tabs = getgenv().Tabs or {}
-getgenv().Tabs.wxlgTab = wxlgTab
+getgenv().SutureHotel = {
+    Tab = wxlgTab,
+    Notify = notify,
+    Run = run,
+    Window = win,
+    WindUI = WindUI
+}
 
 task.spawn(function()
     run("https://pastebin.com/raw/wV07BGnS", "无限旅馆")
