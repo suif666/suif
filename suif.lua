@@ -620,7 +620,9 @@ wqkTab:Button({
     end
 })
 
-getgenv().wxlgTab = wxlgTab
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.wxlgTab = wxlgTab
+
 task.spawn(function()
     run("https://pastebin.com/raw/wV07BGnS", "无限旅馆")
 end)
@@ -692,7 +694,7 @@ dwyyTab:Button({
 pghsTab:Button({
     Title = "排干湖水 自动类01[suif汉化]", Desc = "无卡密    离售卖机远了没法自动售卖  15分钟通关", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
+        run("https://raw.githubusercontent.com/suif666/suif/heads/main/%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
     end
 })
 
