@@ -172,7 +172,7 @@ local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = fal
 local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
 local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
 local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
-
+local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -697,9 +697,24 @@ dwyyTab:Button({
 })
 
 pghsTab:Button({
-    Title = "排干湖水 自动类01[suif汉化]", Desc = "无卡密    离售卖机远了没法自动售卖  15分钟通关", Icon = "shell",
+    Title = "排干湖水 自动类01[suif汉化]", Desc = "无卡密    离售卖机远了没法自动售卖  15分钟左右通关", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/heads/main/%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
+    end
+})
+
+lcTab:Button({
+    Title = "lc脚本01",
+    Desc = "",
+    Icon = "shell",
+    Callback = function()
+        local link = "heiqiang-fa84d1b1-141d-46ad-991a-73b65016038c"
+        if setclipboard then
+            setclipboard(link)
+        else
+            warn("复制失败：当前环境不支持复制")
+        end
+        run("https://api.jnkie.com/api/v1/luascripts/public/6bd5c94e9da68dce4a2bdf5abd1f6fb9a1379f41faaadbc0354b98d543066f58/download", "lc莱克星顿与康科德")
     end
 })
 
