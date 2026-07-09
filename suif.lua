@@ -606,7 +606,7 @@ slTab:Button({
 
 fkgsTab:Button({
     Title = "方块故事[suif汉化]", Desc = "无卡密 超好用", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B.lua", "方块故事") end
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
 })
 
 zrzhTab:Button({
