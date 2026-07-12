@@ -1,4 +1,3 @@
-
 local WindUI
 do
     local ok, res = pcall(function()
@@ -173,6 +172,8 @@ local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked =
 local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
 local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
 local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
+local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
+
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -715,6 +716,13 @@ lcTab:Button({
             warn("复制失败：当前环境不支持复制")
         end
         run("https://api.jnkie.com/api/v1/luascripts/public/6bd5c94e9da68dce4a2bdf5abd1f6fb9a1379f41faaadbc0354b98d543066f58/download", "lc莱克星顿与康科德")
+    end
+})
+
+zhyfxTab:Button({
+    Title = "最后一封信 自动类01[suif汉化]", Desc = "无卡密 有些词脚本想不出来 还是人脑牛逼👍🏻👍🏻👍🏻", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%99%E4%B8%80%E5%B0%81%E4%BF%A1%5B%E6%B1%89%E5%8C%96%5D.lua", "最后一封信01")
     end
 })
 
