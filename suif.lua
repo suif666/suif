@@ -488,8 +488,8 @@ toolTab:Toggle({
 })
 
 toolTab:Button({
-    Title = "Gui文本获取v24", Desc = "自制 ai神力 目前已发展到v24👍🏻👍🏻👍🏻", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/UI_Text_Collector_v24.lua", "Gui文本获取v24") end
+    Title = "Gui文本获取v24", Desc = "自制 ai神力 感谢李藝州🙏🙏🙏", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/UI%E6%8F%90%E5%8F%96_v24_%E4%BF%AE%E5%A4%8D%E7%89%88.lua", "Gui文本获取v24") end
 })
 
 toolTab:Button({
