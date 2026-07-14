@@ -538,44 +538,6 @@ doorsTab:Button({
     end
 })
 
-doorsTab:Divider({ Title = "Doors 刷复活" })
-doorsTab:Paragraph({
-    Title = "Doors 刷复活",
-    Desc = "填写主号、小号和数量后，点击按钮复制生成好的脚本。\n低性能设备建议 6666，高性能设备建议 8888。"
-})
-
-local reviveCfg = { MainAccount = "", AltAccount = "", DuplicationAmount = 6666 }
-local function luaStr(s) return string.format("%q", tostring(s or "")) end
-
-doorsTab:Input({
-    Title = "主号用户名", Desc = "填写 MainAccount", Placeholder = "这里填主号用户名", Value = "",
-    Callback = function(v) reviveCfg.MainAccount = v end
-})
-doorsTab:Input({
-    Title = "小号用户名", Desc = "填写 AltAccount", Placeholder = "这里填小号用户名", Value = "",
-    Callback = function(v) reviveCfg.AltAccount = v end
-})
-doorsTab:Dropdown({
-    Title = "复制数量", Desc = "高性能设备建议 8888，低性能设备建议 6666", Values = { "6666", "8888" }, Value = "6666",
-    Callback = function(v) reviveCfg.DuplicationAmount = tonumber(v) end
-})
-doorsTab:Paragraph({ Title = "数量提示", Desc = "低性能设备请选择 6666\n高性能设备可以选择 8888" })
-doorsTab:Button({
-    Title = "复制 Doors 刷复活脚本", Desc = "根据上面的参数生成脚本并复制", Icon = "copy",
-    Callback = function()
-        if reviveCfg.MainAccount == "" or reviveCfg.AltAccount == "" then
-            return
-        end
-        local scriptText = 'MainAccount = ' .. luaStr(reviveCfg.MainAccount) .. ' -- 主号用户名\nAltAccount = ' .. luaStr(reviveCfg.AltAccount) .. ' -- 小号用户名\n\nDuplicationAmount = ' .. tostring(reviveCfg.DuplicationAmount) .. '\nloadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/Scripts/refs/heads/main/doors/revives.lua"))()'
-        if setclipboard then
-            setclipboard(scriptText)
-        else
-            warn("复制失败：环境不支持，已输出至控制台")
-            print(scriptText)
-        end
-    end
-})
-
 byqTab:Button({
     Title = "fart[suif汉化]", Desc = "无卡密 个人感觉很好用", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/fa%E6%B1%89%E5%8C%96", "被遗弃脚本") end
@@ -706,16 +668,13 @@ pghsTab:Button({
     end
 })
 
-lcTab:Button({
-    Title = "lc脚本01",
-    Desc = "",
-    Icon = "shell",
+LcTab:Button({
+    Title = "lc脚本01", Desc = "", Icon = "shell",
     Callback = function()
         local link = "heiqiang-fa84d1b1-141d-46ad-991a-73b65016038c"
         if setclipboard then
             setclipboard(link)
-        else
-            warn("复制失败：当前环境不支持复制")
+            notify("复制成功", "卡密已复制到剪贴板！", "clipboard", 2)
         end
         run("https://api.jnkie.com/api/v1/luascripts/public/6bd5c94e9da68dce4a2bdf5abd1f6fb9a1379f41faaadbc0354b98d543066f58/download", "lc莱克星顿与康科德")
     end
@@ -732,6 +691,18 @@ sxmsaTab:Button({
     Title = "数学谋杀案 自动类01[suif汉化]", Desc = "无卡密 这游戏有什么好开的。。", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%5B%E6%B1%89%E5%8C%96%5D.lua", "数学谋杀案01")
+    end
+})
+
+zbjscqtTab:Button({
+    Title = "在北极生存7天 自动类01[suif汉化]", Desc = "需卡密 加载时间可能比较长 不好用", Icon = "shell",
+    Callback = function()
+        local link = "https://wayoutscript.netlify.app/getkey"
+        if setclipboard then
+            setclipboard(link)
+            notify("复制成功", "解卡链接已复制到剪贴板！", "clipboard", 2)
+        end
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9C%A8%E5%8C%97%E6%9E%81%E7%94%9F%E5%AD%987%E5%A4%A9.lua", "在北极生存7天01")
     end
 })
 
