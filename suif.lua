@@ -174,6 +174,7 @@ local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked =
 local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
 local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
 local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
+local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
 
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
