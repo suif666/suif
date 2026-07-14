@@ -173,6 +173,7 @@ local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked =
 local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
 local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
 local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
+local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
 
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
@@ -723,6 +724,13 @@ zhyfxTab:Button({
     Title = "最后一封信 自动类01[suif汉化]", Desc = "无卡密 有些词脚本想不出来 还是人脑牛逼👍🏻👍🏻👍🏻", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%99%E4%B8%80%E5%B0%81%E4%BF%A1%5B%E6%B1%89%E5%8C%96%5D.lua", "最后一封信01")
+    end
+})
+
+sxmsaTab:Button({
+    Title = "数学谋杀案 自动类01[suif汉化]", Desc = "无卡密 这游戏有什么好开的。。", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%5B%E6%B1%89%E5%8C%96%5D.lua", "数学谋杀案01")
     end
 })
 
