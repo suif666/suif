@@ -668,7 +668,7 @@ pghsTab:Button({
     end
 })
 
-LcTab:Button({
+lcTab:Button({
     Title = "lc脚本01", Desc = "", Icon = "shell",
     Callback = function()
         local link = "heiqiang-fa84d1b1-141d-46ad-991a-73b65016038c"
