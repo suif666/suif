@@ -580,7 +580,7 @@ zrzhTab:Button({
 })
 
 xesqTab:Button({
-    Title = "将会发生些邪恶事情", Desc = "无卡密 无限体力", Icon = "shell",
+    Title = "将会发生些邪恶事情", Desc = "没有Gui 点击即执行 无限体力", Icon = "shell",
     Callback = function() run("https://rawscripts.net/raw/UPD-something-evil-will-happen-Inf-stamina-57438", "邪恶事情") end
 })
 
