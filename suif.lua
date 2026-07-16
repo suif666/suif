@@ -570,7 +570,7 @@ slTab:Button({
 })
 
 fkgsTab:Button({
-    Title = "方块故事[suif汉化]", Desc = "无卡密 超好用", Icon = "shell",
+    Title = "方块故事[suif汉化]", Desc = "无卡密 支持方块故事战斗模拟器", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
 })
 
@@ -585,7 +585,7 @@ xesqTab:Button({
 })
 
 wqkTab:Button({
-    Title = "武器库 静默瞄准", Desc = "无卡密 没有esp..", Icon = "shell",
+    Title = "武器库 静默瞄准", Desc = "无卡密 没有esp 但是有静默瞄准", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua", "武器库")
     end
@@ -641,7 +641,7 @@ tyscriptTab:Button({
 })
 
 dwyyTab:Button({
-    Title = "动物医院 自动类01[suif汉化]", Desc = "有卡密 有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
+    Title = "动物医院 自动类01[suif汉化]", Desc = "需卡密 有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/HBtj3VFu", "动物医院")
     end
