@@ -1,18 +1,20 @@
 getgenv().bypass_adonis = true
 
+-- 防挂机
 if not getgenv().SutureHubAntiAFK then
     getgenv().SutureHubAntiAFK = true
     local lp = game:GetService("Players").LocalPlayer
     local vu = game:GetService("VirtualUser")
     if lp then
         lp.Idled:Connect(function()
-            vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            vu:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
             task.wait(1)
-            vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            vu:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
         end)
     end
 end
 
+-- 灯光缓存
 local lighting = game:GetService("Lighting")
 if not getgenv().SutureDefaultLighting then
     getgenv().SutureDefaultLighting = {
@@ -26,28 +28,154 @@ end
 
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
 
-local function httpGet(url)
-    local s, r = pcall(function()
-        if game and game.HttpGet then return game:HttpGet(url)
-        elseif syn and syn.request then return syn.request({Url = url, Method = "GET"}).Body
-        elseif http and http.request then return http.request({Url = url, Method = "GET"}).Body
-        elseif request then return request({Url = url, Method = "GET"}).Body
-        else error("不支持网络请求") end
+-- 简易错误窗口
+local function showError(title, content)
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "SutureHub_Error"
+    sg.ResetOnSpawn = false
+    pcall(function() sg.Parent = game:GetService("CoreGui") end)
+    if not sg.Parent then
+        sg.Parent = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    end
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.fromOffset(380, 200)
+    frame.Position = UDim2.new(0.5, -190, 0.4, -100)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    frame.BorderSizePixel = 0
+    frame.Parent = sg
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 75, 75)
+    stroke.Thickness = 2
+    stroke.Parent = frame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 40)
+    titleLabel.Text = "  ⚠️ " .. title
+    titleLabel.TextColor3 = Color3.fromRGB(255, 75, 75)
+    titleLabel.TextSize = 16
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Parent = frame
+
+    local contentLabel = Instance.new("TextLabel")
+    contentLabel.Size = UDim2.new(1, -24, 1, -90)
+    contentLabel.Position = UDim2.fromOffset(12, 50)
+    contentLabel.BackgroundTransparency = 1
+    contentLabel.Text = content
+    contentLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    contentLabel.TextSize = 14
+    contentLabel.Font = Enum.Font.SourceSans
+    contentLabel.TextWrapped = true
+    contentLabel.TextYAlignment = Enum.TextYAlignment.Top
+    contentLabel.TextXAlignment = Enum.TextXAlignment.Left
+    contentLabel.Parent = frame
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 100, 0, 32)
+    btn.Position = UDim2.new(0.5, -50, 1, -45)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    btn.Text = "确 定"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 14
+    btn.Parent = frame
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        sg:Destroy()
     end)
-    return s and r or nil
 end
-getgenv().SutureHttpGet = httpGet
 
-local cloudflareUrl = "https://suture-hub-loader.sfbdsl666.workers.dev"
+-- Base64 解码（优先使用执行器自带，失败则用纯 Lua 实现）
+local function base64decode(data)
+    if crypt and crypt.base64decode then
+        return crypt.base64decode(data)
+    end
 
+    -- 纯 Lua Base64 解码（兼容性兜底）
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    data = string.gsub(data, '[^'..b..'=]', '')
+    return (data:gsub('.', function(x)
+        if x == '=' then return '' end
+        local r, f = '', (b:find(x) - 1)
+        for i = 6, 1, -1 do
+            r = r .. (f % 2^i - f % 2^(i-1) > 0 and '1' or '0')
+        end
+        return r
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+        if #x \~= 8 then return '' end
+        local c = 0
+        for i = 1, 8 do
+            c = c + (x:sub(i, i) == '1' and 2^(8 - i) or 0)
+        end
+        return string.char(c)
+    end))
+end
 
-local hubCode = httpGet(cloudflareUrl)
+-- 主加载逻辑
+local url = "https://suture-hub-loader.sfbdsl666.workers.dev"
+local reqFunc = (syn and syn.request) or (http and http.request) or request
 
-if hubCode then
-    local s, e = pcall(function()
-        loadstring(hubCode)()
-    end)
-    if not s then warn("[Suture Hub] 运行异常，请联系作者") end
-else
-    warn("[Suture Hub] 连接失败，请检查网络")
+if not reqFunc then
+    showError("加载失败", "当前执行器不支持网络请求，请更换执行器。")
+    return
+end
+
+local success, response = pcall(function()
+    return reqFunc({
+        Url = url,
+        Method = "GET",
+        Headers = {
+            ["X-Suture-Loader"] = "1"  -- 关键：必须带这个 Header
+        }
+    })
+end)
+
+if not success or not response then
+    showError("网络错误", "无法连接到云端服务器，请检查网络或加速器。")
+    return
+end
+
+local code = response.StatusCode or response.status
+local body = response.Body or response.body
+
+if code \~= 200 or not body or body == "" then
+    showError("加载失败", "云端返回异常（状态码: " .. tostring(code) .. "）\n可能是服务器维护中。")
+    return
+end
+
+-- 解码 Base64
+local decoded
+local decodeSuccess, decodeResult = pcall(function()
+    return base64decode(body)
+end)
+
+if not decodeSuccess or not decodeResult or decodeResult == "" then
+    showError("解码失败", "脚本解码失败，请联系作者。")
+    return
+end
+
+decoded = decodeResult
+
+-- 执行主脚本
+local loadSuccess, loadErr = pcall(function()
+    local fn, err = loadstring(decoded)
+    if not fn then
+        error(err or "loadstring 失败")
+    end
+    fn()
+end)
+
+if not loadSuccess then
+    showError("运行崩溃", "主脚本执行出错：\n\n" .. tostring(loadErr))
 end
