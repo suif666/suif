@@ -662,7 +662,7 @@ dwyyTab:Button({
 })
 
 dwyyTab:Button({
-    Title = "动物医院 自动类04[suif汉化]", Desc = "无卡密 至少ui挺好看 挺好用 然后启动时会有雷霆大叫[调低音量]", Icon = "shell",
+    Title = "动物医院 自动类04[suif汉化]", Desc = "无卡密 美丽ui 挺好用 就是容易治死人导致游戏结束 等作者优化吧 启动时会有雷霆大叫[调低音量]", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2Foxname%5Bsuifhanghang%5D.lua", "动物医院04")
     end
