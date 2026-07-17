@@ -661,6 +661,13 @@ dwyyTab:Button({
     end
 })
 
+dwyyTab:Button({
+    Title = "动物医院 自动类04[suif汉化]", Desc = "无卡密      至少ui挺好看 然后启动时会有雷霆大叫[调低音量]", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2Foxname%5Bsuifhanghang%5D.lua", "动物医院04")
+    end
+})
+
 pghsTab:Button({
     Title = "排干湖水 自动类01[suif汉化]", Desc = "无卡密    离售卖机远了没法自动售卖  15分钟左右通关", Icon = "shell",
     Callback = function()
