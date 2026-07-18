@@ -152,6 +152,7 @@ local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
+local npcTab = funcSec:Tab({ Title = "NPC类", Icon = "user", Locked = false })
 local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
@@ -712,6 +713,12 @@ zbjscqtTab:Button({
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9C%A8%E5%8C%97%E6%9E%81%E7%94%9F%E5%AD%987%E5%A4%A9.lua", "在北极生存7天01")
     end
 })
+
+getgenv().Tabs = {
+    npcTab = npcTab
+}
+
+run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E7%B1%BB")
 
 -- UI设置
 local themeMap = {
