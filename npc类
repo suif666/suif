@@ -1,20 +1,10 @@
---[[
-    NPC 功能远程脚本（ESP + 增大
-    必须配合主脚本的 getgenv().Tabs.Tab 使用
-]]
+-- NPC 功能远程脚本（高亮 + 距离 + 血量 + 增大）
+-- 专为 npcTab 设计
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- ==================== 检查 Tab 是否存在 ====================
-local Tab = getgenv().Tabs and getgenv().Tabs.Tab
-if not Tab then
-    warn("[NPC] 请先在主脚本创建 Tab 并存入 getgenv().Tabs.Tab 后再运行此脚本")
-    return
-end
-
--- ==================== 共享设置 ====================
 local NPCSettings = {
     MaxHighlightDistance = 150,
     ShowHealthDisplay = true,
@@ -26,7 +16,7 @@ local stored = setmetatable({}, {__mode = "k"})
 local activeNPCs = {}
 local npcs = {}
 
--- ==================== ESP 功能 ====================
+-- ==================== ESP 高亮 + 血量 ====================
 local function getPlayerPosition()
     local char = LocalPlayer.Character
     if char then
@@ -74,19 +64,19 @@ local function updateNPCVisibility(humanoid)
             local textLabel = Instance.new("TextLabel")
             textLabel.Size = UDim2.new(1, 0, 1, 0)
             textLabel.BackgroundTransparency = 1
-            textLabel.Text = "HP: " .. (humanoid.MaxHealth > 0 and math.floor(humanoid.Health) or 0)
+            textLabel.Text = "HP: " .. math.floor(humanoid.Health)
             textLabel.Font = Enum.Font.SourceSansBold
             textLabel.TextSize = 18
             textLabel.TextColor3 = Color3.new(1, 1, 1)
             textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-            textLabel.TextStrokeTransparency = 0.5
+            textLabel.TextStrokeTransparency = 0.25
             textLabel.Parent = billboard
             billboard.Parent = character
 
             if not humanoid:GetAttribute("HealthConnected") then
                 humanoid:GetPropertyChangedSignal("Health"):Connect(function()
                     if billboard and billboard:FindFirstChildOfClass("TextLabel") then
-                        billboard:FindFirstChildOfClass("TextLabel").Text = "HP: " .. (humanoid.MaxHealth > 0 and math.floor(humanoid.Health) or 0)
+                        billboard:FindFirstChildOfClass("TextLabel").Text = "HP: " .. math.floor(humanoid.Health)
                     end
                 end)
                 humanoid:SetAttribute("HealthConnected", true)
@@ -99,7 +89,7 @@ local function updateNPCVisibility(humanoid)
     end
 end
 
--- ==================== Hitbox 增大功能 ====================
+-- ==================== NPC 增大 ====================
 local partsToEnlarge = {"Head", "HumanoidRootPart", "UpperTorso"}
 
 local function enlargeNPC(obj)
@@ -188,51 +178,66 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ==================== 把控件添加到主脚本的 Tab ====================
-Tab:CreateSlider({
-    Title = "高亮距离",
-    Min = 0,
-    Max = 500,
-    Default = NPCSettings.MaxHighlightDistance,
-    Callback = function(Value)
-        NPCSettings.MaxHighlightDistance = Value
-    end
-})
+-- ==================== 添加到 npcTab ====================
+local tab = getgenv().Tabs and getgenv().Tabs.npcTab
 
-Tab:CreateToggle({
-    Title = "显示 NPC 血量",
-    Default = NPCSettings.ShowHealthDisplay,
-    Callback = function(Value)
-        NPCSettings.ShowHealthDisplay = Value
-    end
-})
+if tab then
+    tab:CreateToggle({
+        Title = "开启 NPC 高亮",
+        Desc = "距离内显示高亮",
+        Default = false,
+        Callback = function(v)
+            -- 可根据需要扩展
+        end
+    })
 
-Tab:CreateSlider({
-    Title = "NPC 增大倍率",
-    Min = 1,
-    Max = 10,
-    Default = NPCSettings.NPCSizeMultiplier,
-    Callback = function(Value)
-        NPCSettings.NPCSizeMultiplier = Value
-        if NPCSettings.EnableNPCEnlarge then
-            for part, data in pairs(stored) do
-                if part and part.Parent then
-                    part.Size = data.Size * Value
+    tab:CreateSlider({
+        Title = "高亮距离",
+        Min = 0,
+        Max = 500,
+        Default = NPCSettings.MaxHighlightDistance,
+        Callback = function(Value)
+            NPCSettings.MaxHighlightDistance = Value
+        end
+    })
+
+    tab:CreateToggle({
+        Title = "显示 NPC 血量",
+        Default = NPCSettings.ShowHealthDisplay,
+        Callback = function(Value)
+            NPCSettings.ShowHealthDisplay = Value
+        end
+    })
+
+    tab:CreateToggle({
+        Title = "启用 NPC 增大",
+        Default = NPCSettings.EnableNPCEnlarge,
+        Callback = function(Value)
+            NPCSettings.EnableNPCEnlarge = Value
+            if Value then
+                reEnlargeAllNPCs()
+            else
+                restoreAllNPCs()
+            end
+        end
+    })
+
+    tab:CreateSlider({
+        Title = "NPC 增大倍率",
+        Min = 1,
+        Max = 10,
+        Default = NPCSettings.NPCSizeMultiplier,
+        Callback = function(Value)
+            NPCSettings.NPCSizeMultiplier = Value
+            if NPCSettings.EnableNPCEnlarge then
+                for part, data in pairs(stored) do
+                    if part and part.Parent then
+                        part.Size = data.Size * Value
+                    end
                 end
             end
         end
-    end
-})
+    })
+end
 
-Tab:CreateToggle({
-    Title = "启用 NPC 增大",
-    Default = NPCSettings.EnableNPCEnlarge,
-    Callback = function(Value)
-        NPCSettings.EnableNPCEnlarge = Value
-        if Value then
-            reEnlargeAllNPCs()
-        else
-            restoreAllNPCs()
-        end
-    end
-})
+print("[NPC 功能] 已加载到 npcTab")
