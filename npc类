@@ -27,7 +27,6 @@ local activeNPCs = {}
 local npcs = {}
 local connections = {}
 local uiBuilt = false
-local refreshQueued = false
 
 local enlargeTargets = {
     ["头部"] = {"Head"},
@@ -35,6 +34,8 @@ local enlargeTargets = {
     ["躯干"] = {"UpperTorso", "LowerTorso", "Torso"},
     ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
 }
+
+local refreshQueued = false
 
 local function cleanup()
     for _, c in ipairs(connections) do
@@ -92,6 +93,7 @@ local function queueRefresh()
     end
     refreshQueued = true
     task.defer(function()
+        task.wait(0.05)
         refreshQueued = false
         for _, hum in ipairs(npcs) do
             if hum and hum.Parent then
@@ -209,7 +211,11 @@ local function enlargeNPC(obj)
 
     for _, p in ipairs(getTargetParts(obj)) do
         if not stored[p] then
-            stored[p] = { Size = p.Size, Transparency = p.Transparency, CanCollide = p.CanCollide }
+            stored[p] = {
+                Size = p.Size,
+                Transparency = p.Transparency,
+                CanCollide = p.CanCollide
+            }
         end
         p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
         p.Transparency = 0.25
@@ -282,6 +288,7 @@ end)
 
 if not uiBuilt then
     uiBuilt = true
+
     local function safe(f)
         local ok, err = pcall(f)
         if not ok then
@@ -331,9 +338,7 @@ if not uiBuilt then
             Callback = function(v)
                 NPCSettings.EnableNPCEnlarge = v
                 restoreAllNPCs()
-                if v then
-                    queueRefresh()
-                end
+                queueRefresh()
             end
         })
     end)
@@ -347,7 +352,6 @@ if not uiBuilt then
             Callback = function(v)
                 NPCSettings.NPCSizeMultiplier = v
                 if NPCSettings.EnableNPCEnlarge then
-                    restoreAllNPCs()
                     queueRefresh()
                 end
             end
