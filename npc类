@@ -8,16 +8,24 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
 local NPCSettings = {
+    EnableHighlight = false,
     MaxHighlightDistance = 150,
     ShowHealthDisplay = true,
-    NPCSizeMultiplier = 4,
     EnableNPCEnlarge = true,
-    EnableHighlight = false
+    NPCSizeMultiplier = 4,
+    EnlargePartMode = "全部"
 }
 
 local stored = setmetatable({}, { __mode = "k" })
 local activeNPCs = {}
 local npcs = {}
+
+local enlargeTargets = {
+    ["头部"] = {"Head"},
+    ["身体"] = {"HumanoidRootPart"},
+    ["躯干"] = {"UpperTorso", "LowerTorso", "Torso"},
+    ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
+}
 
 local function waitForNpcTab(timeout)
     timeout = timeout or 20
@@ -143,7 +151,19 @@ local function updateNPCVisibility(humanoid)
     end
 end
 
-local partsToEnlarge = {"Head", "HumanoidRootPart", "UpperTorso"}
+local function getTargetParts(obj)
+    local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
+    local result = {}
+
+    for _, name in ipairs(list) do
+        local p = obj:FindFirstChild(name)
+        if p and p:IsA("BasePart") then
+            table.insert(result, p)
+        end
+    end
+
+    return result
+end
 
 local function enlargeNPC(obj)
     if not NPCSettings.EnableNPCEnlarge or not obj or not obj.Parent then
@@ -155,20 +175,18 @@ local function enlargeNPC(obj)
         return
     end
 
-    for _, name in ipairs(partsToEnlarge) do
-        local p = obj:FindFirstChild(name)
-        if p and p:IsA("BasePart") then
-            if not stored[p] then
-                stored[p] = {
-                    Size = p.Size,
-                    Transparency = p.Transparency,
-                    CanCollide = p.CanCollide
-                }
-            end
-            p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
-            p.Transparency = 0.25
-            p.CanCollide = false
+    for _, p in ipairs(getTargetParts(obj)) do
+        if not stored[p] then
+            stored[p] = {
+                Size = p.Size,
+                Transparency = p.Transparency,
+                CanCollide = p.CanCollide
+            }
         end
+
+        p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
+        p.Transparency = 0.25
+        p.CanCollide = false
     end
 end
 
@@ -257,12 +275,15 @@ end)
 
 safe(function()
     tab:Slider({
-        Title = "高亮距离",
+        Title = "ESP 范围",
         Min = 0,
         Max = 500,
         Value = NPCSettings.MaxHighlightDistance,
         Callback = function(v)
             NPCSettings.MaxHighlightDistance = v
+            for _, hum in ipairs(npcs) do
+                updateNPCVisibility(hum)
+            end
         end
     })
 end)
@@ -290,7 +311,7 @@ end)
 safe(function()
     tab:Toggle({
         Title = "启用 NPC 增大",
-        Desc = "放大 NPC 部件",
+        Desc = "放大 NPC 指定部位",
         Icon = "move",
         Value = NPCSettings.EnableNPCEnlarge,
         Callback = function(v)
@@ -318,6 +339,22 @@ safe(function()
                         part.Size = data.Size * v
                     end
                 end
+            end
+        end
+    })
+end)
+
+safe(function()
+    tab:Dropdown({
+        Title = "放大部位",
+        Multi = false,
+        Values = {"头部", "身体", "躯干", "全部"},
+        Value = NPCSettings.EnlargePartMode,
+        Callback = function(v)
+            NPCSettings.EnlargePartMode = v
+            restoreAllNPCs()
+            if NPCSettings.EnableNPCEnlarge then
+                reEnlargeAllNPCs()
             end
         end
     })
