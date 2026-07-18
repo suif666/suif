@@ -1,5 +1,5 @@
 --[[
-    NPC 功能远程脚本（ESP + 增大）
+    NPC 功能远程脚本（ESP + 增大
     必须配合主脚本的 getgenv().Tabs.Tab 使用
 ]]
 
