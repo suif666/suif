@@ -1,7 +1,12 @@
-if getgenv().__NPC_REMOTE_LOADED then
-    return
+do
+    local old = rawget(getgenv(), "__NPC_REMOTE_STATE")
+    if old and old.cleanup then
+        pcall(old.cleanup)
+    end
 end
-getgenv().__NPC_REMOTE_LOADED = true
+
+local State = {}
+getgenv().__NPC_REMOTE_STATE = State
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -22,6 +27,7 @@ local activeNPCs = {}
 local npcs = {}
 local connections = {}
 local uiBuilt = false
+local refreshQueued = false
 
 local enlargeTargets = {
     ["头部"] = {"Head"},
@@ -30,16 +36,14 @@ local enlargeTargets = {
     ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
 }
 
-local function safeDisconnectAll()
+local function cleanup()
     for _, c in ipairs(connections) do
         pcall(function()
             c:Disconnect()
         end)
     end
     connections = {}
-end
 
-local function restoreAllNPCs()
     for part, orig in pairs(stored) do
         if part and part.Parent then
             pcall(function()
@@ -49,33 +53,20 @@ local function restoreAllNPCs()
             end)
         end
     end
-end
 
-local function destroyAllUiArtifacts()
     local folder = CoreGui:FindFirstChild("NPC_REMOTE_FOLDER")
     if folder then
         folder:Destroy()
     end
-end
 
-local function cleanup()
-    safeDisconnectAll()
-    restoreAllNPCs()
-    destroyAllUiArtifacts()
     stored = setmetatable({}, { __mode = "k" })
     activeNPCs = {}
     npcs = {}
     uiBuilt = false
+    refreshQueued = false
 end
 
-local old = rawget(getgenv(), "__NPC_REMOTE_STATE")
-if old and type(old) == "table" and old.cleanup then
-    pcall(old.cleanup)
-end
-
-getgenv().__NPC_REMOTE_STATE = {
-    cleanup = cleanup
-}
+State.cleanup = cleanup
 
 local function waitForNpcTab(timeout)
     timeout = timeout or 20
@@ -95,7 +86,22 @@ if not tab then
     return
 end
 
-local function getPlayerPosition()
+local function queueRefresh()
+    if refreshQueued then
+        return
+    end
+    refreshQueued = true
+    task.defer(function()
+        refreshQueued = false
+        for _, hum in ipairs(npcs) do
+            if hum and hum.Parent then
+                updateNPCVisibility(hum)
+            end
+        end
+    end)
+end
+
+function getPlayerPosition()
     local char = LocalPlayer.Character
     if char then
         local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
@@ -110,7 +116,7 @@ local function getPlayerPosition()
     return Vector3.new()
 end
 
-local function getOrCreateBillboard(character, humanoid)
+function getOrCreateBillboard(character, humanoid)
     local billboard = character:FindFirstChild("NPCHealthDisplay")
     if billboard then
         return billboard
@@ -126,36 +132,21 @@ local function getOrCreateBillboard(character, humanoid)
     local head = character:FindFirstChild("Head") or character.PrimaryPart or character:FindFirstChildWhichIsA("BasePart")
     billboard.Adornee = head
 
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = "HP: " .. tostring(math.floor(humanoid.Health))
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextSize = 18
-    textLabel.TextColor3 = Color3.new(1, 1, 1)
-    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0.25
-    textLabel.Parent = billboard
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "HP: " .. tostring(math.floor(humanoid.Health))
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 18
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextStrokeTransparency = 0.25
+    label.Parent = billboard
 
     billboard.Parent = character
-
-    if not humanoid:GetAttribute("HealthConnected") then
-        humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-            local gui = character:FindFirstChild("NPCHealthDisplay")
-            if gui then
-                local label = gui:FindFirstChildOfClass("TextLabel")
-                if label then
-                    label.Text = "HP: " .. tostring(math.floor(humanoid.Health))
-                end
-            end
-        end)
-        humanoid:SetAttribute("HealthConnected", true)
-    end
-
     return billboard
 end
 
-local function updateNPCVisibility(humanoid)
+function updateNPCVisibility(humanoid)
     if not humanoid or not humanoid.Parent then
         return
     end
@@ -165,7 +156,6 @@ local function updateNPCVisibility(humanoid)
         return
     end
 
-    local playerPos = getPlayerPosition()
     local ok, npcPos = pcall(function()
         return character:GetPivot().Position
     end)
@@ -173,7 +163,7 @@ local function updateNPCVisibility(humanoid)
         return
     end
 
-    local distance = (npcPos - playerPos).Magnitude
+    local distance = (npcPos - getPlayerPosition()).Magnitude
     local withinRange = distance <= NPCSettings.MaxHighlightDistance
 
     local highlight = character:FindFirstChildOfClass("Highlight")
@@ -203,14 +193,12 @@ end
 local function getTargetParts(obj)
     local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
     local result = {}
-
     for _, name in ipairs(list) do
         local p = obj:FindFirstChild(name)
         if p and p:IsA("BasePart") then
-            table.insert(result, p)
+            result[#result + 1] = p
         end
     end
-
     return result
 end
 
@@ -219,23 +207,23 @@ local function enlargeNPC(obj)
         return
     end
 
-    local hum = obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChild("AnimationController")
-    if not hum then
-        return
-    end
-
     for _, p in ipairs(getTargetParts(obj)) do
         if not stored[p] then
-            stored[p] = {
-                Size = p.Size,
-                Transparency = p.Transparency,
-                CanCollide = p.CanCollide
-            }
+            stored[p] = { Size = p.Size, Transparency = p.Transparency, CanCollide = p.CanCollide }
         end
-
         p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
         p.Transparency = 0.25
         p.CanCollide = false
+    end
+end
+
+local function restoreAllNPCs()
+    for part, orig in pairs(stored) do
+        if part and part.Parent then
+            part.Size = orig.Size
+            part.Transparency = orig.Transparency
+            part.CanCollide = orig.CanCollide
+        end
     end
 end
 
@@ -262,7 +250,7 @@ local function registerNPC(obj)
 
     if not activeNPCs[obj] then
         activeNPCs[obj] = true
-        table.insert(npcs, hum)
+        npcs[#npcs + 1] = hum
     end
 
     if NPCSettings.EnableNPCEnlarge then
@@ -294,7 +282,6 @@ end)
 
 if not uiBuilt then
     uiBuilt = true
-
     local function safe(f)
         local ok, err = pcall(f)
         if not ok then
@@ -305,13 +292,10 @@ if not uiBuilt then
     safe(function()
         tab:Toggle({
             Title = "开启 NPC 高亮",
-            Desc = "距离内显示高亮",
             Value = NPCSettings.EnableHighlight,
             Callback = function(v)
                 NPCSettings.EnableHighlight = v
-                for _, hum in ipairs(npcs) do
-                    updateNPCVisibility(hum)
-                end
+                queueRefresh()
             end
         })
     end)
@@ -324,9 +308,7 @@ if not uiBuilt then
             Default = NPCSettings.MaxHighlightDistance,
             Callback = function(v)
                 NPCSettings.MaxHighlightDistance = v
-                for _, hum in ipairs(npcs) do
-                    updateNPCVisibility(hum)
-                end
+                queueRefresh()
             end
         })
     end)
@@ -334,18 +316,10 @@ if not uiBuilt then
     safe(function()
         tab:Toggle({
             Title = "显示 NPC 血量",
-            Desc = "距离内显示血量",
             Value = NPCSettings.ShowHealthDisplay,
             Callback = function(v)
                 NPCSettings.ShowHealthDisplay = v
-                for _, model in pairs(activeNPCs) do
-                    if model and model.Parent then
-                        local gui = model:FindFirstChild("NPCHealthDisplay")
-                        if gui then
-                            gui.Enabled = v
-                        end
-                    end
-                end
+                queueRefresh()
             end
         })
     end)
@@ -353,13 +327,12 @@ if not uiBuilt then
     safe(function()
         tab:Toggle({
             Title = "启用 NPC 增大",
-            Desc = "放大 NPC 指定部位",
             Value = NPCSettings.EnableNPCEnlarge,
             Callback = function(v)
                 NPCSettings.EnableNPCEnlarge = v
                 restoreAllNPCs()
                 if v then
-                    reEnlargeAllNPCs()
+                    queueRefresh()
                 end
             end
         })
@@ -375,7 +348,7 @@ if not uiBuilt then
                 NPCSettings.NPCSizeMultiplier = v
                 if NPCSettings.EnableNPCEnlarge then
                     restoreAllNPCs()
-                    reEnlargeAllNPCs()
+                    queueRefresh()
                 end
             end
         })
@@ -391,7 +364,7 @@ if not uiBuilt then
                 NPCSettings.EnlargePartMode = v
                 restoreAllNPCs()
                 if NPCSettings.EnableNPCEnlarge then
-                    reEnlargeAllNPCs()
+                    queueRefresh()
                 end
             end
         })
