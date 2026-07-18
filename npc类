@@ -18,22 +18,40 @@ local stored = setmetatable({}, { __mode = "k" })
 local activeNPCs = {}
 local npcs = {}
 
+local function getTabs()
+    local Tabs = getgenv().Tabs
+    if Tabs and type(Tabs) == "table" then
+        return Tabs
+    end
+    return nil
+end
+
 local function waitForNpcTab(timeout)
-    timeout = timeout or 15
+    timeout = timeout or 20
     local start = tick()
     repeat
-        local Tabs = getgenv().Tabs
-        if Tabs and Tabs.npcTab then
-            return Tabs.npcTab
+        local Tabs = getTabs()
+        local tab = Tabs and Tabs.npcTab
+        if tab then
+            return tab
         end
         task.wait(0.1)
     until tick() - start > timeout
     return nil
 end
 
-local tab = waitForNpcTab(15)
+local tab = waitForNpcTab(20)
 if not tab then
-    warn("[NPC 功能] 没有拿到 npcTab，可能主脚本没有把同一个 Tabs 暴露到当前环境")
+    warn("[NPC 功能] 未找到 npcTab")
+    return
+end
+
+local function hasUiMethods(obj)
+    return type(obj) == "table" and (type(obj.CreateToggle) == "function" or type(obj.CreateSlider) == "function")
+end
+
+if not hasUiMethods(tab) then
+    warn("[NPC 功能] npcTab 不是可用 UI 对象")
     return
 end
 
@@ -136,10 +154,6 @@ local function updateNPCVisibility(humanoid)
         billboard = billboard or getOrCreateBillboard(character, humanoid)
         if billboard then
             billboard.Enabled = true
-            local label = billboard:FindFirstChildOfClass("TextLabel")
-            if label then
-                label.Text = "HP: " .. tostring(math.floor(humanoid.Health))
-            end
         end
     elseif billboard then
         billboard.Enabled = false
@@ -168,7 +182,6 @@ local function enlargeNPC(obj)
                     CanCollide = p.CanCollide
                 }
             end
-
             p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
             p.Transparency = 0.25
             p.CanCollide = false
@@ -237,87 +250,79 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-local ok1, err1 = pcall(function()
-    tab:CreateToggle({
-        Title = "开启 NPC 高亮",
-        Desc = "距离内显示高亮",
-        Default = false,
-        Callback = function(v)
-            for _, hum in ipairs(npcs) do
-                updateNPCVisibility(hum)
+task.defer(function()
+    local ok, err = pcall(function()
+        tab:CreateToggle({
+            Title = "开启 NPC 高亮",
+            Desc = "距离内显示高亮",
+            Default = false,
+            Callback = function(v)
+                for _, hum in ipairs(npcs) do
+                    updateNPCVisibility(hum)
+                end
             end
-        end
-    })
-end)
+        })
 
-local ok2, err2 = pcall(function()
-    tab:CreateSlider({
-        Title = "高亮距离",
-        Min = 0,
-        Max = 500,
-        Default = NPCSettings.MaxHighlightDistance,
-        Callback = function(Value)
-            NPCSettings.MaxHighlightDistance = Value
-        end
-    })
-end)
+        tab:CreateSlider({
+            Title = "高亮距离",
+            Min = 0,
+            Max = 500,
+            Default = NPCSettings.MaxHighlightDistance,
+            Callback = function(Value)
+                NPCSettings.MaxHighlightDistance = Value
+            end
+        })
 
-local ok3, err3 = pcall(function()
-    tab:CreateToggle({
-        Title = "显示 NPC 血量",
-        Default = NPCSettings.ShowHealthDisplay,
-        Callback = function(Value)
-            NPCSettings.ShowHealthDisplay = Value
-            for _, model in pairs(activeNPCs) do
-                if model and model.Parent then
-                    local gui = model:FindFirstChild("NPCHealthDisplay")
-                    if gui then
-                        gui.Enabled = Value
+        tab:CreateToggle({
+            Title = "显示 NPC 血量",
+            Default = NPCSettings.ShowHealthDisplay,
+            Callback = function(Value)
+                NPCSettings.ShowHealthDisplay = Value
+                for _, model in pairs(activeNPCs) do
+                    if model and model.Parent then
+                        local gui = model:FindFirstChild("NPCHealthDisplay")
+                        if gui then
+                            gui.Enabled = Value
+                        end
                     end
                 end
             end
-        end
-    })
-end)
+        })
 
-local ok4, err4 = pcall(function()
-    tab:CreateToggle({
-        Title = "启用 NPC 增大",
-        Default = NPCSettings.EnableNPCEnlarge,
-        Callback = function(Value)
-            NPCSettings.EnableNPCEnlarge = Value
-            if Value then
-                reEnlargeAllNPCs()
-            else
-                restoreAllNPCs()
+        tab:CreateToggle({
+            Title = "启用 NPC 增大",
+            Default = NPCSettings.EnableNPCEnlarge,
+            Callback = function(Value)
+                NPCSettings.EnableNPCEnlarge = Value
+                if Value then
+                    reEnlargeAllNPCs()
+                else
+                    restoreAllNPCs()
+                end
             end
-        end
-    })
-end)
+        })
 
-local ok5, err5 = pcall(function()
-    tab:CreateSlider({
-        Title = "NPC 增大倍率",
-        Min = 1,
-        Max = 10,
-        Default = NPCSettings.NPCSizeMultiplier,
-        Callback = function(Value)
-            NPCSettings.NPCSizeMultiplier = Value
-            if NPCSettings.EnableNPCEnlarge then
-                for part, data in pairs(stored) do
-                    if part and part.Parent then
-                        part.Size = data.Size * Value
+        tab:CreateSlider({
+            Title = "NPC 增大倍率",
+            Min = 1,
+            Max = 10,
+            Default = NPCSettings.NPCSizeMultiplier,
+            Callback = function(Value)
+                NPCSettings.NPCSizeMultiplier = Value
+                if NPCSettings.EnableNPCEnlarge then
+                    for part, data in pairs(stored) do
+                        if part and part.Parent then
+                            part.Size = data.Size * Value
+                        end
                     end
                 end
             end
-        end
-    })
-end)
+        })
+    end)
 
-if not ok1 then warn(err1) end
-if not ok2 then warn(err2) end
-if not ok3 then warn(err3) end
-if not ok4 then warn(err4) end
-if not ok5 then warn(err5) end
+    if not ok then
+        warn("[NPC 功能] UI 创建失败: " .. tostring(err))
+    end
+end)
 
 print("[NPC 功能] 已加载到 npcTab")
