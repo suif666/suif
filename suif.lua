@@ -715,7 +715,7 @@ zbjscqtTab:Button({
 })
 
 getgenv().Tabs = {
-    npcTab = npcTab
+    Tab = npcTab
 }
 
 run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E7%B1%BB")
