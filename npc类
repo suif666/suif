@@ -6,12 +6,13 @@ getgenv().__NPC_REMOTE_LOADED = true
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
 
 local NPCSettings = {
     EnableHighlight = false,
     MaxHighlightDistance = 150,
     ShowHealthDisplay = true,
-    EnableNPCEnlarge = true,
+    EnableNPCEnlarge = false,
     NPCSizeMultiplier = 4,
     EnlargePartMode = "全部"
 }
@@ -19,12 +20,61 @@ local NPCSettings = {
 local stored = setmetatable({}, { __mode = "k" })
 local activeNPCs = {}
 local npcs = {}
+local connections = {}
+local uiBuilt = false
 
 local enlargeTargets = {
     ["头部"] = {"Head"},
     ["身体"] = {"HumanoidRootPart"},
     ["躯干"] = {"UpperTorso", "LowerTorso", "Torso"},
     ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
+}
+
+local function safeDisconnectAll()
+    for _, c in ipairs(connections) do
+        pcall(function()
+            c:Disconnect()
+        end)
+    end
+    connections = {}
+end
+
+local function restoreAllNPCs()
+    for part, orig in pairs(stored) do
+        if part and part.Parent then
+            pcall(function()
+                part.Size = orig.Size
+                part.Transparency = orig.Transparency
+                part.CanCollide = orig.CanCollide
+            end)
+        end
+    end
+end
+
+local function destroyAllUiArtifacts()
+    local folder = CoreGui:FindFirstChild("NPC_REMOTE_FOLDER")
+    if folder then
+        folder:Destroy()
+    end
+end
+
+local function cleanup()
+    safeDisconnectAll()
+    restoreAllNPCs()
+    destroyAllUiArtifacts()
+    stored = setmetatable({}, { __mode = "k" })
+    activeNPCs = {}
+    npcs = {}
+    uiBuilt = false
+end
+
+local old = rawget(getgenv(), "__NPC_REMOTE_STATE")
+if old and type(old) == "table" and old.cleanup then
+    pcall(old.cleanup)
+end
+
+getgenv().__NPC_REMOTE_STATE = {
+    cleanup = cleanup
 }
 
 local function waitForNpcTab(timeout)
@@ -42,7 +92,6 @@ end
 
 local tab = waitForNpcTab(20)
 if not tab then
-    warn("[NPC 功能] 没有找到 npcTab")
     return
 end
 
@@ -190,16 +239,6 @@ local function enlargeNPC(obj)
     end
 end
 
-local function restoreAllNPCs()
-    for part, orig in pairs(stored) do
-        if part and part.Parent then
-            part.Size = orig.Size
-            part.Transparency = orig.Transparency
-            part.CanCollide = orig.CanCollide
-        end
-    end
-end
-
 local function reEnlargeAllNPCs()
     for model in pairs(activeNPCs) do
         if model and model.Parent then
@@ -226,7 +265,9 @@ local function registerNPC(obj)
         table.insert(npcs, hum)
     end
 
-    enlargeNPC(obj)
+    if NPCSettings.EnableNPCEnlarge then
+        enlargeNPC(obj)
+    end
     updateNPCVisibility(hum)
 end
 
@@ -234,13 +275,13 @@ for _, obj in ipairs(workspace:GetDescendants()) do
     registerNPC(obj)
 end
 
-workspace.DescendantAdded:Connect(function(obj)
+connections[#connections + 1] = workspace.DescendantAdded:Connect(function(obj)
     task.defer(function()
         registerNPC(obj)
     end)
 end)
 
-RunService.Heartbeat:Connect(function()
+connections[#connections + 1] = RunService.Heartbeat:Connect(function()
     for i = #npcs, 1, -1 do
         local hum = npcs[i]
         if not hum or not hum.Parent or Players:GetPlayerFromCharacter(hum.Parent) then
@@ -251,106 +292,118 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-local function safe(f)
-    local ok, err = pcall(f)
-    if not ok then
-        warn("[NPC 功能] UI 创建失败: " .. tostring(err))
+if not uiBuilt then
+    uiBuilt = true
+
+    local function safe(f)
+        local ok, err = pcall(f)
+        if not ok then
+            warn("[NPC 功能] UI 创建失败: " .. tostring(err))
+        end
     end
-end
 
-safe(function()
-    tab:Toggle({
-        Title = "开启 NPC 高亮",
-        Desc = "距离内显示高亮",
-        Value = NPCSettings.EnableHighlight,
-        Callback = function(v)
-            NPCSettings.EnableHighlight = v
-            for _, hum in ipairs(npcs) do
-                updateNPCVisibility(hum)
+    safe(function()
+        tab:Toggle({
+            Title = "开启 NPC 高亮",
+            Desc = "距离内显示高亮",
+            Value = NPCSettings.EnableHighlight,
+            Callback = function(v)
+                NPCSettings.EnableHighlight = v
+                for _, hum in ipairs(npcs) do
+                    updateNPCVisibility(hum)
+                end
             end
-        end
-    })
-end)
+        })
+    end)
 
-safe(function()
-    tab:Slider({
-        Title = "ESP 范围",
-        Min = 0,
-        Max = 500,
-        Default = NPCSettings.MaxHighlightDistance,
-        Callback = function(v)
-            NPCSettings.MaxHighlightDistance = v
-            for _, hum in ipairs(npcs) do
-                updateNPCVisibility(hum)
+    safe(function()
+        tab:Slider({
+            Title = "ESP 范围",
+            Min = 0,
+            Max = 500,
+            Default = NPCSettings.MaxHighlightDistance,
+            Callback = function(v)
+                NPCSettings.MaxHighlightDistance = v
+                for _, hum in ipairs(npcs) do
+                    updateNPCVisibility(hum)
+                end
             end
-        end
-    })
-end)
+        })
+    end)
 
-safe(function()
-    tab:Toggle({
-        Title = "显示 NPC 血量",
-        Desc = "距离内显示血量",
-        Value = NPCSettings.ShowHealthDisplay,
-        Callback = function(v)
-            NPCSettings.ShowHealthDisplay = v
-            for _, model in pairs(activeNPCs) do
-                if model and model.Parent then
-                    local gui = model:FindFirstChild("NPCHealthDisplay")
-                    if gui then
-                        gui.Enabled = v
+    safe(function()
+        tab:Toggle({
+            Title = "显示 NPC 血量",
+            Desc = "距离内显示血量",
+            Value = NPCSettings.ShowHealthDisplay,
+            Callback = function(v)
+                NPCSettings.ShowHealthDisplay = v
+                for _, model in pairs(activeNPCs) do
+                    if model and model.Parent then
+                        local gui = model:FindFirstChild("NPCHealthDisplay")
+                        if gui then
+                            gui.Enabled = v
+                        end
                     end
                 end
             end
-        end
-    })
-end)
+        })
+    end)
 
-safe(function()
-    tab:Toggle({
-        Title = "启用 NPC 增大",
-        Desc = "放大 NPC 指定部位",
-        Value = NPCSettings.EnableNPCEnlarge,
-        Callback = function(v)
-            NPCSettings.EnableNPCEnlarge = v
-            restoreAllNPCs()
-            if v then
-                reEnlargeAllNPCs()
-            end
-        end
-    })
-end)
-
-safe(function()
-    tab:Slider({
-        Title = "NPC 增大倍率",
-        Min = 1,
-        Max = 10,
-        Default = NPCSettings.NPCSizeMultiplier,
-        Callback = function(v)
-            NPCSettings.NPCSizeMultiplier = v
-            if NPCSettings.EnableNPCEnlarge then
+    safe(function()
+        tab:Toggle({
+            Title = "启用 NPC 增大",
+            Desc = "放大 NPC 指定部位",
+            Value = NPCSettings.EnableNPCEnlarge,
+            Callback = function(v)
+                NPCSettings.EnableNPCEnlarge = v
                 restoreAllNPCs()
-                reEnlargeAllNPCs()
+                if v then
+                    reEnlargeAllNPCs()
+                end
             end
-        end
-    })
-end)
+        })
+    end)
 
-safe(function()
-    tab:Dropdown({
-        Title = "放大部位",
-        Multi = false,
-        Values = {"头部", "身体", "躯干", "全部"},
-        Value = NPCSettings.EnlargePartMode,
-        Callback = function(v)
-            NPCSettings.EnlargePartMode = v
-            restoreAllNPCs()
-            if NPCSettings.EnableNPCEnlarge then
-                reEnlargeAllNPCs()
+    safe(function()
+        tab:Slider({
+            Title = "NPC 增大倍率",
+            Min = 1,
+            Max = 10,
+            Default = NPCSettings.NPCSizeMultiplier,
+            Callback = function(v)
+                NPCSettings.NPCSizeMultiplier = v
+                if NPCSettings.EnableNPCEnlarge then
+                    restoreAllNPCs()
+                    reEnlargeAllNPCs()
+                end
             end
-        end
-    })
-end)
+        })
+    end)
 
-print("[NPC 功能] 已加载到 npcTab")
+    safe(function()
+        tab:Dropdown({
+            Title = "放大部位",
+            Multi = false,
+            Values = {"头部", "身体", "躯干", "全部"},
+            Value = NPCSettings.EnlargePartMode,
+            Callback = function(v)
+                NPCSettings.EnlargePartMode = v
+                restoreAllNPCs()
+                if NPCSettings.EnableNPCEnlarge then
+                    reEnlargeAllNPCs()
+                end
+            end
+        })
+    end)
+
+    safe(function()
+        tab:Button({
+            Title = "恢复 NPC 正常体型",
+            Callback = function()
+                NPCSettings.EnableNPCEnlarge = false
+                restoreAllNPCs()
+            end
+        })
+    end)
+end
