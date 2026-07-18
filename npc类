@@ -11,29 +11,21 @@ local NPCSettings = {
     MaxHighlightDistance = 150,
     ShowHealthDisplay = true,
     NPCSizeMultiplier = 4,
-    EnableNPCEnlarge = true
+    EnableNPCEnlarge = true,
+    EnableHighlight = false
 }
 
 local stored = setmetatable({}, { __mode = "k" })
 local activeNPCs = {}
 local npcs = {}
 
-local function getTabs()
-    local Tabs = getgenv().Tabs
-    if Tabs and type(Tabs) == "table" then
-        return Tabs
-    end
-    return nil
-end
-
 local function waitForNpcTab(timeout)
     timeout = timeout or 20
     local start = tick()
     repeat
-        local Tabs = getTabs()
-        local tab = Tabs and Tabs.npcTab
-        if tab then
-            return tab
+        local Tabs = getgenv().Tabs
+        if Tabs and Tabs.npcTab then
+            return Tabs.npcTab
         end
         task.wait(0.1)
     until tick() - start > timeout
@@ -42,16 +34,7 @@ end
 
 local tab = waitForNpcTab(20)
 if not tab then
-    warn("[NPC 功能] 未找到 npcTab")
-    return
-end
-
-local function hasUiMethods(obj)
-    return type(obj) == "table" and (type(obj.CreateToggle) == "function" or type(obj.CreateSlider) == "function")
-end
-
-if not hasUiMethods(tab) then
-    warn("[NPC 功能] npcTab 不是可用 UI 对象")
+    warn("[NPC 功能] 没有找到 npcTab")
     return
 end
 
@@ -137,7 +120,7 @@ local function updateNPCVisibility(humanoid)
     local withinRange = distance <= NPCSettings.MaxHighlightDistance
 
     local highlight = character:FindFirstChildOfClass("Highlight")
-    if withinRange then
+    if NPCSettings.EnableHighlight and withinRange then
         if not highlight then
             highlight = Instance.new("Highlight")
             highlight.FillTransparency = 1
@@ -250,79 +233,94 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-task.defer(function()
-    local ok, err = pcall(function()
-        tab:CreateToggle({
-            Title = "开启 NPC 高亮",
-            Desc = "距离内显示高亮",
-            Default = false,
-            Callback = function(v)
-                for _, hum in ipairs(npcs) do
-                    updateNPCVisibility(hum)
-                end
-            end
-        })
-
-        tab:CreateSlider({
-            Title = "高亮距离",
-            Min = 0,
-            Max = 500,
-            Default = NPCSettings.MaxHighlightDistance,
-            Callback = function(Value)
-                NPCSettings.MaxHighlightDistance = Value
-            end
-        })
-
-        tab:CreateToggle({
-            Title = "显示 NPC 血量",
-            Default = NPCSettings.ShowHealthDisplay,
-            Callback = function(Value)
-                NPCSettings.ShowHealthDisplay = Value
-                for _, model in pairs(activeNPCs) do
-                    if model and model.Parent then
-                        local gui = model:FindFirstChild("NPCHealthDisplay")
-                        if gui then
-                            gui.Enabled = Value
-                        end
-                    end
-                end
-            end
-        })
-
-        tab:CreateToggle({
-            Title = "启用 NPC 增大",
-            Default = NPCSettings.EnableNPCEnlarge,
-            Callback = function(Value)
-                NPCSettings.EnableNPCEnlarge = Value
-                if Value then
-                    reEnlargeAllNPCs()
-                else
-                    restoreAllNPCs()
-                end
-            end
-        })
-
-        tab:CreateSlider({
-            Title = "NPC 增大倍率",
-            Min = 1,
-            Max = 10,
-            Default = NPCSettings.NPCSizeMultiplier,
-            Callback = function(Value)
-                NPCSettings.NPCSizeMultiplier = Value
-                if NPCSettings.EnableNPCEnlarge then
-                    for part, data in pairs(stored) do
-                        if part and part.Parent then
-                            part.Size = data.Size * Value
-                        end
-                    end
-                end
-            end
-        })
-    end)
-
+local function safe(f)
+    local ok, err = pcall(f)
     if not ok then
         warn("[NPC 功能] UI 创建失败: " .. tostring(err))
     end
+end
+
+safe(function()
+    tab:Toggle({
+        Title = "开启 NPC 高亮",
+        Desc = "距离内显示高亮",
+        Icon = "eye",
+        Value = NPCSettings.EnableHighlight,
+        Callback = function(v)
+            NPCSettings.EnableHighlight = v
+            for _, hum in ipairs(npcs) do
+                updateNPCVisibility(hum)
+            end
+        end
+    })
+end)
+
+safe(function()
+    tab:Slider({
+        Title = "高亮距离",
+        Min = 0,
+        Max = 500,
+        Value = NPCSettings.MaxHighlightDistance,
+        Callback = function(v)
+            NPCSettings.MaxHighlightDistance = v
+        end
+    })
+end)
+
+safe(function()
+    tab:Toggle({
+        Title = "显示 NPC 血量",
+        Desc = "距离内显示血量",
+        Icon = "heart",
+        Value = NPCSettings.ShowHealthDisplay,
+        Callback = function(v)
+            NPCSettings.ShowHealthDisplay = v
+            for _, model in pairs(activeNPCs) do
+                if model and model.Parent then
+                    local gui = model:FindFirstChild("NPCHealthDisplay")
+                    if gui then
+                        gui.Enabled = v
+                    end
+                end
+            end
+        end
+    })
+end)
+
+safe(function()
+    tab:Toggle({
+        Title = "启用 NPC 增大",
+        Desc = "放大 NPC 部件",
+        Icon = "move",
+        Value = NPCSettings.EnableNPCEnlarge,
+        Callback = function(v)
+            NPCSettings.EnableNPCEnlarge = v
+            if v then
+                reEnlargeAllNPCs()
+            else
+                restoreAllNPCs()
+            end
+        end
+    })
+end)
+
+safe(function()
+    tab:Slider({
+        Title = "NPC 增大倍率",
+        Min = 1,
+        Max = 10,
+        Value = NPCSettings.NPCSizeMultiplier,
+        Callback = function(v)
+            NPCSettings.NPCSizeMultiplier = v
+            if NPCSettings.EnableNPCEnlarge then
+                for part, data in pairs(stored) do
+                    if part and part.Parent then
+                        part.Size = data.Size * v
+                    end
+                end
+            end
+        end
+    })
 end)
 
 print("[NPC 功能] 已加载到 npcTab")
