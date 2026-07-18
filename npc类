@@ -262,7 +262,6 @@ safe(function()
     tab:Toggle({
         Title = "开启 NPC 高亮",
         Desc = "距离内显示高亮",
-        Icon = "eye",
         Value = NPCSettings.EnableHighlight,
         Callback = function(v)
             NPCSettings.EnableHighlight = v
@@ -278,7 +277,7 @@ safe(function()
         Title = "ESP 范围",
         Min = 0,
         Max = 500,
-        Value = NPCSettings.MaxHighlightDistance,
+        Default = NPCSettings.MaxHighlightDistance,
         Callback = function(v)
             NPCSettings.MaxHighlightDistance = v
             for _, hum in ipairs(npcs) do
@@ -292,7 +291,6 @@ safe(function()
     tab:Toggle({
         Title = "显示 NPC 血量",
         Desc = "距离内显示血量",
-        Icon = "heart",
         Value = NPCSettings.ShowHealthDisplay,
         Callback = function(v)
             NPCSettings.ShowHealthDisplay = v
@@ -312,15 +310,12 @@ safe(function()
     tab:Toggle({
         Title = "启用 NPC 增大",
         Desc = "放大 NPC 指定部位",
-        Icon = "move",
         Value = NPCSettings.EnableNPCEnlarge,
         Callback = function(v)
             NPCSettings.EnableNPCEnlarge = v
+            restoreAllNPCs()
             if v then
-                restoreAllNPCs()
                 reEnlargeAllNPCs()
-            else
-                restoreAllNPCs()
             end
         end
     })
@@ -331,7 +326,7 @@ safe(function()
         Title = "NPC 增大倍率",
         Min = 1,
         Max = 10,
-        Value = NPCSettings.NPCSizeMultiplier,
+        Default = NPCSettings.NPCSizeMultiplier,
         Callback = function(v)
             NPCSettings.NPCSizeMultiplier = v
             if NPCSettings.EnableNPCEnlarge then
