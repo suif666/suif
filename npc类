@@ -81,7 +81,6 @@ local function getOrCreateBillboard(character, humanoid)
     return billboard
 end
 
--- 更新单个 NPC 的可见性（高亮 & 血量），由 Heartbeat 循环调用
 local function updateNPCVisibility(humanoid)
     if not humanoid or not humanoid.Parent then
         return
@@ -126,7 +125,7 @@ local function updateNPCVisibility(humanoid)
     end
 end
 
--- ---------- 体型放大相关 ----------
+-- ---------- 体型放大核心（优化） ----------
 local function getTargetParts(obj)
     local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
     local result = {}
@@ -139,6 +138,7 @@ local function getTargetParts(obj)
     return result
 end
 
+-- 存储并放大单个NPC（用于初次注册或部位切换）
 local function enlargeNPC(obj)
     if not NPCSettings.EnableNPCEnlarge or not obj or not obj.Parent then
         return
@@ -158,6 +158,7 @@ local function enlargeNPC(obj)
     end
 end
 
+-- 恢复所有部件至原始尺寸（不清除stored）
 local function restoreAllNPCs()
     for part, orig in pairs(stored) do
         if part and part.Parent then
@@ -168,11 +169,29 @@ local function restoreAllNPCs()
     end
 end
 
--- 遍历所有已注册 NPC 并应用放大（根据当前设置）
-local function applyEnlargeToAll()
+-- 仅更新已存储部件的尺寸（倍率变化时调用，极快）
+local function updateEnlargeScale()
     if not NPCSettings.EnableNPCEnlarge then
         return
     end
+    local mult = NPCSettings.NPCSizeMultiplier
+    for part, orig in pairs(stored) do
+        if part and part.Parent then
+            part.Size = orig.Size * mult
+            part.Transparency = 0.25
+            part.CanCollide = false
+        end
+    end
+end
+
+-- 重新选择放大部位（部位切换或开关开启时调用）
+local function refreshEnlargeParts()
+    restoreAllNPCs()                     -- 先恢复所有尺寸
+    stored = setmetatable({}, { __mode = "k" })  -- 清空存储
+    if not NPCSettings.EnableNPCEnlarge then
+        return
+    end
+    -- 遍历所有已注册NPC重新放大
     for model in pairs(activeNPCs) do
         if model and model.Parent then
             enlargeNPC(model)
@@ -180,7 +199,19 @@ local function applyEnlargeToAll()
     end
 end
 
--- ---------- 注册 & 清理 ----------
+-- 防抖：用于倍率滑块
+local scaleDebounceId = 0
+local function debounceUpdateScale()
+    local currentId = scaleDebounceId + 1
+    scaleDebounceId = currentId
+    task.delay(0.2, function()
+        if scaleDebounceId == currentId then
+            updateEnlargeScale()
+        end
+    end)
+end
+
+-- ---------- 注册与清理 ----------
 local function registerNPC(obj)
     if not obj or not obj:IsA("Model") then
         return
@@ -199,21 +230,17 @@ local function registerNPC(obj)
         npcs[#npcs + 1] = hum
     end
 
-    -- 立即应用当前放大设置（如果有）
-    enlargeNPC(obj)
-    -- 可见性会在 Heartbeat 中统一更新，但为了刚出现时立即显示，可调用一次
+    enlargeNPC(obj)               -- 如果启用放大，会存储并放大
     updateNPCVisibility(hum)
 end
 
 local function cleanup()
     for _, c in ipairs(connections) do
-        pcall(function()
-            c:Disconnect()
-        end)
+        pcall(c.Disconnect, c)
     end
     connections = {}
 
-    restoreAllNPCs()  -- 恢复所有 NPC 尺寸
+    restoreAllNPCs()
 
     local folder = CoreGui:FindFirstChild("NPC_REMOTE_FOLDER")
     if folder then
@@ -228,7 +255,7 @@ end
 
 State.cleanup = cleanup
 
--- ---------- 等待主界面 Tab ----------
+-- ---------- 等待主界面Tab ----------
 local function waitForNpcTab(timeout)
     timeout = timeout or 20
     local start = tick()
@@ -247,24 +274,7 @@ if not tab then
     return
 end
 
--- ---------- 防抖工具（用于滑块） ----------
-local enlargeDebounce = nil
-local function debounceEnlarge()
-    if enlargeDebounce then
-        task.cancel(enlargeDebounce)
-        enlargeDebounce = nil
-    end
-    enlargeDebounce = task.delay(0.3, function()
-        enlargeDebounce = nil
-        if NPCSettings.EnableNPCEnlarge then
-            applyEnlargeToAll()
-        else
-            restoreAllNPCs()
-        end
-    end)
-end
-
--- ---------- 初始化已有 NPC ----------
+-- ---------- 初始化已有NPC ----------
 for _, obj in ipairs(workspace:GetDescendants()) do
     registerNPC(obj)
 end
@@ -276,7 +286,6 @@ connections[#connections + 1] = workspace.DescendantAdded:Connect(function(obj)
     end)
 end)
 
--- 可见性刷新循环（不处理放大）
 connections[#connections + 1] = RunService.Heartbeat:Connect(function()
     for i = #npcs, 1, -1 do
         local hum = npcs[i]
@@ -288,7 +297,7 @@ connections[#connections + 1] = RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ---------- 构建 UI ----------
+-- ---------- 构建UI ----------
 if not uiBuilt then
     uiBuilt = true
 
@@ -305,7 +314,6 @@ if not uiBuilt then
             Value = NPCSettings.EnableHighlight,
             Callback = function(v)
                 NPCSettings.EnableHighlight = v
-                -- Heartbeat 会自动更新，无需额外操作
             end
         })
     end)
@@ -318,7 +326,6 @@ if not uiBuilt then
             Default = NPCSettings.MaxHighlightDistance,
             Callback = function(v)
                 NPCSettings.MaxHighlightDistance = v
-                -- Heartbeat 会自动更新
             end
         })
     end)
@@ -329,7 +336,6 @@ if not uiBuilt then
             Value = NPCSettings.ShowHealthDisplay,
             Callback = function(v)
                 NPCSettings.ShowHealthDisplay = v
-                -- Heartbeat 会自动更新
             end
         })
     end)
@@ -340,11 +346,7 @@ if not uiBuilt then
             Value = NPCSettings.EnableNPCEnlarge,
             Callback = function(v)
                 NPCSettings.EnableNPCEnlarge = v
-                if v then
-                    applyEnlargeToAll()
-                else
-                    restoreAllNPCs()
-                end
+                task.spawn(refreshEnlargeParts)   -- 异步执行，避免阻塞UI
             end
         })
     end)
@@ -357,8 +359,9 @@ if not uiBuilt then
             Default = NPCSettings.NPCSizeMultiplier,
             Callback = function(v)
                 NPCSettings.NPCSizeMultiplier = v
-                -- 使用防抖，避免滑动过程中频繁修改
-                debounceEnlarge()
+                if NPCSettings.EnableNPCEnlarge then
+                    debounceUpdateScale()
+                end
             end
         })
     end)
@@ -371,11 +374,7 @@ if not uiBuilt then
             Value = NPCSettings.EnlargePartMode,
             Callback = function(v)
                 NPCSettings.EnlargePartMode = v
-                -- 部位改变需要先恢复原始尺寸，再重新放大
-                restoreAllNPCs()
-                if NPCSettings.EnableNPCEnlarge then
-                    applyEnlargeToAll()
-                end
+                task.spawn(refreshEnlargeParts)   -- 异步执行，避免阻塞UI
             end
         })
     end)
@@ -386,7 +385,7 @@ if not uiBuilt then
             Callback = function()
                 NPCSettings.EnableNPCEnlarge = false
                 restoreAllNPCs()
-                -- 由于上面的 Toggle 可能不同步，这里保证 UI 状态一致（需额外更新 Toggle 状态？这里略）
+                -- 可选：同步更新Toggle状态（主脚本可能需要额外处理，此处略）
             end
         })
     end)
