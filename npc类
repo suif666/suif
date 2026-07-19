@@ -35,75 +35,8 @@ local enlargeTargets = {
     ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
 }
 
-local refreshQueued = false
-
-local function cleanup()
-    for _, c in ipairs(connections) do
-        pcall(function()
-            c:Disconnect()
-        end)
-    end
-    connections = {}
-
-    for part, orig in pairs(stored) do
-        if part and part.Parent then
-            pcall(function()
-                part.Size = orig.Size
-                part.Transparency = orig.Transparency
-                part.CanCollide = orig.CanCollide
-            end)
-        end
-    end
-
-    local folder = CoreGui:FindFirstChild("NPC_REMOTE_FOLDER")
-    if folder then
-        folder:Destroy()
-    end
-
-    stored = setmetatable({}, { __mode = "k" })
-    activeNPCs = {}
-    npcs = {}
-    uiBuilt = false
-    refreshQueued = false
-end
-
-State.cleanup = cleanup
-
-local function waitForNpcTab(timeout)
-    timeout = timeout or 20
-    local start = tick()
-    repeat
-        local Tabs = getgenv().Tabs
-        if Tabs and Tabs.npcTab then
-            return Tabs.npcTab
-        end
-        task.wait(0.1)
-    until tick() - start > timeout
-    return nil
-end
-
-local tab = waitForNpcTab(20)
-if not tab then
-    return
-end
-
-local function queueRefresh()
-    if refreshQueued then
-        return
-    end
-    refreshQueued = true
-    task.defer(function()
-        task.wait(0.05)
-        refreshQueued = false
-        for _, hum in ipairs(npcs) do
-            if hum and hum.Parent then
-                updateNPCVisibility(hum)
-            end
-        end
-    end)
-end
-
-function getPlayerPosition()
+-- ---------- 辅助函数 ----------
+local function getPlayerPosition()
     local char = LocalPlayer.Character
     if char then
         local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
@@ -118,7 +51,7 @@ function getPlayerPosition()
     return Vector3.new()
 end
 
-function getOrCreateBillboard(character, humanoid)
+local function getOrCreateBillboard(character, humanoid)
     local billboard = character:FindFirstChild("NPCHealthDisplay")
     if billboard then
         return billboard
@@ -148,7 +81,8 @@ function getOrCreateBillboard(character, humanoid)
     return billboard
 end
 
-function updateNPCVisibility(humanoid)
+-- 更新单个 NPC 的可见性（高亮 & 血量），由 Heartbeat 循环调用
+local function updateNPCVisibility(humanoid)
     if not humanoid or not humanoid.Parent then
         return
     end
@@ -192,6 +126,7 @@ function updateNPCVisibility(humanoid)
     end
 end
 
+-- ---------- 体型放大相关 ----------
 local function getTargetParts(obj)
     local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
     local result = {}
@@ -233,7 +168,11 @@ local function restoreAllNPCs()
     end
 end
 
-local function reEnlargeAllNPCs()
+-- 遍历所有已注册 NPC 并应用放大（根据当前设置）
+local function applyEnlargeToAll()
+    if not NPCSettings.EnableNPCEnlarge then
+        return
+    end
     for model in pairs(activeNPCs) do
         if model and model.Parent then
             enlargeNPC(model)
@@ -241,6 +180,7 @@ local function reEnlargeAllNPCs()
     end
 end
 
+-- ---------- 注册 & 清理 ----------
 local function registerNPC(obj)
     if not obj or not obj:IsA("Model") then
         return
@@ -259,22 +199,84 @@ local function registerNPC(obj)
         npcs[#npcs + 1] = hum
     end
 
-    if NPCSettings.EnableNPCEnlarge then
-        enlargeNPC(obj)
-    end
+    -- 立即应用当前放大设置（如果有）
+    enlargeNPC(obj)
+    -- 可见性会在 Heartbeat 中统一更新，但为了刚出现时立即显示，可调用一次
     updateNPCVisibility(hum)
 end
 
+local function cleanup()
+    for _, c in ipairs(connections) do
+        pcall(function()
+            c:Disconnect()
+        end)
+    end
+    connections = {}
+
+    restoreAllNPCs()  -- 恢复所有 NPC 尺寸
+
+    local folder = CoreGui:FindFirstChild("NPC_REMOTE_FOLDER")
+    if folder then
+        folder:Destroy()
+    end
+
+    stored = setmetatable({}, { __mode = "k" })
+    activeNPCs = {}
+    npcs = {}
+    uiBuilt = false
+end
+
+State.cleanup = cleanup
+
+-- ---------- 等待主界面 Tab ----------
+local function waitForNpcTab(timeout)
+    timeout = timeout or 20
+    local start = tick()
+    repeat
+        local Tabs = getgenv().Tabs
+        if Tabs and Tabs.npcTab then
+            return Tabs.npcTab
+        end
+        task.wait(0.1)
+    until tick() - start > timeout
+    return nil
+end
+
+local tab = waitForNpcTab(20)
+if not tab then
+    return
+end
+
+-- ---------- 防抖工具（用于滑块） ----------
+local enlargeDebounce = nil
+local function debounceEnlarge()
+    if enlargeDebounce then
+        task.cancel(enlargeDebounce)
+        enlargeDebounce = nil
+    end
+    enlargeDebounce = task.delay(0.3, function()
+        enlargeDebounce = nil
+        if NPCSettings.EnableNPCEnlarge then
+            applyEnlargeToAll()
+        else
+            restoreAllNPCs()
+        end
+    end)
+end
+
+-- ---------- 初始化已有 NPC ----------
 for _, obj in ipairs(workspace:GetDescendants()) do
     registerNPC(obj)
 end
 
+-- ---------- 连接事件 ----------
 connections[#connections + 1] = workspace.DescendantAdded:Connect(function(obj)
     task.defer(function()
         registerNPC(obj)
     end)
 end)
 
+-- 可见性刷新循环（不处理放大）
 connections[#connections + 1] = RunService.Heartbeat:Connect(function()
     for i = #npcs, 1, -1 do
         local hum = npcs[i]
@@ -286,6 +288,7 @@ connections[#connections + 1] = RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- ---------- 构建 UI ----------
 if not uiBuilt then
     uiBuilt = true
 
@@ -302,7 +305,7 @@ if not uiBuilt then
             Value = NPCSettings.EnableHighlight,
             Callback = function(v)
                 NPCSettings.EnableHighlight = v
-                queueRefresh()
+                -- Heartbeat 会自动更新，无需额外操作
             end
         })
     end)
@@ -315,7 +318,7 @@ if not uiBuilt then
             Default = NPCSettings.MaxHighlightDistance,
             Callback = function(v)
                 NPCSettings.MaxHighlightDistance = v
-                queueRefresh()
+                -- Heartbeat 会自动更新
             end
         })
     end)
@@ -326,7 +329,7 @@ if not uiBuilt then
             Value = NPCSettings.ShowHealthDisplay,
             Callback = function(v)
                 NPCSettings.ShowHealthDisplay = v
-                queueRefresh()
+                -- Heartbeat 会自动更新
             end
         })
     end)
@@ -337,8 +340,11 @@ if not uiBuilt then
             Value = NPCSettings.EnableNPCEnlarge,
             Callback = function(v)
                 NPCSettings.EnableNPCEnlarge = v
-                restoreAllNPCs()
-                queueRefresh()
+                if v then
+                    applyEnlargeToAll()
+                else
+                    restoreAllNPCs()
+                end
             end
         })
     end)
@@ -351,9 +357,8 @@ if not uiBuilt then
             Default = NPCSettings.NPCSizeMultiplier,
             Callback = function(v)
                 NPCSettings.NPCSizeMultiplier = v
-                if NPCSettings.EnableNPCEnlarge then
-                    queueRefresh()
-                end
+                -- 使用防抖，避免滑动过程中频繁修改
+                debounceEnlarge()
             end
         })
     end)
@@ -366,9 +371,10 @@ if not uiBuilt then
             Value = NPCSettings.EnlargePartMode,
             Callback = function(v)
                 NPCSettings.EnlargePartMode = v
+                -- 部位改变需要先恢复原始尺寸，再重新放大
                 restoreAllNPCs()
                 if NPCSettings.EnableNPCEnlarge then
-                    queueRefresh()
+                    applyEnlargeToAll()
                 end
             end
         })
@@ -380,6 +386,7 @@ if not uiBuilt then
             Callback = function()
                 NPCSettings.EnableNPCEnlarge = false
                 restoreAllNPCs()
+                -- 由于上面的 Toggle 可能不同步，这里保证 UI 状态一致（需额外更新 Toggle 状态？这里略）
             end
         })
     end)
