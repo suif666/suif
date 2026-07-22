@@ -720,6 +720,327 @@ getgenv().Tabs = {
 
 run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E7%B1%BB")
 
+
+-- ==================== NPC 功能模块（直接嵌入主脚本） ====================
+if getgenv().__NPC_LOADED then return end
+getgenv().__NPC_LOADED = true
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+
+-- 默认设置
+local NPCSettings = {
+    EnableHighlight = false,
+    MaxHighlightDistance = 150,
+    ShowHealthDisplay = true,
+    EnableNPCEnlarge = false,
+    NPCSizeMultiplier = 4,
+    EnlargePartMode = "全部"
+}
+
+-- 存储数据（弱引用）
+local stored = setmetatable({}, { __mode = "k" })
+local activeNPCs = {}
+local npcs = {}
+local connections = {}
+
+local enlargeTargets = {
+    ["头部"] = {"Head"},
+    ["身体"] = {"HumanoidRootPart"},
+    ["躯干"] = {"UpperTorso", "LowerTorso", "Torso"},
+    ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
+}
+
+-- -------- 辅助函数 --------
+local function getPlayerPosition()
+    local char = LocalPlayer.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
+        if hrp then return hrp.Position end
+    end
+    local cam = workspace.CurrentCamera
+    return cam and cam.CFrame.Position or Vector3.new()
+end
+
+local function getOrCreateBillboard(character, humanoid)
+    local billboard = character:FindFirstChild("NPCHealthDisplay")
+    if billboard then return billboard end
+
+    billboard = Instance.new("BillboardGui")
+    billboard.Name = "NPCHealthDisplay"
+    billboard.Size = UDim2.new(4, 0, 1.5, 0)
+    billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Enabled = false
+
+    local head = character:FindFirstChild("Head") or character.PrimaryPart or character:FindFirstChildWhichIsA("BasePart")
+    billboard.Adornee = head
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "HP: " .. tostring(math.floor(humanoid.Health))
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 18
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextStrokeTransparency = 0.25
+    label.Parent = billboard
+
+    billboard.Parent = character
+    return billboard
+end
+
+local function updateNPCVisibility(humanoid)
+    if not humanoid or not humanoid.Parent then return end
+    local character = humanoid.Parent
+    if not character or Players:GetPlayerFromCharacter(character) then return end
+
+    local ok, npcPos = pcall(function()
+        return character:GetPivot().Position
+    end)
+    if not ok then return end
+
+    local distance = (npcPos - getPlayerPosition()).Magnitude
+    local withinRange = distance <= NPCSettings.MaxHighlightDistance
+
+    -- 高亮
+    local highlight = character:FindFirstChildOfClass("Highlight")
+    if NPCSettings.EnableHighlight and withinRange then
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.FillTransparency = 1
+            highlight.OutlineTransparency = 0
+            highlight.Parent = character
+        end
+        highlight.Enabled = true
+    elseif highlight then
+        highlight.Enabled = false
+    end
+
+    -- 血量
+    local billboard = character:FindFirstChild("NPCHealthDisplay")
+    if NPCSettings.ShowHealthDisplay and withinRange then
+        billboard = billboard or getOrCreateBillboard(character, humanoid)
+        if billboard then billboard.Enabled = true end
+    elseif billboard then
+        billboard.Enabled = false
+    end
+end
+
+-- -------- 体型放大 --------
+local function getTargetParts(obj)
+    local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
+    local result = {}
+    for _, name in ipairs(list) do
+        local p = obj:FindFirstChild(name)
+        if p and p:IsA("BasePart") then
+            table.insert(result, p)
+        end
+    end
+    return result
+end
+
+local function enlargeNPC(obj)
+    if not NPCSettings.EnableNPCEnlarge or not obj or not obj.Parent then return end
+    for _, p in ipairs(getTargetParts(obj)) do
+        if not stored[p] then
+            stored[p] = {
+                Size = p.Size,
+                Transparency = p.Transparency,
+                CanCollide = p.CanCollide
+            }
+        end
+        p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
+        p.Transparency = 0.25
+        p.CanCollide = false
+    end
+end
+
+local function restoreAllNPCs()
+    for part, orig in pairs(stored) do
+        if part and part.Parent then
+            part.Size = orig.Size
+            part.Transparency = orig.Transparency
+            part.CanCollide = orig.CanCollide
+        end
+    end
+end
+
+local function updateEnlargeScale()
+    if not NPCSettings.EnableNPCEnlarge then return end
+    local mult = NPCSettings.NPCSizeMultiplier
+    for part, orig in pairs(stored) do
+        if part and part.Parent then
+            part.Size = orig.Size * mult
+            part.Transparency = 0.25
+            part.CanCollide = false
+        end
+    end
+end
+
+local function refreshEnlargeParts()
+    restoreAllNPCs()
+    stored = setmetatable({}, { __mode = "k" })
+    if not NPCSettings.EnableNPCEnlarge then return end
+    for model in pairs(activeNPCs) do
+        if model and model.Parent then
+            enlargeNPC(model)
+        end
+    end
+end
+
+-- 防抖更新倍率
+local scaleUpdateTimer = nil
+local function requestScaleUpdate()
+    if scaleUpdateTimer then
+        task.cancel(scaleUpdateTimer)
+        scaleUpdateTimer = nil
+    end
+    scaleUpdateTimer = task.delay(0.3, function()
+        scaleUpdateTimer = nil
+        if NPCSettings.EnableNPCEnlarge then
+            updateEnlargeScale()
+        end
+    end)
+end
+
+-- -------- 注册与清理 --------
+local function registerNPC(obj)
+    if not obj or not obj:IsA("Model") then return end
+    if Players:GetPlayerFromCharacter(obj) then return end
+
+    local hum = obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChild("AnimationController")
+    if not hum then return end
+
+    if not activeNPCs[obj] then
+        activeNPCs[obj] = true
+        table.insert(npcs, hum)
+    end
+
+    enlargeNPC(obj)
+    updateNPCVisibility(hum)
+end
+
+-- 初始化已有 NPC（异步）
+task.defer(function()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        registerNPC(obj)
+    end
+end)
+
+-- 监听新 NPC
+table.insert(connections, workspace.DescendantAdded:Connect(function(obj)
+    task.defer(function() registerNPC(obj) end)
+end))
+
+-- 循环更新可见性（每 2 帧一次）
+local frameCounter = 0
+table.insert(connections, RunService.Heartbeat:Connect(function()
+    frameCounter = frameCounter + 1
+    if frameCounter % 2 ~= 0 then return end
+    for i = #npcs, 1, -1 do
+        local hum = npcs[i]
+        if not hum or not hum.Parent or Players:GetPlayerFromCharacter(hum.Parent) then
+            table.remove(npcs, i)
+        else
+            updateNPCVisibility(hum)
+        end
+    end
+end))
+
+-- -------- 绑定 UI（假设 getgenv().Tabs.npcTab 已存在） --------
+local tab = getgenv().Tabs and getgenv().Tabs.npcTab
+if tab then
+    -- 高亮开关
+    tab:Toggle({
+        Title = "开启 NPC 高亮",
+        Value = NPCSettings.EnableHighlight,
+        Callback = function(v) NPCSettings.EnableHighlight = v end
+    })
+
+    -- ESP 范围
+    tab:Slider({
+        Title = "ESP 范围",
+        Min = 0,
+        Max = 500,
+        Default = NPCSettings.MaxHighlightDistance,
+        Callback = function(v) NPCSettings.MaxHighlightDistance = v end
+    })
+
+    -- 显示血量
+    tab:Toggle({
+        Title = "显示 NPC 血量",
+        Value = NPCSettings.ShowHealthDisplay,
+        Callback = function(v) NPCSettings.ShowHealthDisplay = v end
+    })
+
+    -- 启用增大
+    tab:Toggle({
+        Title = "启用 NPC 增大",
+        Value = NPCSettings.EnableNPCEnlarge,
+        Callback = function(v)
+            NPCSettings.EnableNPCEnlarge = v
+            task.defer(refreshEnlargeParts)
+        end
+    })
+
+    -- 增大倍率（初始值 4，使用防抖）
+    tab:Slider({
+        Title = "NPC 增大倍率",
+        Min = 1,
+        Max = 10,
+        Default = NPCSettings.NPCSizeMultiplier,   -- 确保显示为 4
+        Callback = function(v)
+            NPCSettings.NPCSizeMultiplier = v
+            if NPCSettings.EnableNPCEnlarge then
+                requestScaleUpdate()
+            end
+        end
+    })
+
+    -- 放大部位
+    tab:Dropdown({
+        Title = "放大部位",
+        Multi = false,
+        Values = {"头部", "身体", "躯干", "全部"},
+        Value = NPCSettings.EnlargePartMode,
+        Callback = function(v)
+            NPCSettings.EnlargePartMode = v
+            task.defer(refreshEnlargeParts)
+        end
+    })
+
+    -- 恢复体型按钮
+    tab:Button({
+        Title = "恢复 NPC 正常体型",
+        Callback = function()
+            NPCSettings.EnableNPCEnlarge = false
+            restoreAllNPCs()
+        end
+    })
+else
+    warn("[NPC] 未找到 npcTab，请确保主脚本已创建 getgenv().Tabs.npcTab")
+end
+
+-- 提供清理函数（可选）
+getgenv().__NPC_CLEANUP = function()
+    for _, c in ipairs(connections) do
+        pcall(c.Disconnect, c)
+    end
+    connections = {}
+    restoreAllNPCs()
+    stored = setmetatable({}, { __mode = "k" })
+    activeNPCs = {}
+    npcs = {}
+end
+
+print("[NPC] 功能已加载（主脚本整合版）")
+
+
+
+
 -- UI设置
 local themeMap = {
     ["深色"]="Dark", ["浅色"]="Light", ["玫瑰"]="Rose", ["植物"]="Plant", ["红色"]="Red",
