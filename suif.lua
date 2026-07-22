@@ -714,19 +714,17 @@ zbjscqtTab:Button({
     end
 })
 
--- ==================== NPC 功能模块（只含功能，适配已有 npcTab） ====================
+
 do
     if getgenv().__NPC_LOADED then return end
     getgenv().__NPC_LOADED = true
 
-    -- 使用你已创建的 npcTab（确保 npcTab 变量在当前作用域可用）
-    local tab = npcTab  -- 如果你的 npcTab 存在 getgenv().Tabs 中，也可用 getgenv().Tabs.npcTab
+    local tab = npcTab  -- 或 getgenv().Tabs.npcTab
 
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
 
-    -- 默认设置
     local NPCSettings = {
         EnableHighlight = false,
         MaxHighlightDistance = 150,
@@ -736,7 +734,6 @@ do
         EnlargePartMode = "全部"
     }
 
-    -- 存储数据（弱引用）
     local stored = setmetatable({}, { __mode = "k" })
     local activeNPCs = {}
     local npcs = {}
@@ -801,7 +798,6 @@ do
         local distance = (npcPos - getPlayerPosition()).Magnitude
         local withinRange = distance <= NPCSettings.MaxHighlightDistance
 
-        -- 高亮
         local highlight = character:FindFirstChildOfClass("Highlight")
         if NPCSettings.EnableHighlight and withinRange then
             if not highlight then
@@ -815,7 +811,6 @@ do
             highlight.Enabled = false
         end
 
-        -- 血量
         local billboard = character:FindFirstChild("NPCHealthDisplay")
         if NPCSettings.ShowHealthDisplay and withinRange then
             billboard = billboard or getOrCreateBillboard(character, humanoid)
@@ -902,7 +897,7 @@ do
         end)
     end
 
-    -- -------- 注册与清理 --------
+    -- -------- 注册（带重试） --------
     local function registerNPC(obj)
         if not obj or not obj:IsA("Model") then return end
         if Players:GetPlayerFromCharacter(obj) then return end
@@ -915,7 +910,15 @@ do
             table.insert(npcs, hum)
         end
 
-        enlargeNPC(obj)
+        -- 延迟放大，尝试多次确保部件加载
+        task.defer(function()
+            if not NPCSettings.EnableNPCEnlarge then return end
+            for attempt = 1, 5 do
+                enlargeNPC(obj)
+                task.wait(0.2)
+            end
+        end)
+
         updateNPCVisibility(hum)
     end
 
@@ -946,15 +949,13 @@ do
         end
     end))
 
-    -- -------- 绑定 UI 到 npcTab（使用正确滑块语法） --------
-    -- 高亮开关
+    -- -------- 绑定 UI --------
     tab:Toggle({
         Title = "开启 NPC 高亮",
         Value = NPCSettings.EnableHighlight,
         Callback = function(v) NPCSettings.EnableHighlight = v end
     })
 
-    -- ESP 范围
     tab:Slider({
         Title = "ESP 范围",
         Value = {
@@ -967,14 +968,12 @@ do
         end
     })
 
-    -- 显示血量
     tab:Toggle({
         Title = "显示 NPC 血量",
         Value = NPCSettings.ShowHealthDisplay,
         Callback = function(v) NPCSettings.ShowHealthDisplay = v end
     })
 
-    -- 启用增大
     tab:Toggle({
         Title = "启用 NPC 增大",
         Value = NPCSettings.EnableNPCEnlarge,
@@ -984,7 +983,6 @@ do
         end
     })
 
-    -- 增大倍率（默认 4，使用防抖）
     tab:Slider({
         Title = "NPC 增大倍率",
         Value = {
@@ -1000,7 +998,6 @@ do
         end
     })
 
-    -- 放大部位
     tab:Dropdown({
         Title = "放大部位",
         Multi = false,
@@ -1012,7 +1009,6 @@ do
         end
     })
 
-    -- 恢复体型按钮
     tab:Button({
         Title = "恢复 NPC 正常体型",
         Callback = function()
@@ -1021,7 +1017,6 @@ do
         end
     })
 
-    -- 清理函数（可选）
     getgenv().__NPC_CLEANUP = function()
         for _, c in ipairs(connections) do
             pcall(c.Disconnect, c)
