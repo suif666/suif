@@ -714,11 +714,20 @@ zbjscqtTab:Button({
     end
 })
 
+--npc类远程
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.npcTab = npcTab
 
 local npcRemoteUrl = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc类"
 loadstring(game:HttpGet(npcRemoteUrl))()
+
+
+fescriptTab:Button({
+    Title = "r15动作包[suif汉化]", Desc = "他人可见 注意只支持r15 r6用了会直接僵直", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "r15动作包")
+    end
+})
 
 
 -- UI设置
