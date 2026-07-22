@@ -715,16 +715,20 @@ zbjscqtTab:Button({
 })
 
 
+
+-- ==================== NPC 功能模块（完整修复版） ====================
 do
     if getgenv().__NPC_LOADED then return end
     getgenv().__NPC_LOADED = true
 
-    local tab = npcTab  -- 或 getgenv().Tabs.npcTab
+    -- 使用已创建的 npcTab（确保 npcTab 在当前作用域可用）
+    local tab = npcTab  -- 如果是在全局中，可用 getgenv().Tabs.npcTab
 
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
 
+    -- 默认设置
     local NPCSettings = {
         EnableHighlight = false,
         MaxHighlightDistance = 150,
@@ -734,6 +738,7 @@ do
         EnlargePartMode = "全部"
     }
 
+    -- 存储数据（弱引用）
     local stored = setmetatable({}, { __mode = "k" })
     local activeNPCs = {}
     local npcs = {}
@@ -798,6 +803,7 @@ do
         local distance = (npcPos - getPlayerPosition()).Magnitude
         local withinRange = distance <= NPCSettings.MaxHighlightDistance
 
+        -- 高亮
         local highlight = character:FindFirstChildOfClass("Highlight")
         if NPCSettings.EnableHighlight and withinRange then
             if not highlight then
@@ -811,6 +817,7 @@ do
             highlight.Enabled = false
         end
 
+        -- 血量
         local billboard = character:FindFirstChild("NPCHealthDisplay")
         if NPCSettings.ShowHealthDisplay and withinRange then
             billboard = billboard or getOrCreateBillboard(character, humanoid)
@@ -820,7 +827,7 @@ do
         end
     end
 
-    -- -------- 体型放大 --------
+    -- -------- 体型放大（修复：不修改 CanCollide） --------
     local function getTargetParts(obj)
         local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
         local result = {}
@@ -833,19 +840,19 @@ do
         return result
     end
 
+    -- ★ 修复1：不再修改 CanCollide，避免 NPC 卡在原地不动
     local function enlargeNPC(obj)
         if not NPCSettings.EnableNPCEnlarge or not obj or not obj.Parent then return end
         for _, p in ipairs(getTargetParts(obj)) do
             if not stored[p] then
                 stored[p] = {
                     Size = p.Size,
-                    Transparency = p.Transparency,
-                    CanCollide = p.CanCollide
+                    Transparency = p.Transparency
                 }
             end
             p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
             p.Transparency = 0.25
-            p.CanCollide = false
+            -- 不修改 p.CanCollide，保留原值
         end
     end
 
@@ -854,7 +861,7 @@ do
             if part and part.Parent then
                 part.Size = orig.Size
                 part.Transparency = orig.Transparency
-                part.CanCollide = orig.CanCollide
+                -- 不恢复 CanCollide（因为从未改过）
             end
         end
     end
@@ -866,7 +873,6 @@ do
             if part and part.Parent then
                 part.Size = orig.Size * mult
                 part.Transparency = 0.25
-                part.CanCollide = false
             end
         end
     end
@@ -897,7 +903,7 @@ do
         end)
     end
 
-    -- -------- 注册（带重试） --------
+    -- -------- 注册与清理（修复2：新 NPC 重试放大） --------
     local function registerNPC(obj)
         if not obj or not obj:IsA("Model") then return end
         if Players:GetPlayerFromCharacter(obj) then return end
@@ -910,7 +916,7 @@ do
             table.insert(npcs, hum)
         end
 
-        -- 延迟放大，尝试多次确保部件加载
+        -- ★ 修复2：延迟并多次尝试放大，确保新 NPC 部件已加载
         task.defer(function()
             if not NPCSettings.EnableNPCEnlarge then return end
             for attempt = 1, 5 do
@@ -949,13 +955,15 @@ do
         end
     end))
 
-    -- -------- 绑定 UI --------
+    -- -------- 绑定 UI（修复3：正确滑块语法） --------
+    -- 高亮开关
     tab:Toggle({
         Title = "开启 NPC 高亮",
         Value = NPCSettings.EnableHighlight,
         Callback = function(v) NPCSettings.EnableHighlight = v end
     })
 
+    -- ESP 范围（正确滑块语法）
     tab:Slider({
         Title = "ESP 范围",
         Value = {
@@ -968,12 +976,14 @@ do
         end
     })
 
+    -- 显示血量
     tab:Toggle({
         Title = "显示 NPC 血量",
         Value = NPCSettings.ShowHealthDisplay,
         Callback = function(v) NPCSettings.ShowHealthDisplay = v end
     })
 
+    -- 启用增大
     tab:Toggle({
         Title = "启用 NPC 增大",
         Value = NPCSettings.EnableNPCEnlarge,
@@ -983,6 +993,7 @@ do
         end
     })
 
+    -- 增大倍率（正确滑块语法，默认 4，带防抖）
     tab:Slider({
         Title = "NPC 增大倍率",
         Value = {
@@ -998,6 +1009,7 @@ do
         end
     })
 
+    -- 放大部位
     tab:Dropdown({
         Title = "放大部位",
         Multi = false,
@@ -1009,6 +1021,7 @@ do
         end
     })
 
+    -- 恢复体型按钮
     tab:Button({
         Title = "恢复 NPC 正常体型",
         Callback = function()
@@ -1017,6 +1030,7 @@ do
         end
     })
 
+    -- 清理函数（可选）
     getgenv().__NPC_CLEANUP = function()
         for _, c in ipairs(connections) do
             pcall(c.Disconnect, c)
@@ -1028,7 +1042,7 @@ do
         npcs = {}
     end
 
-    print("[NPC] 功能已加载")
+    print("[NPC] 功能已加载（完整修复版）")
 end
 
 
