@@ -714,44 +714,17 @@ zbjscqtTab:Button({
     end
 })
 
-getgenv().Tabs = {
-    npcTab = npcTab
-}
-
-run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E7%B1%BB")
-
--- ==================== 加载 WindUI（请替换为你的加载方式） ====================
--- 假设你已经有了 WindUI 的加载代码，例如：
--- local WindUI = loadstring(game:HttpGet("https://你的WindUI链接"))()
--- 如果没有，请替换为正确的加载方式。
-
--- 这里我模拟一个 WindUI 加载（实际请用你自己的）
-local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/.../WindUI.lua"))()  -- 请替换为真实地址
-
--- ==================== 创建主窗口 ====================
-local Window = WindUI:CreateWindow({
-    Title = "我的脚本 - NPC 功能",
-    Size = UDim2.new(0, 500, 0, 400),
-    -- 其他参数按需
-})
-
--- ==================== 创建 NPC 标签页 ====================
-local npcTab = Window:CreateTab("NPC")
-
--- 将 Tab 存入全局，以便 NPC 模块使用（如果需要）
-if not getgenv().Tabs then getgenv().Tabs = {} end
-getgenv().Tabs.npcTab = npcTab
-
--- ==================== NPC 功能模块（直接嵌入） ====================
+-- ==================== NPC 功能模块（只含功能，适配已有 npcTab） ====================
 do
-    -- 防止重复加载
     if getgenv().__NPC_LOADED then return end
     getgenv().__NPC_LOADED = true
+
+    -- 使用你已创建的 npcTab（确保 npcTab 变量在当前作用域可用）
+    local tab = npcTab  -- 如果你的 npcTab 存在 getgenv().Tabs 中，也可用 getgenv().Tabs.npcTab
 
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local LocalPlayer = Players.LocalPlayer
-    local CoreGui = game:GetService("CoreGui")
 
     -- 默认设置
     local NPCSettings = {
@@ -973,9 +946,7 @@ do
         end
     end))
 
-    -- -------- 绑定 UI（使用正确的滑块语法） --------
-    local tab = npcTab  -- 直接使用之前创建的 npcTab
-
+    -- -------- 绑定 UI 到 npcTab（使用正确滑块语法） --------
     -- 高亮开关
     tab:Toggle({
         Title = "开启 NPC 高亮",
@@ -983,7 +954,7 @@ do
         Callback = function(v) NPCSettings.EnableHighlight = v end
     })
 
-    -- ESP 范围（修复语法）
+    -- ESP 范围
     tab:Slider({
         Title = "ESP 范围",
         Value = {
@@ -1013,13 +984,13 @@ do
         end
     })
 
-    -- 增大倍率（修复语法，默认 4）
+    -- 增大倍率（默认 4，使用防抖）
     tab:Slider({
         Title = "NPC 增大倍率",
         Value = {
             Min = 1,
             Max = 10,
-            Default = NPCSettings.NPCSizeMultiplier   -- 4
+            Default = NPCSettings.NPCSizeMultiplier
         },
         Callback = function(v)
             NPCSettings.NPCSizeMultiplier = v
@@ -1050,7 +1021,7 @@ do
         end
     })
 
-    -- 提供清理函数（可选）
+    -- 清理函数（可选）
     getgenv().__NPC_CLEANUP = function()
         for _, c in ipairs(connections) do
             pcall(c.Disconnect, c)
@@ -1062,8 +1033,9 @@ do
         npcs = {}
     end
 
-    print("[NPC] 功能已加载（主脚本整合版）")
+    print("[NPC] 功能已加载")
 end
+
 
 -- UI设置
 local themeMap = {
