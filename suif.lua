@@ -736,6 +736,13 @@ scjsjjcTab:Button({
     end
 })
 
+fescriptTab:Button({
+    Title = "我的世界fe", Desc = "他人不可见 米米世界牛逼。", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/ian49972/SCRIPTS/refs/heads/main/Steve", "我的世界fe")
+    end
+})
+
 
 -- UI设置
 local themeMap = {
