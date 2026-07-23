@@ -1,0 +1,340 @@
+print("汉化脚本启动")
+
+-- ===== 精确翻译表（整句完全匹配）=====
+local Translations = {
+    ["Home"] = "主页",
+    ["Discord"] = "Discord",
+    ["New Update"] = "新更新",
+    ["Donate"] = "捐赠",
+    ["Features"] = "功能",
+    ["Main"] = "主要",
+    ["Auto"] = "自动",
+    ["Zombie ESP"] = "僵尸 ESP",
+    ["Local Player"] = "本地玩家",
+    ["Settings"] = "设置",
+    ["UPDATE"] = "更新",
+    ["UPDATED"] = "已更新",
+    ["- Custom background now can use custom url\n- Theme and background now presist if it's saved into config\n- Recoded auto join ship (may still buggy but atleast it's not as of before)"] = "- 自定义背景现在可以使用自定义URL\n- 主题和背景现在如果保存到配置中会持久化\n- 重写了自动加入飞船（可能仍有bug，但至少不像以前那样）",
+    ["Developer"] = "开发者",
+    ["Cáo Mod"] = "Cáo Mod",
+    ["Dev and owner script"] = "开发者和脚本所有者",
+    ["Afkar"] = "Afkar",
+    ["Notify"] = "通知",
+    ["This script is keyless, join the discord to always get the keyless script"] = "此脚本无需密钥，加入Discord以始终获取无密钥脚本",
+    ["Support the Script"] = "支持脚本",
+    ["If this script helped you, consider supporting the dev!\nEvery Robux helps keep updates coming"] = "如果此脚本对你有帮助，请考虑支持开发者！\n每一点Robux都有助于持续更新",
+    ["Donate Linkvertise"] = "捐赠链接",
+    ["Open Donate Link 1"] = "打开捐赠链接 1",
+    ["Open Donate Link 2"] = "打开捐赠链接 2",
+    ["Open Donate Link 3"] = "打开捐赠链接 3",
+    ["Open Donate Link 4"] = "打开捐赠链接 4",
+    ["Event"] = "事件",
+    ["Auto Collect Shard"] = "自动收集碎片",
+    ["Auto Open Crate"] = "自动开启箱子",
+    ["Kill Aura"] = "杀戮光环",
+    ["Instant Kill Aura"] = "即时杀戮光环",
+    ["Silent Aim"] = "静默自瞄",
+    ["Range"] = "范围",
+    ["Misc"] = "杂项",
+    ["Safe Arena"] = "安全竞技场",
+    ["Anti AFK"] = "反挂机踢出",
+    ["Auto rejoin if disconnect"] = "断开连接时自动重新加入",
+    ["Auto Execute"] = "自动执行",
+    ["Fast Cleaner Wave"] = "快速清理波次",
+    ["You won't get money and kills from this but it will help you farm galactic fast and reduce lag"] = "你不会从中获得金钱和击杀，但这将帮助你快速刷银河并减少延迟",
+    ["No Fog"] = "无雾",
+    ["Full Bright"] = "高亮",
+    ["FPS Booster"] = "FPS 提升",
+    ["FPS Uncap"] = "解除FPS限制",
+    ["FPS Cap"] = "FPS 上限",
+    ["Auto Join Ship"] = "自动加入飞船",
+    ["Reset At Wave"] = "在波次重置",
+    ["Wave number..."] = "波次数...",
+    ["Auto Reset Wave"] = "自动重置波次",
+    ["Auto Play Again"] = "自动重新开始",
+    ["Auto Buy"] = "自动购买",
+    ["Auto Buy Weapon"] = "自动购买武器",
+    ["Auto Buy Health"] = "自动购买生命值",
+    ["Auto Buy Gear"] = "自动购买装备",
+    ["Gear Type"] = "装备类型",
+    ["AutoTurret"] = "自动炮塔",
+    ["Auto Extra"] = "自动额外",
+    ["Auto Equip Best Weapon"] = "自动装备最佳武器",
+    ["Auto Skip Wave"] = "自动跳过波次",
+    ["Queue Mode"] = "排队模式",
+    ["Normal"] = "普通",
+    ["Barricade"] = "路障",
+    ["SteelBarricade"] = "钢铁路障",
+    ["FlamethrowerTurret"] = "火焰喷射炮塔",
+    ["ShockwaveMine"] = "冲击波地雷",
+    ["HealingStation"] = "治疗站",
+    ["MendingTower"] = "修复塔",
+    ["StimShot"] = "兴奋剂注射",
+    ["Molotov"] = "莫洛托夫鸡尾酒",
+    ["VanguardTurret"] = "先锋炮塔",
+    ["Cloak"] = "斗篷",
+    ["Shuriken"] = "手里剑",
+    ["BladeFury"] = "刀刃狂怒",
+    ["SoulHarvester"] = "灵魂收割者",
+    ["RaiseUndead"] = "复活亡灵",
+    ["DeathNova"] = "死亡新星",
+    ["FragGrenade"] = "破片手雷",
+    ["Deadeye"] = "神射手",
+    ["TargetMark"] = "目标标记",
+    ["Drone"] = "无人机",
+    ["Spikes"] = "尖刺",
+    ["Bunker"] = "碉堡",
+    ["Landmine"] = "地雷",
+    ["LaserTurret"] = "激光炮塔",
+    ["Movement"] = "移动",
+    ["Set WalkSpeed"] = "设置行走速度",
+    ["Auto WalkSpeed"] = "自动行走速度",
+    ["Set JumpPower"] = "设置跳跃力度",
+    ["Auto JumpPower"] = "自动跳跃力度",
+    ["Infinite Jump"] = "无限跳跃",
+    ["Flight"] = "飞行",
+    ["Enable Fly"] = "启用飞行",
+    ["Fly Speed"] = "飞行速度",
+    ["Noclip"] = "穿墙",
+    ["Config"] = "配置",
+    ["Config Name"] = "配置名称",
+    ["Enter config name..."] = "输入配置名称...",
+    ["Create Config"] = "创建配置",
+    ["Select Config"] = "选择配置",
+    ["No config found"] = "未找到配置",
+    ["Load Config"] = "加载配置",
+    ["Overwrite Config"] = "覆盖配置",
+    ["Delete Config"] = "删除配置",
+    ["Auto Load Config"] = "自动加载配置",
+    ["Refresh Config List"] = "刷新配置列表",
+    ["Background Selection"] = "背景选择",
+    ["Select Theme"] = "选择主题",
+    ["Apply Theme"] = "应用主题",
+    ["Select Background"] = "选择背景",
+    ["No Background Selected"] = "未选择背景",
+    ["Custom Background"] = "自定义背景",
+    ["Minimize GUI Keybind"] = "最小化GUI快捷键",
+    ["Furina"] = "芙宁娜",
+    ["Open skibidi"] = "打开脚本[suif汉化]",
+}
+
+local PartialTranslations = {}
+
+-- ===== 选择模式（带按钮的原生通知）=====
+local UseHookTranslation = false
+local function AskModeWithNotification()
+    local StarterGui = game:GetService("StarterGui")
+    local choice = nil
+
+    local success, err = pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "汉化模式选择",
+            Text = "请选择翻译方式",
+            Button1 = "Hook模式 (快速)",
+            Button2 = "普通模式 (稳定)",
+            Duration = 10,
+            Callback = function(clicked)
+                if clicked == "Hook模式 (快速)" then
+                    choice = true
+                elseif clicked == "普通模式 (稳定)" then
+                    choice = false
+                end
+            end
+        })
+    end)
+
+    if not success then
+        warn("通知发送失败，使用普通模式:", err)
+        return false
+    end
+
+    -- 等待用户点击或超时
+    local start = os.clock()
+    repeat wait(0.1) until choice ~= nil or os.clock() - start > 11
+    if choice == nil then
+        print("未选择，默认使用普通模式")
+        return false
+    end
+    return choice
+end
+
+UseHookTranslation = AskModeWithNotification()
+print("最终使用模式:", UseHookTranslation and "Hook" or "普通监听")
+
+-- ===== 翻译框架（监听模式为主）=====
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+
+if not PlayerGui then
+    warn("未找到 PlayerGui，汉化可能无法正常工作")
+end
+
+local SystemUiNames = {
+    RobloxGui=true, PlayerList=true, Backpack=true, Chat=true, BubbleChat=true,
+    ExperienceChat=true, TextChatService=true, TopBar=true, Topbar=true, Health=true,
+    EmotesMenu=true, Chrome=true, InspectMenu=true, PurchasePrompt=true,
+    ScreenshotHud=true
+}
+
+local WatchedRoots, WatchedObjects, TranslatingObjects = setmetatable({},{__mode="k"}), setmetatable({},{__mode="k"}), setmetatable({},{__mode="k"})
+
+local function TranslateText(txt)
+    if type(txt) ~= "string" or txt == "" then return txt end
+    local clean = txt:gsub("<[^>]->", ""):gsub("\r", ""):gsub("^%s+", ""):gsub("%s+$", "")
+
+    local exact = Translations[txt] or Translations[clean]
+    if exact then return exact end
+
+    local result = txt
+    for original, translated in pairs(PartialTranslations) do
+        result = result:gsub(original, translated)
+    end
+    return result
+end
+
+local function IsSysUI(obj)
+    while obj do
+        if SystemUiNames[obj.Name] then return true end
+        obj = obj.Parent
+    end
+    return false
+end
+
+local function TranslateObj(obj)
+    if IsSysUI(obj) or TranslatingObjects[obj] then return end
+    TranslatingObjects[obj] = true
+    pcall(function()
+        local nText = TranslateText(obj.Text)
+        if nText ~= obj.Text then obj.Text = nText end
+        local nPlace = TranslateText(obj.PlaceholderText)
+        if nPlace ~= obj.PlaceholderText then obj.PlaceholderText = nPlace end
+    end)
+    TranslatingObjects[obj] = nil
+end
+
+local function WatchObj(obj)
+    if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+    if WatchedObjects[obj] then return end
+    WatchedObjects[obj] = true
+
+    TranslateObj(obj)
+
+    local function onPropChange()
+        if not TranslatingObjects[obj] then
+            delay(0.03, function() TranslateObj(obj) end)
+        end
+    end
+
+    pcall(function()
+        obj:GetPropertyChangedSignal("Text"):Connect(onPropChange)
+        obj:GetPropertyChangedSignal("PlaceholderText"):Connect(onPropChange)
+    end)
+end
+
+local function GetRoots()
+    local roots = {}
+    if PlayerGui then table.insert(roots, PlayerGui) end
+    pcall(function() table.insert(roots, CoreGui) end)
+    pcall(function()
+        if gethui then
+            local hui = gethui()
+            if hui then table.insert(roots, hui) end
+        end
+    end)
+    return roots
+end
+
+local function ScanAndWatch(root)
+    if not root or WatchedRoots[root] then return end
+    WatchedRoots[root] = true
+
+    pcall(function()
+        for _, obj in ipairs(root:GetDescendants()) do
+            WatchObj(obj)
+        end
+        root.DescendantAdded:Connect(function(obj)
+            delay(0.05, function()
+                WatchObj(obj)
+                pcall(function()
+                    for _, c in ipairs(obj:GetDescendants()) do
+                        WatchObj(c)
+                    end
+                end)
+            end)
+        end)
+    end)
+end
+
+-- ===== 如果用户选择了 Hook 模式，尝试安装 =====
+if UseHookTranslation then
+    local hookSuccess, hookErr = pcall(function()
+        local mt = getrawmetatable(game)
+        if not mt then error("getrawmetatable 失败") end
+        local oldNewIndex = mt.__newindex
+        setreadonly(mt, false)
+        mt.__newindex = newcclosure(function(t, k, v)
+            if (k == "Text" or k == "PlaceholderText") and
+               (t:IsA("TextLabel") or t:IsA("TextButton") or t:IsA("TextBox")) and
+               not IsSysUI(t) then
+                v = TranslateText(tostring(v))
+            end
+            return oldNewIndex(t, k, v)
+        end)
+        setreadonly(mt, true)
+    end)
+    if not hookSuccess then
+        warn("Hook安装失败，降级为监听模式:", hookErr)
+        UseHookTranslation = false
+    else
+        print("Hook模式已启用")
+    end
+end
+
+-- ===== 启动监听扫描 =====
+spawn(function()
+    while true do
+        for _, root in ipairs(GetRoots()) do
+            ScanAndWatch(root)
+            pcall(function()
+                for _, obj in ipairs(root:GetDescendants()) do
+                    WatchObj(obj)
+                end
+            end)
+        end
+        wait(UseHookTranslation and 20 or 12)
+    end
+end)
+
+wait(0.5)
+
+-- ===== 加载外部脚本 =====
+local ScriptUrl = "https://raw.githubusercontent.com/caomod2077/Script/main/Foxname_SZA.lua"
+print("开始下载外部脚本...")
+
+local ok, content = pcall(function()
+    return game:HttpGet(ScriptUrl)
+end)
+
+if not ok then
+    warn("下载失败：", content)
+elseif not content or content == "" then
+    warn("内容为空")
+else
+    print("下载成功，长度：", #content)
+    local func, err = loadstring(content)
+    if not func then
+        warn("编译失败：", err)
+    else
+        print("编译成功，执行外部脚本...")
+        local execOk, execErr = pcall(func)
+        if not execOk then
+            warn("执行失败：", execErr)
+        else
+            print("外部脚本执行成功")
+        end
+    end
+end
+
+print("[汉化] 已加载")
