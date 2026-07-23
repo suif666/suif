@@ -1,4 +1,4 @@
--- ==================== 终极安全版 NPC 模块 ====================
+-- ==================== NPC 功能模块（修复恢复无效 + 叠加） ====================
 do
     if getgenv().__NPC_LOADED then
         if getgenv().__NPC_CLEANUP then
@@ -7,11 +7,10 @@ do
         getgenv().__NPC_LOADED = nil
     end
 
-    -- 获取 tab，如果无效则创建一个虚拟 tab，所有方法均为空函数
+    -- 获取 npcTab（从全局）
     local tab = getgenv().Tabs and getgenv().Tabs.npcTab
     if not tab or type(tab.Toggle) ~= "function" then
-        warn("[NPC] ⚠️ npcTab 无效，将不会创建 UI 控件。功能仍会运行。")
-        -- 创建虚拟 tab，避免后续调用 nil 方法
+        warn("[NPC] ⚠️ 未找到有效的 npcTab，UI 控件将不会被创建。")
         tab = {
             Toggle = function() end,
             Slider = function() end,
@@ -33,6 +32,7 @@ do
         EnlargePartMode = "全部"
     }
 
+    -- 存储部件原始尺寸（弱引用）
     local stored = setmetatable({}, { __mode = "k" })
     local activeNPCs = {}
     local npcs = {}
@@ -48,7 +48,7 @@ do
         ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
     }
 
-    -- 辅助函数（不变）
+    -- -------- 辅助函数（保持不变） --------
     local function getPlayerPosition()
         local char = LocalPlayer.Character
         if char then
@@ -112,6 +112,7 @@ do
         end
     end
 
+    -- -------- 核心修复：存储原始尺寸在注册时完成 --------
     local function getTargetParts(obj)
         local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
         local result = {}
@@ -122,17 +123,31 @@ do
         return result
     end
 
-    local function enlargeNPC(obj)
-        if not NPCSettings.EnableNPCEnlarge or not obj or not obj.Parent then return end
+    -- 存储部件的初始尺寸（在注册时调用）
+    local function storeInitialSize(obj)
+        if not obj then return end
         for _, p in ipairs(getTargetParts(obj)) do
             if not stored[p] then
-                stored[p] = { Size = p.Size, Transparency = p.Transparency }
+                stored[p] = {
+                    Size = p.Size,
+                    Transparency = p.Transparency
+                }
             end
-            p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
-            p.Transparency = 0.25
         end
     end
 
+    -- 放大：基于存储的原始尺寸
+    local function enlargeNPC(obj)
+        if not NPCSettings.EnableNPCEnlarge or not obj or not obj.Parent then return end
+        for _, p in ipairs(getTargetParts(obj)) do
+            if stored[p] then
+                p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
+                p.Transparency = 0.25
+            end
+        end
+    end
+
+    -- 恢复：将部件重置为存储的原始尺寸（不清除存储）
     local function restoreAllNPCs()
         for part, orig in pairs(stored) do
             if part and part.Parent then
@@ -142,6 +157,7 @@ do
         end
     end
 
+    -- 更新倍率（只调整已存储部件）
     local function updateEnlargeScale()
         if not NPCSettings.EnableNPCEnlarge then return end
         local mult = NPCSettings.NPCSizeMultiplier
@@ -153,29 +169,48 @@ do
         end
     end
 
+    -- 刷新放大（切换部位或开启时调用）
     local function refreshEnlargeParts()
         if refreshLock then return end
         refreshLock = true
         task.defer(function()
+            -- 先恢复所有到原始尺寸
             restoreAllNPCs()
+            -- 清空存储（因为部位变了，需要重新存储）
             stored = setmetatable({}, { __mode = "k" })
+            -- 重新存储所有活跃 NPC 的当前尺寸（现在已经是原始尺寸）
+            for model in pairs(activeNPCs) do
+                if model and model.Parent then
+                    storeInitialSize(model)
+                end
+            end
+            -- 如果放大开启，再放大
             if NPCSettings.EnableNPCEnlarge then
                 for model in pairs(activeNPCs) do
-                    if model and model.Parent then enlargeNPC(model) end
+                    if model and model.Parent then
+                        enlargeNPC(model)
+                    end
                 end
             end
             refreshLock = false
         end)
     end
 
+    -- 防抖更新倍率
     local function requestScaleUpdate()
-        if scaleUpdateTimer then task.cancel(scaleUpdateTimer); scaleUpdateTimer = nil end
+        if scaleUpdateTimer then
+            task.cancel(scaleUpdateTimer)
+            scaleUpdateTimer = nil
+        end
         scaleUpdateTimer = task.delay(0.3, function()
             scaleUpdateTimer = nil
-            if NPCSettings.EnableNPCEnlarge then updateEnlargeScale() end
+            if NPCSettings.EnableNPCEnlarge then
+                updateEnlargeScale()
+            end
         end)
     end
 
+    -- -------- 注册：存储初始尺寸 --------
     local function registerNPC(obj)
         if not obj or not obj:IsA("Model") then return end
         if Players:GetPlayerFromCharacter(obj) then return end
@@ -185,24 +220,36 @@ do
             activeNPCs[obj] = true
             table.insert(npcs, hum)
         end
+
+        -- 存储该 NPC 所有目标部件的初始尺寸（即使放大未开启）
+        storeInitialSize(obj)
+
+        -- 如果放大已开启，则应用放大
         task.defer(function()
-            if not NPCSettings.EnableNPCEnlarge then return end
-            for attempt = 1, 3 do
-                enlargeNPC(obj)
-                task.wait(0.15)
+            if NPCSettings.EnableNPCEnlarge then
+                for attempt = 1, 3 do
+                    enlargeNPC(obj)
+                    task.wait(0.15)
+                end
             end
         end)
+
         updateNPCVisibility(hum)
     end
 
+    -- 初始化已有
     task.defer(function()
-        for _, obj in ipairs(workspace:GetDescendants()) do registerNPC(obj) end
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            registerNPC(obj)
+        end
     end)
 
+    -- 监听新增
     table.insert(connections, workspace.DescendantAdded:Connect(function(obj)
         task.defer(function() registerNPC(obj) end)
     end))
 
+    -- 可见性更新
     local frameCounter = 0
     table.insert(connections, RunService.Heartbeat:Connect(function()
         frameCounter = frameCounter + 1
@@ -217,7 +264,7 @@ do
         end
     end))
 
-    -- ★★★ 所有 UI 绑定全部放在 pcall 中，即使出错也不会中断 ★★★
+    -- -------- 绑定 UI --------
     local function createUI()
         tab:Toggle({
             Title = "开启 NPC 高亮",
@@ -247,7 +294,9 @@ do
             Value = { Min = 1, Max = 10, Default = NPCSettings.NPCSizeMultiplier },
             Callback = function(v)
                 NPCSettings.NPCSizeMultiplier = v
-                if NPCSettings.EnableNPCEnlarge then requestScaleUpdate() end
+                if NPCSettings.EnableNPCEnlarge then
+                    requestScaleUpdate()
+                end
             end
         })
         tab:Dropdown({
@@ -268,19 +317,36 @@ do
                     scaleUpdateTimer = nil
                 end
                 NPCSettings.EnableNPCEnlarge = false
-                restoreAllNPCs()
-                stored = setmetatable({}, { __mode = "k" })
+                restoreAllNPCs()      -- 重置为存储的原始尺寸
                 refreshLock = false
-                print("[NPC] 已一键恢复")
+                print("[NPC] ✅ 已恢复所有 NPC 原始体型")
             end
         })
     end
 
-    -- 使用 pcall 包裹，即使 tab 无效也不会报错
     local success, err = pcall(createUI)
     if not success then
         warn("[NPC] UI 创建失败: " .. tostring(err))
     end
+
+    -- 暴露控制台调试
+    getgenv().NPC = {
+        Settings = NPCSettings,
+        Restore = function()
+            NPCSettings.EnableNPCEnlarge = false
+            restoreAllNPCs()
+            refreshLock = false
+            print("[NPC] 已通过控制台恢复")
+        end,
+        Refresh = refreshEnlargeParts,
+        Status = function()
+            print("启用放大:", NPCSettings.EnableNPCEnlarge)
+            print("倍率:", NPCSettings.NPCSizeMultiplier)
+            print("部位:", NPCSettings.EnlargePartMode)
+            print("已记录部件数:", table.getn(stored))
+            print("活跃 NPC 数:", table.getn(npcs))
+        end
+    }
 
     getgenv().__NPC_CLEANUP = function()
         for _, c in ipairs(connections) do pcall(c.Disconnect, c) end
@@ -290,9 +356,10 @@ do
         activeNPCs = {}
         npcs = {}
         getgenv().__NPC_LOADED = nil
+        getgenv().NPC = nil
         print("[NPC] 已清理")
     end
 
     getgenv().__NPC_LOADED = true
-    print("[NPC] 功能已加载（终极安全版）")
+    print("[NPC] 功能已加载")
 end
