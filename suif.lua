@@ -176,7 +176,7 @@ local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "she
 local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
 local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
 local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
-
+local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -726,6 +726,13 @@ fescriptTab:Button({
     Title = "r15动作包[suif汉化]", Desc = "他人可见 注意只支持r15 r6用了会直接僵直", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "r15动作包")
+    end
+})
+
+scjsjjcTab:Button({
+    Title = "生存僵尸竞技场01[suif汉化]", Desc = "汉化不全 但无关紧要 主要的功能都是汉化过的 感觉还行", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "生存僵尸竞技场01")
     end
 })
 
