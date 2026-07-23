@@ -1,15 +1,9 @@
--- ==================== NPC 功能模块（远程加载版） ====================
 do
-    -- 防止重复加载
     if getgenv().__NPC_LOADED then return end
     getgenv().__NPC_LOADED = true
 
-    -- 获取主脚本创建的 NPC 标签页
-    local tab = getgenv().Tabs and getgenv().Tabs.npcTab
-    if not tab then
-        warn("[NPC] 未找到 npcTab，请确保主脚本已创建并存入 getgenv().Tabs.npcTab")
-        return
-    end
+    -- 使用已创建的 npcTab（请确保 npcTab 在当前作用域可用）
+    local tab = npcTab  -- 或 getgenv().Tabs.npcTab
 
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
@@ -30,6 +24,11 @@ do
     local activeNPCs = {}
     local npcs = {}
     local connections = {}
+
+    -- 互斥锁，防止刷新并发
+    local refreshLock = false
+    -- 防抖定时器
+    local scaleUpdateTimer = nil
 
     local enlargeTargets = {
         ["头部"] = {"Head"},
@@ -138,7 +137,6 @@ do
             end
             p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
             p.Transparency = 0.25
-            -- 不修改 CanCollide
         end
     end
 
@@ -162,19 +160,25 @@ do
         end
     end
 
+    -- 刷新放大（带互斥锁）
     local function refreshEnlargeParts()
-        restoreAllNPCs()
-        stored = setmetatable({}, { __mode = "k" })
-        if not NPCSettings.EnableNPCEnlarge then return end
-        for model in pairs(activeNPCs) do
-            if model and model.Parent then
-                enlargeNPC(model)
+        if refreshLock then return end
+        refreshLock = true
+        task.defer(function()
+            restoreAllNPCs()
+            stored = setmetatable({}, { __mode = "k" })
+            if NPCSettings.EnableNPCEnlarge then
+                for model in pairs(activeNPCs) do
+                    if model and model.Parent then
+                        enlargeNPC(model)
+                    end
+                end
             end
-        end
+            refreshLock = false
+        end)
     end
 
     -- 防抖更新倍率
-    local scaleUpdateTimer = nil
     local function requestScaleUpdate()
         if scaleUpdateTimer then
             task.cancel(scaleUpdateTimer)
@@ -203,9 +207,9 @@ do
 
         task.defer(function()
             if not NPCSettings.EnableNPCEnlarge then return end
-            for attempt = 1, 5 do
+            for attempt = 1, 3 do
                 enlargeNPC(obj)
-                task.wait(0.2)
+                task.wait(0.15)
             end
         end)
 
@@ -224,7 +228,7 @@ do
         task.defer(function() registerNPC(obj) end)
     end))
 
-    -- 循环更新可见性（每 2 帧一次）
+    -- 可见性更新循环（每 2 帧一次）
     local frameCounter = 0
     table.insert(connections, RunService.Heartbeat:Connect(function()
         frameCounter = frameCounter + 1
@@ -239,7 +243,7 @@ do
         end
     end))
 
-    -- -------- 绑定 UI 到 npcTab（正确滑块语法） --------
+    -- -------- 绑定 UI --------
     tab:Toggle({
         Title = "开启 NPC 高亮",
         Value = NPCSettings.EnableHighlight,
@@ -253,9 +257,7 @@ do
             Max = 500,
             Default = NPCSettings.MaxHighlightDistance
         },
-        Callback = function(v)
-            NPCSettings.MaxHighlightDistance = v
-        end
+        Callback = function(v) NPCSettings.MaxHighlightDistance = v end
     })
 
     tab:Toggle({
@@ -269,7 +271,7 @@ do
         Value = NPCSettings.EnableNPCEnlarge,
         Callback = function(v)
             NPCSettings.EnableNPCEnlarge = v
-            task.defer(refreshEnlargeParts)
+            refreshEnlargeParts()
         end
     })
 
@@ -295,19 +297,37 @@ do
         Value = NPCSettings.EnlargePartMode,
         Callback = function(v)
             NPCSettings.EnlargePartMode = v
-            task.defer(refreshEnlargeParts)
+            refreshEnlargeParts()
         end
     })
 
+    -- ★ 优化后的一键恢复按钮
     tab:Button({
         Title = "恢复 NPC 正常体型",
         Callback = function()
+            -- 取消正在进行的防抖更新
+            if scaleUpdateTimer then
+                task.cancel(scaleUpdateTimer)
+                scaleUpdateTimer = nil
+            end
+            
+            -- 关闭增大功能
             NPCSettings.EnableNPCEnlarge = false
+            
+            -- 恢复所有 NPC 原始尺寸
             restoreAllNPCs()
+            
+            -- 清空存储记录
+            stored = setmetatable({}, { __mode = "k" })
+            
+            -- 释放刷新锁
+            refreshLock = false
+            
+            print("[NPC] 已一键恢复所有 NPC 原始体型，放大功能已关闭")
         end
     })
 
-    -- 清理函数（可选）
+    -- 清理函数
     getgenv().__NPC_CLEANUP = function()
         for _, c in ipairs(connections) do
             pcall(c.Disconnect, c)
@@ -319,5 +339,5 @@ do
         npcs = {}
     end
 
-    print("[NPC] 功能已加载（远程模块）")
+    print("[NPC] 功能已加载（完整修复版）")
 end
