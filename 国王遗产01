@@ -1,0 +1,493 @@
+print("汉化脚本 v3.3")
+
+-- ===== 精确翻译表（整句完全匹配）=====
+-- 请在此按 ["英文原文"] = "中文翻译" 格式添加
+local Translations = {
+    -- 示例: ["Home"] = "主页",
+    ["GENESIS HUB"] = "创世纪中心[suif汉化]",
+    ["KING LEGACY"] = "王者遗产",
+    ["Farm Settings"] = "农场设置",
+    ["sh: thanks for use our script!\n— use; / on the chat.\n— youll like it!"] = "感谢使用我们的脚本！\n— 在聊天中使用 ; /。\n— 你会喜欢的！",
+    ["Select Tools"] = "选择工具",
+    ["Mele"] = "近战",
+    ["Tool Switch Speed (sec)"] = "工具切换速度（秒）",
+    ["Farm Distance"] = "农场距离",
+    ["Auto Take Quest"] = "自动接受任务",
+    ["Haki Settings"] = "霸气设置",
+    ["Buso (Armament)"] = "武装色霸气",
+    ["Ken (Observation)"] = "见闻色霸气",
+    ["Hao (Conqueror's)"] = "霸王色霸气",
+    ["Funny Settings"] = "趣味设置",
+    ["Walk On Water"] = "水上行走",
+    ["V Method (Zoan & Ope)"] = "V方法（动物系 & 手术）",
+    ["Race Settings"] = "种族设置",
+    ["Auto Active Race"] = "自动激活种族",
+    ["HP% to Activate Race"] = "激活种族的HP百分比",
+    ["💡: is recommended that you have the Sea Beast Race."] = "💡：建议你拥有海兽种族。",
+    ["Some Misc Function"] = "杂项功能",
+    ["Auto Execute (After Server Switch)"] = "自动执行（服务器切换后）",
+    ["Level Farm"] = "等级刷取",
+    ["Auto Farm Level"] = "自动刷等级",
+    ["Material Farm"] = "材料刷取",
+    ["Select Material"] = "选择材料",
+    ["Leather"] = "皮革",
+    ["Farm Material"] = "刷取材料",
+    ["Boss Farm"] = "BOSS刷取",
+    ["Select Boss"] = "选择BOSS",
+    ["Auto Farm Selected Boss"] = "自动刷取所选BOSS",
+    ["Fishing Farm"] = "钓鱼刷取",
+    ["Position: Not Set"] = "位置：未设置",
+    ["Save Fishing Position"] = "保存钓鱼位置",
+    ["Auto Fish (Perfect Catch)"] = "自动钓鱼（完美收竿）",
+    ["In Serpent Whirlpool"] = "在海蛇漩涡中",
+    ["Fishing When Not Spawned"] = "未生成时钓鱼",
+    ["Alternative Farm"] = "替代刷取",
+    ["Auto Farm Bounty (Legit)"] = "自动刷赏金（合法）",
+    ["Utilities Farm"] = "实用刷取",
+    ["Detection Distance"] = "检测距离",
+    ["Auto Kill All Bosses"] = "自动击杀所有BOSS",
+    ["Auto Kill Nearby Mobs"] = "自动击杀附近怪物",
+    ["Raid Bosses"] = "突袭BOSS",
+    ["Auto Kill Expert Swordman"] = "自动击杀剑术大师",
+    ["Sea Events"] = "海洋事件",
+    ["Auto Kill Serpent"] = "自动击杀海蛇",
+    ["Raid Bosses Spawn Status"] = "突袭BOSS生成状态",
+    ["Spawned: None"] = "已生成：无",
+    ["Serpent & Whirlpool Spawn Status"] = "海蛇与漩涡生成状态",
+    ["Serpent: 🔴 | Whirlpool: 🔴"] = "海蛇：🔴 | 漩涡：🔴",
+    ["Sea Events Spawn Status"] = "海洋事件生成状态",
+    ["Smart Hop Settings (Premium Only)"] = "智能跳转设置（仅限高级版）",
+    ["Target Sea Events"] = "目标海洋事件",
+    ["Selecionar..."] = "选择...",
+    ["Target Raid Bosses"] = "目标突袭BOSS",
+    ["Customized Priority"] = "自定义优先级",
+    ["Both"] = "两者",
+    ["Smart Hop (Event Servers Only)"] = "智能跳转（仅事件服务器）",
+    ["Smart Hop Delay (seconds)"] = "智能跳转延迟（秒）",
+    ["Key Shopping"] = "钥匙购买",
+    ["Select Key Type"] = "选择钥匙类型",
+    ["Copper Key"] = "铜钥匙",
+    ["Amount to Buy"] = "购买数量",
+    ["Auto Buy Keys"] = "自动购买钥匙",
+    ["Random Fruits"] = "随机果实",
+    ["Key for Random"] = "随机钥匙",
+    ["Random Fruit x1"] = "随机果实 x1",
+    ["Random Fruit x10"] = "随机果实 x10",
+    ["Material Dealer"] = "材料商人",
+    ["Open Material Shop"] = "打开材料商店",
+    ["Select Materials"] = "选择材料",
+    ["Select All"] = "全选",
+    ["Clear All"] = "清除全部",
+    ["Buy Quantity"] = "购买数量",
+    ["Auto Buy Selected Materials"] = "自动购买所选材料",
+    ["Styles Shop"] = "风格商店",
+    ["Buy Electro"] = "购买电击",
+    ["Buy Dark Leg"] = "购买暗影腿",
+    ["Buy Dragon Claw"] = "购买龙爪",
+    ["Buy Cyborg"] = "购买半机械人",
+    ["Buy Water Style"] = "购买水之风格",
+    ["Job ID System"] = "任务ID系统",
+    ["Current Job ID:"] = "当前任务ID：",
+    ["Copy Current Job ID"] = "复制当前任务ID",
+    ["Manual Connection"] = "手动连接",
+    ["Enter Target Job ID"] = "输入目标任务ID",
+    ["Paste Job ID here..."] = "在此粘贴任务ID...",
+    ["Join Target Server"] = "加入目标服务器",
+    ["Quick Actions"] = "快速操作",
+    ["Rejoin Current Server"] = "重新加入当前服务器",
+    ["Server Hop (Random)"] = "跳转服务器（随机）",
+    ["Event Servers (Live)"] = "事件服务器（实时）",
+    ["⏳ No servers found"] = "⏳ 未找到服务器",
+    ["Refresh List"] = "刷新列表",
+    ["Filters"] = "筛选",
+    ["Filter by Event"] = "按事件筛选",
+    ["All"] = "全部",
+    ["Available Servers"] = "可用服务器",
+    ["Slot 1 - Empty"] = "槽位 1 - 空",
+    ["Waiting for server data..."] = "等待服务器数据...",
+    ["Players: --/12"] = "玩家：--/12",
+    ["WAITING"] = "等待中",
+    ["Slot 2 - Empty"] = "槽位 2 - 空",
+    ["Slot 3 - Empty"] = "槽位 3 - 空",
+    ["Slot 4 - Empty"] = "槽位 4 - 空",
+    ["Slot 5 - Empty"] = "槽位 5 - 空",
+    ["Slot 6 - Empty"] = "槽位 6 - 空",
+    ["Island Teleport"] = "岛屿传送",
+    ["Islands List"] = "岛屿列表",
+    ["Chef Ship"] = "厨师船",
+    ["Teleport To Island"] = "传送到岛屿",
+    ["Teleport Back"] = "传送返回",
+    ["Crew"] = "船员",
+    ["Conquest: Idle"] = "征服：空闲",
+    ["Auto Conquest"] = "自动征服",
+    ["Auto Hop For Conquest"] = "为征服自动跳转",
+    ["Select Chests"] = "选择宝箱",
+    ["Auto Buy Chests"] = "自动购买宝箱",
+    ["Passives"] = "被动技能",
+    ["Select Book"] = "选择书籍",
+    ["Chronicles Lore"] = "编年史知识",
+    ["Target Passives"] = "目标被动技能",
+    ["Auto Get Passives"] = "自动获取被动技能",
+    ["Gamepasses"] = "游戏通行证",
+    ["Select Animation"] = "选择动画",
+    ["Standard"] = "标准",
+    ["Legacy Pose"] = "经典姿势",
+    
+    ["Fate Book"] = "命运之书",
+    ["Essence Book"] = "精华之书",
+    ["Fortune Tales"] = "财富传说",
+    ["(Common) Luxuriant"] = "（普通）繁茂",
+    ["(Common) Wisdom"] = "（普通）智慧",
+    ["(Common) Chance"] = "（普通）机遇",
+    ["(Common) Piercing"] = "（普通）穿透",
+    ["(Common) Destruction"] = "（普通）毁灭",
+    ["(Common) Ruin"] = "（普通）废墟",
+    ["(Common) Skill Haste"] = "（普通）技能急速",
+    ["(Common) Sword Sense"] = "（普通）剑感",
+    ["(Paradox) Paradox"] = "（悖论）悖论",
+    ["(Iconic) Last Breath"] = "（标志）临终之息",
+    ["(Iconic) Stylish Heal"] = "（标志）时尚治愈",
+    ["(Iconic) Last Stand"] = "（标志）背水一战",
+    ["(Iconic) Critical Strikes"] = "（标志）暴击",
+    ["(Iconic) Various"] = "（标志）多样",
+    ["(Iconic) Acropurged"] = "（标志）净化",
+    ["(Iconic) Sprinter"] = "（标志）短跑",
+    ["(Iconic) Dazzle"] = "（标志）炫目",
+    ["(Iconic) Healing Havoc"] = "（标志）治愈浩劫",
+    ["(Iconic) Debility"] = "（标志）虚弱",
+    ["(Iconic) Tempest"] = "（标志）暴风",
+    ["(Iconic) Blasting"] = "（标志）爆破",
+    ["(Iconic) Hyper Armor"] = "（标志）超强护甲",
+    ["(Iconic) Swift"] = "（标志）迅捷",
+    ["(Iconic) Draconic Aura"] = "（标志）龙之光环",
+    ["(Iconic) Night Core"] = "（标志）暗夜核心",
+    ["(Iconic) Pyro Core"] = "（标志）火焰核心",
+    ["(Iconic) Bolt Core"] = "（标志）闪电核心",
+    ["(Iconic) Fearless"] = "（标志）无畏",
+    ["(Iconic) Pitiless"] = "（标志）无情",
+    ["(Celestial) Nocturne"] = "（天界）夜曲",
+    ["(Celestial) Reflect Strike"] = "（天界）反击",
+    ["(Celestial) Ronin"] = "（天界）浪人",
+    ["(Celestial) Eternal"] = "（天界）永恒",
+    ["(Celestial) Brawler"] = "（天界）斗士",
+    ["(Celestial) Sentinel"] = "（天界）哨兵",
+    ["(Curse) Sinister Hex"] = "（诅咒）邪恶咒语",
+    ["(Curse) Nightmare"] = "（诅咒）噩梦",
+    ["(Curse) Difficult Healing"] = "（诅咒）难愈",
+    ["(Curse) Sorrowspell"] = "（诅咒）悲伤咒",
+    ["Annoy"] = "烦扰",
+    ["Egoistic"] = "自负",
+    ["Protagonist"] = "主角",
+    ["Undead"] = "亡灵",
+    ["Bashful"] = "害羞",
+    ["Brawny"] = "强壮",
+    ["Common"] = "普通",
+    ["Rare"] = "稀有",
+    ["Epic"] = "史诗",
+    ["Legendary"] = "传说",
+    ["Other Automation"] = "其他自动化",
+    ["Fruits"] = "果实",
+    ["Bring Fruits (Auto Collect)"] = "搬运果实（自动收集）",
+    ["Auto Store Fruits"] = "自动存储果实",
+    ["Performance"] = "性能",
+    ["Hide Notify (Good)"] = "隐藏通知（良好）",
+    ["Black Screen (Smooth)"] = "黑屏（流畅）",
+    ["Sword"] = "剑",
+    ["Fruit"] = "果实",
+    ["Rusted Scrap"] = "生锈废料",
+    ["Fresh Fish"] = "鲜鱼",
+    ["Thief's Rag"] = "盗贼破布",
+    ["Angelic's Feather"] = "天使之羽",
+    ["Gunpowder"] = "火药",
+    ["Undead's Ooze"] = "亡灵粘液",
+    ["Twilight's Orb"] = "暮光宝珠",
+    ["Skills Settings"] = "技能设置",
+    ["Skill Z"] = "技能 Z",
+    ["Skill X"] = "技能 X",
+    ["Skill C"] = "技能 C",
+    ["Skill V"] = "技能 V",
+    ["Skill F"] = "技能 F",
+    ["Skill B"] = "技能 B",
+    ["Skill E"] = "技能 E",
+    ["Statistics Points"] = "属性点",
+    ["Point Quantity"] = "点数数量",
+    ["Auto Distribute"] = "自动分配",
+    ["In Melee"] = "近战",
+    ["In Defense"] = "防御",
+    ["In Sword"] = "剑术",
+    ["In Fruit"] = "果实",
+    ["Iron Key"] = "铁钥匙",
+    ["Gold Key"] = "金钥匙",
+    ["Platinum Key"] = "铂金钥匙",
+    ["Dragon's Orb"] = "龙之宝珠",
+    ["Hydra's Tail"] = "九头蛇之尾",
+    ["Phoenix's Tear"] = "凤凰之泪",
+    ["Dragon Fang"] = "龙牙",
+    ["Shark's Canine"] = "鲨鱼犬齿",
+    ["Sea King's Fin"] = "海王之鳍",
+    ["Sea's Wraith"] = "海之幽灵",
+    ["Vampire's Vital Fluid"] = "吸血鬼生命液",
+    ["Magma Crystal"] = "岩浆水晶",
+    ["Essence of Fire"] = "火焰精华",
+    ["Ice Crystal"] = "冰水晶",
+    ["Lost Ruby"] = "失落红宝石",
+    ["Samurai's Badage"] = "武士徽章",
+    ["Lucidus's Totem"] = "光明图腾",
+    ["Dark Beard's Totem"] = "黑胡须图腾",
+    ["Kraken's Ink"] = "海怪墨水",
+    ["Crab Meat"] = "蟹肉",
+    ["Severed Kraken"] = "断海怪触须",
+    ["Dragon Scale"] = "龙鳞",
+    ["Sea King's Blood"] = "海王之血",
+    ["Pearl"] = "珍珠",
+    ["Sea Artifact"] = "海洋神器",
+    ["Pile of Bones"] = "骨堆",
+    ["Carrot"] = "胡萝卜",
+    ["Angellic's Feather"] = "天使之羽",
+    ["Log"] = "原木",
+    ["Shark's Fin"] = "鱼翅",
+    ["Coral"] = "珊瑚",
+    ["Iron Ingot"] = "铁锭",
+    ["Bread Crumbs"] = "面包屑",
+    ["Event: RaceIsland"] = "事件：竞速岛",
+    ["Players: 9/12"] = "玩家：9/12",
+    ["JOIN"] = "加入",
+    
+}
+
+-- ===== 部分替换表（子串替换）=====
+-- 请在此按 ["英文子串"] = "中文替换" 格式添加
+-- 注意：会替换文本中所有匹配的子串，请谨慎使用
+local PartialTranslations = {
+    -- 示例: yes no 
+    --["yes"] = "是",
+    
+}
+
+-- ===== 选择模式（带按钮的原生通知）=====
+local function AskModeWithNotification()
+    local StarterGui = game:GetService("StarterGui")
+    local choice = nil
+
+    local success, err = pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "汉化模式选择",
+            Text = "请选择翻译方式",
+            Button1 = "Hook模式 (快速)",
+            Button2 = "普通模式 (稳定)",
+            Duration = 10,
+            Callback = function(clicked)
+                -- 兼容两种返回值：字符串或数字索引
+                if clicked == "Hook模式 (快速)" or clicked == 1 then
+                    choice = true
+                elseif clicked == "普通模式 (稳定)" or clicked == 2 then
+                    choice = false
+                end
+            end
+        })
+    end)
+
+    if not success then
+        warn("通知发送失败，使用普通模式:", err)
+        return false
+    end
+
+    local start = os.clock()
+    repeat
+        wait(0.1)
+    until choice ~= nil or os.clock() - start > 11
+
+    if choice == nil then
+        print("未选择，默认使用普通模式")
+        return false
+    end
+    return choice
+end
+
+local UseHookTranslation = AskModeWithNotification()
+print("最终使用模式:", UseHookTranslation and "Hook" or "普通监听")
+
+-- ===== 翻译框架（监听模式为主）=====
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+
+if not PlayerGui then
+    warn("未找到 PlayerGui，汉化可能无法正常工作")
+end
+
+local SystemUiNames = {
+    RobloxGui=true, PlayerList=true, Backpack=true, Chat=true, BubbleChat=true,
+    ExperienceChat=true, TextChatService=true, TopBar=true, Topbar=true, Health=true,
+    EmotesMenu=true, Chrome=true, InspectMenu=true, PurchasePrompt=true,
+    ScreenshotHud=true
+}
+
+local WatchedRoots, WatchedObjects, TranslatingObjects = setmetatable({},{__mode="k"}), setmetatable({},{__mode="k"}), setmetatable({},{__mode="k"})
+
+local function TranslateText(txt)
+    if type(txt) ~= "string" or txt == "" then return txt end
+    local clean = txt:gsub("<[^>]->", ""):gsub("\r", ""):gsub("^%s+", ""):gsub("%s+$", "")
+
+    -- 1. 精确匹配（整句）
+    local exact = Translations[txt] or Translations[clean]
+    if exact then return exact end
+
+    -- 2. 部分替换（子串）
+    local result = txt
+    for original, translated in pairs(PartialTranslations) do
+        result = result:gsub(original, translated)
+    end
+    return result
+end
+
+local function IsSysUI(obj)
+    while obj do
+        if SystemUiNames[obj.Name] then return true end
+        obj = obj.Parent
+    end
+    return false
+end
+
+local function TranslateObj(obj)
+    if IsSysUI(obj) or TranslatingObjects[obj] then return end
+    TranslatingObjects[obj] = true
+    pcall(function()
+        local nText = TranslateText(obj.Text)
+        if nText ~= obj.Text then obj.Text = nText end
+        local nPlace = TranslateText(obj.PlaceholderText)
+        if nPlace ~= obj.PlaceholderText then obj.PlaceholderText = nPlace end
+    end)
+    TranslatingObjects[obj] = nil
+end
+
+local function WatchObj(obj)
+    if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+    if WatchedObjects[obj] then return end
+    WatchedObjects[obj] = true
+
+    TranslateObj(obj)
+
+    local function onPropChange()
+        if not TranslatingObjects[obj] then
+            delay(0.03, function() TranslateObj(obj) end)
+        end
+    end
+
+    pcall(function()
+        obj:GetPropertyChangedSignal("Text"):Connect(onPropChange)
+        obj:GetPropertyChangedSignal("PlaceholderText"):Connect(onPropChange)
+    end)
+end
+
+local function GetRoots()
+    local roots = {}
+    if PlayerGui then table.insert(roots, PlayerGui) end
+    pcall(function() table.insert(roots, CoreGui) end)
+    pcall(function()
+        if gethui then
+            local hui = gethui()
+            if hui then table.insert(roots, hui) end
+        end
+    end)
+    return roots
+end
+
+local function ScanAndWatch(root)
+    if not root or WatchedRoots[root] then return end
+    WatchedRoots[root] = true
+
+    pcall(function()
+        for _, obj in ipairs(root:GetDescendants()) do
+            WatchObj(obj)
+        end
+        root.DescendantAdded:Connect(function(obj)
+            delay(0.05, function()
+                WatchObj(obj)
+                pcall(function()
+                    for _, c in ipairs(obj:GetDescendants()) do
+                        WatchObj(c)
+                    end
+                end)
+            end)
+        end)
+    end)
+end
+
+-- ===== 如果用户选择了 Hook 模式，尝试安装 =====
+local hookInstalled = false
+if UseHookTranslation then
+    local hookSuccess, hookErr = pcall(function()
+        local mt = getrawmetatable(game)
+        if not mt then error("getrawmetatable 失败") end
+        local oldNewIndex = mt.__newindex
+        setreadonly(mt, false)
+        mt.__newindex = newcclosure(function(t, k, v)
+            if (k == "Text" or k == "PlaceholderText") and
+               (t:IsA("TextLabel") or t:IsA("TextButton") or t:IsA("TextBox")) and
+               not IsSysUI(t) then
+                v = TranslateText(tostring(v))
+            end
+            return oldNewIndex(t, k, v)
+        end)
+        setreadonly(mt, true)
+    end)
+    if not hookSuccess then
+        warn("Hook安装失败，降级为监听模式:", hookErr)
+        UseHookTranslation = false
+        hookInstalled = false
+    else
+        print("Hook模式已启用")
+        hookInstalled = true
+    end
+else
+    print("使用普通监听模式")
+end
+
+-- ===== 启动监听扫描（即使 Hook 成功也保留作为备用） =====
+spawn(function()
+    while true do
+        for _, root in ipairs(GetRoots()) do
+            ScanAndWatch(root)
+            pcall(function()
+                for _, obj in ipairs(root:GetDescendants()) do
+                    WatchObj(obj)
+                end
+            end)
+        end
+        wait(hookInstalled and 20 or 12)
+    end
+end)
+
+wait(0.5)
+
+-- ===== 加载外部脚本 =====
+local ScriptUrl = "https://raw.githubusercontent.com/mainloadergg/GenesisHub/refs/heads/main/KingLegacy.lua"
+print("开始下载外部脚本...")
+
+local ok, content = pcall(function()
+    return game:HttpGet(ScriptUrl)
+end)
+
+if not ok then
+    warn("下载失败：", content)
+elseif not content or content == "" then
+    warn("内容为空")
+else
+    print("下载成功，长度：", #content)
+    local func, err = loadstring(content)
+    if not func then
+        warn("编译失败：", err)
+    else
+        print("编译成功，执行外部脚本...")
+        local execOk, execErr = pcall(func)
+        if not execOk then
+            warn("执行失败：", execErr)
+        else
+            print("外部脚本执行成功")
+        end
+    end
+end
+
+print("[汉化] 已加载")
