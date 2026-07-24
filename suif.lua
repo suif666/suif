@@ -181,6 +181,56 @@ local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shel
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 
+
+-- WindUI 原生顶栏反馈入口
+local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
+
+-- 屏蔽“执行脚本时反馈模块自己弹出的加载通知”
+-- 但保留用户真正发送反馈时可能需要的成功/失败提示
+local function feedbackNotify(title, content, icon, duration)
+    local msg = tostring(title or "") .. " " .. tostring(content or "")
+
+    if msg:find("加载", 1, true)
+        or msg:find("初始化", 1, true)
+        or msg:find("入口", 1, true)
+        or msg:find("已启动", 1, true)
+        or msg:find("已就绪", 1, true)
+    then
+        warn("反馈模块已加载", msg)
+        return
+    end
+
+    notify(title, content, icon, duration)
+end
+
+getgenv().SutureHubFeedback = {
+    API = "https://suture-feedback.sfbdsl666.workers.dev/",
+    WindUI = WindUI,
+    Window = win,
+    Notify = feedbackNotify
+}
+
+task.spawn(function()
+    task.wait(0.5)
+
+    local ok, err = pcall(function()
+        local src = game:HttpGet(FeedbackURL)
+        local fn, loadErr = loadstring(src)
+
+        if not fn then
+            error(loadErr)
+        end
+
+        fn()
+    end)
+
+    if not ok then
+        warn("反馈模块加载失败:", err)
+    end
+end)
+
+
+
 -- 主页
 mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
 local countText = mainTab:Paragraph({ Title = "全网执行次数", Desc = "正在获取..." })
