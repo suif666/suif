@@ -805,12 +805,20 @@ fescriptTab:Button({
     end
 })
 
-fescriptTab:Button({
+tyscriptTab:Button({
     Title = "定位传送", Desc = "借鉴的[夜脚本]的闪电尖兵大招", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/Ctx5L33c", "定位传送")
     end
 })
+
+fescriptTab:Button({
+    Title = "召唤吉吉fe", Desc = "他人不可见 嗯对没有蛋仔。", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/fqm5dDXN", "召唤吉吉fe")
+    end
+})
+
 
 
 -- UI设置
