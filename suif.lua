@@ -803,7 +803,7 @@ fescriptTab:Button({
 fescriptTab:Button({
     Title = "定位传送", Desc = "借鉴的[夜脚本]的闪电尖兵大招", Icon = "shell",
     Callback = function()
-        run("loadstring(game:HttpGet("https://pastebin.com/raw/Ctx5L33c"))()", "定位传送")
+        run("https://pastebin.com/raw/Ctx5L33c", "定位传送")
     end
 })
 
