@@ -128,10 +128,10 @@ end)
 
 local dialog
 dialog = win:Dialog({
-    Icon = "megaphone", Title = "公告", Content = "写什么。。是个问题",
+    Icon = "megaphone", Title = "公告", Content = "觉得脚本好用的话可以分享给好友 如果感觉哪里不好可以点击右上角反馈按钮进行反馈",
     Buttons = {
         {
-            Title = "朕已阅",
+            Title = "我知晓",
             Callback = function()
                 if dialog and dialog.Close then
                     dialog:Close()
@@ -806,7 +806,7 @@ fescriptTab:Button({
 })
 
 tyscriptTab:Button({
-    Title = "定位传送", Desc = "借鉴的[夜脚本]的闪电尖兵大招", Icon = "shell",
+    Title = "定位传送", Desc = "借鉴[夜脚本]的闪电尖兵大招", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/Ctx5L33c", "定位传送")
     end
