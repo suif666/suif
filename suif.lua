@@ -608,8 +608,13 @@ stgTab:Button({
 })
 
 stgTab:Button({
-    Title = "ringta[suif汉化]", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
+    Title = "ringta[suif汉化]", Desc = "无卡密 应该是最好用", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
+})
+
+stgTab:Button({
+    Title = "Alkaline[suif汉化]", Desc = "无卡密 对ringta拙劣的模仿 但还是有自己的功能的", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%AD%BB%E9%93%81%E8%BD%A8alkaline", "死铁轨Alkaline") end
 })
 
 stgTab:Button({
