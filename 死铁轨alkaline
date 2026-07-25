@@ -1,0 +1,429 @@
+print("汉化脚本 v3.3")
+
+-- ===== 精确翻译表（整句完全匹配）=====
+-- 请在此按 ["英文原文"] = "中文翻译" 格式添加
+local Translations = {
+    ["Home"] = "主页",
+    ["Features"] = "功能",
+    ["Main"] = "主要",
+    ["Teleport"] = "传送",
+    ["Other Features"] = "其他功能",
+    ["Towns"] = "城镇",
+    ["Bring Items"] = "搬运物品",
+    ["ESP"] = "ESP",
+    ["Loading..."] = "加载中...",
+    ["This Script might take a little bit to load."] = "此脚本可能需要一点时间加载。",
+    ["Open UI IN PC"] = "在 PC 中打开界面",
+    ["PRESS G in your keyboard to open the ui in pc if it disappears when minimizing the ui"] = "如果最小化界面后消失，按键盘上的 G 键在 PC 中打开界面",
+    ["Failed to load Discord data.\nYour executor may not support everything in this script since it's a low executor."] = "加载 Discord 数据失败。\n你的执行器可能不支持此脚本中的所有功能，因为它是低级执行器。",
+    ["Window"] = "窗口",
+    ["IF YOU TURN THIS ON YOUR GAME MIGHT LAG MORE but it will help make the scripts better by sending random information to a text"] = "如果你开启此功能，游戏可能会更卡，但通过向文本发送随机信息，它有助于改进脚本",
+    ["ONLY TURN THIS ON IF YOU WANT TO HELP MAKE THE SCRIPT BETTER THIS WILL MOST LIKELY CAUSE LAG THOUGH SO MAYBE DONT USE IT BUT MAYBE TURN IT ON IF YOU WANT TO TRY IT ON FOR A SECOND?"] = "只有当你想要帮助改进脚本时才开启此项，不过这很可能会导致卡顿，所以也许不要使用它，但如果你想尝试一下，也许可以开启一秒钟？",
+    ["Bring Random Items To You"] = "将随机物品带到你身边",
+    ["Not started."] = "未开始。",
+    ["Pulls surrounding entities and items directly into your inventory."] = "将周围的实体和物品直接拉入你的背包。",
+    ["Auto Hit Weapon"] = "自动攻击武器",
+    ["Manifests a constant damage aura around your equipped weapon."] = "在你装备的武器周围生成持续伤害光环。",
+    ["Gun Aura"] = "枪械光环",
+    ["Auto Shoots Mobs With Guns"] = "用枪自动射击怪物",
+    ["Train Kill Aura"] = "火车击杀光环",
+    ["When riding train you kill a lot of mobs"] = "乘坐火车时击杀大量怪物",
+    ["No Clip"] = "穿墙",
+    ["Auto Collect Money Bag"] = "自动收集钱袋",
+    ["Instant Interaction"] = "即时交互",
+    ["Auto Banjo"] = "自动班卓琴",
+    ["Projects a continuous healing frequency to nearby allies."] = "向附近盟友持续治疗",
+    ["Auto Eat Corpse"] = "自动吃尸体",
+    ["Devours nearby fallen entities to restore vitality (Zombie Only)."] = "吞噬附近倒下的实体以恢复生命（仅限僵尸）。",
+    ["Auto Revive Teammates"] = "自动复活队友",
+    ["Deploys field medic protocols to automatically revive fallen allies."] = "部署战地医疗协议以自动复活倒下的盟友。",
+    ["Unlock Third Person Camera"] = "解锁第三人称相机",
+    ["You can zoom out with this and see your roblox character (BETA)"] = "你可以使用此功能拉远视角并查看你的 Roblox 角色（测试版）",
+    ["Fullbright"] = "全亮",
+    ["Turn Fly On"] = "开启飞行",
+    ["THIS ONLY WORKS IF YOUR SITTING ON A CHAIR OR TURRET"] = "这仅在你坐在椅子或炮塔上时才有效",
+    ["Turn Fly Off"] = "关闭飞行",
+    ["AutoHeal Threshold"] = "自动治疗阈值",
+    ["Auto Heal (Bandage)"] = "自动治疗（绷带）",
+    ["Auto Heal (Snake Oil)"] = "自动治疗（蛇油）",
+    ["Train Status"] = "火车状态",
+    ["Notify Bank Codes"] = "通知银行密码",
+    ["Bank Codes"] = "银行密码",
+    ["No bank codes detected."] = "未检测到银行密码。",
+    ["Outpost Teleports"] = "前哨传送",
+    ["Outpost 1"] = "前哨 1",
+    ["Outpost 2"] = "前哨 2",
+    ["Outpost 3"] = "前哨 3",
+    ["Outpost 4"] = "前哨 4",
+    ["Outpost 5"] = "前哨 5",
+    ["Outpost 6"] = "前哨 6",
+    ["Outpost 7"] = "前哨 7",
+    ["The End 8"] = "终点 8",
+    ["Bring Weapons & Ammo"] = "搬运武器和弹药",
+    ["Bring weapons, ammo, and explosives. Free"] = "搬运武器、弹药和爆炸物。免费。",
+    ["Select Weapons / Ammo"] = "选择武器/弹药",
+    ["Pick which weapons or ammo to bring"] = "选择要搬运的武器或弹药",
+    ["Jade Sword, Vampire Knife, Revolver, Rifle"] = "玉剑、吸血鬼之刃、左轮手枪、步枪",
+    ["Bring Selected Weapons"] = "搬运选中的武器",
+    ["Each item is brought once per toggle session."] = "每次切换会话中每件物品只搬运一次。",
+    ["Bring Armor"] = "搬运护甲",
+    ["Bring armor. Free"] = "搬运护甲 免费",
+    ["Select Armor"] = "选择护甲",
+    ["Pick which armor to bring."] = "选择要搬运的护甲",
+    ["Bring Selected Armor"] = "搬运选中的护甲",
+    ["Bring Cannon"] = "搬运大炮",
+    ["Brings cannon only works when near a cannon for example near fort constitution"] = "搬运大炮仅在大炮附近时生效，例如在堡垒附近",
+    ["Jade Sword"] = "玉剑",
+    ["Cavalry Sword"] = "骑兵剑",
+    ["Vampire Knife"] = "吸血鬼之刃",
+    ["Spear"] = "长矛",
+    ["Shovel"] = "铁锹",
+    ["Hammer"] = "锤子",
+    ["Tomahawk"] = "战斧",
+    ["Revolver"] = "左轮手枪",
+    ["Navy Revolver"] = "海军左轮",
+    ["Revolver Rifle"] = "左轮步枪",
+    ["Rifle"] = "步枪",
+    ["Shotgun"] = "霰弹枪",
+    ["Sawed-Off Shotgun"] = "短管霰弹枪",
+    ["Bolt Action Rifle"] = "栓动步枪",
+    ["Springfield"] = "斯普林菲尔德步枪",
+    ["Crossbow"] = "十字弩",
+    ["Flintlock"] = "燧发枪",
+    ["Blunderbuss"] = "喇叭枪",
+    ["Mauser"] = "毛瑟枪",
+    ["Firework Gun"] = "烟花枪",
+    ["Cannon"] = "大炮",
+    ["Ballista"] = "弩炮",
+    ["Maxim Gun"] = "马克沁机枪",
+    ["Bottle Rocket Launcher"] = "瓶装火箭发射器",
+    ["Molotov"] = "莫洛托夫鸡尾酒",
+    ["Holy Water"] = "圣水",
+    ["Dynamite"] = "炸药",
+    ["Light Ammo"] = "轻型弹药",
+    ["Medium Ammo"] = "中型弹药",
+    ["Shells"] = "霰弹",
+    ["Heavy Ammo"] = "重型弹药",
+    ["Arrows"] = "箭",
+    ["Cannon Balls"] = "炮弹",
+    ["Firework Ammo"] = "烟花弹药",
+    ["Ballista Bolts"] = "弩炮箭矢",
+    ["Zombies ESP"] = "僵尸 ESP",
+    ["Toggle ESP for: Zombies"] = "切换 ESP：僵尸",
+    ["Zombies Mobs"] = "僵尸怪物",
+    ["Zombies ESP Color"] = "僵尸 ESP 颜色",
+    ["Enable Zombies ESP"] = "启用僵尸 ESP",
+    ["Night Creatures ESP"] = "夜间生物 ESP",
+    ["Toggle ESP for: Night Creatures"] = "切换 ESP：夜间生物",
+    ["Night Creatures Mobs"] = "夜间生物怪物",
+    ["Night Creatures ESP Color"] = "夜间生物 ESP 颜色",
+    ["Enable Night Creatures ESP"] = "启用夜间生物 ESP",
+    ["Toggle ESP for: NPCs"] = "切换 ESP：NPC",
+    ["NPCs Mobs"] = "NPC 怪物",
+    ["NPCs ESP Color"] = "NPC ESP 颜色",
+    ["Enable NPCs ESP"] = "启用 NPC ESP",
+    ["Outlaws ESP"] = "不法之徒 ESP",
+    ["Toggle ESP for: Outlaws"] = "切换 ESP：不法之徒",
+    ["Outlaws Mobs"] = "不法之徒怪物",
+    ["Outlaws ESP Color"] = "不法之徒 ESP 颜色",
+    ["Enable Outlaws ESP"] = "启用不法之徒 ESP",
+    ["Animals ESP"] = "动物 ESP",
+    ["Toggle ESP for: Animals"] = "切换 ESP：动物",
+    ["Animals Mobs"] = "动物怪物",
+    ["Animals ESP Color"] = "动物 ESP 颜色",
+    ["Enable Animals ESP"] = "启用动物 ESP",
+    ["Knights ESP"] = "骑士 ESP",
+    ["Toggle ESP for: Knights"] = "切换 ESP：骑士",
+    ["Knights Mobs"] = "骑士怪物",
+    ["Knights ESP Color"] = "骑士 ESP 颜色",
+    ["Enable Knights ESP"] = "启用骑士 ESP",
+    ["Giants ESP"] = "巨人 ESP",
+    ["Toggle ESP for: Giants"] = "切换 ESP：巨人",
+    ["Giants Mobs"] = "巨人怪物",
+    ["Goliath"] = "歌利亚",
+    ["Giants ESP Color"] = "巨人 ESP 颜色",
+    ["Enable Giants ESP"] = "启用巨人 ESP",
+    ["Aliens ESP"] = "外星人 ESP",
+    ["Toggle ESP for: Aliens"] = "切换 ESP：外星人",
+    ["Aliens Mobs"] = "外星人怪物",
+    ["Aliens ESP Color"] = "外星人 ESP 颜色",
+    ["Enable Aliens ESP"] = "启用外星人 ESP",
+    ["Valuables ESP"] = "贵重物品 ESP",
+    ["Toggle ESP for items in: valuables"] = "切换 ESP：贵重物品",
+    ["Valuables Items"] = "贵重物品列表",
+    ["Valuables ESP Color"] = "贵重物品 ESP 颜色",
+    ["Enable Valuables ESP"] = "启用贵重物品 ESP",
+    ["Weapons ESP"] = "武器 ESP",
+    ["Toggle ESP for items in: weapons"] = "切换 ESP：武器",
+    ["Weapons Items"] = "武器列表",
+    ["Weapons ESP Color"] = "武器 ESP 颜色",
+    ["Enable Weapons ESP"] = "启用武器 ESP",
+    ["Special ESP"] = "特殊物品 ESP",
+    ["Toggle ESP for items in: special"] = "切换 ESP：特殊物品",
+    ["Special Items"] = "特殊物品列表",
+    ["Special ESP Color"] = "特殊物品 ESP 颜色",
+    ["Enable Special ESP"] = "启用特殊物品 ESP",
+    ["Armor ESP"] = "护甲 ESP",
+    ["Toggle ESP for items in: armor"] = "切换 ESP：护甲",
+    ["Armor Items"] = "护甲列表",
+    ["Armor ESP Color"] = "护甲 ESP 颜色",
+    ["Enable Armor ESP"] = "启用护甲 ESP",
+    ["Entities ESP"] = "实体 ESP",
+    ["Toggle ESP for items in: entities"] = "切换 ESP：实体",
+    ["Entities Items"] = "实体列表",
+    ["brain_jar"] = "大脑罐",
+    ["Entities ESP Color"] = "实体 ESP 颜色",
+    ["Enable Entities ESP"] = "启用实体 ESP",
+    ["Junk ESP"] = "杂物 ESP",
+    ["Toggle ESP for items in: junk"] = "切换 ESP：杂物",
+    ["Junk Items"] = "杂物列表",
+    ["Junk ESP Color"] = "杂物 ESP 颜色",
+    ["Enable Junk ESP"] = "启用杂物 ESP",
+    ["Bank_combo ESP"] = "银行密码组合 ESP",
+    ["Toggle ESP for items in: bank_combo"] = "切换 ESP：银行密码组合",
+    ["Bank_combo Items"] = "银行密码组合列表",
+    ["Bank_combo ESP Color"] = "银行密码组合 ESP 颜色",
+    ["Enable Bank_combo ESP"] = "启用银行密码组合 ESP",
+    ["Banker"] = "银行家",
+    ["Captain Prescott"] = "普雷斯科特船长",
+    ["Zombie Revolver Officer"] = "僵尸左轮军官",
+    ["Zombie Sword Officer"] = "僵尸剑军官",
+}
+
+-- ===== 部分替换表（子串替换）=====
+-- 请在此按 ["英文子串"] = "中文替换" 格式添加
+-- 注意：会替换文本中所有匹配的子串，请谨慎使用
+local PartialTranslations = {
+    -- 示例: yes no 
+    --["yes"] = "是",
+    ["Time"] = "时间",
+    ["Distance"] = "距离",
+}
+
+-- ===== 选择模式（带按钮的原生通知）=====
+local function AskModeWithNotification()
+    local StarterGui = game:GetService("StarterGui")
+    local choice = nil
+
+    local success, err = pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "汉化模式选择",
+            Text = "请选择翻译方式",
+            Button1 = "Hook模式 (快速)",
+            Button2 = "普通模式 (稳定)",
+            Duration = 10,
+            Callback = function(clicked)
+                -- 兼容两种返回值：字符串或数字索引
+                if clicked == "Hook模式 (快速)" or clicked == 1 then
+                    choice = true
+                elseif clicked == "普通模式 (稳定)" or clicked == 2 then
+                    choice = false
+                end
+            end
+        })
+    end)
+
+    if not success then
+        warn("通知发送失败，使用普通模式:", err)
+        return false
+    end
+
+    local start = os.clock()
+    repeat
+        wait(0.1)
+    until choice ~= nil or os.clock() - start > 11
+
+    if choice == nil then
+        print("未选择，默认使用普通模式")
+        return false
+    end
+    return choice
+end
+
+local UseHookTranslation = AskModeWithNotification()
+print("最终使用模式:", UseHookTranslation and "Hook" or "普通监听")
+
+-- ===== 翻译框架（监听模式为主）=====
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui")
+
+if not PlayerGui then
+    warn("未找到 PlayerGui，汉化可能无法正常工作")
+end
+
+local SystemUiNames = {
+    RobloxGui=true, PlayerList=true, Backpack=true, Chat=true, BubbleChat=true,
+    ExperienceChat=true, TextChatService=true, TopBar=true, Topbar=true, Health=true,
+    EmotesMenu=true, Chrome=true, InspectMenu=true, PurchasePrompt=true,
+    ScreenshotHud=true
+}
+
+local WatchedRoots, WatchedObjects, TranslatingObjects = setmetatable({},{__mode="k"}), setmetatable({},{__mode="k"}), setmetatable({},{__mode="k"})
+
+local function TranslateText(txt)
+    if type(txt) ~= "string" or txt == "" then return txt end
+    local clean = txt:gsub("<[^>]->", ""):gsub("\r", ""):gsub("^%s+", ""):gsub("%s+$", "")
+
+    -- 1. 精确匹配（整句）
+    local exact = Translations[txt] or Translations[clean]
+    if exact then return exact end
+
+    -- 2. 部分替换（子串）
+    local result = txt
+    for original, translated in pairs(PartialTranslations) do
+        result = result:gsub(original, translated)
+    end
+    return result
+end
+
+local function IsSysUI(obj)
+    while obj do
+        if SystemUiNames[obj.Name] then return true end
+        obj = obj.Parent
+    end
+    return false
+end
+
+local function TranslateObj(obj)
+    if IsSysUI(obj) or TranslatingObjects[obj] then return end
+    TranslatingObjects[obj] = true
+    pcall(function()
+        local nText = TranslateText(obj.Text)
+        if nText ~= obj.Text then obj.Text = nText end
+        local nPlace = TranslateText(obj.PlaceholderText)
+        if nPlace ~= obj.PlaceholderText then obj.PlaceholderText = nPlace end
+    end)
+    TranslatingObjects[obj] = nil
+end
+
+local function WatchObj(obj)
+    if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+    if WatchedObjects[obj] then return end
+    WatchedObjects[obj] = true
+
+    TranslateObj(obj)
+
+    local function onPropChange()
+        if not TranslatingObjects[obj] then
+            delay(0.03, function() TranslateObj(obj) end)
+        end
+    end
+
+    pcall(function()
+        obj:GetPropertyChangedSignal("Text"):Connect(onPropChange)
+        obj:GetPropertyChangedSignal("PlaceholderText"):Connect(onPropChange)
+    end)
+end
+
+local function GetRoots()
+    local roots = {}
+    if PlayerGui then table.insert(roots, PlayerGui) end
+    pcall(function() table.insert(roots, CoreGui) end)
+    pcall(function()
+        if gethui then
+            local hui = gethui()
+            if hui then table.insert(roots, hui) end
+        end
+    end)
+    return roots
+end
+
+local function ScanAndWatch(root)
+    if not root or WatchedRoots[root] then return end
+    WatchedRoots[root] = true
+
+    pcall(function()
+        for _, obj in ipairs(root:GetDescendants()) do
+            WatchObj(obj)
+        end
+        root.DescendantAdded:Connect(function(obj)
+            delay(0.05, function()
+                WatchObj(obj)
+                pcall(function()
+                    for _, c in ipairs(obj:GetDescendants()) do
+                        WatchObj(c)
+                    end
+                end)
+            end)
+        end)
+    end)
+end
+
+-- ===== 如果用户选择了 Hook 模式，尝试安装 =====
+local hookInstalled = false
+if UseHookTranslation then
+    local hookSuccess, hookErr = pcall(function()
+        local mt = getrawmetatable(game)
+        if not mt then error("getrawmetatable 失败") end
+        local oldNewIndex = mt.__newindex
+        setreadonly(mt, false)
+        mt.__newindex = newcclosure(function(t, k, v)
+            if (k == "Text" or k == "PlaceholderText") and
+               (t:IsA("TextLabel") or t:IsA("TextButton") or t:IsA("TextBox")) and
+               not IsSysUI(t) then
+                v = TranslateText(tostring(v))
+            end
+            return oldNewIndex(t, k, v)
+        end)
+        setreadonly(mt, true)
+    end)
+    if not hookSuccess then
+        warn("Hook安装失败，降级为监听模式:", hookErr)
+        UseHookTranslation = false
+        hookInstalled = false
+    else
+        print("Hook模式已启用")
+        hookInstalled = true
+    end
+else
+    print("使用普通监听模式")
+end
+
+-- ===== 启动监听扫描（即使 Hook 成功也保留作为备用） =====
+spawn(function()
+    while true do
+        for _, root in ipairs(GetRoots()) do
+            ScanAndWatch(root)
+            pcall(function()
+                for _, obj in ipairs(root:GetDescendants()) do
+                    WatchObj(obj)
+                end
+            end)
+        end
+        wait(hookInstalled and 20 or 12)
+    end
+end)
+
+wait(0.5)
+
+-- ===== 加载外部脚本 =====
+local ScriptUrl = "https://raw.githubusercontent.com/wwwdevanshsssingh12-bit/AlKaline-Hub/refs/heads/main/Loader.lua"
+print("开始下载外部脚本...")
+
+local ok, content = pcall(function()
+    return game:HttpGet(ScriptUrl)
+end)
+
+if not ok then
+    warn("下载失败：", content)
+elseif not content or content == "" then
+    warn("内容为空")
+else
+    print("下载成功，长度：", #content)
+    local func, err = loadstring(content)
+    if not func then
+        warn("编译失败：", err)
+    else
+        print("编译成功，执行外部脚本...")
+        local execOk, execErr = pcall(func)
+        if not execOk then
+            warn("执行失败：", execErr)
+        else
+            print("外部脚本执行成功")
+        end
+    end
+end
+
+print("[汉化] 已加载")
