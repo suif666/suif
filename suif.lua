@@ -555,6 +555,8 @@ toolTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/config/iy%E6%B1%89%E5%8C%96%E7%89%88", "iy汉化") end
 })
 
+
+
 -- 脚本区域
 doorsTab:Button({
     Title = "全自动刷旋钮", Desc = "字面意思 执行后什么都不用管了", Icon = "shell",
@@ -608,6 +610,11 @@ stgTab:Button({
 stgTab:Button({
     Title = "ringta[suif汉化]", Desc = "无卡密 老朋友了 更新速度还算可以", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
+})
+
+stgTab:Button({
+    Title = "死铁轨刷债券", Desc = "无卡密 速度也是非常快好吧 蜗牛在修复司马😡😡😡", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/afkar-gg/sc/refs/heads/main/auto-bond", "死铁轨刷债券") end
 })
 
 slTab:Button({
