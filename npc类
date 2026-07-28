@@ -1,11 +1,10 @@
--- =================== NPC/玩家 范围显示模块（含调试） ===================
+-- =================== NPC/玩家 范围显示模块 ===================
 print("[调试] 脚本开始加载...")
 
 local RangeModule = {
     Settings = {
-        Target = "NPC",
-        Mode = "Box",
-        ShowHealth = false,
+        Target = "NPC",           -- "NPC", "Player", "Both"
+        Mode = "Box",             -- "Box" 或 "Size"
         BoxSize = 6,
         BoxColor = Color3.fromRGB(0, 255, 0)
     },
@@ -247,11 +246,11 @@ end
 
 print("[调试] 启用/禁用函数已定义")
 
--- ===== UI 绑定（含调试） =====
+-- ===== UI 绑定 =====
 local function CreateUI(tab)
     print("[调试] 开始绑定 UI...")
 
-    -- 调试：打印 tab 的所有方法
+    -- 调试：打印 tab 的方法
     print("[调试] tab 对象的方法列表:")
     if type(tab) == "table" then
         for k, v in pairs(tab) do
@@ -263,17 +262,16 @@ local function CreateUI(tab)
         print("  ❌ tab 不是一个表，类型为: " .. type(tab))
     end
 
-    -- 检查关键方法是否存在
-    local methods = {"Toggle", "Slider", "Dropdown", "Input", "Button", "Paragraph"}
+    -- 检查关键方法
+    local methods = {"Toggle", "Slider", "Dropdown", "Button", "Paragraph"}
     for _, m in ipairs(methods) do
         if tab[m] then
             print("[调试] 方法 " .. m .. " 存在")
         else
-            warn("[调试] 方法 " .. m .. " 不存在，这可能导致错误！")
+            warn("[调试] 方法 " .. m .. " 不存在")
         end
     end
 
-    -- 开始创建控件（所有调用均用 pcall 保护）
     local function safeCall(func)
         local success, err = pcall(func)
         if not success then
@@ -282,6 +280,7 @@ local function CreateUI(tab)
         return success
     end
 
+    -- ===== 总开关 =====
     safeCall(function()
         tab:Toggle({
             Title = "启用范围显示",
@@ -293,122 +292,67 @@ local function CreateUI(tab)
         print("[调试] Toggle '启用范围显示' 创建成功")
     end)
 
-    -- 目标选择：用三个 Toggle
-    local targetState = {NPC = true, Player = false, Both = false}
-    local function updateTarget()
-        local t = "NPC"
-        if targetState.Player then t = "Player"
-        elseif targetState.Both then t = "Both" end
-        RangeModule.Settings.Target = t
-        if RangeModule.Active then
-            RangeModule:Disable()
-            RangeModule:Enable()
-        end
-    end
-
+    -- ===== 单选框1：放大对象（NPC / 玩家 / 两者） =====
     safeCall(function()
-        tab:Toggle({
-            Title = "目标: NPC",
-            Default = true,
+        tab:Dropdown({
+            Title = "放大对象",
+            Values = {"NPC", "玩家", "两者"},
+            Default = "NPC",
             Callback = function(v)
-                targetState.NPC = v
-                if v then targetState.Player = false; targetState.Both = false end
-                updateTarget()
-            end
-        })
-        print("[调试] Toggle '目标: NPC' 创建成功")
-    end)
-
-    safeCall(function()
-        tab:Toggle({
-            Title = "目标: 玩家",
-            Default = false,
-            Callback = function(v)
-                targetState.Player = v
-                if v then targetState.NPC = false; targetState.Both = false end
-                updateTarget()
-            end
-        })
-        print("[调试] Toggle '目标: 玩家' 创建成功")
-    end)
-
-    safeCall(function()
-        tab:Toggle({
-            Title = "目标: 两者",
-            Default = false,
-            Callback = function(v)
-                targetState.Both = v
-                if v then targetState.NPC = false; targetState.Player = false end
-                updateTarget()
-            end
-        })
-        print("[调试] Toggle '目标: 两者' 创建成功")
-    end)
-
-    -- 放大方式
-    local modeState = {Box = true, Size = false}
-    safeCall(function()
-        tab:Toggle({
-            Title = "方式: 透明框",
-            Default = true,
-            Callback = function(v)
-                modeState.Box = v
-                if v then modeState.Size = false end
-                RangeModule.Settings.Mode = v and "Box" or "Size"
+                local map = { NPC = "NPC", 玩家 = "Player", 两者 = "Both" }
+                RangeModule.Settings.Target = map[v] or "NPC"
                 if RangeModule.Active then
                     RangeModule:Disable()
                     RangeModule:Enable()
                 end
             end
         })
-        print("[调试] Toggle '方式: 透明框' 创建成功")
+        print("[调试] Dropdown '放大对象' 创建成功")
     end)
 
+    -- ===== 单选框2：放大方式（透明框 / 正常放大） =====
     safeCall(function()
-        tab:Toggle({
-            Title = "方式: 正常放大",
-            Default = false,
+        tab:Dropdown({
+            Title = "放大方式",
+            Values = {"透明框", "正常放大"},
+            Default = "透明框",
             Callback = function(v)
-                modeState.Size = v
-                if v then modeState.Box = false end
-                RangeModule.Settings.Mode = v and "Size" or "Box"
+                local map = { ["透明框"] = "Box", ["正常放大"] = "Size" }
+                RangeModule.Settings.Mode = map[v] or "Box"
                 if RangeModule.Active then
                     RangeModule:Disable()
                     RangeModule:Enable()
                 end
             end
         })
-        print("[调试] Toggle '方式: 正常放大' 创建成功")
+        print("[调试] Dropdown '放大方式' 创建成功")
     end)
 
-    -- 颜色切换按钮
-    local colors = {"绿色", "红色", "蓝色", "黄色", "紫色"}
-    local colorIndex = 1
+    -- ===== 颜色选择 =====
     safeCall(function()
-        tab:Button({
-            Title = "当前颜色: 绿色 (点击切换)",
-            Callback = function()
-                colorIndex = colorIndex % #colors + 1
-                local name = colors[colorIndex]
-                local map = {
+        tab:Dropdown({
+            Title = "边框颜色",
+            Values = {"绿色", "红色", "蓝色", "黄色", "紫色"},
+            Default = "绿色",
+            Callback = function(v)
+                local colors = {
                     ["绿色"] = Color3.fromRGB(0, 255, 0),
                     ["红色"] = Color3.fromRGB(255, 0, 0),
                     ["蓝色"] = Color3.fromRGB(0, 0, 255),
                     ["黄色"] = Color3.fromRGB(255, 255, 0),
                     ["紫色"] = Color3.fromRGB(200, 0, 255)
                 }
-                RangeModule.Settings.BoxColor = map[name]
+                RangeModule.Settings.BoxColor = colors[v] or Color3.fromRGB(0, 255, 0)
                 if RangeModule.Active and RangeModule.Settings.Mode == "Box" then
                     RangeModule:Disable()
                     RangeModule:Enable()
                 end
-                -- 更新按钮文字（WindUI 可能不支持直接修改，这里不处理）
             end
         })
-        print("[调试] Button '当前颜色' 创建成功")
+        print("[调试] Dropdown '边框颜色' 创建成功")
     end)
 
-    -- 滑块
+    -- ===== 透明框大小（滑块） =====
     safeCall(function()
         tab:Slider({
             Title = "透明框大小",
@@ -428,19 +372,6 @@ local function CreateUI(tab)
         print("[调试] Slider '透明框大小' 创建成功")
     end)
 
-    -- NPC 血量显示（默认关闭）
-    safeCall(function()
-        tab:Toggle({
-            Title = "NPC 血量显示",
-            Default = false,
-            Callback = function(v)
-                RangeModule.Settings.ShowHealth = v
-                print("血量显示设置为:", v)
-            end
-        })
-        print("[调试] Toggle 'NPC 血量显示' 创建成功")
-    end)
-
     print("[调试] UI 绑定完成")
 end
 
@@ -453,8 +384,6 @@ task.delay(0.5, function()
         CreateUI(tab)
     else
         warn("[调试] 未找到 npcTab，请确保主脚本已创建 getgenv().Tabs.npcTab")
-        -- 尝试从全局变量获取（可能叫其他名字）
-        print("[调试] 当前 getgenv().Tabs 内容:")
         if getgenv().Tabs then
             for k, v in pairs(getgenv().Tabs) do
                 print("  " .. k .. " -> " .. type(v))
@@ -465,7 +394,5 @@ task.delay(0.5, function()
     end
 end)
 
-print("[调试] 脚本加载完成，等待 UI 绑定...")
-
--- 返回模块（可外部调用）
+print("[调试] 脚本加载完成")
 return RangeModule
