@@ -1,365 +1,370 @@
--- ==================== NPC 功能模块（修复恢复无效 + 叠加） ====================
-do
-    if getgenv().__NPC_LOADED then
-        if getgenv().__NPC_CLEANUP then
-            getgenv().__NPC_CLEANUP()
-        end
-        getgenv().__NPC_LOADED = nil
+-- =================== NPC/玩家 范围显示模块 ===================
+-- 功能：放大NPC或玩家（正常放大或透明框）
+-- 使用 SelectionBox 实现透明发光边框
+
+local RangeModule = {
+    Settings = {
+        Target = "NPC",           -- "NPC", "Player", "Both"
+        Mode = "Box",             -- "Size" 或 "Box"
+        ShowHealth = false,       -- 默认关闭
+        BoxSize = 6,              -- 透明框大小
+        BoxColor = Color3.fromRGB(0, 255, 0)
+    },
+    Active = false,
+    Stored = {},                  -- 存储正常放大的原始尺寸
+    Boxes = {},                   -- 存储 SelectionBox
+    Connections = {},
+    NPCs = {},
+    Players = {}
+}
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ===== 辅助函数 =====
+local function GetTargetParts(obj)
+    local parts = {}
+    if obj:FindFirstChild("HumanoidRootPart") then
+        table.insert(parts, obj.HumanoidRootPart)
     end
-
-    -- 获取 npcTab（从全局）
-    local tab = getgenv().Tabs and getgenv().Tabs.npcTab
-    if not tab or type(tab.Toggle) ~= "function" then
-        warn("[NPC] ⚠️ 未找到有效的 npcTab，UI 控件将不会被创建。")
-        tab = {
-            Toggle = function() end,
-            Slider = function() end,
-            Dropdown = function() end,
-            Button = function() end
-        }
+    if obj:FindFirstChild("Head") then
+        table.insert(parts, obj.Head)
     end
-
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    local LocalPlayer = Players.LocalPlayer
-
-    local NPCSettings = {
-        EnableHighlight = false,
-        MaxHighlightDistance = 150,
-        ShowHealthDisplay = true,
-        EnableNPCEnlarge = false,
-        NPCSizeMultiplier = 4,
-        EnlargePartMode = "全部"
-    }
-
-    -- 存储部件原始尺寸（弱引用）
-    local stored = setmetatable({}, { __mode = "k" })
-    local activeNPCs = {}
-    local npcs = {}
-    local connections = {}
-
-    local refreshLock = false
-    local scaleUpdateTimer = nil
-
-    local enlargeTargets = {
-        ["头部"] = {"Head"},
-        ["身体"] = {"HumanoidRootPart"},
-        ["躯干"] = {"UpperTorso", "LowerTorso", "Torso"},
-        ["全部"] = {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
-    }
-
-    -- -------- 辅助函数（保持不变） --------
-    local function getPlayerPosition()
-        local char = LocalPlayer.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
-            if hrp then return hrp.Position end
-        end
-        local cam = workspace.CurrentCamera
-        return cam and cam.CFrame.Position or Vector3.new()
-    end
-
-    local function getOrCreateBillboard(character, humanoid)
-        local billboard = character:FindFirstChild("NPCHealthDisplay")
-        if billboard then return billboard end
-        billboard = Instance.new("BillboardGui")
-        billboard.Name = "NPCHealthDisplay"
-        billboard.Size = UDim2.new(4, 0, 1.5, 0)
-        billboard.StudsOffset = Vector3.new(0, 2.5, 0)
-        billboard.AlwaysOnTop = true
-        billboard.Enabled = false
-        local head = character:FindFirstChild("Head") or character.PrimaryPart or character:FindFirstChildWhichIsA("BasePart")
-        billboard.Adornee = head
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = "HP: " .. tostring(math.floor(humanoid.Health))
-        label.Font = Enum.Font.SourceSansBold
-        label.TextSize = 18
-        label.TextColor3 = Color3.new(1, 1, 1)
-        label.TextStrokeTransparency = 0.25
-        label.Parent = billboard
-        billboard.Parent = character
-        return billboard
-    end
-
-    local function updateNPCVisibility(humanoid)
-        if not humanoid or not humanoid.Parent then return end
-        local character = humanoid.Parent
-        if not character or Players:GetPlayerFromCharacter(character) then return end
-        local ok, npcPos = pcall(function() return character:GetPivot().Position end)
-        if not ok then return end
-        local distance = (npcPos - getPlayerPosition()).Magnitude
-        local withinRange = distance <= NPCSettings.MaxHighlightDistance
-        local highlight = character:FindFirstChildOfClass("Highlight")
-        if NPCSettings.EnableHighlight and withinRange then
-            if not highlight then
-                highlight = Instance.new("Highlight")
-                highlight.FillTransparency = 1
-                highlight.OutlineTransparency = 0
-                highlight.Parent = character
-            end
-            highlight.Enabled = true
-        elseif highlight then
-            highlight.Enabled = false
-        end
-        local billboard = character:FindFirstChild("NPCHealthDisplay")
-        if NPCSettings.ShowHealthDisplay and withinRange then
-            billboard = billboard or getOrCreateBillboard(character, humanoid)
-            if billboard then billboard.Enabled = true end
-        elseif billboard then
-            billboard.Enabled = false
+    for _, name in ipairs({"UpperTorso", "LowerTorso", "Torso"}) do
+        if obj:FindFirstChild(name) then
+            table.insert(parts, obj[name])
         end
     end
+    return parts
+end
 
-    -- -------- 核心修复：存储原始尺寸在注册时完成 --------
-    local function getTargetParts(obj)
-        local list = enlargeTargets[NPCSettings.EnlargePartMode] or enlargeTargets["全部"]
-        local result = {}
-        for _, name in ipairs(list) do
-            local p = obj:FindFirstChild(name)
-            if p and p:IsA("BasePart") then table.insert(result, p) end
+local function IsNPC(obj)
+    if not obj or not obj:IsA("Model") then return false end
+    if Players:GetPlayerFromCharacter(obj) then return false end
+    return obj:FindFirstChildOfClass("Humanoid") ~= nil
+end
+
+local function IsPlayer(obj)
+    if not obj or not obj:IsA("Model") then return false end
+    local plr = Players:GetPlayerFromCharacter(obj)
+    return plr and plr ~= LocalPlayer
+end
+
+-- ===== 正常放大（修改Size） =====
+local function EnlargeBySize(obj, multiplier)
+    if not obj then return end
+    local parts = GetTargetParts(obj)
+    for _, p in ipairs(parts) do
+        if not RangeModule.Stored[p] then
+            RangeModule.Stored[p] = {
+                Size = p.Size,
+                Transparency = p.Transparency,
+                CanCollide = p.CanCollide
+            }
         end
-        return result
+        p.Size = RangeModule.Stored[p].Size * multiplier
+        p.Transparency = 0.25
+        p.CanCollide = false
     end
+end
 
-    -- 存储部件的初始尺寸（在注册时调用）
-    local function storeInitialSize(obj)
-        if not obj then return end
-        for _, p in ipairs(getTargetParts(obj)) do
-            if not stored[p] then
-                stored[p] = {
-                    Size = p.Size,
-                    Transparency = p.Transparency
-                }
-            end
-        end
-    end
-
-    -- 放大：基于存储的原始尺寸
-    local function enlargeNPC(obj)
-        if not NPCSettings.EnableNPCEnlarge or not obj or not obj.Parent then return end
-        for _, p in ipairs(getTargetParts(obj)) do
-            if stored[p] then
-                p.Size = stored[p].Size * NPCSettings.NPCSizeMultiplier
-                p.Transparency = 0.25
-            end
-        end
-    end
-
-    -- 恢复：将部件重置为存储的原始尺寸（不清除存储）
-    local function restoreAllNPCs()
-        for part, orig in pairs(stored) do
-            if part and part.Parent then
-                part.Size = orig.Size
-                part.Transparency = orig.Transparency
-            end
-        end
-    end
-
-    -- 更新倍率（只调整已存储部件）
-    local function updateEnlargeScale()
-        if not NPCSettings.EnableNPCEnlarge then return end
-        local mult = NPCSettings.NPCSizeMultiplier
-        for part, orig in pairs(stored) do
-            if part and part.Parent then
-                part.Size = orig.Size * mult
-                part.Transparency = 0.25
-            end
+local function RestoreSize(obj)
+    if not obj then return end
+    local parts = GetTargetParts(obj)
+    for _, p in ipairs(parts) do
+        if RangeModule.Stored[p] then
+            p.Size = RangeModule.Stored[p].Size
+            p.Transparency = RangeModule.Stored[p].Transparency
+            p.CanCollide = RangeModule.Stored[p].CanCollide
+            RangeModule.Stored[p] = nil
         end
     end
+end
 
-    -- 刷新放大（切换部位或开启时调用）
-    local function refreshEnlargeParts()
-        if refreshLock then return end
-        refreshLock = true
-        task.defer(function()
-            -- 先恢复所有到原始尺寸
-            restoreAllNPCs()
-            -- 清空存储（因为部位变了，需要重新存储）
-            stored = setmetatable({}, { __mode = "k" })
-            -- 重新存储所有活跃 NPC 的当前尺寸（现在已经是原始尺寸）
-            for model in pairs(activeNPCs) do
-                if model and model.Parent then
-                    storeInitialSize(model)
-                end
-            end
-            -- 如果放大开启，再放大
-            if NPCSettings.EnableNPCEnlarge then
-                for model in pairs(activeNPCs) do
-                    if model and model.Parent then
-                        enlargeNPC(model)
-                    end
-                end
-            end
-            refreshLock = false
-        end)
+-- ===== 透明框（SelectionBox） =====
+local function CreateBox(obj, color, size)
+    if not obj then return end
+    local root = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
+    if not root then return end
+
+    -- 如果已有框则复用
+    local existing = RangeModule.Boxes[obj]
+    if existing and existing.Parent then
+        return existing
     end
 
-    -- 防抖更新倍率
-    local function requestScaleUpdate()
-        if scaleUpdateTimer then
-            task.cancel(scaleUpdateTimer)
-            scaleUpdateTimer = nil
-        end
-        scaleUpdateTimer = task.delay(0.3, function()
-            scaleUpdateTimer = nil
-            if NPCSettings.EnableNPCEnlarge then
-                updateEnlargeScale()
-            end
-        end)
-    end
+    local box = Instance.new("SelectionBox")
+    box.Adornee = root
+    box.Color3 = color or RangeModule.Settings.BoxColor
+    box.Transparency = 0.7
+    box.LineThickness = 0.08
+    box.Size = Vector3.new(size or 6, size or 6, size or 6)
+    box.Parent = root
+    RangeModule.Boxes[obj] = box
 
-    -- -------- 注册：存储初始尺寸 --------
-    local function registerNPC(obj)
-        if not obj or not obj:IsA("Model") then return end
-        if Players:GetPlayerFromCharacter(obj) then return end
-        local hum = obj:FindFirstChildOfClass("Humanoid") or obj:FindFirstChild("AnimationController")
-        if not hum then return end
-        if not activeNPCs[obj] then
-            activeNPCs[obj] = true
-            table.insert(npcs, hum)
-        end
-
-        -- 存储该 NPC 所有目标部件的初始尺寸（即使放大未开启）
-        storeInitialSize(obj)
-
-        -- 如果放大已开启，则应用放大
-        task.defer(function()
-            if NPCSettings.EnableNPCEnlarge then
-                for attempt = 1, 3 do
-                    enlargeNPC(obj)
-                    task.wait(0.15)
-                end
-            end
-        end)
-
-        updateNPCVisibility(hum)
-    end
-
-    -- 初始化已有
-    task.defer(function()
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            registerNPC(obj)
+    -- 自动清理
+    local conn
+    conn = obj.AncestryChanged:Connect(function()
+        if not obj.Parent then
+            pcall(function() box:Destroy() end)
+            RangeModule.Boxes[obj] = nil
+            if conn then conn:Disconnect() end
         end
     end)
+    table.insert(RangeModule.Connections, conn)
 
-    -- 监听新增
-    table.insert(connections, workspace.DescendantAdded:Connect(function(obj)
-        task.defer(function() registerNPC(obj) end)
-    end))
-
-    -- 可见性更新
-    local frameCounter = 0
-    table.insert(connections, RunService.Heartbeat:Connect(function()
-        frameCounter = frameCounter + 1
-        if frameCounter % 2 ~= 0 then return end
-        for i = #npcs, 1, -1 do
-            local hum = npcs[i]
-            if not hum or not hum.Parent or Players:GetPlayerFromCharacter(hum.Parent) then
-                table.remove(npcs, i)
-            else
-                updateNPCVisibility(hum)
-            end
-        end
-    end))
-
-    -- -------- 绑定 UI --------
-    local function createUI()
-        tab:Toggle({
-            Title = "开启 NPC 高亮",
-            Value = NPCSettings.EnableHighlight,
-            Callback = function(v) NPCSettings.EnableHighlight = v end
-        })
-        tab:Slider({
-            Title = "ESP 范围",
-            Value = { Min = 0, Max = 500, Default = NPCSettings.MaxHighlightDistance },
-            Callback = function(v) NPCSettings.MaxHighlightDistance = v end
-        })
-        tab:Toggle({
-            Title = "显示 NPC 血量",
-            Value = NPCSettings.ShowHealthDisplay,
-            Callback = function(v) NPCSettings.ShowHealthDisplay = v end
-        })
-        tab:Toggle({
-            Title = "启用 NPC 增大",
-            Value = NPCSettings.EnableNPCEnlarge,
-            Callback = function(v)
-                NPCSettings.EnableNPCEnlarge = v
-                refreshEnlargeParts()
-            end
-        })
-        tab:Slider({
-            Title = "NPC 增大倍率",
-            Value = { Min = 1, Max = 10, Default = NPCSettings.NPCSizeMultiplier },
-            Callback = function(v)
-                NPCSettings.NPCSizeMultiplier = v
-                if NPCSettings.EnableNPCEnlarge then
-                    requestScaleUpdate()
-                end
-            end
-        })
-        tab:Dropdown({
-            Title = "放大部位",
-            Multi = false,
-            Values = {"头部", "身体", "躯干", "全部"},
-            Value = NPCSettings.EnlargePartMode,
-            Callback = function(v)
-                NPCSettings.EnlargePartMode = v
-                refreshEnlargeParts()
-            end
-        })
-        tab:Button({
-            Title = "恢复 NPC 正常体型",
-            Callback = function()
-                if scaleUpdateTimer then
-                    task.cancel(scaleUpdateTimer)
-                    scaleUpdateTimer = nil
-                end
-                NPCSettings.EnableNPCEnlarge = false
-                restoreAllNPCs()      -- 重置为存储的原始尺寸
-                refreshLock = false
-                print("[NPC] ✅ 已恢复所有 NPC 原始体型")
-            end
-        })
-    end
-
-    local success, err = pcall(createUI)
-    if not success then
-        warn("[NPC] UI 创建失败: " .. tostring(err))
-    end
-
-    -- 暴露控制台调试
-    getgenv().NPC = {
-        Settings = NPCSettings,
-        Restore = function()
-            NPCSettings.EnableNPCEnlarge = false
-            restoreAllNPCs()
-            refreshLock = false
-            print("[NPC] 已通过控制台恢复")
-        end,
-        Refresh = refreshEnlargeParts,
-        Status = function()
-            print("启用放大:", NPCSettings.EnableNPCEnlarge)
-            print("倍率:", NPCSettings.NPCSizeMultiplier)
-            print("部位:", NPCSettings.EnlargePartMode)
-            print("已记录部件数:", table.getn(stored))
-            print("活跃 NPC 数:", table.getn(npcs))
-        end
-    }
-
-    getgenv().__NPC_CLEANUP = function()
-        for _, c in ipairs(connections) do pcall(c.Disconnect, c) end
-        connections = {}
-        restoreAllNPCs()
-        stored = setmetatable({}, { __mode = "k" })
-        activeNPCs = {}
-        npcs = {}
-        getgenv().__NPC_LOADED = nil
-        getgenv().NPC = nil
-        print("[NPC] 已清理")
-    end
-
-    getgenv().__NPC_LOADED = true
-    print("[NPC] 功能已加载")
+    return box
 end
+
+local function RemoveBox(obj)
+    if RangeModule.Boxes[obj] then
+        pcall(function() RangeModule.Boxes[obj]:Destroy() end)
+        RangeModule.Boxes[obj] = nil
+    end
+end
+
+-- ===== 应用于单个目标 =====
+local function ApplyToTarget(obj, multiplier, mode, color, size)
+    if not obj then return end
+    if mode == "Size" then
+        EnlargeBySize(obj, multiplier)
+    elseif mode == "Box" then
+        CreateBox(obj, color, size)
+    end
+end
+
+local function RemoveFromTarget(obj)
+    if not obj then return end
+    RestoreSize(obj)
+    RemoveBox(obj)
+end
+
+-- ===== 应用/移除全部 =====
+local function ApplyAll()
+    local target = RangeModule.Settings.Target
+    local mode = RangeModule.Settings.Mode
+    local mult = 4  -- 默认放大倍率
+    local color = RangeModule.Settings.BoxColor
+    local size = RangeModule.Settings.BoxSize
+
+    -- 清除旧的
+    for obj in pairs(RangeModule.Boxes) do
+        RemoveFromTarget(obj)
+    end
+    for obj in pairs(RangeModule.Stored) do
+        -- 需要从Stored中恢复，但Stored的键是part，我们需遍历模型
+        -- 更好的方式：先恢复所有
+        for part, _ in pairs(RangeModule.Stored) do
+            if part and part.Parent then
+                local model = part.Parent
+                if model and (IsNPC(model) or IsPlayer(model)) then
+                    RestoreSize(model)
+                end
+            end
+        end
+    end
+    RangeModule.Stored = {}
+    RangeModule.Boxes = {}
+
+    -- 重新应用
+    local allTargets = {}
+    if target == "NPC" or target == "Both" then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if IsNPC(obj) then
+                table.insert(allTargets, obj)
+            end
+        end
+    end
+    if target == "Player" or target == "Both" then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if IsPlayer(obj) then
+                table.insert(allTargets, obj)
+            end
+        end
+    end
+
+    for _, obj in ipairs(allTargets) do
+        ApplyToTarget(obj, mult, mode, color, size)
+    end
+end
+
+-- ===== 监听新目标 =====
+local function SetupListener()
+    local conn = workspace.DescendantAdded:Connect(function(obj)
+        if not RangeModule.Active then return end
+        task.delay(0.2, function()
+            if not RangeModule.Active then return end
+            local target = RangeModule.Settings.Target
+            local mode = RangeModule.Settings.Mode
+            local mult = 4
+            local color = RangeModule.Settings.BoxColor
+            local size = RangeModule.Settings.BoxSize
+
+            if obj:IsA("Model") then
+                local apply = false
+                if target == "NPC" or target == "Both" then
+                    if IsNPC(obj) then apply = true end
+                end
+                if target == "Player" or target == "Both" then
+                    if IsPlayer(obj) then apply = true end
+                end
+                if apply then
+                    ApplyToTarget(obj, mult, mode, color, size)
+                end
+            end
+        end)
+    end)
+    table.insert(RangeModule.Connections, conn)
+end
+
+-- ===== 启用/禁用 =====
+function RangeModule:Enable()
+    if self.Active then return end
+    self.Active = true
+    ApplyAll()
+    SetupListener()
+    print("[范围模块] 已启用")
+end
+
+function RangeModule:Disable()
+    self.Active = false
+    -- 恢复所有
+    for part, _ in pairs(self.Stored) do
+        if part and part.Parent then
+            local model = part.Parent
+            RestoreSize(model)
+        end
+    end
+    for obj, box in pairs(self.Boxes) do
+        RemoveBox(obj)
+    end
+    self.Stored = {}
+    self.Boxes = {}
+    for _, conn in ipairs(self.Connections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    self.Connections = {}
+    print("[范围模块] 已禁用")
+end
+
+-- ===== UI 绑定 =====
+-- 假设你已经有一个标签页（例如 npcTab），如果没有，可以创建
+local function CreateUI(tab)
+    if not tab then
+        -- 如果没有传入，则尝试从全局获取
+        tab = getgenv().Tabs and getgenv().Tabs.npcTab
+        if not tab then
+            warn("[范围模块] 未找到标签页，UI 未创建")
+            return
+        end
+    end
+
+    -- 开关
+    tab:Toggle({
+        Title = "启用范围显示",
+        Default = false,
+        Callback = function(v)
+            if v then
+                RangeModule:Enable()
+            else
+                RangeModule:Disable()
+            end
+        end
+    })
+
+    -- 目标选择（单选框）
+    tab:Dropdown({
+        Title = "放大对象",
+        Values = {"NPC", "玩家", "两者"},
+        Default = "NPC",
+        Callback = function(v)
+            local map = { NPC = "NPC", 玩家 = "Player", 两者 = "Both" }
+            RangeModule.Settings.Target = map[v] or "NPC"
+            if RangeModule.Active then
+                RangeModule:Disable()
+                RangeModule:Enable()
+            end
+        end
+    })
+
+    -- 放大方式选择
+    tab:Dropdown({
+        Title = "放大方式",
+        Values = {"透明框", "正常放大"},
+        Default = "透明框",
+        Callback = function(v)
+            local map = { ["透明框"] = "Box", ["正常放大"] = "Size" }
+            RangeModule.Settings.Mode = map[v] or "Box"
+            if RangeModule.Active then
+                RangeModule:Disable()
+                RangeModule:Enable()
+            end
+        end
+    })
+
+    -- 颜色选择（仅透明框有效）
+    tab:Dropdown({
+        Title = "边框颜色",
+        Values = {"绿色", "红色", "蓝色", "黄色", "紫色"},
+        Default = "绿色",
+        Callback = function(v)
+            local colors = {
+                ["绿色"] = Color3.fromRGB(0, 255, 0),
+                ["红色"] = Color3.fromRGB(255, 0, 0),
+                ["蓝色"] = Color3.fromRGB(0, 0, 255),
+                ["黄色"] = Color3.fromRGB(255, 255, 0),
+                ["紫色"] = Color3.fromRGB(200, 0, 255)
+            }
+            RangeModule.Settings.BoxColor = colors[v] or Color3.fromRGB(0, 255, 0)
+            if RangeModule.Active then
+                RangeModule:Disable()
+                RangeModule:Enable()
+            end
+        end
+    })
+
+    -- 框大小（滑块）
+    tab:Slider({
+        Title = "透明框大小",
+        Value = {
+            Min = 2,
+            Max = 12,
+            Default = RangeModule.Settings.BoxSize
+        },
+        Callback = function(v)
+            RangeModule.Settings.BoxSize = v
+            if RangeModule.Active and RangeModule.Settings.Mode == "Box" then
+                RangeModule:Disable()
+                RangeModule:Enable()
+            end
+        end
+    })
+
+    -- NPC 血量显示（默认关闭）
+    tab:Toggle({
+        Title = "NPC 血量显示",
+        Default = false,
+        Callback = function(v)
+            RangeModule.Settings.ShowHealth = v
+            -- 此处需要实现血量显示逻辑，可复用之前的血量显示代码
+            -- 简化：此处仅记录，实际血量显示需额外实现
+            print("血量显示设置为:", v)
+        end
+    })
+end
+
+-- ===== 自动初始化 =====
+-- 如果存在全局标签页，自动绑定 UI
+task.delay(0.5, function()
+    local tab = getgenv().Tabs and getgenv().Tabs.npcTab
+    if tab then
+        CreateUI(tab)
+        print("[范围模块] UI 已绑定到 npcTab")
+    else
+        warn("[范围模块] 未找到 npcTab，请手动调用 CreateUI(tab)")
+    end
+end)
+
+-- 返回模块
+return RangeModule
