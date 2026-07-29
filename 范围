@@ -1,0 +1,357 @@
+print("[RangeEnlarge] 脚本开始执行")
+
+getgenv().__RANGE_ENLARGE_LOADED = true
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local success, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+end)
+
+if not success then
+    warn("[RangeEnlarge] WindUI 加载失败:", WindUI)
+    return
+end
+
+print("[RangeEnlarge] WindUI 加载成功")
+
+local Window = WindUI:CreateWindow({
+    Title = "Range Enlarge",
+    Icon = "star",
+    Folder = "RangeEnlarge"
+})
+
+local Tab = Window:Tab({
+    Title = "Main",
+    Icon = "home"
+})
+
+local Config = {
+    Enable = false,
+    TargetMode = "全部",
+    PlayerMode = "部件放大",
+    Range = 150,
+    Scale = 1.5,
+    BoxTransparency = 0.55
+}
+
+local State = {
+    originals = {},
+    boxes = setmetatable({}, { __mode = "k" }),
+    refreshQueued = false
+}
+
+local playerNames = {
+    "Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso",
+    "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg",
+    "LeftLowerArm", "RightLowerArm", "LeftLowerLeg", "RightLowerLeg",
+    "LeftHand", "RightHand", "LeftFoot", "RightFoot"
+}
+
+local npcNames = {
+    "Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"
+}
+
+local function getCharacterRoot(character)
+    if not character then return nil end
+    return character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart or character:FindFirstChildWhichIsA("BasePart")
+end
+
+local function getDistanceToLocal(character)
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and getCharacterRoot(myChar)
+    local theirRoot = getCharacterRoot(character)
+    if not myRoot or not theirRoot then
+        return math.huge
+    end
+    return (myRoot.Position - theirRoot.Position).Magnitude
+end
+
+local function isNpcModel(model)
+    if not model or not model:IsA("Model") then return false end
+    if Players:GetPlayerFromCharacter(model) then return false end
+    return model:FindFirstChildOfClass("Humanoid") ~= nil or model:FindFirstChild("AnimationController") ~= nil
+end
+
+local function isAllowed(model)
+    if model == LocalPlayer.Character then return false end
+    local plr = Players:GetPlayerFromCharacter(model)
+    if plr then
+        return Config.TargetMode == "玩家" or Config.TargetMode == "全部"
+    end
+    return isNpcModel(model) and (Config.TargetMode == "NPC" or Config.TargetMode == "全部")
+end
+
+local function snapshotPart(part)
+    if not State.originals[part] then
+        State.originals[part] = {
+            Size = part.Size,
+            Transparency = part.Transparency,
+            CanCollide = part.CanCollide
+        }
+    end
+end
+
+-- 只恢复身体部件，不碰方框
+local function restoreBodyParts(model)
+    if not model then return end
+    local isPlayer = Players:GetPlayerFromCharacter(model) ~= nil
+    local list = isPlayer and playerNames or npcNames
+    for _, name in ipairs(list) do
+        local part = model:FindFirstChild(name)
+        if part and part:IsA("BasePart") then
+            local old = State.originals[part]
+            if old then
+                pcall(function()
+                    part.Size = old.Size
+                    part.Transparency = old.Transparency
+                    part.CanCollide = old.CanCollide
+                end)
+            end
+        end
+    end
+end
+
+local function restoreCharacter(model)
+    restoreBodyParts(model)
+    local box = State.boxes[model]
+    if box then
+        pcall(function() box:Destroy() end)
+        State.boxes[model] = nil
+    end
+end
+
+local function restoreAll()
+    for part, old in pairs(State.originals) do
+        if part and part.Parent then
+            pcall(function()
+                part.Size = old.Size
+                part.Transparency = old.Transparency
+                part.CanCollide = old.CanCollide
+            end)
+        end
+    end
+    for model, box in pairs(State.boxes) do
+        if box then
+            pcall(function() box:Destroy() end)
+        end
+        State.boxes[model] = nil
+    end
+end
+
+local function getParts(character, isPlayer)
+    local list = isPlayer and playerNames or npcNames
+    local parts = {}
+    for _, name in ipairs(list) do
+        local p = character:FindFirstChild(name)
+        if p and p:IsA("BasePart") then
+            table.insert(parts, p)
+        end
+    end
+    return parts
+end
+
+local function applyPartScale(character, scale, isPlayer)
+    for _, part in ipairs(getParts(character, isPlayer)) do
+        snapshotPart(part)
+        local old = State.originals[part]
+        if old then
+            pcall(function()
+                part.Size = old.Size * scale
+                part.Transparency = old.Transparency
+                part.CanCollide = false
+                part.CanQuery = true
+            end)
+        end
+    end
+end
+
+local function applyBox(character)
+    local root = getCharacterRoot(character)
+    if not root then return end
+
+    local box = State.boxes[character]
+
+    -- 只在不存在时创建一次，之后只更新属性（关键优化，解决卡顿和看不见）
+    if not box or not box.Parent then
+        box = Instance.new("Part")
+        box.Name = "RangeEnlargeBox"
+        box.Anchored = false
+        box.CanCollide = false
+        box.CanTouch = false
+        box.CanQuery = true
+        box.Massless = true
+        box.CastShadow = false
+        box.Material = Enum.Material.SmoothPlastic
+        box.Parent = character
+
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = root
+        weld.Part1 = box
+        weld.Parent = box
+
+        State.boxes[character] = box
+    end
+
+    local base = Vector3.new(4.5, 6.2, 4.5)
+    box.Size = base * Config.Scale
+    box.Color = Color3.fromRGB(255, 60, 60)
+    box.Transparency = Config.BoxTransparency
+    box.CanQuery = true
+end
+
+local function refreshCharacter(model)
+    if not Config.Enable or not model or not model.Parent then return end
+
+    if not isAllowed(model) or getDistanceToLocal(model) > Config.Range then
+        restoreCharacter(model)
+        return
+    end
+
+    local isPlayer = Players:GetPlayerFromCharacter(model) ~= nil
+
+    if isPlayer then
+        if Config.PlayerMode == "部件放大" then
+            -- 部件模式：删掉可能存在的方框，然后放大身体
+            local box = State.boxes[model]
+            if box then
+                pcall(function() box:Destroy() end)
+                State.boxes[model] = nil
+            end
+            applyPartScale(model, Config.Scale, true)
+        else
+            -- 半透明方框模式：只恢复身体大小，方框只创建/更新一次
+            restoreBodyParts(model)
+            applyBox(model)
+        end
+    else
+        local box = State.boxes[model]
+        if box then
+            pcall(function() box:Destroy() end)
+            State.boxes[model] = nil
+        end
+        applyPartScale(model, Config.Scale, false)
+    end
+end
+
+local function refreshAll()
+    restoreAll()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            refreshCharacter(plr.Character)
+        end
+    end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and isNpcModel(obj) then
+            refreshCharacter(obj)
+        end
+    end
+end
+
+local function queueRefresh()
+    if State.refreshQueued then return end
+    State.refreshQueued = true
+    task.defer(function()
+        task.wait(0.05)
+        State.refreshQueued = false
+        if Config.Enable then
+            refreshAll()
+        else
+            restoreAll()
+        end
+    end)
+end
+
+RunService.Heartbeat:Connect(function()
+    if not Config.Enable then return end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            refreshCharacter(plr.Character)
+        end
+    end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and isNpcModel(obj) then
+            refreshCharacter(obj)
+        end
+    end
+end)
+
+Tab:Toggle({
+    Title = "主开关",
+    Desc = "控制是否启用",
+    Value = false,
+    Callback = function(v)
+        Config.Enable = v
+        if v then
+            queueRefresh()
+        else
+            restoreAll()
+        end
+    end
+})
+
+Tab:Dropdown({
+    Title = "放大对象",
+    Values = {"玩家", "NPC", "全部"},
+    Value = Config.TargetMode,
+    Callback = function(v)
+        Config.TargetMode = v
+        queueRefresh()
+    end
+})
+
+Tab:Dropdown({
+    Title = "玩家放大方式",
+    Values = {"部件放大", "半透明方框"},
+    Value = Config.PlayerMode,
+    Callback = function(v)
+        Config.PlayerMode = v
+        queueRefresh()
+    end
+})
+
+Tab:Slider({
+    Title = "范围",
+    Step = 1,
+    Value = { Min = 0, Max = 500, Default = Config.Range },
+    Callback = function(v)
+        Config.Range = v
+        queueRefresh()
+    end
+})
+
+Tab:Slider({
+    Title = "放大倍率",
+    Step = 0.05,
+    Value = { Min = 1, Max = 3, Default = Config.Scale },
+    Callback = function(v)
+        Config.Scale = v
+        queueRefresh()
+    end
+})
+
+Tab:Slider({
+    Title = "方框透明度",
+    Step = 0.05,
+    Value = { Min = 0, Max = 1, Default = Config.BoxTransparency },
+    Callback = function(v)
+        Config.BoxTransparency = v
+        for _, box in pairs(State.boxes) do
+            if box and box.Parent then
+                box.Transparency = v
+            end
+        end
+    end
+})
+
+Tab:Button({
+    Title = "恢复正常体型",
+    Callback = function()
+        Config.Enable = false
+        restoreAll()
+    end
+})
+
+print("[RangeEnlarge] 脚本加载完成")
