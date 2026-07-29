@@ -1,11 +1,21 @@
-if getgenv().__RANGE_ENLARGE_LOADED then return end
+print("[RangeEnlarge] 远程脚本开始执行")
+
+if getgenv().__RANGE_ENLARGE_LOADED then
+    print("[RangeEnlarge] 已经加载过，跳过")
+    return
+end
 getgenv().__RANGE_ENLARGE_LOADED = true
 
 local Tab = getgenv().Tabs and getgenv().Tabs.RangeTab
+print("[RangeEnlarge] 获取到的 Tab =", Tab)
+
 if not Tab then
-    warn("[RangeEnlarge] 未找到 getgenv().Tabs.RangeTab，请先在主脚本赋值")
+    warn("[RangeEnlarge] 未找到 getgenv().Tabs.RangeTab！")
+    warn("请确认主脚本里已经写了 getgenv().Tabs.RangeTab = FwTab")
     return
 end
+
+print("[RangeEnlarge] Tab 获取成功，开始添加控件")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -153,12 +163,10 @@ end
 
 local function refreshCharacter(model)
     if not Config.Enable or not model or not model.Parent then return end
-
     if not isAllowed(model) or getDistanceToLocal(model) > Config.Range then
         restoreCharacter(model)
         return
     end
-
     applyEnlarge(model)
 end
 
@@ -194,30 +202,26 @@ local function queueRefresh()
     task.defer(function()
         task.wait(0.05)
         State.refreshQueued = false
-        if Config.Enable then
-            refreshAll()
-        else
-            restoreAll()
-        end
+        if Config.Enable then refreshAll() else restoreAll() end
     end)
 end
 
 RunService.Heartbeat:Connect(function()
     if not Config.Enable then return end
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             refreshCharacter(plr.Character)
         end
     end
-
     updateNpcList()
     for _, npc in ipairs(State.npcList) do
         refreshCharacter(npc)
     end
 end)
 
--- 控件全部挂到主脚本传来的 Tab 上
+-- 添加控件
+print("[RangeEnlarge] 开始添加 UI 控件...")
+
 Tab:Toggle({
     Title = "主开关",
     Value = false,
@@ -294,3 +298,5 @@ Tab:Button({
         restoreAll()
     end
 })
+
+print("[RangeEnlarge] 所有控件添加完成！")
