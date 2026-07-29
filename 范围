@@ -31,23 +31,22 @@ local Tab = Window:Tab({
 local Config = {
     Enable = false,
     TargetMode = "全部",
-    PlayerMode = "部件放大",      -- 部件放大 / 半透明方框
+    PlayerMode = "部件放大",
     Range = 150,
-    Scale = 1.8,                 -- 部件放大用倍率，半透明方框用绝对大小基准
+    Scale = 1.8,
     BoxTransparency = 0.55,
     Color = Color3.fromRGB(255, 60, 60),
-    ScaleHead = true,            -- 默认头部
-    ScaleBody = false
+    Parts = {"头部"}
 }
 
 local State = {
     originals = {},
+    npcList = {},
+    lastNpcUpdate = 0,
     refreshQueued = false
 }
 
-local bodyPartNames = {
-    "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"
-}
+local bodyPartNames = {"HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
 
 local function getCharacterRoot(character)
     if not character then return nil end
@@ -117,15 +116,22 @@ local function restoreAll()
     end
 end
 
+local function hasPart(name)
+    for _, v in ipairs(Config.Parts) do
+        if v == name then return true end
+    end
+    return false
+end
+
 local function getSelectedParts(character)
     local parts = {}
-    if Config.ScaleHead then
+    if hasPart("头部") then
         local head = character:FindFirstChild("Head")
         if head and head:IsA("BasePart") then
             table.insert(parts, head)
         end
     end
-    if Config.ScaleBody then
+    if hasPart("身体") then
         for _, name in ipairs(bodyPartNames) do
             local p = character:FindFirstChild(name)
             if p and p:IsA("BasePart") then
@@ -138,8 +144,6 @@ end
 
 local function applyEnlarge(character)
     local parts = getSelectedParts(character)
-    if #parts == 0 then return end
-
     for _, part in ipairs(parts) do
         snapshotPart(part)
         local old = State.originals[part]
@@ -147,14 +151,14 @@ local function applyEnlarge(character)
 
         pcall(function()
             if Config.PlayerMode == "部件放大" then
-                -- 按原始比例放大
+                -- 保持原始比例放大
                 part.Size = old.Size * Config.Scale
                 part.Transparency = old.Transparency
                 part.Material = old.Material
                 part.Color = old.Color
             else
-                -- 半透明方框：强制大立方体 + Neon
-                local s = Config.Scale * 4          -- 让方框模式更大一点
+                -- 半透明方框：强制变成立方体小方块
+                local s = math.max(old.Size.X, old.Size.Y, old.Size.Z) * Config.Scale
                 part.Size = Vector3.new(s, s, s)
                 part.Transparency = Config.BoxTransparency
                 part.Material = Enum.Material.Neon
@@ -177,6 +181,19 @@ local function refreshCharacter(model)
     applyEnlarge(model)
 end
 
+local function updateNpcList()
+    local now = os.clock()
+    if now - State.lastNpcUpdate < 1.2 then return end
+    State.lastNpcUpdate = now
+    local list = {}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and isNpcModel(obj) then
+            table.insert(list, obj)
+        end
+    end
+    State.npcList = list
+end
+
 local function refreshAll()
     restoreAll()
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -184,10 +201,9 @@ local function refreshAll()
             refreshCharacter(plr.Character)
         end
     end
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and isNpcModel(obj) then
-            refreshCharacter(obj)
-        end
+    updateNpcList()
+    for _, npc in ipairs(State.npcList) do
+        refreshCharacter(npc)
     end
 end
 
@@ -205,17 +221,18 @@ local function queueRefresh()
     end)
 end
 
-RunService.RenderStepped:Connect(function()
+RunService.Heartbeat:Connect(function()
     if not Config.Enable then return end
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             refreshCharacter(plr.Character)
         end
     end
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and isNpcModel(obj) then
-            refreshCharacter(obj)
-        end
+
+    updateNpcList()
+    for _, npc in ipairs(State.npcList) do
+        refreshCharacter(npc)
     end
 end)
 
@@ -239,30 +256,20 @@ Tab:Dropdown({
     end
 })
 
--- 部位选择（优先级最高）
-Tab:Toggle({
-    Title = "放大部位 · 头部",
-    Desc = "默认开启",
-    Value = true,
+Tab:Dropdown({
+    Title = "放大部位（可多选）",
+    Values = {"头部", "身体"},
+    Value = Config.Parts,
+    Multi = true,
     Callback = function(v)
-        Config.ScaleHead = v
-        queueRefresh()
-    end
-})
-
-Tab:Toggle({
-    Title = "放大部位 · 身体",
-    Desc = "HumanoidRootPart + 躯干",
-    Value = false,
-    Callback = function(v)
-        Config.ScaleBody = v
+        Config.Parts = v
         queueRefresh()
     end
 })
 
 Tab:Dropdown({
     Title = "放大方式",
-    Desc = "两种方式都会真实放大选中的部位",
+    Desc = "部件放大=保持原形状；半透明方框=变成立方体小方块",
     Values = {"部件放大", "半透明方框"},
     Value = Config.PlayerMode,
     Callback = function(v)
@@ -282,10 +289,9 @@ Tab:Slider({
 })
 
 Tab:Slider({
-    Title = "放大倍率 / 大小",
-    Desc = "部件放大=比例倍率，半透明方框=立方体大小基准",
+    Title = "放大倍率",
     Step = 0.1,
-    Value = { Min = 1, Max = 15, Default = Config.Scale },
+    Value = { Min = 1, Max = 10, Default = Config.Scale },
     Callback = function(v)
         Config.Scale = v
         queueRefresh()
@@ -293,7 +299,7 @@ Tab:Slider({
 })
 
 Tab:Slider({
-    Title = "透明度（仅半透明方框模式）",
+    Title = "方框透明度",
     Step = 0.05,
     Value = { Min = 0, Max = 1, Default = Config.BoxTransparency },
     Callback = function(v)
