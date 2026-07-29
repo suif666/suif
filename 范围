@@ -94,7 +94,6 @@ local function snapshotPart(part)
     end
 end
 
--- 只恢复身体部件，不碰方框
 local function restoreBodyParts(model)
     if not model then return end
     local isPlayer = Players:GetPlayerFromCharacter(model) ~= nil
@@ -174,29 +173,26 @@ local function applyBox(character)
 
     local box = State.boxes[character]
 
-    -- 只在不存在时创建一次，之后只更新属性（关键优化，解决卡顿和看不见）
+    -- 只创建一次
     if not box or not box.Parent then
         box = Instance.new("Part")
         box.Name = "RangeEnlargeBox"
-        box.Anchored = false
+        box.Anchored = true                -- 关键：用锚定 + 每帧设CFrame，保证跟随
         box.CanCollide = false
         box.CanTouch = false
         box.CanQuery = true
         box.Massless = true
         box.CastShadow = false
         box.Material = Enum.Material.SmoothPlastic
-        box.Parent = character
-
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = root
-        weld.Part1 = box
-        weld.Parent = box
+        box.Parent = workspace             -- 放到workspace更稳定
 
         State.boxes[character] = box
     end
 
+    -- 每帧更新位置、大小、透明度（保证跟随玩家移动）
     local base = Vector3.new(4.5, 6.2, 4.5)
     box.Size = base * Config.Scale
+    box.CFrame = root.CFrame
     box.Color = Color3.fromRGB(255, 60, 60)
     box.Transparency = Config.BoxTransparency
     box.CanQuery = true
@@ -214,7 +210,6 @@ local function refreshCharacter(model)
 
     if isPlayer then
         if Config.PlayerMode == "部件放大" then
-            -- 部件模式：删掉可能存在的方框，然后放大身体
             local box = State.boxes[model]
             if box then
                 pcall(function() box:Destroy() end)
@@ -222,9 +217,8 @@ local function refreshCharacter(model)
             end
             applyPartScale(model, Config.Scale, true)
         else
-            -- 半透明方框模式：只恢复身体大小，方框只创建/更新一次
             restoreBodyParts(model)
-            applyBox(model)
+            applyBox(model)   -- 这里会更新CFrame，让方框跟着走
         end
     else
         local box = State.boxes[model]
