@@ -447,14 +447,13 @@ toolTab:Button({
 })
 
 -- 即时互动
+-- 即时互动（极简版，几乎不掉帧）
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
 local PromptHoldCache = getgenv().SutureHubPromptHoldCache
 
 for prompt, oldHold in pairs(PromptHoldCache) do
     if typeof(prompt) == "Instance" and prompt:IsA("ProximityPrompt") and oldHold ~= nil then
-        pcall(function()
-            prompt.HoldDuration = oldHold
-        end)
+        pcall(function() prompt.HoldDuration = oldHold end)
     end
     PromptHoldCache[prompt] = nil
 end
@@ -463,82 +462,54 @@ getgenv().InstantInteract = false
 
 local function setInstantPrompt(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
-
     if PromptHoldCache[prompt] == nil then
         PromptHoldCache[prompt] = prompt.HoldDuration
     end
-
     if prompt.HoldDuration ~= 0 then
         prompt.HoldDuration = 0
     end
 end
 
-local function restorePrompt(prompt)
-    if not prompt or not prompt:IsA("ProximityPrompt") then return end
-
-    local oldHold = PromptHoldCache[prompt]
-    if oldHold ~= nil then
-        pcall(function()
-            prompt.HoldDuration = oldHold
-        end)
+local function restoreAllPrompts()
+    for prompt, oldHold in pairs(PromptHoldCache) do
+        if typeof(prompt) == "Instance" and prompt:IsA("ProximityPrompt") then
+            pcall(function() prompt.HoldDuration = oldHold end)
+        end
         PromptHoldCache[prompt] = nil
     end
 end
 
-local function scanInstantPrompts(state)
-    for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") then
-            if state then
-                setInstantPrompt(v)
-            else
-                restorePrompt(v)
-            end
-        end
-    end
-end
-
-local function applyInstantInteract(state)
-    getgenv().InstantInteract = state
-    scanInstantPrompts(state)
-end
-
 if getgenv().SuturePromptAddedConn then
-    pcall(function()
-        getgenv().SuturePromptAddedConn:Disconnect()
-    end)
+    pcall(function() getgenv().SuturePromptAddedConn:Disconnect() end)
     getgenv().SuturePromptAddedConn = nil
 end
 
 getgenv().SuturePromptAddedConn = workspace.DescendantAdded:Connect(function(v)
     if getgenv().InstantInteract and v:IsA("ProximityPrompt") then
-        task.defer(function()
-            setInstantPrompt(v)
-        end)
-    end
-end)
-
-getgenv().SuturePromptToken = (getgenv().SuturePromptToken or 0) + 1
-local PromptToken = getgenv().SuturePromptToken
-
-task.spawn(function()
-    while getgenv().SuturePromptToken == PromptToken do
-        if getgenv().InstantInteract then
-            scanInstantPrompts(true)
-        end
-        task.wait(0.5)
+        task.defer(setInstantPrompt, v)
     end
 end)
 
 toolTab:Toggle({
     Title = "即时互动",
-    Desc = "开启后无需按住，自动补锁新交互，关闭后恢复原值",
+    Desc = "关闭恢复初始数值，但可能需要玩家死亡一次或互动按钮刷新一次",
     Icon = "zap",
     Type = "Checkbox",
     Value = false,
     Callback = function(s)
-        applyInstantInteract(s)
+        getgenv().InstantInteract = s
+        if s then
+            for _, v in ipairs(workspace:GetDescendants()) do
+                if v:IsA("ProximityPrompt") then
+                    setInstantPrompt(v)
+                end
+            end
+        else
+            restoreAllPrompts()
+        end
     end
 })
+
 
 toolTab:Button({
     Title = "Gui文本获取v24", Desc = "自制 ai神力 感谢李藝州🙏🙏🙏", Icon = "shell",
