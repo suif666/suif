@@ -829,7 +829,7 @@ print("FwTab.Toggle =", FwTab and FwTab.Toggle)
 print("================================")
 
 -- 加时间戳防止缓存
-local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick())
+local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/fanwei%20%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick())
 loadstring(game:HttpGet(url))()
 
 
