@@ -31,15 +31,22 @@ local Tab = Window:Tab({
 local Config = {
     Enable = false,
     TargetMode = "全部",
+    PlayerMode = "部件放大",      -- 部件放大 / 半透明方框
     Range = 150,
-    Scale = 8,               -- 默认范围大小（对应云脚本的 HeadSize）
-    BoxTransparency = 0.6,
-    Color = Color3.fromRGB(255, 60, 60)
+    Scale = 1.8,                 -- 部件放大用倍率，半透明方框用绝对大小基准
+    BoxTransparency = 0.55,
+    Color = Color3.fromRGB(255, 60, 60),
+    ScaleHead = true,            -- 默认头部
+    ScaleBody = false
 }
 
 local State = {
-    originals = {},          -- 保存原始 Size
+    originals = {},
     refreshQueued = false
+}
+
+local bodyPartNames = {
+    "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"
 }
 
 local function getCharacterRoot(character)
@@ -69,66 +76,105 @@ local function isAllowed(model)
     return isNpcModel(model) and (Config.TargetMode == "NPC" or Config.TargetMode == "全部")
 end
 
-local function snapshotHRP(hrp)
-    if not State.originals[hrp] then
-        State.originals[hrp] = {
-            Size = hrp.Size,
-            Transparency = hrp.Transparency,
-            CanCollide = hrp.CanCollide,
-            Material = hrp.Material,
-            Color = hrp.Color
+local function snapshotPart(part)
+    if not State.originals[part] then
+        State.originals[part] = {
+            Size = part.Size,
+            Transparency = part.Transparency,
+            CanCollide = part.CanCollide,
+            Material = part.Material,
+            Color = part.Color
         }
     end
 end
 
-local function restoreHRP(hrp)
-    local old = State.originals[hrp]
-    if old and hrp and hrp.Parent then
+local function restorePart(part)
+    local old = State.originals[part]
+    if old and part and part.Parent then
         pcall(function()
-            hrp.Size = old.Size
-            hrp.Transparency = old.Transparency
-            hrp.CanCollide = old.CanCollide
-            hrp.Material = old.Material
-            hrp.Color = old.Color
+            part.Size = old.Size
+            part.Transparency = old.Transparency
+            part.CanCollide = old.CanCollide
+            part.Material = old.Material
+            part.Color = old.Color
         end)
     end
 end
 
-local function restoreAll()
-    for hrp, old in pairs(State.originals) do
-        if hrp and hrp.Parent then
-            restoreHRP(hrp)
-        end
+local function restoreCharacter(model)
+    if not model then return end
+    local head = model:FindFirstChild("Head")
+    if head then restorePart(head) end
+    for _, name in ipairs(bodyPartNames) do
+        local p = model:FindFirstChild(name)
+        if p then restorePart(p) end
     end
 end
 
-local function applyRange(character)
-    local hrp = getCharacterRoot(character)
-    if not hrp then return end
+local function restoreAll()
+    for part, _ in pairs(State.originals) do
+        restorePart(part)
+    end
+end
 
-    snapshotHRP(hrp)
+local function getSelectedParts(character)
+    local parts = {}
+    if Config.ScaleHead then
+        local head = character:FindFirstChild("Head")
+        if head and head:IsA("BasePart") then
+            table.insert(parts, head)
+        end
+    end
+    if Config.ScaleBody then
+        for _, name in ipairs(bodyPartNames) do
+            local p = character:FindFirstChild(name)
+            if p and p:IsA("BasePart") then
+                table.insert(parts, p)
+            end
+        end
+    end
+    return parts
+end
 
-    pcall(function()
-        -- 核心：直接放大 HumanoidRootPart（参考云脚本有效写法）
-        hrp.Size = Vector3.new(Config.Scale, Config.Scale, Config.Scale)
-        hrp.Transparency = Config.BoxTransparency
-        hrp.Material = Enum.Material.Neon
-        hrp.Color = Config.Color
-        hrp.CanCollide = false
-        hrp.CanQuery = true
-    end)
+local function applyEnlarge(character)
+    local parts = getSelectedParts(character)
+    if #parts == 0 then return end
+
+    for _, part in ipairs(parts) do
+        snapshotPart(part)
+        local old = State.originals[part]
+        if not old then continue end
+
+        pcall(function()
+            if Config.PlayerMode == "部件放大" then
+                -- 按原始比例放大
+                part.Size = old.Size * Config.Scale
+                part.Transparency = old.Transparency
+                part.Material = old.Material
+                part.Color = old.Color
+            else
+                -- 半透明方框：强制大立方体 + Neon
+                local s = Config.Scale * 4          -- 让方框模式更大一点
+                part.Size = Vector3.new(s, s, s)
+                part.Transparency = Config.BoxTransparency
+                part.Material = Enum.Material.Neon
+                part.Color = Config.Color
+            end
+            part.CanCollide = false
+            part.CanQuery = true
+        end)
+    end
 end
 
 local function refreshCharacter(model)
     if not Config.Enable or not model or not model.Parent then return end
 
     if not isAllowed(model) or getDistanceToLocal(model) > Config.Range then
-        local hrp = getCharacterRoot(model)
-        if hrp then restoreHRP(hrp) end
+        restoreCharacter(model)
         return
     end
 
-    applyRange(model)
+    applyEnlarge(model)
 end
 
 local function refreshAll()
@@ -159,16 +205,13 @@ local function queueRefresh()
     end)
 end
 
--- 每帧强制维持放大（和云脚本一样用 RenderStepped）
 RunService.RenderStepped:Connect(function()
     if not Config.Enable then return end
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
             refreshCharacter(plr.Character)
         end
     end
-
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and isNpcModel(obj) then
             refreshCharacter(obj)
@@ -179,15 +222,10 @@ end)
 -- UI
 Tab:Toggle({
     Title = "主开关",
-    Desc = "开启后放大其他玩家/NPC 的 HumanoidRootPart",
     Value = false,
     Callback = function(v)
         Config.Enable = v
-        if v then
-            queueRefresh()
-        else
-            restoreAll()
-        end
+        if v then queueRefresh() else restoreAll() end
     end
 })
 
@@ -197,6 +235,38 @@ Tab:Dropdown({
     Value = Config.TargetMode,
     Callback = function(v)
         Config.TargetMode = v
+        queueRefresh()
+    end
+})
+
+-- 部位选择（优先级最高）
+Tab:Toggle({
+    Title = "放大部位 · 头部",
+    Desc = "默认开启",
+    Value = true,
+    Callback = function(v)
+        Config.ScaleHead = v
+        queueRefresh()
+    end
+})
+
+Tab:Toggle({
+    Title = "放大部位 · 身体",
+    Desc = "HumanoidRootPart + 躯干",
+    Value = false,
+    Callback = function(v)
+        Config.ScaleBody = v
+        queueRefresh()
+    end
+})
+
+Tab:Dropdown({
+    Title = "放大方式",
+    Desc = "两种方式都会真实放大选中的部位",
+    Values = {"部件放大", "半透明方框"},
+    Value = Config.PlayerMode,
+    Callback = function(v)
+        Config.PlayerMode = v
         queueRefresh()
     end
 })
@@ -212,9 +282,10 @@ Tab:Slider({
 })
 
 Tab:Slider({
-    Title = "范围大小 (推荐 5~20)",
-    Step = 0.5,
-    Value = { Min = 1, Max = 50, Default = Config.Scale },
+    Title = "放大倍率 / 大小",
+    Desc = "部件放大=比例倍率，半透明方框=立方体大小基准",
+    Step = 0.1,
+    Value = { Min = 1, Max = 15, Default = Config.Scale },
     Callback = function(v)
         Config.Scale = v
         queueRefresh()
@@ -222,7 +293,7 @@ Tab:Slider({
 })
 
 Tab:Slider({
-    Title = "透明度",
+    Title = "透明度（仅半透明方框模式）",
     Step = 0.05,
     Value = { Min = 0, Max = 1, Default = Config.BoxTransparency },
     Callback = function(v)
@@ -238,4 +309,4 @@ Tab:Button({
     end
 })
 
-print("[RangeEnlarge] 脚本加载完成（参考云脚本 HRP 放大方式）")
+print("[RangeEnlarge] 脚本加载完成")
