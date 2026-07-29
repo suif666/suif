@@ -219,7 +219,8 @@ end)
 
 -- 控件全部挂到主脚本传来的 Tab 上
 Tab:Toggle({
-    Title = "主开关",
+    Title = "范围主开关",
+    Desc = "点我即可启动/关闭功能",
     Value = false,
     Callback = function(v)
         Config.Enable = v
@@ -229,7 +230,8 @@ Tab:Toggle({
 
 Tab:Dropdown({
     Title = "放大对象",
-    Values = {"玩家", "NPC", "全部"},
+     Desc = "嗯对这个是单选",
+    Values = {"玩家", "NPC", "玩家及NPC"},
     Value = Config.TargetMode,
     Callback = function(v)
         Config.TargetMode = v
@@ -238,7 +240,8 @@ Tab:Dropdown({
 })
 
 Tab:Dropdown({
-    Title = "放大部位（可多选）",
+    Title = "放大部位",
+     Desc = "可多选。。",
     Values = {"头部", "身体"},
     Value = Config.Parts,
     Multi = true,
@@ -250,7 +253,7 @@ Tab:Dropdown({
 
 Tab:Dropdown({
     Title = "放大方式",
-    Values = {"部件放大", "半透明方框"},
+    Values = {"正常放大", "透明放大"},
     Value = Config.PlayerMode,
     Callback = function(v)
         Config.PlayerMode = v
@@ -260,6 +263,7 @@ Tab:Dropdown({
 
 Tab:Slider({
     Title = "有效范围",
+     Desc = "拉的越高 范围影响越远 范围之外的玩家将不会进行放大",
     Step = 1,
     Value = { Min = 0, Max = 500, Default = Config.Range },
     Callback = function(v)
@@ -270,6 +274,7 @@ Tab:Slider({
 
 Tab:Slider({
     Title = "放大倍率",
+     Desc = "越高范围越大 越小范围越小",
     Step = 0.1,
     Value = { Min = 1, Max = 10, Default = Config.Scale },
     Callback = function(v)
@@ -280,6 +285,7 @@ Tab:Slider({
 
 Tab:Slider({
     Title = "方框透明度",
+     Desc = "嗯对这个只影响放大模式里面的透明放大",
     Step = 0.05,
     Value = { Min = 0, Max = 1, Default = Config.BoxTransparency },
     Callback = function(v)
@@ -289,6 +295,7 @@ Tab:Slider({
 
 Tab:Button({
     Title = "恢复正常大小",
+     Desc = "其实把范围关了也能做到恢复正常 做这个按钮有点多此一举了。。",
     Callback = function()
         Config.Enable = false
         restoreAll()
