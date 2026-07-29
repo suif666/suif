@@ -822,8 +822,15 @@ fescriptTab:Button({
 --范围远程
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
-loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua"))()
 
+print("========== 主脚本检查 ==========")
+print("FwTab =", FwTab)
+print("FwTab.Toggle =", FwTab.Toggle)
+print("getgenv().Tabs.RangeTab =", getgenv().Tabs.RangeTab)
+print("getgenv().Tabs.RangeTab.Toggle =", getgenv().Tabs.RangeTab and getgenv().Tabs.RangeTab.Toggle)
+print("================================")
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua"))()
 
 
 -- UI设置
