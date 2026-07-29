@@ -152,7 +152,7 @@ local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 -- sections
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
-local npcTab = funcSec:Tab({ Title = "NPC类", Icon = "user", Locked = false })
+local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
 local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
@@ -818,6 +818,11 @@ fescriptTab:Button({
         run("https://pastebin.com/raw/fqm5dDXN", "召唤吉吉fe")
     end
 })
+
+--范围远程
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
+loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua"))()
 
 
 
