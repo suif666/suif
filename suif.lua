@@ -776,12 +776,6 @@ zbjscqtTab:Button({
     end
 })
 
---npc类远程
-getgenv().Tabs = getgenv().Tabs or {}
-getgenv().Tabs.npcTab = npcTab
-
-local npcRemoteUrl = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc类"
-loadstring(game:HttpGet(npcRemoteUrl))()
 
 
 fescriptTab:Button({
