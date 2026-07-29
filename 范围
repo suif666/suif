@@ -151,13 +151,13 @@ local function applyEnlarge(character)
 
         pcall(function()
             if Config.PlayerMode == "部件放大" then
-                -- 保持原始比例放大
+                -- 保持原形状，按比例放大
                 part.Size = old.Size * Config.Scale
                 part.Transparency = old.Transparency
                 part.Material = old.Material
                 part.Color = old.Color
             else
-                -- 半透明方框：强制变成立方体小方块
+                -- 半透明方框：真实放大 + 强制变红色半透明立方体
                 local s = math.max(old.Size.X, old.Size.Y, old.Size.Z) * Config.Scale
                 part.Size = Vector3.new(s, s, s)
                 part.Transparency = Config.BoxTransparency
@@ -269,7 +269,7 @@ Tab:Dropdown({
 
 Tab:Dropdown({
     Title = "放大方式",
-    Desc = "部件放大=保持原形状；半透明方框=变成立方体小方块",
+    Desc = "两个都是真实放大选中部位",
     Values = {"部件放大", "半透明方框"},
     Value = Config.PlayerMode,
     Callback = function(v)
