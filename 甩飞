@@ -1,34 +1,37 @@
 --[[
-    甩飞功能 - WindUI 独立版
-    基于你提供的 SkidFling 逻辑整理优化
+    甩飞 + 传送  WindUI 独立版
 ]]
 
-if getgenv().__FLING_LOADED then return end
-getgenv().__FLING_LOADED = true
+if getgenv().__FLING_TP_LOADED then return end
+getgenv().__FLING_TP_LOADED = true
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "甩飞",
+    Title = "甩飞与传送",
     Icon = "zap",
-    Folder = "FlingTool"
+    Folder = "FlingTP"
 })
 
 local Tab = Window:Tab({
-    Title = "主功能",
-    Icon = "home"
+    Title = "传送与甩飞",
+    Icon = "send"
 })
 
 -- ===== 状态 =====
 local FlingLoop = false
 local Flinging = false
-local SelectedTarget = nil          -- Player 或 "ALL"
+local TP_Loop = false
+local SelectedTargets = {}      -- 多选结果（Player 对象或 "ALL"）
 local AlreadyNotified = {}
 local OldPos = nil
+local playerNameList = {"ALL"}
 
 local function Notify(title, content, duration)
     pcall(function()
@@ -38,10 +41,20 @@ local function Notify(title, content, duration)
             Duration = duration or 3
         })
     end)
-    print(string.format("[甩飞] %s: %s", title, content))
 end
 
--- ===== 核心甩飞 =====
+local function rebuildPlayerList()
+    playerNameList = {"ALL"}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(playerNameList, p.Name)
+        end
+    end
+end
+
+rebuildPlayerList()
+
+-- ===== 核心甩飞（保留你原来的逻辑并加固） =====
 local function SkidFling(TargetPlayer)
     if not TargetPlayer or TargetPlayer == LocalPlayer then return end
     if Flinging then return end
@@ -50,8 +63,8 @@ local function SkidFling(TargetPlayer)
     local Character = LocalPlayer.Character
     local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
     local RootPart = Humanoid and Humanoid.RootPart
-
     local TCharacter = TargetPlayer.Character
+
     if not (Character and Humanoid and RootPart and TCharacter) then
         Flinging = false
         return
@@ -68,10 +81,7 @@ local function SkidFling(TargetPlayer)
     local DeadConn
     DeadConn = LocalPlayer.CharacterAdded:Connect(function()
         Dead = true
-        if DeadConn then
-            DeadConn:Disconnect()
-            DeadConn = nil
-        end
+        if DeadConn then DeadConn:Disconnect() DeadConn = nil end
     end)
 
     if RootPart.Velocity.Magnitude < 50 then
@@ -79,40 +89,26 @@ local function SkidFling(TargetPlayer)
     end
 
     if Camera then
-        if THead then
-            Camera.CameraSubject = THead
-        elseif Handle then
-            Camera.CameraSubject = Handle
-        elseif THumanoid then
-            Camera.CameraSubject = THumanoid
-        end
+        Camera.CameraSubject = THead or Handle or THumanoid
     end
 
     local function FPos(BasePart, Pos, Ang)
-        if Dead then return end
-        if not BasePart or not BasePart.Parent then return end
-        if not RootPart or not RootPart.Parent then return end
-
+        if Dead or not BasePart or not BasePart.Parent or not RootPart or not RootPart.Parent then return end
         local cf = CFrame.new(BasePart.Position) * Pos * Ang
         RootPart.CFrame = cf
         if Character.PrimaryPart then
-            Character:SetPrimaryPartCFrame(cf)
+            pcall(function() Character:SetPrimaryPartCFrame(cf) end)
         end
         RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
         RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
     end
 
     local function SFBasePart(BasePart)
-        local TimeToWait = 2
         local Time = tick()
         local Angle = 0
-
         repeat
-            if Dead then break end
-            if not BasePart or not BasePart.Parent then break end
-            if not RootPart or not RootPart.Parent then break end
-            if not TRootPart or not TRootPart.Parent then break end
-            if not THumanoid or THumanoid.Health <= 0 then break end
+            if Dead or not BasePart or not BasePart.Parent or not RootPart or not RootPart.Parent then break end
+            if not TRootPart or not TRootPart.Parent or not THumanoid or THumanoid.Health <= 0 then break end
 
             if BasePart.Velocity.Magnitude > 1 then
                 Angle = Angle + 100
@@ -136,58 +132,38 @@ local function SkidFling(TargetPlayer)
                 task.wait()
                 FPos(BasePart, CFrame.new(0, -1.5, -walk), CFrame.Angles(0, 0, 0))
                 task.wait()
-                FPos(BasePart, CFrame.new(0, 1.5, walk), CFrame.Angles(math.rad(90), 0, 0))
-                task.wait()
                 FPos(BasePart, CFrame.new(0, 1.5, vel), CFrame.Angles(math.rad(90), 0, 0))
                 task.wait()
                 FPos(BasePart, CFrame.new(0, -1.5, -vel), CFrame.Angles(0, 0, 0))
-                task.wait()
-                FPos(BasePart, CFrame.new(0, 1.5, vel), CFrame.Angles(math.rad(90), 0, 0))
                 task.wait()
                 FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
                 task.wait()
                 FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
                 task.wait()
-                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0))
-                task.wait()
-                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                task.wait()
             end
-        until BasePart.Velocity.Magnitude > 500
-            or not BasePart.Parent
-            or Dead
-            or tick() > Time + TimeToWait
+        until BasePart.Velocity.Magnitude > 500 or not BasePart.Parent or Dead or tick() > Time + 2
     end
 
     local BV = Instance.new("BodyVelocity")
     BV.Parent = RootPart
     BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
     BV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
 
     if not Dead then
-        if TRootPart then
-            SFBasePart(TRootPart)
-        elseif THead then
-            SFBasePart(THead)
-        elseif Handle then
-            SFBasePart(Handle)
-        end
+        if TRootPart then SFBasePart(TRootPart)
+        elseif THead then SFBasePart(THead)
+        elseif Handle then SFBasePart(Handle) end
     end
 
     BV:Destroy()
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 
     if Camera then
-        local newChar = LocalPlayer.Character
-        local newHum = newChar and newChar:FindFirstChildOfClass("Humanoid")
-        if newHum then
-            Camera.CameraSubject = newHum
-        end
+        local newHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if newHum then Camera.CameraSubject = newHum end
     end
 
-    -- 复位
     if not Dead and OldPos then
         local newChar = LocalPlayer.Character
         local newRoot = newChar and newChar:FindFirstChild("HumanoidRootPart")
@@ -197,7 +173,7 @@ local function SkidFling(TargetPlayer)
             repeat
                 newRoot.CFrame = OldPos * CFrame.new(0, 0.5, 0)
                 if newChar.PrimaryPart then
-                    newChar:SetPrimaryPartCFrame(OldPos * CFrame.new(0, 0.5, 0))
+                    pcall(function() newChar:SetPrimaryPartCFrame(OldPos * CFrame.new(0, 0.5, 0)) end)
                 end
                 newHum:ChangeState(Enum.HumanoidStateType.GettingUp)
                 for _, x in ipairs(newChar:GetChildren()) do
@@ -211,52 +187,50 @@ local function SkidFling(TargetPlayer)
         end
     end
 
-    if DeadConn then
-        DeadConn:Disconnect()
-        DeadConn = nil
-    end
-
+    if DeadConn then DeadConn:Disconnect() end
     Flinging = false
 end
 
--- ===== 目标监控 =====
-local function MonitorTarget(target)
-    if not target or AlreadyNotified[target] then return end
-    AlreadyNotified[target] = { dead = false, left = false }
-
-    task.spawn(function()
-        while FlingLoop or Flinging do
-            if not target or not target.Parent then
-                if not AlreadyNotified[target].left then
-                    AlreadyNotified[target].left = true
-                    Notify("目标失效", "玩家已退出", 3)
-                end
-                break
-            end
-
-            local char = target.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if not char or not hum or hum.Health <= 0 then
-                if not AlreadyNotified[target].dead then
-                    AlreadyNotified[target].dead = true
-                    Notify("目标失效", target.Name .. " 已死亡", 3)
-                end
-            else
-                AlreadyNotified[target].dead = false
-            end
-            task.wait(0.5)
-        end
-    end)
-end
-
--- ===== 循环甩飞 =====
-local function StartFlingLoop()
-    if FlingLoop then return end
-    if not SelectedTarget then
+-- ===== 传送（只取多选列表第一个） =====
+local function TeleportToTarget()
+    local target = nil
+    if #SelectedTargets == 0 then
         Notify("错误", "请先选择目标", 2)
         return
     end
 
+    if SelectedTargets[1] == "ALL" then
+        -- ALL 时取第一个其他玩家
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                target = p
+                break
+            end
+        end
+    else
+        target = SelectedTargets[1]  -- 多选只认最上面的
+    end
+
+    if not target or not target.Character then
+        Notify("错误", "目标无效或未加载", 2)
+        return
+    end
+
+    local root = target.Character:FindFirstChild("HumanoidRootPart")
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if root and myRoot then
+        myRoot.CFrame = root.CFrame * CFrame.new(0, 3, 0)
+        Notify("传送", "已传送到 " .. target.Name, 2)
+    end
+end
+
+-- ===== 循环控制 =====
+local function StartFlingLoop()
+    if FlingLoop then return end
+    if #SelectedTargets == 0 then
+        Notify("错误", "请先选择目标", 2)
+        return
+    end
     FlingLoop = true
     AlreadyNotified = {}
 
@@ -264,109 +238,127 @@ local function StartFlingLoop()
         while FlingLoop do
             local selfChar = LocalPlayer.Character
             local selfHum = selfChar and selfChar:FindFirstChildOfClass("Humanoid")
-            local selfRoot = selfChar and selfChar:FindFirstChild("HumanoidRootPart")
-
-            if not selfChar or not selfHum or not selfRoot or selfHum.Health <= 0 then
+            if not selfChar or not selfHum or selfHum.Health <= 0 then
                 task.wait(0.5)
             else
-                if SelectedTarget == "ALL" then
+                local list = {}
+                if SelectedTargets[1] == "ALL" then
                     for _, p in ipairs(Players:GetPlayers()) do
-                        if not FlingLoop then break end
-                        if p ~= LocalPlayer then
-                            local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
-                            if hum and hum.Health > 0 then
-                                MonitorTarget(p)
-                                local t = tick()
-                                repeat task.wait() until not Flinging or tick() - t > 4
-                                if FlingLoop then
-                                    SkidFling(p)
-                                end
-                                task.wait(0.15)
-                            end
-                        end
+                        if p ~= LocalPlayer then table.insert(list, p) end
                     end
                 else
-                    local target = SelectedTarget
+                    list = SelectedTargets
+                end
+
+                for _, target in ipairs(list) do
+                    if not FlingLoop then break end
                     if typeof(target) == "Instance" and target:IsA("Player") and target.Parent then
                         local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
                         if hum and hum.Health > 0 then
-                            MonitorTarget(target)
                             local t = tick()
                             repeat task.wait() until not Flinging or tick() - t > 4
-                            if FlingLoop then
-                                SkidFling(target)
-                            end
+                            if FlingLoop then SkidFling(target) end
+                            task.wait(0.15)
                         end
                     end
                 end
-                task.wait(0.25)
+                task.wait(0.3)
             end
         end
     end)
-
-    Notify("甩飞", "循环已启动", 2)
+    Notify("甩飞", "循环甩飞已启动", 2)
 end
 
 local function StopFlingLoop()
     FlingLoop = false
-    AlreadyNotified = {}
-    Notify("甩飞", "循环已停止", 2)
+    Notify("甩飞", "循环甩飞已停止", 2)
+end
+
+local function StartTPLoop()
+    if TP_Loop then return end
+    TP_Loop = true
+    task.spawn(function()
+        while TP_Loop do
+            TeleportToTarget()
+            task.wait(1.2)
+        end
+    end)
+    Notify("传送", "循环传送已启动", 2)
+end
+
+local function StopTPLoop()
+    TP_Loop = false
+    Notify("传送", "循环传送已停止", 2)
 end
 
 -- ===== UI =====
-local playerNames = {"ALL"}
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= LocalPlayer then
-        table.insert(playerNames, p.Name)
-    end
-end
 
-local Dropdown = Tab:Dropdown({
-    Title = "选择目标",
-    Values = playerNames,
-    Value = "ALL",
-    Callback = function(v)
-        if v == "ALL" then
-            SelectedTarget = "ALL"
-        else
-            SelectedTarget = Players:FindFirstChild(v)
+-- 顶部警告（无按钮的提示）
+Tab:Paragraph({
+    Title = "警告",
+    Desc = "不要在循环甩飞时手动重生，否则可能报错"
+})
+
+-- 多选目标
+local TargetDropdown = Tab:Dropdown({
+    Title = "选择目标（可多选）",
+    Values = playerNameList,
+    Value = {"ALL"},
+    Multi = true,
+    Callback = function(values)
+        SelectedTargets = {}
+        for _, name in ipairs(values) do
+            if name == "ALL" then
+                SelectedTargets = {"ALL"}
+                break
+            else
+                local plr = Players:FindFirstChild(name)
+                if plr then table.insert(SelectedTargets, plr) end
+            end
         end
     end
 })
 
--- 玩家进出时刷新下拉
-Players.PlayerAdded:Connect(function(p)
-    table.insert(playerNames, p.Name)
-end)
-Players.PlayerRemoving:Connect(function(p)
-    for i, name in ipairs(playerNames) do
-        if name == p.Name then
-            table.remove(playerNames, i)
-            break
-        end
+-- 刷新按钮（玩家进出时也会自动刷新）
+Tab:Button({
+    Title = "刷新玩家列表",
+    Callback = function()
+        rebuildPlayerList()
+        -- WindUI 多数版本支持重新设置 Values
+        pcall(function()
+            TargetDropdown:SetValues(playerNameList)
+        end)
+        Notify("列表", "玩家列表已刷新", 2)
     end
+})
+
+Players.PlayerAdded:Connect(function(p)
+    rebuildPlayerList()
+    pcall(function() TargetDropdown:SetValues(playerNameList) end)
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    rebuildPlayerList()
+    pcall(function() TargetDropdown:SetValues(playerNameList) end)
 end)
 
 Tab:Button({
     Title = "单次甩飞",
     Callback = function()
-        if not SelectedTarget then
+        if #SelectedTargets == 0 then
             Notify("错误", "请先选择目标", 2)
             return
         end
-        if SelectedTarget == "ALL" then
-            task.spawn(function()
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LocalPlayer then
-                        SkidFling(p)
-                        repeat task.wait() until not Flinging
-                        task.wait(0.1)
-                    end
+        task.spawn(function()
+            local list = SelectedTargets[1] == "ALL" and Players:GetPlayers() or SelectedTargets
+            for _, p in ipairs(list) do
+                if p ~= LocalPlayer and typeof(p) == "Instance" then
+                    SkidFling(p)
+                    repeat task.wait() until not Flinging
+                    task.wait(0.1)
                 end
-            end)
-        else
-            SkidFling(SelectedTarget)
-        end
+            end
+        end)
     end
 })
 
@@ -374,22 +366,109 @@ Tab:Toggle({
     Title = "循环甩飞",
     Value = false,
     Callback = function(v)
-        if v then
-            StartFlingLoop()
-        else
-            StopFlingLoop()
-        end
+        if v then StartFlingLoop() else StopFlingLoop() end
     end
 })
 
 Tab:Button({
-    Title = "强制停止",
+    Title = "传送到玩家（多选只传第一个）",
     Callback = function()
-        FlingLoop = false
-        Flinging = false
-        AlreadyNotified = {}
-        Notify("甩飞", "已强制停止", 2)
+        TeleportToTarget()
     end
 })
 
-print("[甩飞] WindUI 版本已加载")
+Tab:Toggle({
+    Title = "循环传送",
+    Value = false,
+    Callback = function(v)
+        if v then StartTPLoop() else StopTPLoop() end
+    end
+})
+
+Tab:Button({
+    Title = "强制停止全部",
+    Callback = function()
+        FlingLoop = false
+        TP_Loop = false
+        Flinging = false
+        Notify("停止", "已强制停止所有循环", 2)
+    end
+})
+
+-- ===== 右侧悬浮按钮（类似截图的「夜脚本」） =====
+local function CreateSideButton()
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FlingSideButton"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    pcall(function() gui.Parent = CoreGui end)
+    if not gui.Parent then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+    local btn = Instance.new("TextButton")
+    btn.Name = "ToggleBtn"
+    btn.Size = UDim2.new(0, 36, 0, 90)
+    btn.Position = UDim2.new(1, -46, 0.4, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    btn.BorderSizePixel = 0
+    btn.Text = "甩\n飞"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 14
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(0, 200, 255)
+    stroke.Thickness = 1.5
+    stroke.Parent = btn
+
+    local visible = true
+    btn.MouseButton1Click:Connect(function()
+        visible = not visible
+        pcall(function()
+            Window:SetVisible(visible)  -- 部分 WindUI 支持
+        end)
+        -- 兜底：直接控制窗口 GUI
+        for _, g in ipairs(CoreGui:GetChildren()) do
+            if g.Name:find("WindUI") or g.Name:find("Range") or g.Name:find("Fling") then
+                -- 根据实际窗口名调整
+            end
+        end
+        -- 最稳妥的方式：很多 WindUI 窗口可以通过 Toggle 方法
+        pcall(function()
+            if Window.Toggle then
+                Window:Toggle()
+            elseif Window.Visible ~= nil then
+                Window.Visible = visible
+            end
+        end)
+    end)
+
+    -- 可拖动
+    local dragging, dragStart, startPos
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = btn.Position
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+CreateSideButton()
+
+print("[甩飞与传送] 已加载")
