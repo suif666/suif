@@ -233,13 +233,15 @@ end)
 
 
 -- 主页
-Tab:Paragraph({
-    Title = "注意",
-    Desc = "脚本为作者自用\n功能和服务器脚本少正常\n如果没有找到你想要玩的服务器或者功能可以在右上角进行反馈"
-})
+mainTab:Paragraph({
+Title = "Suture Hub", 
+Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
 
-mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
-local countText = mainTab:Paragraph({ Title = "全网执行次数", Desc = "正在获取..." })
+local countText = mainTab:Paragraph({
+Title = "全网执行次数",
+Desc = "正在获取..." })
+
+
 local function updateCount()
     local ok, res = pcall(function()
         return game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/count")
