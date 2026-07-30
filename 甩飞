@@ -1,50 +1,25 @@
---[[
-    甩飞 + 传送  WindUI 完整版
-    - 多选目标、循环甩飞、循环传送
-    - 悬浮按钮可完全隐藏/显示整个 WindUI（含胶囊栏）
-    - 设置可切换最小化方式
-    - 拖动优化（防双指瞬移）
-]]
+-- 远程脚本：甩飞 + 传送（纯功能，无窗口创建）
+-- 依赖主脚本提供的 getgenv().Tabs.FlingTPTab 和 getgenv().WindUI
 
-if getgenv().__FLING_TP_LOADED then return end
-getgenv().__FLING_TP_LOADED = true
+local Tab = getgenv().Tabs.FlingTPTab
+local WindUI = getgenv().WindUI
+if not Tab or not WindUI then
+    error("主脚本未正确暴露 Tab 或 WindUI")
+end
 
+-- ===== 服务与工具 =====
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
-
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-
-local Window = WindUI:CreateWindow({
-    Title = "甩飞与传送",
-    Icon = "zap",
-    Folder = "FlingTP"
-})
-
-local Tab = Window:Tab({
-    Title = "传送与甩飞",
-    Icon = "send"
-})
-
-local SettingsTab = Window:Tab({
-    Title = "设置",
-    Icon = "settings"
-})
+local Workspace = game:GetService("Workspace")
 
 -- ===== 状态 =====
 local FlingLoop = false
 local Flinging = false
 local TP_Loop = false
 local SelectedTargets = {}
+local AlreadyNotified = {}
 local OldPos = nil
 local playerNameList = {"ALL"}
-
-local MinimizeMode = "button"   -- "button" 或 "capsule"
-local UIVisible = true
-local SideButtonGui = nil
-local MainWindGui = nil
 
 local function Notify(title, content, duration)
     pcall(function()
@@ -66,55 +41,7 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 精准查找真正的 WindUI 窗口 =====
-local function FindWindUIGui()
-    for _, gui in ipairs(CoreGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui:FindFirstChild("WindUI") then
-            return gui
-        end
-    end
-    -- 兜底深度搜索
-    for _, gui in ipairs(CoreGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui:FindFirstChild("WindUI", true) then
-            return gui
-        end
-    end
-    return nil
-end
-
--- ===== 真正有效的显示 / 隐藏 =====
-local function SetUIVisible(visible)
-    UIVisible = visible
-    MainWindGui = MainWindGui or FindWindUIGui()
-
-    print("[甩飞] SetUIVisible =", visible, "| GUI =", MainWindGui and MainWindGui.Name or "nil")
-
-    if not MainWindGui then
-        warn("[甩飞] 没找到 WindUI 窗口")
-        return
-    end
-
-    -- 控制整个 ScreenGui
-    MainWindGui.Enabled = visible
-
-    -- 双保险：控制内部 WindUI / Window
-    local wind = MainWindGui:FindFirstChild("WindUI")
-    if wind then
-        local window = wind:FindFirstChild("Window")
-        if window and window:IsA("GuiObject") then
-            window.Visible = visible
-        elseif wind:IsA("GuiObject") then
-            wind.Visible = visible
-        end
-    end
-
-    pcall(function()
-        if Window.SetVisible then Window:SetVisible(visible) end
-        if Window.Visible ~= nil then Window.Visible = visible end
-    end)
-end
-
--- ===== 核心甩飞 =====
+-- ===== 核心甩飞（完整保留原逻辑）=====
 local function SkidFling(TargetPlayer)
     if not TargetPlayer or TargetPlayer == LocalPlayer then return end
     if Flinging then return end
@@ -251,14 +178,14 @@ local function SkidFling(TargetPlayer)
     Flinging = false
 end
 
--- ===== 传送（多选只取第一个） =====
+-- ===== 传送 =====
 local function TeleportToTarget()
+    local target = nil
     if #SelectedTargets == 0 then
         Notify("错误", "请先选择目标", 2)
         return
     end
 
-    local target = nil
     if SelectedTargets[1] == "ALL" then
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
@@ -279,10 +206,11 @@ local function TeleportToTarget()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if root and myRoot then
         myRoot.CFrame = root.CFrame * CFrame.new(0, 3, 0)
+        Notify("传送", "已传送到 " .. target.Name, 2)
     end
 end
 
--- ===== 循环 =====
+-- ===== 循环控制 =====
 local function StartFlingLoop()
     if FlingLoop then return end
     if #SelectedTargets == 0 then
@@ -290,11 +218,13 @@ local function StartFlingLoop()
         return
     end
     FlingLoop = true
+    AlreadyNotified = {}
 
     task.spawn(function()
         while FlingLoop do
-            local selfHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if not selfHum or selfHum.Health <= 0 then
+            local selfChar = LocalPlayer.Character
+            local selfHum = selfChar and selfChar:FindFirstChildOfClass("Humanoid")
+            if not selfChar or not selfHum or selfHum.Health <= 0 then
                 task.wait(0.5)
             else
                 local list = {}
@@ -336,7 +266,7 @@ local function StartTPLoop()
     task.spawn(function()
         while TP_Loop do
             TeleportToTarget()
-            task.wait(0.45)
+            task.wait(0.1)  -- 频率已提高
         end
     end)
     Notify("传送", "循环传送已启动", 2)
@@ -347,12 +277,7 @@ local function StopTPLoop()
     Notify("传送", "循环传送已停止", 2)
 end
 
--- ===== 主功能 UI =====
-Tab:Paragraph({
-    Title = "警告",
-    Desc = "不要在循环甩飞时手动重生，否则可能报错"
-})
-
+-- ===== UI 控件（直接使用 Tab）=====
 local TargetDropdown = Tab:Dropdown({
     Title = "选择目标（可多选）",
     Values = playerNameList,
@@ -376,16 +301,19 @@ Tab:Button({
     Title = "刷新玩家列表",
     Callback = function()
         rebuildPlayerList()
-        pcall(function() TargetDropdown:SetValues(playerNameList) end)
+        pcall(function()
+            TargetDropdown:SetValues(playerNameList)
+        end)
         Notify("列表", "玩家列表已刷新", 2)
     end
 })
 
-Players.PlayerAdded:Connect(function()
+Players.PlayerAdded:Connect(function(p)
     rebuildPlayerList()
     pcall(function() TargetDropdown:SetValues(playerNameList) end)
 end)
-Players.PlayerRemoving:Connect(function()
+
+Players.PlayerRemoving:Connect(function(p)
     rebuildPlayerList()
     pcall(function() TargetDropdown:SetValues(playerNameList) end)
 end)
@@ -433,130 +361,4 @@ Tab:Toggle({
     end
 })
 
--- ===== 设置 Tab =====
-SettingsTab:Dropdown({
-    Title = "最小化方式",
-    Desc = "悬浮按钮 = 完全隐藏整个UI；胶囊栏 = 原版最小化",
-    Values = {"悬浮按钮（完全隐藏）", "胶囊栏（原版）"},
-    Value = "悬浮按钮（完全隐藏）",
-    Callback = function(v)
-        if v == "悬浮按钮（完全隐藏）" then
-            MinimizeMode = "button"
-            if SideButtonGui then SideButtonGui.Enabled = true end
-        else
-            MinimizeMode = "capsule"
-            if SideButtonGui then SideButtonGui.Enabled = false end
-            SetUIVisible(true)
-        end
-    end
-})
-
-SettingsTab:Paragraph({
-    Title = "说明",
-    Desc = "选择「悬浮按钮」后，点击右侧小按钮可完全隐藏/显示整个WindUI（包括顶部胶囊栏）。"
-})
-
--- ===== 右侧悬浮按钮 =====
-local function CreateSideButton()
-    if SideButtonGui then
-        pcall(function() SideButtonGui:Destroy() end)
-    end
-
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "FlingSideButton"
-    gui.ResetOnSpawn = false
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    pcall(function() gui.Parent = CoreGui end)
-    if not gui.Parent then
-        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    end
-    SideButtonGui = gui
-
-    local btn = Instance.new("TextButton")
-    btn.Name = "ToggleBtn"
-    btn.Size = UDim2.new(0, 38, 0, 96)
-    btn.Position = UDim2.new(1, -48, 0.38, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-    btn.BorderSizePixel = 0
-    btn.Text = "甩\n飞"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.TextSize = 15
-    btn.Font = Enum.Font.GothamBold
-    btn.AutoButtonColor = false
-    btn.Parent = gui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = btn
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(0, 190, 255)
-    stroke.Thickness = 1.5
-    stroke.Parent = btn
-
-    btn.MouseButton1Click:Connect(function()
-        if MinimizeMode ~= "button" then return end
-
-        MainWindGui = FindWindUIGui()
-        local newState = not UIVisible
-        SetUIVisible(newState)
-
-        if MainWindGui then
-            Notify("UI", newState and "已显示" or "已完全隐藏", 1.5)
-        else
-            Notify("错误", "没找到 WindUI 窗口", 3)
-        end
-    end)
-
-    -- 拖动优化（锁定第一根手指，防止双指瞬移）
-    local dragging = false
-    local dragInput = nil
-    local dragStart = nil
-    local startPos = nil
-
-    local function update(input)
-        if not dragging or input ~= dragInput then return end
-        local delta = input.Position - dragStart
-        btn.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
-    end
-
-    btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            if dragging then return end
-            dragging = true
-            dragInput = input
-            dragStart = input.Position
-            startPos = btn.Position
-
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    dragInput = nil
-                end
-            end)
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and (input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch) then
-            update(input)
-        end
-    end)
-end
-
-CreateSideButton()
-
-task.defer(function()
-    task.wait(1)
-    MainWindGui = FindWindUIGui()
-    print("[甩飞] 初始化找到的 GUI =", MainWindGui and MainWindGui.Name or "nil")
-end)
-
-print("[甩飞与传送] 完整版已加载")
+print("[甩飞与传送] 远程功能已加载")
