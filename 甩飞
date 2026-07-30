@@ -1,5 +1,10 @@
 --[[
-    甩飞 + 传送  WindUI 独立版（优化版）
+    甩飞 + 传送  WindUI 完整版
+    - 多选目标
+    - 循环甩飞 / 循环传送
+    - 悬浮按钮完全隐藏/显示 UI（不留胶囊栏）
+    - 设置里可切换最小化方式
+    - 拖动优化（防双指瞬移）
 ]]
 
 if getgenv().__FLING_TP_LOADED then return end
@@ -34,15 +39,13 @@ local FlingLoop = false
 local Flinging = false
 local TP_Loop = false
 local SelectedTargets = {}
-local AlreadyNotified = {}
 local OldPos = nil
 local playerNameList = {"ALL"}
 
--- 最小化方式： "capsule" = 原版胶囊栏， "button" = 悬浮按钮完全隐藏
-local MinimizeMode = "button"
+local MinimizeMode = "button"   -- "button" 或 "capsule"
 local UIVisible = true
 local SideButtonGui = nil
-local MainWindGui = nil   -- 用于完全隐藏整个 WindUI
+local MainWindGui = nil
 
 local function Notify(title, content, duration)
     pcall(function()
@@ -64,39 +67,60 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- 查找 WindUI 主界面 GUI（用于完全隐藏）
+-- ===== 强力查找 WindUI 主界面 =====
 local function FindWindUIGui()
-    for _, gui in ipairs(CoreGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and (gui.Name:find("Wind") or gui.Name:find("wind") or gui.Name:find("UI")) then
-            return gui
-        end
-    end
-    -- 兜底再找 PlayerGui
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg then
-        for _, gui in ipairs(pg:GetChildren()) do
-            if gui:IsA("ScreenGui") and (gui.Name:find("Wind") or gui.Name:find("wind")) then
-                return gui
+    local candidates = {}
+
+    local function scan(parent)
+        for _, gui in ipairs(parent:GetChildren()) do
+            if gui:IsA("ScreenGui") then
+                local hasTitle = false
+                for _, desc in ipairs(gui:GetDescendants()) do
+                    if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Text then
+                        local text = string.lower(tostring(desc.Text))
+                        if text:find("甩飞") or text:find("传送") or text:find("fling") or text:find("wind") then
+                            hasTitle = true
+                            break
+                        end
+                    end
+                end
+                if hasTitle then
+                    table.insert(candidates, gui)
+                end
             end
         end
+    end
+
+    pcall(function() scan(CoreGui) end)
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then pcall(function() scan(pg) end) end
+
+    if #candidates > 0 then
+        return candidates[#candidates]
     end
     return nil
 end
 
--- 完全显示/隐藏整个 WindUI
 local function SetUIVisible(visible)
     UIVisible = visible
     MainWindGui = MainWindGui or FindWindUIGui()
 
+    print("[甩飞] SetUIVisible =", visible, "| GUI =", MainWindGui and MainWindGui.Name or "nil")
+
     if MainWindGui then
         MainWindGui.Enabled = visible
+        for _, child in ipairs(MainWindGui:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("CanvasGroup") then
+                child.Visible = visible
+            end
+        end
     end
 
-    -- 同时尝试官方接口
     pcall(function()
         if Window.SetVisible then
             Window:SetVisible(visible)
-        elseif Window.Visible ~= nil then
+        end
+        if Window.Visible ~= nil then
             Window.Visible = visible
         end
     end)
@@ -324,7 +348,7 @@ local function StartTPLoop()
     task.spawn(function()
         while TP_Loop do
             TeleportToTarget()
-            task.wait(0.45)   -- 频率已调高
+            task.wait(0.45)
         end
     end)
     Notify("传送", "循环传送已启动", 2)
@@ -424,7 +448,7 @@ Tab:Toggle({
 -- ===== 设置 Tab =====
 SettingsTab:Dropdown({
     Title = "最小化方式",
-    Desc = "胶囊栏 = 原版最小化；悬浮按钮 = 完全隐藏整个UI",
+    Desc = "悬浮按钮 = 完全隐藏整个UI；胶囊栏 = 原版最小化",
     Values = {"悬浮按钮（完全隐藏）", "胶囊栏（原版）"},
     Value = "悬浮按钮（完全隐藏）",
     Callback = function(v)
@@ -434,7 +458,7 @@ SettingsTab:Dropdown({
         else
             MinimizeMode = "capsule"
             if SideButtonGui then SideButtonGui.Enabled = false end
-            SetUIVisible(true) -- 切回胶囊时确保UI是显示的
+            SetUIVisible(true)
         end
     end
 })
@@ -444,9 +468,11 @@ SettingsTab:Paragraph({
     Desc = "选择「悬浮按钮」后，点击右侧小按钮可完全隐藏/显示整个WindUI，不会留下胶囊栏。"
 })
 
--- ===== 右侧悬浮按钮（优化拖动 + 完全隐藏） =====
+-- ===== 右侧悬浮按钮 =====
 local function CreateSideButton()
-    if SideButtonGui then SideButtonGui:Destroy() end
+    if SideButtonGui then
+        pcall(function() SideButtonGui:Destroy() end)
+    end
 
     local gui = Instance.new("ScreenGui")
     gui.Name = "FlingSideButton"
@@ -480,15 +506,30 @@ local function CreateSideButton()
     stroke.Thickness = 1.5
     stroke.Parent = btn
 
-    -- 点击切换完全显示/隐藏
+    -- 点击切换
     btn.MouseButton1Click:Connect(function()
         if MinimizeMode ~= "button" then return end
-        SetUIVisible(not UIVisible)
+
+        MainWindGui = FindWindUIGui()
+        local newState = not UIVisible
+        SetUIVisible(newState)
+
+        if MainWindGui then
+            Notify("UI", newState and "已显示" or "已完全隐藏", 1.5)
+        else
+            Notify("错误", "没找到 WindUI 窗口", 3)
+            print("[甩飞] 当前 CoreGui ScreenGui 列表：")
+            for _, g in ipairs(CoreGui:GetChildren()) do
+                if g:IsA("ScreenGui") then
+                    print(" -", g.Name)
+                end
+            end
+        end
     end)
 
-    -- ===== 优化后的拖动（解决双指瞬移） =====
+    -- 优化拖动（锁定第一根手指，防双指瞬移）
     local dragging = false
-    local dragInput = nil          -- 记录是哪一个 Input 开始的拖动
+    local dragInput = nil
     local dragStart = nil
     local startPos = nil
 
@@ -506,7 +547,6 @@ local function CreateSideButton()
     btn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
             or input.UserInputType == Enum.UserInputType.Touch then
-            -- 只接受第一根手指
             if dragging then return end
             dragging = true
             dragInput = input
@@ -532,9 +572,10 @@ end
 
 CreateSideButton()
 
--- 初始化时默认使用悬浮按钮模式
 task.defer(function()
+    task.wait(0.8)
     MainWindGui = FindWindUIGui()
+    print("[甩飞] 初始化找到的 GUI =", MainWindGui and MainWindGui.Name or "nil")
 end)
 
-print("[甩飞与传送] 已加载（优化版）")
+print("[甩飞与传送] 完整版已加载")
