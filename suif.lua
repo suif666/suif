@@ -233,12 +233,34 @@ end)
 
 
 -- 主页
-mainTab:Paragraph({ Title = "Suture Hub", Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name })
-local countText = mainTab:Paragraph({ Title = "全网执行次数", Desc = "正在获取..." })
+mainTab:Paragraph({
+    Title = "Suture Hub",
+    Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name
+})
+
+local countText = mainTab:Paragraph({
+    Title = "全网执行次数",
+    Desc = "正在获取..."
+})
+
 local function updateCount()
     local ok, res = pcall(function()
         return game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/count")
     end)
+
+    if ok then
+        res = tostring(res)
+        if countText.SetDesc then
+            countText:SetDesc("当前全网执行次数：" .. res)
+        end
+        notify("执行统计", "次数：" .. res, "activity", 2)
+    else
+        if countText.SetDesc then
+            countText:SetDesc("获取失败")
+        end
+        warn("全网执行次数获取失败:", res)
+    end
+end
 
     if ok then
         res = tostring(res)
