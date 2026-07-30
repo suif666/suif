@@ -29,11 +29,17 @@ local State = {
     refreshQueued = false
 }
 
-local bodyPartNames = {"HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso"}
+-- 兼容更多 NPC 的身体部件名
+local bodyPartNames = {
+    "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso",
+    "RootPart", "HumanoidRoot", "Body", "Chest", "Hip"
+}
 
 local function getCharacterRoot(character)
     if not character then return nil end
-    return character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+    return character:FindFirstChild("HumanoidRootPart")
+        or character.PrimaryPart
+        or character:FindFirstChildWhichIsA("BasePart")
 end
 
 local function getDistanceToLocal(character)
@@ -43,10 +49,21 @@ local function getDistanceToLocal(character)
     return (myRoot.Position - theirRoot.Position).Magnitude
 end
 
+-- 更宽松的 NPC 判定（递归找 Humanoid / AnimationController）
 local function isNpcModel(model)
     if not model or not model:IsA("Model") then return false end
     if Players:GetPlayerFromCharacter(model) then return false end
-    return model:FindFirstChildOfClass("Humanoid") ~= nil or model:FindFirstChild("AnimationController") ~= nil
+
+    local humanoid = model:FindFirstChildOfClass("Humanoid")
+                  or model:FindFirstChildWhichIsA("Humanoid", true)
+    local anim = model:FindFirstChildOfClass("AnimationController")
+              or model:FindFirstChild("AnimationController", true)
+
+    local root = model:FindFirstChild("HumanoidRootPart")
+              or model.PrimaryPart
+              or model:FindFirstChildWhichIsA("BasePart")
+
+    return (humanoid ~= nil or anim ~= nil) and root ~= nil
 end
 
 local function isAllowed(model)
@@ -85,12 +102,14 @@ end
 
 local function restoreCharacter(model)
     if not model then return end
-    local head = model:FindFirstChild("Head")
+    local head = model:FindFirstChild("Head") or model:FindFirstChild("head")
     if head then restorePart(head) end
     for _, name in ipairs(bodyPartNames) do
         local p = model:FindFirstChild(name)
         if p then restorePart(p) end
     end
+    -- 兜底恢复 PrimaryPart
+    if model.PrimaryPart then restorePart(model.PrimaryPart) end
 end
 
 local function restoreAll()
@@ -108,20 +127,31 @@ end
 
 local function getSelectedParts(character)
     local parts = {}
-    if hasPart("头部") then
-        local head = character:FindFirstChild("Head")
-        if head and head:IsA("BasePart") then
-            table.insert(parts, head)
+    local added = {}
+
+    local function add(part)
+        if part and part:IsA("BasePart") and not added[part] then
+            table.insert(parts, part)
+            added[part] = true
         end
     end
+
+    if hasPart("头部") then
+        add(character:FindFirstChild("Head"))
+        add(character:FindFirstChild("head"))
+    end
+
     if hasPart("身体") then
         for _, name in ipairs(bodyPartNames) do
-            local p = character:FindFirstChild(name)
-            if p and p:IsA("BasePart") then
-                table.insert(parts, p)
-            end
+            add(character:FindFirstChild(name))
+        end
+        -- 如果一个标准部件都没找到，就用 PrimaryPart 或任意 BasePart 兜底
+        if #parts == 0 then
+            add(character.PrimaryPart)
+            add(character:FindFirstChildWhichIsA("BasePart"))
         end
     end
+
     return parts
 end
 
@@ -139,6 +169,7 @@ local function applyEnlarge(character)
                 part.Material = old.Material
                 part.Color = old.Color
             else
+                -- 半透明方框：强制立方体 + Neon
                 local s = math.max(old.Size.X, old.Size.Y, old.Size.Z) * Config.Scale
                 part.Size = Vector3.new(s, s, s)
                 part.Transparency = Config.BoxTransparency
@@ -164,8 +195,9 @@ end
 
 local function updateNpcList()
     local now = os.clock()
-    if now - State.lastNpcUpdate < 1.2 then return end
+    if now - State.lastNpcUpdate < 0.8 then return end
     State.lastNpcUpdate = now
+
     local list = {}
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and isNpcModel(obj) then
@@ -202,6 +234,7 @@ local function queueRefresh()
     end)
 end
 
+-- 主循环
 RunService.Heartbeat:Connect(function()
     if not Config.Enable then return end
 
@@ -217,21 +250,35 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- 控件全部挂到主脚本传来的 Tab 上
+-- 新生成的 NPC 实时补充
+workspace.DescendantAdded:Connect(function(obj)
+    if not Config.Enable then return end
+    if obj:IsA("Model") and isNpcModel(obj) then
+        task.delay(0.15, function()
+            if obj.Parent and isAllowed(obj) then
+                refreshCharacter(obj)
+            end
+        end)
+    end
+end)
+
+-- UI
 Tab:Toggle({
-    Title = "范围主开关",
-    Desc = "点我即可启动/关闭功能",
+    Title = "主开关",
     Value = false,
     Callback = function(v)
         Config.Enable = v
-        if v then queueRefresh() else restoreAll() end
+        if v then
+            queueRefresh()
+        else
+            restoreAll()
+        end
     end
 })
 
 Tab:Dropdown({
     Title = "放大对象",
-     Desc = "嗯对这个是单选",
-    Values = {"玩家", "NPC", "玩家及NPC"},
+    Values = {"玩家", "NPC", "全部"},
     Value = Config.TargetMode,
     Callback = function(v)
         Config.TargetMode = v
@@ -240,8 +287,7 @@ Tab:Dropdown({
 })
 
 Tab:Dropdown({
-    Title = "放大部位",
-     Desc = "可多选。。",
+    Title = "放大部位（可多选）",
     Values = {"头部", "身体"},
     Value = Config.Parts,
     Multi = true,
@@ -253,7 +299,7 @@ Tab:Dropdown({
 
 Tab:Dropdown({
     Title = "放大方式",
-    Values = {"正常放大", "透明放大"},
+    Values = {"部件放大", "半透明方框"},
     Value = Config.PlayerMode,
     Callback = function(v)
         Config.PlayerMode = v
@@ -263,7 +309,6 @@ Tab:Dropdown({
 
 Tab:Slider({
     Title = "有效范围",
-     Desc = "拉的越高 范围影响越远 范围之外的玩家将不会进行放大",
     Step = 1,
     Value = { Min = 0, Max = 500, Default = Config.Range },
     Callback = function(v)
@@ -274,7 +319,6 @@ Tab:Slider({
 
 Tab:Slider({
     Title = "放大倍率",
-     Desc = "越高范围越大 越小范围越小",
     Step = 0.1,
     Value = { Min = 1, Max = 10, Default = Config.Scale },
     Callback = function(v)
@@ -285,7 +329,6 @@ Tab:Slider({
 
 Tab:Slider({
     Title = "方框透明度",
-     Desc = "嗯对这个只影响放大模式里面的透明放大",
     Step = 0.05,
     Value = { Min = 0, Max = 1, Default = Config.BoxTransparency },
     Callback = function(v)
@@ -295,7 +338,6 @@ Tab:Slider({
 
 Tab:Button({
     Title = "恢复正常大小",
-     Desc = "其实把范围关了也能做到恢复正常 做这个按钮有点多此一举了。。",
     Callback = function()
         Config.Enable = false
         restoreAll()
