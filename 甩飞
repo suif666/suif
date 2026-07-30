@@ -1,7 +1,7 @@
 --[[
     甩飞 + 传送  WindUI 完整版
     - 多选目标、循环甩飞、循环传送
-    - 悬浮按钮尝试完全隐藏/显示 UI
+    - 悬浮按钮可完全隐藏/显示整个 WindUI（含胶囊栏）
     - 设置可切换最小化方式
     - 拖动优化（防双指瞬移）
 ]]
@@ -66,81 +66,46 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 查找 WindUI 主界面 =====
+-- ===== 精准查找真正的 WindUI 窗口 =====
 local function FindWindUIGui()
-    local candidates = {}
-
-    local function scan(parent)
-        for _, gui in ipairs(parent:GetChildren()) do
-            if gui:IsA("ScreenGui") then
-                local hasTitle = false
-                for _, desc in ipairs(gui:GetDescendants()) do
-                    if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Text then
-                        local text = string.lower(tostring(desc.Text))
-                        if text:find("甩飞") or text:find("传送") or text:find("fling") or text:find("wind") then
-                            hasTitle = true
-                            break
-                        end
-                    end
-                end
-                if hasTitle or gui.Name == "MainGui" then
-                    table.insert(candidates, gui)
-                end
-            end
+    for _, gui in ipairs(CoreGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui:FindFirstChild("WindUI") then
+            return gui
         end
     end
-
-    pcall(function() scan(CoreGui) end)
-    local pg = LocalPlayer:FindFirstChild("PlayerGui")
-    if pg then pcall(function() scan(pg) end) end
-
-    -- 优先返回名字叫 MainGui 的
-    for _, g in ipairs(candidates) do
-        if g.Name == "MainGui" then return g end
+    -- 兜底深度搜索
+    for _, gui in ipairs(CoreGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui:FindFirstChild("WindUI", true) then
+            return gui
+        end
     end
-    if #candidates > 0 then return candidates[#candidates] end
     return nil
 end
 
--- ===== 强力显示/隐藏 =====
+-- ===== 真正有效的显示 / 隐藏 =====
 local function SetUIVisible(visible)
     UIVisible = visible
     MainWindGui = MainWindGui or FindWindUIGui()
 
     print("[甩飞] SetUIVisible =", visible, "| GUI =", MainWindGui and MainWindGui.Name or "nil")
 
-    if not MainWindGui then return end
+    if not MainWindGui then
+        warn("[甩飞] 没找到 WindUI 窗口")
+        return
+    end
 
-    if visible then
-        MainWindGui.Enabled = true
-        for _, child in ipairs(MainWindGui:GetChildren()) do
-            if child:IsA("Frame") or child:IsA("CanvasGroup") then
-                child.Visible = true
-                if child:GetAttribute("OldPos") then
-                    child.Position = child:GetAttribute("OldPos")
-                end
-                local scale = child:FindFirstChildOfClass("UIScale")
-                if scale then scale.Scale = 1 end
-            end
-        end
-    else
-        for _, child in ipairs(MainWindGui:GetChildren()) do
-            if child:IsA("Frame") or child:IsA("CanvasGroup") then
-                if not child:GetAttribute("OldPos") then
-                    child:SetAttribute("OldPos", child.Position)
-                end
-                child.Visible = false
-                child.Position = UDim2.new(5, 0, 5, 0)
+    -- 控制整个 ScreenGui
+    MainWindGui.Enabled = visible
 
-                local scale = child:FindFirstChildOfClass("UIScale")
-                if not scale then
-                    scale = Instance.new("UIScale")
-                    scale.Parent = child
-                end
-                scale.Scale = 0
-            end
+    -- 双保险：控制内部 WindUI / Window
+    local wind = MainWindGui:FindFirstChild("WindUI")
+    if wind then
+        local window = wind:FindFirstChild("Window")
+        if window and window:IsA("GuiObject") then
+            window.Visible = visible
+        elseif wind:IsA("GuiObject") then
+            wind.Visible = visible
         end
-        MainWindGui.Enabled = false
     end
 
     pcall(function()
@@ -488,7 +453,7 @@ SettingsTab:Dropdown({
 
 SettingsTab:Paragraph({
     Title = "说明",
-    Desc = "选择「悬浮按钮」后，点击右侧小按钮可完全隐藏/显示整个WindUI，不会留下胶囊栏。"
+    Desc = "选择「悬浮按钮」后，点击右侧小按钮可完全隐藏/显示整个WindUI（包括顶部胶囊栏）。"
 })
 
 -- ===== 右侧悬浮按钮 =====
@@ -543,7 +508,7 @@ local function CreateSideButton()
         end
     end)
 
-    -- 拖动优化（锁定第一根手指）
+    -- 拖动优化（锁定第一根手指，防止双指瞬移）
     local dragging = false
     local dragInput = nil
     local dragStart = nil
@@ -589,7 +554,7 @@ end
 CreateSideButton()
 
 task.defer(function()
-    task.wait(0.8)
+    task.wait(1)
     MainWindGui = FindWindUIGui()
     print("[甩飞] 初始化找到的 GUI =", MainWindGui and MainWindGui.Name or "nil")
 end)
