@@ -1,9 +1,8 @@
 --[[
     甩飞 + 传送  WindUI 完整版
-    - 多选目标
-    - 循环甩飞 / 循环传送
-    - 悬浮按钮完全隐藏/显示 UI（不留胶囊栏）
-    - 设置里可切换最小化方式
+    - 多选目标、循环甩飞、循环传送
+    - 悬浮按钮尝试完全隐藏/显示 UI
+    - 设置可切换最小化方式
     - 拖动优化（防双指瞬移）
 ]]
 
@@ -67,7 +66,7 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 强力查找 WindUI 主界面 =====
+-- ===== 查找 WindUI 主界面 =====
 local function FindWindUIGui()
     local candidates = {}
 
@@ -84,7 +83,7 @@ local function FindWindUIGui()
                         end
                     end
                 end
-                if hasTitle then
+                if hasTitle or gui.Name == "MainGui" then
                     table.insert(candidates, gui)
                 end
             end
@@ -95,34 +94,58 @@ local function FindWindUIGui()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if pg then pcall(function() scan(pg) end) end
 
-    if #candidates > 0 then
-        return candidates[#candidates]
+    -- 优先返回名字叫 MainGui 的
+    for _, g in ipairs(candidates) do
+        if g.Name == "MainGui" then return g end
     end
+    if #candidates > 0 then return candidates[#candidates] end
     return nil
 end
 
+-- ===== 强力显示/隐藏 =====
 local function SetUIVisible(visible)
     UIVisible = visible
     MainWindGui = MainWindGui or FindWindUIGui()
 
     print("[甩飞] SetUIVisible =", visible, "| GUI =", MainWindGui and MainWindGui.Name or "nil")
 
-    if MainWindGui then
-        MainWindGui.Enabled = visible
+    if not MainWindGui then return end
+
+    if visible then
+        MainWindGui.Enabled = true
         for _, child in ipairs(MainWindGui:GetChildren()) do
             if child:IsA("Frame") or child:IsA("CanvasGroup") then
-                child.Visible = visible
+                child.Visible = true
+                if child:GetAttribute("OldPos") then
+                    child.Position = child:GetAttribute("OldPos")
+                end
+                local scale = child:FindFirstChildOfClass("UIScale")
+                if scale then scale.Scale = 1 end
             end
         end
+    else
+        for _, child in ipairs(MainWindGui:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("CanvasGroup") then
+                if not child:GetAttribute("OldPos") then
+                    child:SetAttribute("OldPos", child.Position)
+                end
+                child.Visible = false
+                child.Position = UDim2.new(5, 0, 5, 0)
+
+                local scale = child:FindFirstChildOfClass("UIScale")
+                if not scale then
+                    scale = Instance.new("UIScale")
+                    scale.Parent = child
+                end
+                scale.Scale = 0
+            end
+        end
+        MainWindGui.Enabled = false
     end
 
     pcall(function()
-        if Window.SetVisible then
-            Window:SetVisible(visible)
-        end
-        if Window.Visible ~= nil then
-            Window.Visible = visible
-        end
+        if Window.SetVisible then Window:SetVisible(visible) end
+        if Window.Visible ~= nil then Window.Visible = visible end
     end)
 end
 
@@ -506,7 +529,6 @@ local function CreateSideButton()
     stroke.Thickness = 1.5
     stroke.Parent = btn
 
-    -- 点击切换
     btn.MouseButton1Click:Connect(function()
         if MinimizeMode ~= "button" then return end
 
@@ -518,16 +540,10 @@ local function CreateSideButton()
             Notify("UI", newState and "已显示" or "已完全隐藏", 1.5)
         else
             Notify("错误", "没找到 WindUI 窗口", 3)
-            print("[甩飞] 当前 CoreGui ScreenGui 列表：")
-            for _, g in ipairs(CoreGui:GetChildren()) do
-                if g:IsA("ScreenGui") then
-                    print(" -", g.Name)
-                end
-            end
         end
     end)
 
-    -- 优化拖动（锁定第一根手指，防双指瞬移）
+    -- 拖动优化（锁定第一根手指）
     local dragging = false
     local dragInput = nil
     local dragStart = nil
