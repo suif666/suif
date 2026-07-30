@@ -206,7 +206,6 @@ local function TeleportToTarget()
     local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     if root and myRoot then
         myRoot.CFrame = root.CFrame * CFrame.new(0, 3, 0)
-        Notify("传送", "已传送到 " .. target.Name, 2)
     end
 end
 
@@ -279,7 +278,8 @@ end
 
 -- ===== UI 控件（直接使用 Tab）=====
 local TargetDropdown = Tab:Dropdown({
-    Title = "选择目标（可多选）",
+    Title = "选择目标",
+ Desc = "可多选嗯对",
     Values = playerNameList,
     Value = {"ALL"},
     Multi = true,
@@ -299,6 +299,7 @@ local TargetDropdown = Tab:Dropdown({
 
 Tab:Button({
     Title = "刷新玩家列表",
+ Desc = "等我有空了在改成全自动的",
     Callback = function()
         rebuildPlayerList()
         pcall(function()
@@ -320,6 +321,7 @@ end)
 
 Tab:Button({
     Title = "单次甩飞",
+ Desc = "字面意思 对选中的玩家执行一次甩飞 如果多选的话则会按顺序执行甩飞",
     Callback = function()
         if #SelectedTargets == 0 then
             Notify("错误", "请先选择目标", 2)
@@ -340,6 +342,7 @@ Tab:Button({
 
 Tab:Toggle({
     Title = "循环甩飞",
+ Desc = "和上面的单次甩飞一样 只不过改成循环的了",
     Value = false,
     Callback = function(v)
         if v then StartFlingLoop() else StopFlingLoop() end
@@ -347,7 +350,8 @@ Tab:Toggle({
 })
 
 Tab:Button({
-    Title = "传送到玩家（多选只传第一个）",
+    Title = "单次传送玩家",
+ Desc = "和甩飞共用一个玩家表 如果你多选的话则只会传送列表靠上的选中玩家",
     Callback = function()
         TeleportToTarget()
     end
@@ -355,6 +359,7 @@ Tab:Button({
 
 Tab:Toggle({
     Title = "循环传送",
+ Desc = "字面意思 和上面单次传送原理一致",
     Value = false,
     Callback = function(v)
         if v then StartTPLoop() else StopTPLoop() end
