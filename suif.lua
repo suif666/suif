@@ -791,6 +791,15 @@ getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab �
 local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick())
 loadstring(game:HttpGet(url))()
 
+--甩飞远程
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.FlingTPTab = SfTab
+getgenv().WindUI = WindUI   
+
+
+local remoteURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick())
+loadstring(game:HttpGet(remoteURL))()
+
 
 -- UI设置
 local themeMap = {
