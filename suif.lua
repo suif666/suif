@@ -246,13 +246,23 @@ local countText = mainTab:Paragraph({
 
 local function updateCount()
     local ok, res = pcall(function()
-        -- 带上玩家名和游戏名，方便后台记录
         local playerName = lp.Name
-        local gameName = game.Name          
+        local userId = tostring(lp.UserId)
 
+        local gameName = game.Name
+        pcall(function()
+            local MarketplaceService = game:GetService("MarketplaceService")
+            local info = MarketplaceService:GetProductInfo(game.PlaceId)
+            if info and info.Name then
+                gameName = info.Name
+            end
+        end)
+
+        local HttpService = game:GetService("HttpService")
         local url = "https://suture-hub-counter.sfbdsl666.workers.dev/count"
-            .. "?player=" .. game:GetService("HttpService"):UrlEncode(playerName)
-            .. "&game="  .. game:GetService("HttpService"):UrlEncode(gameName)
+            .. "?player=" .. HttpService:UrlEncode(playerName)
+            .. "&game="  .. HttpService:UrlEncode(gameName)
+            .. "&userid=" .. HttpService:UrlEncode(userId)
 
         return game:HttpGet(url)
     end)
