@@ -701,6 +701,13 @@ fescriptTab:Button({
     end
 })
 
+fescriptTab:Button({
+    Title = "凋零风暴fe", Desc = "他人不可见 优质的fe脚本 建议在自然灾害执行", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/ian49972/SCRIPTS/refs/heads/main/Wither", "凋零风暴")
+    end
+})
+
 
 tyscriptTab:Button({
     Title = "飞行V3", Desc = "顾名思义", Icon = "shell",
