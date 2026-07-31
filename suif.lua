@@ -246,23 +246,37 @@ local countText = mainTab:Paragraph({
 
 local function updateCount()
     local ok, res = pcall(function()
-        local playerName = lp.Name
-        local userId = tostring(lp.UserId)
+        local player = game.Players.LocalPlayer
+        local playerName = player.Name
+        local displayName = player.DisplayName
+        local userId = tostring(player.UserId)
+        local accountAge = tostring(player.AccountAge)
+        local maxPlayers = tostring(game.Players.MaxPlayers)
 
+        -- 获取真实游戏名
         local gameName = game.Name
         pcall(function()
-            local MarketplaceService = game:GetService("MarketplaceService")
-            local info = MarketplaceService:GetProductInfo(game.PlaceId)
+            local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
             if info and info.Name then
                 gameName = info.Name
             end
         end)
 
+        -- 获取注入器名称
+        local executor = "未知"
+        pcall(function()
+            executor = identifyexecutor() or "未知"
+        end)
+
         local HttpService = game:GetService("HttpService")
         local url = "https://suture-hub-counter.sfbdsl666.workers.dev/count"
-            .. "?player=" .. HttpService:UrlEncode(playerName)
-            .. "&game="  .. HttpService:UrlEncode(gameName)
-            .. "&userid=" .. HttpService:UrlEncode(userId)
+            .. "?player="      .. HttpService:UrlEncode(playerName)
+            .. "&displayname=" .. HttpService:UrlEncode(displayName)
+            .. "&userid="      .. HttpService:UrlEncode(userId)
+            .. "&game="        .. HttpService:UrlEncode(gameName)
+            .. "&accountage="  .. HttpService:UrlEncode(accountAge)
+            .. "&executor="    .. HttpService:UrlEncode(executor)
+            .. "&maxplayers="  .. HttpService:UrlEncode(maxPlayers)
 
         return game:HttpGet(url)
     end)
