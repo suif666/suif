@@ -837,7 +837,7 @@ fescriptTab:Button({
 
 gnjbTab:Paragraph({
     Title = "注意",
-    Desc = "我只收录我QQ群里看得见的脚本 不论好坏"
+    Desc = "我只收录我QQ群里看得见的脚本 不论好坏 如果你不想让你的脚本出现在这里 可以点击右上角反馈按钮进行反馈"
 })
 
 gnjbTab:Button({
