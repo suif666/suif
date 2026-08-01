@@ -244,7 +244,7 @@ local function AddFeature(name)
         return
     end
 
-    if name == "夜脚本" then
+    if name == "缝合hub" then
         -- 强制放在第一位
         table.insert(EnabledFeatures, 1, name)
     else
