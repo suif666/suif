@@ -891,6 +891,13 @@ getgenv().WindUI = WindUI
 local remoteURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick())
 loadstring(game:HttpGet(remoteURL))()
 
+tyscriptTab:Button({
+    Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/4LzyCSnp", "已成功绕过群组检测")
+    end
+})
+
 
 -- UI设置
 local themeMap = {
