@@ -848,7 +848,7 @@ gnjbTab:Button({
 })
 
 gnjbTab:Button({
-    Title = "霖溺脚本", Desc = "国内脚本 群[744830231]", Icon = "shell",
+    Title = "霖溺脚本", Desc = "国内脚本 群[744830231] 需加入roblox指定社区", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/ShenJiaoBen/ScriptLoader/refs/heads/main/Linni_FreeLoader.lua", "霖溺")
     end
