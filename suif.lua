@@ -834,6 +834,12 @@ fescriptTab:Button({
     end
 })
 
+
+gnjbTab:Paragraph({
+    Title = "注意",
+    Desc = "我只收录我QQ群里看得见的脚本 不论好坏"
+})
+
 gnjbTab:Button({
     Title = "夜脚本", Desc = "国内脚本 群[711757444]", Icon = "shell",
     Callback = function()
@@ -865,7 +871,7 @@ gnjbTab:Button({
 gnjbTab:Button({
     Title = "kunkun脚本", Desc = "国内脚本 群[1009291930]", Icon = "shell",
     Callback = function()
-        run("", "kunkun脚本")
+        run("https://pastebin.com/raw/cfCbSrqr", "kunkun脚本")
     end
 })
 
