@@ -273,7 +273,7 @@ local Scripts = {
     end,
 }
 
-SfTab:Dropdown({
+Tab:Dropdown({
     Title = "甩飞外部脚本",
 Desc = "选中之后点下面的执行可以就可以执行选中的脚本啦",
     Values = {"碰撞甩飞", "动作甩飞",},
@@ -283,7 +283,7 @@ Desc = "选中之后点下面的执行可以就可以执行选中的脚本啦",
     end,
 })
 
-SfTab:Button({
+Tab:Button({
     Title = "执行",
 Desc = "执行上面单选框里面选择的外部脚本",
     Callback = function()
