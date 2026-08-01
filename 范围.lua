@@ -276,6 +276,8 @@ Tab:Toggle({
     end
 })
 
+Tab:Space()
+
 Tab:Dropdown({
     Title = "放大对象",
     Values = {"玩家", "NPC", "全部"},
