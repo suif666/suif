@@ -290,7 +290,7 @@ Tab:Button({
     end,
 })
 
-
+Tab:Divider()
 
 
 local function StartTPLoop()
