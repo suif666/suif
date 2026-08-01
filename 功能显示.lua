@@ -1,7 +1,6 @@
 --[[
-    功能显示系统 · 现代化独立版
+    功能显示系统 · 无大黑框 · 逻辑修复版
     基于 WindUI
-    已修复重复生成问题 + 视觉升级
 ]]
 
 -- ================= 加载 WindUI =================
@@ -9,50 +8,26 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 
 -- ================= 功能显示系统 =================
 local FeatureDisplayEnabled = true
-local EnabledFeatures = {}          -- 严格唯一列表
+local EnabledFeatures = {}          -- 唯一数据源
 local FeatureItems = {}             -- name → Frame
 
-local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local TextService = game:GetService("TextService")
-local RunService = game:GetService("RunService")
 
--- 主容器
+-- 主界面（完全透明，只用来放条目）
 local FeatureGui = Instance.new("ScreenGui")
 FeatureGui.Name = "FeatureDisplay_Modern"
 FeatureGui.ResetOnSpawn = false
 FeatureGui.IgnoreGuiInset = true
 FeatureGui.Parent = game:GetService("CoreGui")
 
--- 整体背景面板（玻璃拟态）
-local Panel = Instance.new("Frame")
-Panel.Name = "Panel"
-Panel.AnchorPoint = Vector2.new(1, 0)
-Panel.Position = UDim2.new(1, -14, 0, 14)
-Panel.Size = UDim2.new(0, 0, 0, 0) -- 会动态计算
-Panel.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-Panel.BackgroundTransparency = 0.35
-Panel.BorderSizePixel = 0
-Panel.Visible = false
-Panel.Parent = FeatureGui
-
-local PanelCorner = Instance.new("UICorner")
-PanelCorner.CornerRadius = UDim.new(0, 12)
-PanelCorner.Parent = Panel
-
-local PanelStroke = Instance.new("UIStroke")
-PanelStroke.Thickness = 1
-PanelStroke.Color = Color3.fromRGB(255, 255, 255)
-PanelStroke.Transparency = 0.88
-PanelStroke.Parent = Panel
-
--- 列表容器
 local Container = Instance.new("Frame")
 Container.Name = "Container"
-Container.Size = UDim2.new(1, -16, 1, -16)
-Container.Position = UDim2.new(0, 8, 0, 8)
+Container.AnchorPoint = Vector2.new(1, 0)
+Container.Position = UDim2.new(1, -14, 0, 14)
+Container.Size = UDim2.new(0, 220, 0, 500)
 Container.BackgroundTransparency = 1
-Container.Parent = Panel
+Container.Parent = FeatureGui
 
 local UIList = Instance.new("UIListLayout")
 UIList.Padding = UDim.new(0, 6)
@@ -60,7 +35,7 @@ UIList.HorizontalAlignment = Enum.HorizontalAlignment.Right
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Parent = Container
 
--- 彩虹颜色
+-- 彩虹
 local function Rainbow(offset)
     return Color3.fromHSV((tick() * 0.18 + (offset or 0)) % 1, 0.85, 1)
 end
@@ -78,7 +53,7 @@ local function CreateFeatureItem(name, index)
     local item = Instance.new("Frame")
     item.Name = name
     item.Size = UDim2.new(0, 0, 0, 0)
-    item.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+    item.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
     item.BackgroundTransparency = 1
     item.BorderSizePixel = 0
     item.ClipsDescendants = true
@@ -115,16 +90,15 @@ local function CreateFeatureItem(name, index)
     label.TextColor3 = Color3.fromRGB(235, 235, 240)
     label.Parent = item
 
-    -- 轻微描边让文字更清晰
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
-    stroke.Transparency = 0.7
+    stroke.Transparency = 0.65
     stroke.Color = Color3.new(0, 0, 0)
     stroke.Parent = label
 
-    -- 彩虹循环（指示条 + 文字轻微变化）
+    -- 彩虹循环
     task.spawn(function()
-        local t = index * 0.12
+        local t = index * 0.13
         while item and item.Parent do
             local c = Rainbow(t)
             if bar and bar.Parent then
@@ -137,51 +111,50 @@ local function CreateFeatureItem(name, index)
     return item, width
 end
 
--- 刷新整个列表（核心逻辑，已彻底防重复）
+-- 核心刷新函数（已重写）
 local function RefreshFeatureUI()
+    -- 关闭状态：销毁所有条目
     if not FeatureDisplayEnabled then
-        -- 隐藏时优雅收起
-        if Panel.Visible then
-            TweenService:Create(Panel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                BackgroundTransparency = 1
-            }):Play()
-            for _, item in pairs(FeatureItems) do
-                if item and item.Parent then
-                    TweenService:Create(item, TweenInfo.new(0.2), {
-                        BackgroundTransparency = 1,
-                        Size = UDim2.new(0, item.Size.X.Offset, 0, 0)
-                    }):Play()
-                end
-            end
-            task.delay(0.25, function()
-                Panel.Visible = false
-            end)
-        end
-        return
-    end
-
-    Panel.Visible = true
-    TweenService:Create(Panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0.35
-    }):Play()
-
-    -- 1. 删除不再存在的功能
-    for name, item in pairs(FeatureItems) do
-        if not table.find(EnabledFeatures, name) then
+        for name, item in pairs(FeatureItems) do
             if item and item.Parent then
-                TweenService:Create(item, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                TweenService:Create(item, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
                     Size = UDim2.new(0, item.Size.X.Offset * 0.7, 0, 0),
                     BackgroundTransparency = 1
                 }):Play()
 
                 local label = item:FindFirstChild("Label")
                 if label then
-                    TweenService:Create(label, TweenInfo.new(0.18), {
+                    TweenService:Create(label, TweenInfo.new(0.15), {
                         TextTransparency = 1
                     }):Play()
                 end
 
-                task.delay(0.25, function()
+                task.delay(0.22, function()
+                    if item then item:Destroy() end
+                end)
+            end
+        end
+        FeatureItems = {}
+        return
+    end
+
+    -- 开启状态：先删除多余的，再补缺失的
+    for name, item in pairs(FeatureItems) do
+        if not table.find(EnabledFeatures, name) then
+            if item and item.Parent then
+                TweenService:Create(item, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    Size = UDim2.new(0, item.Size.X.Offset * 0.7, 0, 0),
+                    BackgroundTransparency = 1
+                }):Play()
+
+                local label = item:FindFirstChild("Label")
+                if label then
+                    TweenService:Create(label, TweenInfo.new(0.15), {
+                        TextTransparency = 1
+                    }):Play()
+                end
+
+                task.delay(0.22, function()
                     if item then item:Destroy() end
                 end)
             end
@@ -189,63 +162,41 @@ local function RefreshFeatureUI()
         end
     end
 
-    -- 2. 添加缺失的功能
-    local maxWidth = 0
+    -- 补全缺失的条目
     for i, name in ipairs(EnabledFeatures) do
         if not FeatureItems[name] then
             local item, width = CreateFeatureItem(name, i)
             FeatureItems[name] = item
-            maxWidth = math.max(maxWidth, width)
 
             -- 飞入动画
-            item.Size = UDim2.new(0, width * 0.6, 0, 0)
+            item.Size = UDim2.new(0, width * 0.55, 0, 0)
             item.BackgroundTransparency = 1
 
             task.spawn(function()
-                task.wait(0.02 * i) -- 错开一点更自然
-                TweenService:Create(item, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                task.wait(0.03 * (i - 1))
+                TweenService:Create(item, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
                     Size = UDim2.new(0, width, 0, 26),
-                    BackgroundTransparency = 0.25
+                    BackgroundTransparency = 0.22
                 }):Play()
 
                 local label = item:FindFirstChild("Label")
                 if label then
                     task.wait(0.08)
-                    TweenService:Create(label, TweenInfo.new(0.25), {
+                    TweenService:Create(label, TweenInfo.new(0.22), {
                         TextTransparency = 0
                     }):Play()
                 end
             end)
-        else
-            -- 已存在的也更新一下宽度记录
-            local item = FeatureItems[name]
-            if item then
-                maxWidth = math.max(maxWidth, item.Size.X.Offset)
-            end
         end
     end
-
-    -- 3. 动态调整面板大小
-    local count = #EnabledFeatures
-    local height = count > 0 and (count * 32 + 10) or 0
-    local targetWidth = math.clamp(maxWidth + 20, 120, 220)
-
-    TweenService:Create(Panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, targetWidth, 0, height)
-    }):Play()
 end
 
--- 添加功能（严格防重复）
+-- 添加功能（防重复）
 local function AddFeature(name)
     if not name or name == "" then return end
+    if table.find(EnabledFeatures, name) then return end
 
-    -- 已存在则直接返回
-    if table.find(EnabledFeatures, name) then
-        return
-    end
-
-    if name == "缝合hub" then
-        -- 强制放在第一位
+    if name == "夜脚本" then
         table.insert(EnabledFeatures, 1, name)
     else
         table.insert(EnabledFeatures, name)
@@ -265,16 +216,16 @@ local function RemoveFeature(name)
     RefreshFeatureUI()
 end
 
--- 初始化时只添加一次“夜脚本”
+-- 初始化只添加一次夜脚本
 task.defer(function()
     AddFeature("夜脚本")
 end)
 
 -- ================= WindUI 窗口 =================
 local Window = WindUI:CreateWindow({
-    Title = "功能显示 · 现代版",
-    Author = "优化版",
-    Folder = "FeatureDisplayModern",
+    Title = "功能显示 · 修复版",
+    Author = "无大黑框",
+    Folder = "FeatureDisplayFix",
     Size = UDim2.fromOffset(430, 380),
     Transparent = true,
     Theme = "Dark",
@@ -298,30 +249,30 @@ Tab:Toggle({
 
 Tab:Paragraph({
     Title = "说明",
-    Desc = "右上角现代化功能列表\n已修复重复生成问题，视觉已升级"
+    Desc = "已去掉外面大黑框\n关闭再打开会完整重建当前所有已开启功能"
 })
 
 Tab:Section({ Title = "演示开关" })
 
 local demoFeatures = {
-    { name = "速度修改", key = "速度修改" },
-    { name = "无限跳", key = "无限跳" },
-    { name = "穿墙", key = "穿墙" },
-    { name = "自由视角", key = "自由视角" },
-    { name = "玩家透视", key = "玩家透视" },
-    { name = "自瞄", key = "自瞄" },
-    { name = "夜视", key = "夜视" },
+    "速度修改",
+    "无限跳",
+    "穿墙",
+    "自由视角",
+    "玩家透视",
+    "自瞄",
+    "夜视",
 }
 
-for _, feat in ipairs(demoFeatures) do
+for _, name in ipairs(demoFeatures) do
     Tab:Toggle({
-        Title = feat.name,
+        Title = name,
         Default = false,
         Callback = function(v)
             if v then
-                AddFeature(feat.key)
+                AddFeature(name)
             else
-                RemoveFeature(feat.key)
+                RemoveFeature(name)
             end
         end
     })
@@ -346,8 +297,9 @@ Tab:Button({
             end
         end
         EnabledFeatures = keep
-        -- 强制清理所有条目后重建
-        for name, item in pairs(FeatureItems) do
+
+        -- 强制清空视觉
+        for _, item in pairs(FeatureItems) do
             if item then item:Destroy() end
         end
         FeatureItems = {}
@@ -357,7 +309,7 @@ Tab:Button({
 
 WindUI:Notify({
     Title = "加载成功",
-    Content = "现代化功能显示已启动",
+    Content = "功能显示已修复",
     Duration = 3,
     Icon = "check"
 })
