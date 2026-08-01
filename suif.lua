@@ -876,6 +876,13 @@ gnjbTab:Button({
     end
 })
 
+gnjbTab:Button({
+    Title = "TrashHub脚本", Desc = "国内脚本 群[786284990]", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/WasKKal/OnlyJumpToOther/main/loader.lua", "TrashHub脚本")
+    end
+})
+
 --范围远程
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
