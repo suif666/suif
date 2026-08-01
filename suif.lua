@@ -161,6 +161,7 @@ local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false 
 
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
+local gnjbTab = scriptSec:Tab({ Title = "国内脚本", Icon = "shell", Opened = false })
 local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
 local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
 local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
@@ -830,6 +831,41 @@ fescriptTab:Button({
     Title = "召唤吉吉fe", Desc = "他人不可见 嗯对没有蛋仔。", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/fqm5dDXN", "召唤吉吉fe")
+    end
+})
+
+gnjbTab:Button({
+    Title = "夜脚本", Desc = "国内脚本 群[711757444]", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/ylt410/roblox-Script/refs/heads/main/yejiaoben", "夜脚本")
+    end
+})
+
+gnjbTab:Button({
+    Title = "霖溺脚本", Desc = "国内脚本 群[744830231]", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/ShenJiaoBen/ScriptLoader/refs/heads/main/Linni_FreeLoader.lua", "霖溺")
+    end
+})
+
+gnjbTab:Button({
+    Title = "XA脚本", Desc = "国内脚本 群[1057545155] 可能有时执行不了", Icon = "shell",
+    Callback = function()
+        run("https://raw.gitcode.com/Xingtaiduan/Scripts/raw/main/Loader.lua", "XA脚本")
+    end
+})
+
+gnjbTab:Button({
+    Title = "黑白脚本", Desc = "国内脚本 群[1062578052]", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/tfcygvunbind/Apple/main/", "黑白脚本")
+    end
+})
+
+gnjbTab:Button({
+    Title = "kunkun脚本", Desc = "国内脚本 群[1009291930]", Icon = "shell",
+    Callback = function()
+        run("", "kunkun脚本")
     end
 })
 
