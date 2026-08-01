@@ -259,7 +259,7 @@ local function StopFlingLoop()
     Notify("甩飞", "循环甩飞已停止", 2)
 end
 
-local selected = "甩飞"
+local selected = "选择脚本"
 
 local Scripts = {
     ["碰撞甩飞"] = function()
@@ -274,7 +274,7 @@ Tab:Dropdown({
     Title = "甩飞外部脚本",
     Desc = "选中之后点下面的执行就可以执行选中的脚本",
     Values = {"碰撞甩飞", "动作甩飞"},
-    Value = "甩飞",
+    Value = "选择脚本",
     Callback = function(v)
         selected = v
     end,
@@ -290,7 +290,7 @@ Tab:Button({
     end,
 })
 
-Tab:Divider()
+Tab:Space()
 
 
 local function StartTPLoop()
