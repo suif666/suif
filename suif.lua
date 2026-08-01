@@ -179,6 +179,7 @@ local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Lock
 local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
 local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
 local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
+local nzyhhyTab = scriptSec:Tab({ Title = "内脏与黑火药/GB", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -895,6 +896,13 @@ tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/4LzyCSnp", "已成功绕过群组检测")
+    end
+})
+
+nzyhhyTab:Button({
+    Title = "内脏与黑火药Skin4.1", Desc = "国内脚本 群[1079452161] 搜不到就是禁止加入了", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/wzhxll/Invincible-Willow-Leaf/refs/heads/main/Skin%20HUB%204.1.lua", "内脏与黑火药Skin")
     end
 })
 
