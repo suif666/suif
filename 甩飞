@@ -259,6 +259,43 @@ local function StopFlingLoop()
     Notify("甩飞", "循环甩飞已停止", 2)
 end
 
+local selected = "甩飞脚本"
+
+local Scripts = {
+    ["碰撞甩飞"] = function()
+        https://rawscripts.net/raw/Universal-Script-Touch-fling-script-22447
+        print("执行脚本1")
+    end,
+
+    ["动作甩飞"] = function()
+        https://pastebin.com/raw/G63dPf2H
+        print("执行脚本2")
+    end,
+}
+
+SfTab:Dropdown({
+    Title = "甩飞外部脚本",
+Desc = "选中之后点下面的执行可以就可以执行选中的脚本啦",
+    Values = {"碰撞甩飞", "动作甩飞",},
+    Value = "甩飞脚本",
+    Callback = function(v)
+        selected = v
+    end,
+})
+
+SfTab:Button({
+    Title = "执行",
+Desc = "执行上面单选框里面选择的外部脚本",
+    Callback = function()
+        if Scripts[selected] then
+            Scripts[selected]()
+        end
+    end,
+})
+
+
+
+
 local function StartTPLoop()
     if TP_Loop then return end
     TP_Loop = true
