@@ -915,7 +915,7 @@ nzyhhyTab:Button({
     end
 })
 
-nzyhhyTab:Button({
+zrzhTab:Button({
     Title = "未锚定部件吸附", Desc = "花样龙卷风 还可以嫁祸别人 嗯对反正我用不明白", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E9%BB%91%E6%B4%9E.lua", "未锚定部件吸附")
