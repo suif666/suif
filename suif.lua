@@ -48,23 +48,6 @@ local function copy(text, msg)
     end
 end
 
-local function run(url, name)
-    local ok, err = pcall(function()
-        local source = game:HttpGet(url)
-        local fn, compileErr = loadstring(source)
-        if not fn then
-            error(compileErr)
-        end
-        fn()
-    end)
-
-    if ok then
-        notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
-    else
-        warn("执行失败: " .. tostring(err))
-    end
-end
-
 local function getHum()
     local c = lp.Character
     return c and c:FindFirstChildOfClass("Humanoid")
