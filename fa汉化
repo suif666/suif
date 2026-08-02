@@ -592,7 +592,7 @@ StartTranslationEngine()
 --====================================================
 -- 原脚本链接放这里
 --====================================================
-local ScriptUrl = "https://raw.githubusercontent.com/ivannetta/ShitScripts/main/forsaken.lua"
+local ScriptUrl = "https://raw.githubusercontent.com/ivannetta/ShitScripts/refs/heads/main/".."forsaken.lua"
 
 task.wait(0.5)
 
