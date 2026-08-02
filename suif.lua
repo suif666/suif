@@ -146,10 +146,12 @@ task.delay(1, function()
     end
 end)
 
--- tabs
+-- 主页
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
+mainTab:Select()
 
--- sections
+
+-- 功能类
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
@@ -158,7 +160,7 @@ local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = fals
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
 
-
+-- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
 local gnjbTab = scriptSec:Tab({ Title = "国内脚本", Icon = "shell", Opened = false })
