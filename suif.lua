@@ -935,7 +935,7 @@ settingsTab:Dropdown({
 WindUI:Notify({
     Title = "Suture Hub",
     Content = "成功加载全部功能！",
-    Icon = "bird",
+    Icon = "aperture",
     Duration = 3
 })
 
