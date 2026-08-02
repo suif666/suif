@@ -942,6 +942,6 @@ WindUI:Notify({
 WindUI:Notify({
     Title = "小提示",
     Content = "遇到什么问题/没有自己想玩的服务器/脚本没法执行可以点右上角的反馈按钮进行反馈",
-    Icon = "bird",
+    Icon = "message-square-warning",
     Duration = 10
 })
