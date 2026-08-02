@@ -932,4 +932,10 @@ settingsTab:Dropdown({
     end
 })
 
-notify("Suture Hub", "成功加载全部功能！", "bird", 3)
+WindUI:Notify({
+    Title = "Suture Hub",
+    Content = "成功加载全部功能！",
+    Icon = "bird",
+    Duration = 3
+})
+
