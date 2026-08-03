@@ -182,6 +182,7 @@ local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Lock
 local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
 local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
 local nzyhhyTab = scriptSec:Tab({ Title = "内脏与黑火药/GB", Icon = "shell", Locked = false })
+local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -919,6 +920,13 @@ zrzhTab:Button({
     Title = "未锚定部件吸附", Desc = "花样龙卷风 还可以嫁祸别人 嗯对反正我用不明白", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E9%BB%91%E6%B4%9E.lua", "未锚定部件吸附")
+    end
+})
+
+nljjcTab:Button({
+    Title = "能力竞技场", Desc = "外网很多人在用 就搬过来了 不适合演戏 不适合手机游玩 功能挺多", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%83%BD%E5%8A%9B%E7%AB%9E%E6%8A%80%E5%9C%BA.lua", "能力竞技场")
     end
 })
 
