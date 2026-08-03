@@ -904,6 +904,13 @@ gnjbTab:Button({
     end
 })
 
+gnjbTab:Button({
+    Title = "Rb脚本", Desc = "国内脚本 群[1018099361]", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/Yungengxin/roblox/refs/heads/main/Rb-Hub", "Rb脚本")
+    end
+})
+
 --范围远程
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
