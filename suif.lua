@@ -415,6 +415,13 @@ playerTab:Button({
     end
 })
 
+fyTab:Paragraph({
+    Title = "注意",
+    Desc = "先用别人写好的 等我用空了在自己写一个"
+})
+
+fyTab:Select()
+
 fyTab:Button({
     Title = "devastate翻译", Desc = "字面意思", Icon = "shell",
     Callback = function()
@@ -844,6 +851,8 @@ gnjbTab:Paragraph({
     Title = "注意",
     Desc = "我只收录我QQ群里看得见的脚本 不论好坏 如果你不想让你的脚本出现在这里 可以点击右上角反馈按钮进行反馈"
 })
+
+gnjbTab:Select()
 
 gnjbTab:Button({
     Title = "夜脚本", Desc = "国内脚本 群[711757444]", Icon = "shell",
