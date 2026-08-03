@@ -858,7 +858,12 @@ getgenv().WindUI = WindUI
 local remoteURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick())
 loadstring(game:HttpGet(remoteURL))()
 
---显示ping fps值远程
+--ping fps显示
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.PingFPSTab = pingfpsTab
+
+local url = "https://github.com/suif666/suif/edit/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick())
+loadstring(game:HttpGet(url))()
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
