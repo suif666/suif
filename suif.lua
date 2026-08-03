@@ -931,7 +931,7 @@ loadstring(game:HttpGet(remoteURL))()
 
 --显示ping fps值远程
 getgenv().Tabs = getgenv().Tabs or {}
-getgenv().Tabs.pingfpsTab = 你的Tab变量名
+getgenv().Tabs.PingFPSTab = pingfpsTab
 
 local url = "https://github.com/suif666/suif/edit/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick())
 loadstring(game:HttpGet(url))()
