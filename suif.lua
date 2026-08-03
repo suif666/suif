@@ -183,6 +183,7 @@ local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell"
 local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
 local nzyhhyTab = scriptSec:Tab({ Title = "内脏与黑火药/GB", Icon = "shell", Locked = false })
 local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Locked = false })
+local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -595,7 +596,7 @@ doorsTab:Button({
 })
 
 doorsTab:Button({
-    Title = "mspaint",
+    Title = "[🔑]mspaint",
     Desc = "需卡密 超好用",
     Icon = "shell",
     Callback = function()
@@ -610,53 +611,53 @@ doorsTab:Button({
 })
 
 byqTab:Button({
-    Title = "fart[suif汉化]", Desc = "无卡密 个人感觉很好用", Icon = "shell",
+    Title = "fart[suif汉化]", Desc = "个人感觉很好用", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/fa%E6%B1%89%E5%8C%96", "被遗弃脚本") end
 })
 
 byqTab:Button({
-    Title = "jnkie", Desc = "无卡密 依旧国外大手子制作", Icon = "shell",
+    Title = "jnkie", Desc = "依旧国外大手子制作", Icon = "shell",
     Callback = function() run("https://api.jnkie.com/api/v1/luascripts/public/d36d2b96db2abcbb0f20b5c556b53cc5260ff74db0f8bfc3bea83eaa1da7947f/download", "被遗弃脚本02") 
 end
 })
 
 stgTab:Button({
-    Title = "叶子", Desc = "需卡密 好长时间都没有更新了...", Icon = "shell",
+    Title = "[🔑]叶子", Desc = "好长时间都没有更新了...", Icon = "shell",
     Callback = function() run("https://getnative.cc/script/loader", "死铁轨叶子") end
 })
 
 stgTab:Button({
-    Title = "ringta[suif汉化]", Desc = "无卡密 应该是最好用", Icon = "shell",
+    Title = "ringta[suif汉化]", Desc = "应该是最好用", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
 })
 
 stgTab:Button({
-    Title = "Alkaline[suif汉化]", Desc = "无卡密 对ringta拙劣的模仿 但还是有自己的功能的", Icon = "shell",
+    Title = "Alkaline[suif汉化]", Desc = "对ringta拙劣的模仿 但还是有自己的功能的", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%AD%BB%E9%93%81%E8%BD%A8alkaline", "死铁轨Alkaline") end
 })
 
 stgTab:Button({
-    Title = "死铁轨刷债券", Desc = "无卡密 速度也是非常快好吧 蜗牛在修复司马😡😡😡", Icon = "shell",
+    Title = "死铁轨刷债券", Desc = "速度也是非常快好吧 蜗牛在修复司马😡😡😡", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/afkar-gg/sc/refs/heads/main/auto-bond", "死铁轨刷债券") end
 })
 
 slTab:Button({
-    Title = "扫雷", Desc = "无卡密 支持服务器bLockerman's Minesweeper", Icon = "shell",
+    Title = "扫雷", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
     Callback = function() run("https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download", "扫雷") end
 })
 
 slTab:Button({
-    Title = "扫雷02", Desc = "无卡密 支持服务器bLockerman's Minesweeper", Icon = "shell",
+    Title = "扫雷02", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='", "扫雷") end
 })
 
 fkgsTab:Button({
-    Title = "方块故事[suif汉化]", Desc = "无卡密 支持方块故事战斗模拟器", Icon = "shell",
+    Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
 })
 
 zrzhTab:Button({
-    Title = "自然灾害 龙卷风", Desc = "无卡密 大风车呀滴溜溜的转...", Icon = "shell",
+    Title = "自然灾害 龙卷风", Desc = "大风车呀滴溜溜的转...", Icon = "shell",
     Callback = function() run("https://pastebin.com/raw/JR7RBh2a", "自然灾害") end
 })
 
@@ -666,7 +667,7 @@ xesqTab:Button({
 })
 
 wqkTab:Button({
-    Title = "武器库 静默瞄准", Desc = "无卡密 没有esp 但是有静默瞄准", Icon = "shell",
+    Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua", "武器库")
     end
@@ -700,7 +701,7 @@ fescriptTab:Button({
 })
 
 fescriptTab:Button({
-    Title = "fe死亡[suif汉化]", Desc = "他人可见 优质的动作脚本。。", Icon = "shell",
+    Title = "fe死亡[suif汉化]", Desc = "他人可见 优质的动作脚本", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/uhhhhhh.lua", "uhhhh")
     end
@@ -729,35 +730,35 @@ tyscriptTab:Button({
 })
 
 dwyyTab:Button({
-    Title = "动物医院 自动类01[suif汉化]", Desc = "需卡密 有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
+    Title = "[🔑]动物医院 自动类01[suif汉化]", Desc = "有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/HBtj3VFu", "动物医院")
     end
 })
 
 dwyyTab:Button({
-    Title = "动物医院 自动类02[suif汉化]", Desc = "需卡密 有些事件需要手动去完成 没测试最高多少天", Icon = "shell",
+    Title = "[🔑]动物医院 自动类02[suif汉化]", Desc = "有些事件需要手动去完成 没测试最高多少天", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/pFzZvHum", "动物医院02")
     end
 })
 
 dwyyTab:Button({
-    Title = "动物医院 自动类03[suif汉化]", Desc = "需卡密 高度自定义 至少ui挺好看 不好用", Icon = "shell",
+    Title = "[🔑]动物医院 自动类03[suif汉化]", Desc = "高度自定义 至少ui挺好看 不好用", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8F.lua", "动物医院03")
     end
 })
 
 dwyyTab:Button({
-    Title = "动物医院 自动类04[suif汉化]", Desc = "无卡密 美丽ui 挺好用 就是容易治死人导致游戏结束 等作者优化吧 启动时会有雷霆大叫[调低音量]", Icon = "shell",
+    Title = "动物医院 自动类04[suif汉化]", Desc = "美丽ui 挺好用 就是容易治死人导致游戏结束 等作者优化吧 启动时会有雷霆大叫[调低音量]", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2Foxname%5Bsuifhanghang%5D.lua", "动物医院04")
     end
 })
 
 pghsTab:Button({
-    Title = "排干湖水 自动类01[suif汉化]", Desc = "无卡密    离售卖机远了没法自动售卖  15分钟左右通关", Icon = "shell",
+    Title = "排干湖水 自动类01[suif汉化]", Desc = "离售卖机远了没法自动售卖  15分钟左右通关", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/heads/main/%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
     end
@@ -776,21 +777,21 @@ lcTab:Button({
 })
 
 zhyfxTab:Button({
-    Title = "最后一封信 自动类01[suif汉化]", Desc = "无卡密 有些词脚本想不出来 还是人脑牛逼👍🏻👍🏻👍🏻", Icon = "shell",
+    Title = "最后一封信 自动类01[suif汉化]", Desc = "有些词脚本想不出来 还是人脑牛逼👍🏻👍🏻👍🏻", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%99%E4%B8%80%E5%B0%81%E4%BF%A1%5B%E6%B1%89%E5%8C%96%5D.lua", "最后一封信01")
     end
 })
 
 sxmsaTab:Button({
-    Title = "数学谋杀案 自动类01[suif汉化]", Desc = "无卡密 这游戏有什么好开的。。", Icon = "shell",
+    Title = "数学谋杀案 自动类01[suif汉化]", Desc = "这游戏有什么好开的。。", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%5B%E6%B1%89%E5%8C%96%5D.lua", "数学谋杀案01")
     end
 })
 
 zbjscqtTab:Button({
-    Title = "在北极生存7天 自动类01[suif汉化]", Desc = "需卡密 加载时间可能比较长 不好用", Icon = "shell",
+    Title = "[🔑]在北极生存7天 自动类01[suif汉化]", Desc = "加载时间可能比较长 不好用", Icon = "shell",
     Callback = function()
         local link = "https://wayoutscript.netlify.app/getkey"
         if setclipboard then
@@ -924,9 +925,16 @@ zrzhTab:Button({
 })
 
 nljjcTab:Button({
-    Title = "能力竞技场", Desc = "外网很多人在用 就搬过来了 不适合演戏 不适合手机游玩 功能挺多", Icon = "shell",
+    Title = "[🔑]能力竞技场", Desc = "外网很多人在用 就搬过来了 不适合演戏 不适合手机游玩 功能挺多", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%83%BD%E5%8A%9B%E7%AB%9E%E6%8A%80%E5%9C%BA.lua", "能力竞技场")
+    end
+})
+
+bdh2Tab:Button({
+    Title = "[🔑]冰大亨2[自动化]", Desc = "功能很多 自动化功能全开之后就可以睡觉了😛😛😛", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%B0%E5%A4%A7%E4%BA%A82.lua", "冰大亨2")
     end
 })
 
