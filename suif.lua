@@ -862,7 +862,7 @@ loadstring(game:HttpGet(remoteURL))()
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.PingFPSTab = pingfpsTab
 
-local url = "https://github.com/suif666/suif/edit/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick())
+local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick())
 loadstring(game:HttpGet(url))()
 
 tyscriptTab:Button({
