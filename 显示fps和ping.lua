@@ -3,10 +3,10 @@
     依赖主脚本：getgenv().Tabs.PingFPSTab = Tab
 ]]
 
-local Tab = getgenv().Tabs and getgenv().Tabs.visualTab
+local Tab = getgenv().Tabs and getgenv().Tabs.pingfpsTab
 
 if not Tab then
-    warn("[PingFPS] 未找到 getgenv().Tabs.visualTab，请检查主脚本是否正确赋值")
+    warn("[PingFPS] 未找到 getgenv().Tabs.pingfpsTab，请检查主脚本是否正确赋值")
     return
 end
 
