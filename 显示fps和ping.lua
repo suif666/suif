@@ -3,10 +3,10 @@
     依赖主脚本：getgenv().Tabs.PingFPSTab = Tab
 ]]
 
-local Tab = getgenv().Tabs and getgenv().Tabs.pingfpsTab
+local Tab = getgenv().Tabs and getgenv().Tabs.PingFPSTab
 
 if not Tab then
-    warn("[PingFPS] 未找到 getgenv().Tabs.pingfpsTab，请检查主脚本是否正确赋值")
+    warn("[PingFPS] 未找到 getgenv().Tabs.PingFPSTab，请检查主脚本是否正确赋值")
     return
 end
 
@@ -141,7 +141,6 @@ end)
 -- ==================== 往主脚本传入的 Tab 添加 UI ====================
 Tab:Toggle({
     Title = "启用 Ping & FPS 显示",
-            Desc = "感觉没有多大用处",
     Value = true,
     Callback = function(value)
         Config.Enabled = value
@@ -151,7 +150,6 @@ Tab:Toggle({
 
 Tab:Dropdown({
     Title = "显示位置",
-            Desc = "可以调整显示的位置",
     Values = {"左上", "右上", "左下", "右下"},
     Value = "右上",
     Callback = function(selected)
@@ -162,7 +160,6 @@ Tab:Dropdown({
 
 Tab:Slider({
     Title = "显示大小",
-            Desc = "可以调整ping/FPS的字体大小",
     Step = 1,
     Value = {
         Min = 12,
