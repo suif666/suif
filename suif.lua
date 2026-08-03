@@ -240,6 +240,11 @@ end)
 
 -- 主页
 
+Tab:Paragraph({
+    Title = "小提醒",
+    Desc = "脚本右上角可以进行反馈\n脚本名字带有[🔑]则需要卡密 没有就是不需要"
+})
+
 mainTab:Paragraph({
     Title = "Suture Hub",
     Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name
@@ -302,6 +307,8 @@ local function updateCount()
 end
 
 task.spawn(updateCount)
+
+mainTab:Select()
 
 -- 玩家
 getgenv().SutureMoveCfg = getgenv().SutureMoveCfg or {
@@ -420,7 +427,7 @@ fyTab:Paragraph({
     Desc = "先用别人写好的 等我用空了在自己写一个"
 })
 
-fyTab:Select()
+fyTab:Space()
 
 fyTab:Button({
     Title = "devastate翻译", Desc = "字面意思", Icon = "shell",
@@ -852,7 +859,7 @@ gnjbTab:Paragraph({
     Desc = "我只收录我QQ群里看得见的脚本 不论好坏 如果你不想让你的脚本出现在这里 可以点击右上角反馈按钮进行反馈"
 })
 
-gnjbTab:Select()
+gnjbTab:Space()
 
 gnjbTab:Button({
     Title = "夜脚本", Desc = "国内脚本 群[711757444]", Icon = "shell",
@@ -945,7 +952,7 @@ bdh2Tab:Paragraph({
     Desc = "这个神人服务器长期霸占我主页 不找脚本有点过不去了"
 })
 
-bdh2Tab:Select()
+bdh2Tab:Space()
 
 bdh2Tab:Button({
     Title = "[🔑]冰大亨2[自动化]", Desc = "功能很多 自动化功能全开之后就可以睡觉了😛😛😛", Icon = "shell",
@@ -980,7 +987,7 @@ WindUI:Notify({
 
 WindUI:Notify({
     Title = "小提示",
-    Content = "遇到什么问题/没有自己想玩的服务器/脚本没法执行可以点右上角的反馈按钮进行反馈",
+    Content = "遇到什么问题\n没有自己想玩的服务器\n脚本没法执行\n可以点右上角的反馈按钮进行反馈",
     Icon = "message-square-warning",
     Duration = 10
 })
