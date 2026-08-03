@@ -240,7 +240,7 @@ end)
 
 -- 主页
 
-Tab:Paragraph({
+mainTab:Paragraph({
     Title = "小提醒",
     Desc = "脚本右上角可以进行反馈\n脚本名字带有[🔑]则需要卡密 没有就是不需要"
 })
