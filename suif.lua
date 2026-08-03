@@ -156,9 +156,12 @@ local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false 
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
 local SfTab = funcSec:Tab({ Title = "甩飞类", Icon = "user", Locked = false })
-local visualTab = funcSec:Tab({ Title = "高亮类", Icon = "sun", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
-local toolTab = funcSec:Tab({ Title = "工具", Icon = "wrench", Locked = false })
+local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
+
+-- 视觉类
+local shijueSec = funcSec:Tab({ Title = "视觉类", Icon = "palette", Locked = false })
+local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
@@ -923,9 +926,15 @@ getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI   
 
-
 local remoteURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick())
 loadstring(game:HttpGet(remoteURL))()
+
+--显示ping fps值远程
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.pingfpsTab = 你的Tab变量名
+
+local url = "https://github.com/suif666/suif/edit/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick())
+loadstring(game:HttpGet(url))()
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
