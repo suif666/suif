@@ -160,7 +160,7 @@ local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = fa
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
 
 -- 视觉类
-local shijueSec = funcSec:Tab({ Title = "视觉类", Icon = "palette", Locked = false })
+local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 
 -- 脚本类
