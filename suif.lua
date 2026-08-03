@@ -184,6 +184,7 @@ local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shel
 local nzyhhyTab = scriptSec:Tab({ Title = "内脏与黑火药/GB", Icon = "shell", Locked = false })
 local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Locked = false })
 local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
+local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -958,6 +959,13 @@ bdh2Tab:Button({
     Title = "[🔑]冰大亨2[自动化]", Desc = "功能很多 自动化功能全开之后就可以睡觉了😛😛😛", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%B0%E5%A4%A7%E4%BA%A82.lua", "冰大亨2")
+    end
+})
+
+zxdyTab:Button({
+    Title = "[🔑]重型钓鱼", Desc = "感觉中规中矩 要是觉得不好用再右上角反馈功能进行反馈", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E9%87%8D%E5%9E%8B%E9%92%93%E9%B1%BC.lua", "重型钓鱼")
     end
 })
 
