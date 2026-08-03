@@ -1,9 +1,14 @@
 --[[
-    Ping + FPS 显示脚本
-    使用 WindUI
+    远程脚本 - Ping + FPS 显示
+    依赖主脚本：getgenv().Tabs.PingFPSTab = Tab
 ]]
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Tab = getgenv().Tabs and getgenv().Tabs.PingFPSTab
+
+if not Tab then
+    warn("[PingFPS] 未找到 getgenv().Tabs.PingFPSTab，请检查主脚本是否正确赋值")
+    return
+end
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -13,20 +18,16 @@ local LocalPlayer = Players.LocalPlayer
 -- 配置
 local Config = {
     Enabled = true,
-    Position = "右上",          -- 默认位置
+    Position = "右上",
+    TextSize = 18,
 }
 
--- 位置对应表
+-- 位置对应表（只保留四角）
 local PositionMap = {
     ["左上"] = { AnchorPoint = Vector2.new(0, 0), Position = UDim2.new(0, 12, 0, 12) },
     ["右上"] = { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 12) },
     ["左下"] = { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 12, 1, -12) },
     ["右下"] = { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -12, 1, -12) },
-    ["上"]   = { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 12) },
-    ["下"]   = { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12) },
-    ["左"]   = { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 12, 0.5, 0) },
-    ["右"]   = { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0) },
-    ["中"]   = { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0) },
 }
 
 -- 创建显示界面
@@ -34,21 +35,27 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "PingFPSDisplay"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = CoreGui
+
+local success = pcall(function()
+    ScreenGui.Parent = CoreGui
+end)
+if not success then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
 
 local Frame = Instance.new("Frame")
 Frame.Name = "Main"
 Frame.BackgroundTransparency = 1
-Frame.Size = UDim2.new(0, 160, 0, 50)
+Frame.Size = UDim2.new(0, 180, 0, 55)
 Frame.Parent = ScreenGui
 
 local FPSLabel = Instance.new("TextLabel")
 FPSLabel.Name = "FPS"
 FPSLabel.BackgroundTransparency = 1
-FPSLabel.Size = UDim2.new(1, 0, 0, 24)
+FPSLabel.Size = UDim2.new(1, 0, 0, 26)
 FPSLabel.Position = UDim2.new(0, 0, 0, 0)
 FPSLabel.Font = Enum.Font.GothamBold
-FPSLabel.TextSize = 18
+FPSLabel.TextSize = Config.TextSize
 FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 140)
 FPSLabel.TextStrokeTransparency = 0.6
 FPSLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -58,17 +65,17 @@ FPSLabel.Parent = Frame
 local PingLabel = Instance.new("TextLabel")
 PingLabel.Name = "Ping"
 PingLabel.BackgroundTransparency = 1
-PingLabel.Size = UDim2.new(1, 0, 0, 24)
-PingLabel.Position = UDim2.new(0, 0, 0, 24)
+PingLabel.Size = UDim2.new(1, 0, 0, 26)
+PingLabel.Position = UDim2.new(0, 0, 0, 26)
 PingLabel.Font = Enum.Font.GothamBold
-PingLabel.TextSize = 18
+PingLabel.TextSize = Config.TextSize
 PingLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
 PingLabel.TextStrokeTransparency = 0.6
 PingLabel.TextXAlignment = Enum.TextXAlignment.Left
 PingLabel.Text = "Ping: -- ms"
 PingLabel.Parent = Frame
 
--- 更新位置函数
+-- 更新位置
 local function UpdatePosition(posName)
     local data = PositionMap[posName]
     if not data then return end
@@ -76,7 +83,6 @@ local function UpdatePosition(posName)
     Frame.AnchorPoint = data.AnchorPoint
     Frame.Position = data.Position
 
-    -- 根据左右调整文字对齐
     if data.AnchorPoint.X >= 0.5 then
         FPSLabel.TextXAlignment = Enum.TextXAlignment.Right
         PingLabel.TextXAlignment = Enum.TextXAlignment.Right
@@ -86,7 +92,22 @@ local function UpdatePosition(posName)
     end
 end
 
+-- 更新文字大小
+local function UpdateSize(size)
+    Config.TextSize = size
+    FPSLabel.TextSize = size
+    PingLabel.TextSize = size
+
+    -- 同步调整行高和整体高度
+    local lineHeight = size + 8
+    FPSLabel.Size = UDim2.new(1, 0, 0, lineHeight)
+    PingLabel.Size = UDim2.new(1, 0, 0, lineHeight)
+    PingLabel.Position = UDim2.new(0, 0, 0, lineHeight)
+    Frame.Size = UDim2.new(0, math.max(160, size * 9), 0, lineHeight * 2)
+end
+
 UpdatePosition(Config.Position)
+UpdateSize(Config.TextSize)
 
 -- FPS 计算
 local frames = 0
@@ -103,43 +124,24 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 主更新循环
-local connection
-local function StartUpdate()
-    if connection then connection:Disconnect() end
-    connection = RunService.Heartbeat:Connect(function()
-        if not Config.Enabled then
-            Frame.Visible = false
-            return
-        end
-        Frame.Visible = true
+-- 主更新
+RunService.Heartbeat:Connect(function()
+    if not Config.Enabled then
+        Frame.Visible = false
+        return
+    end
+    Frame.Visible = true
 
-        -- FPS
-        FPSLabel.Text = "FPS: " .. tostring(currentFPS)
+    FPSLabel.Text = "FPS: " .. tostring(currentFPS)
 
-        -- Ping
-        local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
-        PingLabel.Text = "Ping: " .. ping .. " ms"
-    end)
-end
+    local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
+    PingLabel.Text = "Ping: " .. ping .. " ms"
+end)
 
-StartUpdate()
-
--- WindUI 界面
-local Window = WindUI:CreateWindow({
-    Title = "Ping & FPS",
-    Icon = "activity",
-    Theme = "Dark",
-    Folder = "PingFPS",
-})
-
-local Tab = Window:Tab({
-    Title = "显示设置",
-    Icon = "monitor",
-})
-
+-- ==================== 往主脚本传入的 Tab 添加 UI ====================
 Tab:Toggle({
-    Title = "启用显示",
+    Title = "启用 Ping & FPS 显示",
+            Desc = "感觉没有多大用处",
     Value = true,
     Callback = function(value)
         Config.Enabled = value
@@ -149,7 +151,8 @@ Tab:Toggle({
 
 Tab:Dropdown({
     Title = "显示位置",
-    Values = {"左上", "右上", "左下", "右下", "上", "下", "左", "右", "中"},
+            Desc = "可以调整显示的位置",
+    Values = {"左上", "右上", "左下", "右下"},
     Value = "右上",
     Callback = function(selected)
         Config.Position = selected
@@ -157,11 +160,23 @@ Tab:Dropdown({
     end,
 })
 
-Tab:Section({ Title = "说明" })
-
-Tab:Paragraph({
-    Title = "使用方法",
-    Desc = "开启后屏幕上会实时显示 FPS 和 Ping 值。\n可通过下拉菜单切换九个位置。",
+Tab:Slider({
+    Title = "显示大小",
+            Desc = "可以调整ping/FPS的字体大小",
+    Step = 1,
+    Value = {
+        Min = 12,
+        Max = 36,
+        Default = 18,
+    },
+    Callback = function(value)
+        UpdateSize(value)
+    end,
 })
 
-print("[Ping & FPS] 已加载")
+Tab:Paragraph({
+    Title = "说明",
+    Desc = "实时显示当前 FPS 和 Ping 值。\n可切换四个角落位置，并调整文字大小。",
+})
+
+print("[PingFPS] 远程脚本已加载到 Tab")
