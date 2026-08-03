@@ -931,6 +931,13 @@ nljjcTab:Button({
     end
 })
 
+bdh2Tab:Paragraph({
+    Title = "注意",
+    Desc = "这个神人服务器长期霸占我主页 不找脚本有点过不去了"
+})
+
+bdh2Tab:Select()
+
 bdh2Tab:Button({
     Title = "[🔑]冰大亨2[自动化]", Desc = "功能很多 自动化功能全开之后就可以睡觉了😛😛😛", Icon = "shell",
     Callback = function()
