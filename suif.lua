@@ -18,10 +18,6 @@ do
 end
 
 local plrs = game:GetService("Players")
-local lighting = game:GetService("Lighting")
-local teleport = game:GetService("TeleportService")
-local httpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
 local lp = plrs.LocalPlayer
 
 -- 【视觉体积优化版】全局通知函数
@@ -40,29 +36,46 @@ local function notify(title, content, icon, duration)
     end
 end
 
-local function copy(text, msg)
-    if setclipboard then
-        setclipboard(text)
-    else
-        warn("复制失败：当前环境不支持 setclipboard")
-    end
+local function run(url, name)
+    task.spawn(function()
+        local ok, err = pcall(function()
+            local source = game:HttpGet(url)
+            local fn, compileErr = loadstring(source)
+            if not fn then
+                error(compileErr)
+            end
+            fn()
+        end)
+
+        if ok then
+            notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
+        else
+            warn("执行失败: " .. tostring(err))
+        end
+    end)
 end
 
-local function run(url, name)
-    local ok, err = pcall(function()
-        local source = game:HttpGet(url)
-        local fn, compileErr = loadstring(source)
-        if not fn then
-            error(compileErr)
+-- 后台异步加载远程模块：失败自动重试，仍失败时给出可见提示
+local function loadRemote(url, desc)
+    task.spawn(function()
+        local ok, err
+        for attempt = 1, 3 do
+            ok, err = pcall(function()
+                local src = game:HttpGet(url)
+                local fn, compileErr = loadstring(src)
+                if not fn then
+                    error(compileErr)
+                end
+                fn()
+            end)
+            if ok then
+                return
+            end
+            task.wait(0.5 * attempt)
         end
-        fn()
+        warn((desc or "远程脚本") .. " 加载失败:", err)
+        pcall(notify, desc or "远程脚本", "加载失败：" .. tostring(err), "warning", 5)
     end)
-
-    if ok then
-        notify("执行成功", (name or "脚本") .. " 已运行", "check", 2)
-    else
-        warn("执行失败: " .. tostring(err))
-    end
 end
 
 local function getHum()
@@ -118,10 +131,8 @@ UIGradient.Parent = UIStroke
 
 task.spawn(function()
     while true do
-        for i = 0, 360, 1 do
-            UIGradient.Rotation = i
-            task.wait(0.005)
-        end
+        local dt = task.wait()
+        UIGradient.Rotation = (UIGradient.Rotation + dt * 200) % 360
     end
 end)
 
@@ -455,6 +466,14 @@ end
 
 getgenv().InstantInteract = false
 
+local PromptConn
+
+-- 断开上次执行遗留的连接
+if getgenv().SuturePromptAddedConn then
+    pcall(function() getgenv().SuturePromptAddedConn:Disconnect() end)
+    getgenv().SuturePromptAddedConn = nil
+end
+
 local function setInstantPrompt(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
     if PromptHoldCache[prompt] == nil then
@@ -474,16 +493,22 @@ local function restoreAllPrompts()
     end
 end
 
-if getgenv().SuturePromptAddedConn then
-    pcall(function() getgenv().SuturePromptAddedConn:Disconnect() end)
-    getgenv().SuturePromptAddedConn = nil
-end
-
-getgenv().SuturePromptAddedConn = workspace.DescendantAdded:Connect(function(v)
-    if getgenv().InstantInteract and v:IsA("ProximityPrompt") then
-        task.defer(setInstantPrompt, v)
+local function setPromptListener(enable)
+    if enable then
+        if not PromptConn then
+            PromptConn = workspace.DescendantAdded:Connect(function(v)
+                if v:IsA("ProximityPrompt") then
+                    setInstantPrompt(v)
+                end
+            end)
+            getgenv().SuturePromptAddedConn = PromptConn
+        end
+    elseif PromptConn then
+        pcall(function() PromptConn:Disconnect() end)
+        PromptConn = nil
+        getgenv().SuturePromptAddedConn = nil
     end
-end)
+end
 
 toolTab:Toggle({
     Title = "即时互动",
@@ -494,12 +519,14 @@ toolTab:Toggle({
     Callback = function(s)
         getgenv().InstantInteract = s
         if s then
+            setPromptListener(true)
             for _, v in ipairs(workspace:GetDescendants()) do
                 if v:IsA("ProximityPrompt") then
                     setInstantPrompt(v)
                 end
             end
         else
+            setPromptListener(false)
             restoreAllPrompts()
         end
     end
@@ -620,9 +647,8 @@ wqkTab:Button({
     end
 })
 
-getgenv().Tabs = {
-    wxlgTab = wxlgTab
-}
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.wxlgTab = wxlgTab
 
 run("https://pastebin.com/raw/wV07BGnS")
 
@@ -844,26 +870,21 @@ gnjbTab:Button({
 })
 
 --范围远程
-getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
-local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick())
-loadstring(game:HttpGet(url))()
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick()), "范围")
 
 --甩飞远程
-getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.FlingTPTab = SfTab
-getgenv().WindUI = WindUI   
+getgenv().WindUI = WindUI
 
-local remoteURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick())
-loadstring(game:HttpGet(remoteURL))()
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick()), "甩飞")
 
 --ping fps显示
-getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.PingFPSTab = pingfpsTab
+getgenv().SuturePingFPSTab = pingfpsTab
 
-local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick())
-loadstring(game:HttpGet(url))()
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示")
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
