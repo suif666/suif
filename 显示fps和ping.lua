@@ -1,12 +1,18 @@
 --[[
     远程脚本 - Ping + FPS 显示
-    依赖主脚本：getgenv().Tabs.PingFPSTab = Tab
+    依赖主脚本：getgenv().Tabs.PingFPSTab = Tab（或 getgenv().SuturePingFPSTab）
 ]]
 
-local Tab = getgenv().Tabs and getgenv().Tabs.PingFPSTab
+-- 防重复加载：重复执行主脚本时不会再次创建叠加层
+if getgenv().__PINGFPS_LOADED then
+    return
+end
+getgenv().__PINGFPS_LOADED = true
+
+local Tab = (getgenv().Tabs and getgenv().Tabs.PingFPSTab) or getgenv().SuturePingFPSTab
 
 if not Tab then
-    warn("[PingFPS] 未找到 getgenv().Tabs.PingFPSTab，请检查主脚本是否正确赋值")
+    warn("[PingFPS] 未找到 PingFPSTab，请检查主脚本是否正确赋值")
     return
 end
 
@@ -139,41 +145,47 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==================== 往主脚本传入的 Tab 添加 UI ====================
-Tab:Toggle({
-    Title = "启用 Ping & FPS 显示",
-    Value = true,
-    Callback = function(value)
-        Config.Enabled = value
-        Frame.Visible = value
-    end,
-})
+local uiOk, uiErr = pcall(function()
+    Tab:Toggle({
+        Title = "启用 Ping & FPS 显示",
+        Value = true,
+        Callback = function(value)
+            Config.Enabled = value
+            Frame.Visible = value
+        end,
+    })
 
-Tab:Dropdown({
-    Title = "显示位置",
-    Values = {"左上", "右上", "左下", "右下"},
-    Value = "右上",
-    Callback = function(selected)
-        Config.Position = selected
-        UpdatePosition(selected)
-    end,
-})
+    Tab:Dropdown({
+        Title = "显示位置",
+        Values = {"左上", "右上", "左下", "右下"},
+        Value = "右上",
+        Callback = function(selected)
+            Config.Position = selected
+            UpdatePosition(selected)
+        end,
+    })
 
-Tab:Slider({
-    Title = "显示大小",
-    Step = 1,
-    Value = {
-        Min = 12,
-        Max = 36,
-        Default = 18,
-    },
-    Callback = function(value)
-        UpdateSize(value)
-    end,
-})
+    Tab:Slider({
+        Title = "显示大小",
+        Step = 1,
+        Value = {
+            Min = 12,
+            Max = 36,
+            Default = 18,
+        },
+        Callback = function(value)
+            UpdateSize(value)
+        end,
+    })
 
-Tab:Paragraph({
-    Title = "说明",
-    Desc = "实时显示当前 FPS 和 Ping 值。\n可切换四个角落位置，并调整文字大小。",
-})
+    Tab:Paragraph({
+        Title = "说明",
+        Desc = "实时显示当前 FPS 和 Ping 值。\n可切换四个角落位置，并调整文字大小。",
+    })
+end)
 
-print("[PingFPS] 远程脚本已加载到 Tab")
+if not uiOk then
+    warn("[PingFPS] Tab UI 创建失败:", uiErr)
+else
+    print("[PingFPS] 远程脚本已加载到 Tab")
+end
