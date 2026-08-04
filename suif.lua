@@ -844,7 +844,7 @@ gnjbTab:Button({
 gnjbTab:Button({
     Title = "黑白脚本", Desc = "国内脚本 群[1062578052]", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/tfcygvunbind/Apple/main/", "黑白脚本")
+        run("https://raw.githubusercontent.com/tfcygvunbind/Apple/main/黑白脚本加载器", "黑白脚本")
     end
 })
 
