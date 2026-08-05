@@ -1,5 +1,6 @@
 -- 范围脚本（两种放大方式，均为真实部件放大）
 -- 1. 普通部件放大：部件按倍率放大，保留原外观
+-- 2. 半透明方框放大（BS 风格）：固定放大根部件，统一改成正方形方块，半透明红色霓虹
 if getgenv().__RANGE_ENLARGE_LOADED then return end
 getgenv().__RANGE_ENLARGE_LOADED = true
 
@@ -27,7 +28,7 @@ local Config = {
 local State = {
     originals = {},   -- 快照（恢复后即清空）
     enlarged = {},    -- 当前已放大的模型
-    pending = {},     -- 等待首次放大的模型（等尺寸稳定再快照）
+    pending = {},     -- 首次看到目标的 os.clock() 时间（等尺寸稳定再快照）
     npcList = {},
     lastNpcUpdate = 0,
     refreshQueued = false
@@ -252,20 +253,27 @@ local function processTarget(model)
 
     if eligible then
         if not State.enlarged[model] then
-            -- 新角色先等 0.5 秒再快照放大，避免把出生瞬间的临时大尺寸当原始尺寸
+            -- 新角色先等 0.5 秒再快照放大，避免把出生瞬间的临时大尺寸当原始尺寸；
+            -- 用每帧计时而不是 task.delay，防止延迟回调不执行导致漏放大
             if not State.pending[model] then
-                State.pending[model] = true
-                task.delay(0.5, function()
+                State.pending[model] = os.clock()
+            else
+                local rootReady = Config.PlayerMode ~= "半透明方框放大" or getCharacterRoot(model) ~= nil
+                if not rootReady then
+                    -- 根部件还没出现，重新计时，等它出现并稳定后再放大
+                    State.pending[model] = os.clock()
+                elseif os.clock() - State.pending[model] >= 0.5 then
                     State.pending[model] = nil
-                    if Config.Enable and model.Parent and isAllowed(model) then
-                        applyEnlarge(model)
-                        State.enlarged[model] = true
-                    end
-                end)
+                    applyEnlarge(model)
+                    State.enlarged[model] = true
+                end
             end
         end
-    elseif State.enlarged[model] then
-        restoreCharacter(model)
+    elseif State.enlarged[model] or State.pending[model] then
+        State.pending[model] = nil
+        if State.enlarged[model] then
+            restoreCharacter(model)
+        end
     end
 end
 
@@ -347,11 +355,8 @@ end)
 workspace.DescendantAdded:Connect(function(obj)
     if not Config.Enable then return end
     if obj:IsA("Model") and isNpcModel(obj) then
-        task.delay(0.15, function()
-            if obj.Parent and isAllowed(obj) then
-                processTarget(obj)
-            end
-        end)
+        table.insert(State.npcList, obj)
+        processTarget(obj)
     end
 end)
 
