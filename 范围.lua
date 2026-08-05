@@ -29,6 +29,7 @@ local Config = {
 local State = {
     originals = {},   -- 快照（恢复后即清空）
     enlarged = {},    -- 当前已放大的模型
+    boxes = {},       -- 半透明方块模式：模型 -> 独立方块
     npcList = {},
     lastNpcUpdate = 0,
     enforceTimer = 0,
@@ -139,6 +140,84 @@ local function restoreAll()
     State.enlarged = {}
 end
 
+-- ============ 半透明方块模式：独立纯方块（焊接+零质量，钩子可拉动） ============
+local function getPrimaryPart(character)
+    local hasHead = false
+    for _, v in ipairs(Config.Parts) do
+        if v == "头部" then
+            hasHead = true
+            break
+        end
+    end
+    if hasHead then
+        local head = character:FindFirstChild("Head") or character:FindFirstChild("head")
+        if head then return head end
+    end
+    return getCharacterRoot(character)
+end
+
+local function createBox(model)
+    local part = getPrimaryPart(model)
+    if not part then return end
+
+    local ok, box = pcall(function()
+        local b = Instance.new("Part")
+        b.Name = "RangeHitboxBox"
+        b.Anchored = false
+        b.CanCollide = Config.PhysicalCollide
+        b.CanQuery = true
+        b.CanTouch = true
+        b.Massless = true            -- 零质量：不增加角色质量，钩子拉力正常
+        b.Material = Enum.Material.Neon
+        b.Transparency = Config.Transparency
+        b.Color = Color3.fromRGB(255, 0, 0)
+        b.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
+        b.Parent = model
+        return b
+    end)
+    if not ok or not box then return end
+
+    -- 焊接到目标部件：随角色移动，钩子抓住方块会拉动整个角色
+    local weldOk, weld = pcall(function()
+        local w = Instance.new("WeldConstraint")
+        w.Part0 = part
+        w.Part1 = box
+        w.Parent = box
+        return w
+    end)
+    if not weldOk or not weld then
+        pcall(function() box:Destroy() end)
+        return
+    end
+
+    State.boxes[model] = box
+end
+
+local function updateBox(box, model)
+    if not box then return end
+    box.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
+    box.Transparency = Config.Transparency
+    box.Color = Color3.fromRGB(255, 0, 0)
+    box.CanCollide = Config.PhysicalCollide
+end
+
+local function destroyBox(model)
+    local box = State.boxes[model]
+    if box then
+        pcall(function() box:Destroy() end)
+    end
+    State.boxes[model] = nil
+end
+
+local function destroyAllBoxes()
+    for model, box in pairs(State.boxes) do
+        if box then
+            pcall(function() box:Destroy() end)
+        end
+    end
+    State.boxes = {}
+end
+
 -- ============ 部件选择 ============
 local function hasPart(name)
     for _, v in ipairs(Config.Parts) do
@@ -235,13 +314,26 @@ local function processTarget(model)
 
     local eligible = isAllowed(model) and getDistanceToLocal(model) <= Config.Range
 
-    if eligible then
-        if not State.enlarged[model] then
-            applyEnlarge(model)
-            State.enlarged[model] = true
+    if Config.PlayerMode == "半透明方块放大" then
+        local box = State.boxes[model]
+        if eligible then
+            if not box then
+                createBox(model)
+            else
+                updateBox(box, model)
+            end
+        elseif box then
+            destroyBox(model)
         end
-    elseif State.enlarged[model] then
-        restoreCharacter(model)
+    else
+        if eligible then
+            if not State.enlarged[model] then
+                applyEnlarge(model)
+                State.enlarged[model] = true
+            end
+        elseif State.enlarged[model] then
+            restoreCharacter(model)
+        end
     end
 end
 
@@ -262,6 +354,7 @@ end
 
 local function rebuildAll()
     restoreAll()
+    destroyAllBoxes()
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -284,6 +377,7 @@ local function queueRefresh()
             rebuildAll()
         else
             restoreAll()
+            destroyAllBoxes()
         end
     end)
 end
@@ -343,6 +437,7 @@ local mainToggle = Tab:Toggle({
             queueRefresh()
         else
             restoreAll()
+            destroyAllBoxes()
         end
     end
 })
@@ -420,9 +515,9 @@ Tab:Slider({
     Callback = function(v)
         Config.Transparency = v
         if Config.PlayerMode == "半透明方块放大" then
-            for part, _ in pairs(State.originals) do
-                if part and part.Parent then
-                    part.Transparency = v
+            for _, box in pairs(State.boxes) do
+                if box then
+                    box.Transparency = v
                 end
             end
         end
@@ -440,6 +535,11 @@ Tab:Toggle({
                 part.CanCollide = v
             end
         end
+        for _, box in pairs(State.boxes) do
+            if box then
+                box.CanCollide = v
+            end
+        end
     end
 })
 
@@ -448,6 +548,7 @@ Tab:Button({
     Callback = function()
         Config.Enable = false
         restoreAll()
+        destroyAllBoxes()
         if mainToggle and mainToggle.Set then
             pcall(mainToggle.Set, mainToggle, false)
         end
