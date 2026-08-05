@@ -21,7 +21,7 @@ local Config = {
     Transparency = 0.7,     -- 半透明方框模式的透明度
     PhysicalCollide = false,-- 近战物理碰撞
     TeamCheck = false,      -- 队友检测：开启后跳过同队玩家
-    Parts = {"根部件"}      -- 默认根部件，任何游戏都有
+    Parts = {"身体"}        -- 普通放大默认部位；半透明方框模式固定用根部件
 }
 
 local State = {
@@ -142,6 +142,13 @@ local function hasPart(name)
 end
 
 local function getSelectedParts(character)
+    -- 半透明方框模式固定放大根部件，部位选择只对普通放大生效
+    if Config.PlayerMode == "半透明方框放大" then
+        local root = getCharacterRoot(character)
+        if root then return { root } end
+        return {}
+    end
+
     local parts = {}
     local added = {}
 
@@ -376,7 +383,8 @@ Tab:Dropdown({
 
 Tab:Dropdown({
     Title = "放大部位（可多选）",
-    Values = {"头部", "身体", "根部件", "左臂", "右臂", "左腿", "右腿", "全部"},
+    Desc = "仅普通部件放大模式生效，半透明方框模式固定放大根部件",
+    Values = {"头部", "身体", "左臂", "右臂", "左腿", "右腿", "全部"},
     Value = Config.Parts,
     Multi = true,
     Callback = function(v)
