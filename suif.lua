@@ -173,6 +173,7 @@ local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = fal
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
+local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
@@ -844,7 +845,7 @@ gnjbTab:Button({
 gnjbTab:Button({
     Title = "黑白脚本", Desc = "国内脚本 群[1062578052]", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/tfcygvunbind/Apple/main/黑白脚本加载器", "黑白脚本")
+        run("https://raw.githubusercontent.com/tfcygvunbind/Apple/main/", "黑白脚本")
     end
 })
 
@@ -885,6 +886,12 @@ getgenv().Tabs.PingFPSTab = pingfpsTab
 getgenv().SuturePingFPSTab = pingfpsTab
 
 loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示")
+
+--雷达
+getgenv().Tabs.RadarTab = radarTab
+getgenv().SutureRadarTab = radarTab
+
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E9%9B%B7%E8%BE%BE.lua?t=" .. tostring(tick()), "雷达")
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
