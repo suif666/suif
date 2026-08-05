@@ -891,7 +891,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%9
 getgenv().Tabs.RadarTab = radarTab
 getgenv().SutureRadarTab = radarTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E9%9B%B7%E8%BE%BE.lua?t=" .. tostring(tick()), "雷达")
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "雷达")
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
