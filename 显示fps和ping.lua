@@ -158,7 +158,7 @@ local uiOk, uiErr = pcall(function()
     Tab:Dropdown({
         Title = "显示位置",
         Values = {"左上", "右上", "左下", "右下"},
-        Value = "右上",
+        Value = "左上",
         Callback = function(selected)
             Config.Position = selected
             UpdatePosition(selected)
