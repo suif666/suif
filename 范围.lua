@@ -1,7 +1,7 @@
 -- 范围脚本（两种放大方式，均为真实部件放大）
 -- 1. 正常部件放大：部件按倍率放大，保留原外观
--- 2. 半透明方框放大：部件同样按倍率放大，但变成半透明红色方框
--- 两种模式共用放大倍率，可选择放大部位；不生成任何额外部件，钩子拉人正常
+-- 2. 半透明方框放大：真实部件放大但完全隐形（真实命中体积），
+-- 两种模式共用放大倍率，可选择放大部位
 if getgenv().__RANGE_ENLARGE_LOADED then return end
 getgenv().__RANGE_ENLARGE_LOADED = true
 
@@ -29,6 +29,7 @@ local Config = {
 local State = {
     originals = {},   -- 快照（恢复后即清空）
     enlarged = {},    -- 当前已放大的模型
+    visuals = {},     -- 半透明方块模式：模型 -> 可视化方块
     npcList = {},
     lastNpcUpdate = 0,
     enforceTimer = 0,
@@ -139,6 +140,73 @@ local function restoreAll()
     State.enlarged = {}
 end
 
+-- ============ 半透明方块模式：可视化方块（纯装饰，不可命中） ============
+local function getPrimaryPart(character)
+    local hasHead = false
+    for _, v in ipairs(Config.Parts) do
+        if v == "头部" then
+            hasHead = true
+            break
+        end
+    end
+    if hasHead then
+        local head = character:FindFirstChild("Head") or character:FindFirstChild("head")
+        if head then return head end
+    end
+    return getCharacterRoot(character)
+end
+
+local function updateVisualBox(box, model)
+    local part = getPrimaryPart(model)
+    if not part then return end
+
+    box.CFrame = part.CFrame
+    box.Size = part.Size   -- 与隐形放大部件的立方体尺寸一致
+    box.Transparency = Config.Transparency
+end
+
+local function createVisualBox(model)
+    local part = getPrimaryPart(model)
+    if not part then return end
+
+    local ok, box = pcall(function()
+        local b = Instance.new("Part")
+        b.Name = "RangeVisualBox"
+        b.Anchored = true
+        b.CanCollide = false
+        b.CanQuery = false       -- 纯装饰：钩子/子弹不会被它挡住
+        b.CanTouch = false
+        b.Massless = true
+        b.Material = Enum.Material.Neon
+        b.Transparency = Config.Transparency
+        b.Color = Color3.fromRGB(255, 0, 0)
+        b.Size = Vector3.new(1, 1, 1)
+        b.Parent = workspace
+        return b
+    end)
+    if not ok or not box then return end
+
+    State.visuals[model] = box
+    updateVisualBox(box, model)
+end
+
+local function destroyVisualBox(model)
+    local box = State.visuals[model]
+    if box then
+        pcall(function() box:Destroy() end)
+    end
+    State.visuals[model] = nil
+end
+
+local function destroyAllVisuals()
+    for model, box in pairs(State.visuals) do
+        if box then
+            pcall(function() box:Destroy() end)
+        end
+    end
+    State.visuals = {}
+end
+
 -- ============ 部件选择 ============
 local function hasPart(name)
     for _, v in ipairs(Config.Parts) do
@@ -197,12 +265,12 @@ local function applyEnlarge(character)
                 part.Material = old.Material
                 part.Color = old.Color
             else
-                -- 半透明方框放大：同样按倍率放大，变成半透明红色方框
+                -- 半透明方框放大：真实部件放大但完全隐形（真实命中体积）
                 local s = math.max(old.Size.X, old.Size.Y, old.Size.Z) * Config.Scale
                 part.Size = Vector3.new(s, s, s)
-                part.Transparency = Config.Transparency
-                part.Material = Enum.Material.Neon
-                part.Color = Color3.fromRGB(255, 0, 0)
+                part.Transparency = 1
+                part.Material = old.Material
+                part.Color = old.Color
             end
             part.CanCollide = Config.PhysicalCollide
             part.CanQuery = true
@@ -236,13 +304,35 @@ local function processTarget(model)
 
     local eligible = isAllowed(model) and getDistanceToLocal(model) <= Config.Range
 
-    if eligible then
-        if not State.enlarged[model] then
-            applyEnlarge(model)
-            State.enlarged[model] = true
+    if Config.PlayerMode == "半透明方框放大" then
+        local box = State.visuals[model]
+        if eligible then
+            if not State.enlarged[model] then
+                applyEnlarge(model)
+                State.enlarged[model] = true
+            end
+            if not box then
+                createVisualBox(model)
+            else
+                updateVisualBox(box, model)
+            end
+        else
+            if State.enlarged[model] then
+                restoreCharacter(model)
+            end
+            if box then
+                destroyVisualBox(model)
+            end
         end
-    elseif State.enlarged[model] then
-        restoreCharacter(model)
+    else
+        if eligible then
+            if not State.enlarged[model] then
+                applyEnlarge(model)
+                State.enlarged[model] = true
+            end
+        elseif State.enlarged[model] then
+            restoreCharacter(model)
+        end
     end
 end
 
@@ -263,6 +353,7 @@ end
 
 local function rebuildAll()
     restoreAll()
+    destroyAllVisuals()
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -285,6 +376,7 @@ local function queueRefresh()
             rebuildAll()
         else
             restoreAll()
+            destroyAllVisuals()
         end
     end)
 end
@@ -344,6 +436,7 @@ local mainToggle = Tab:Toggle({
             queueRefresh()
         else
             restoreAll()
+            destroyAllVisuals()
         end
     end
 })
@@ -410,9 +503,9 @@ Tab:Slider({
     Callback = function(v)
         Config.Transparency = v
         if Config.PlayerMode == "半透明方框放大" then
-            for part, _ in pairs(State.originals) do
-                if part and part.Parent then
-                    part.Transparency = v
+            for _, box in pairs(State.visuals) do
+                if box then
+                    box.Transparency = v
                 end
             end
         end
@@ -438,6 +531,7 @@ Tab:Button({
     Callback = function()
         Config.Enable = false
         restoreAll()
+        destroyAllVisuals()
         if mainToggle and mainToggle.Set then
             pcall(mainToggle.Set, mainToggle, false)
         end
