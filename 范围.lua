@@ -1,5 +1,6 @@
--- 部件放大：把选中的真实部件放大成可调大小的红色半透明立方体（真实命中体积）
--- 半透明方框：生成独立透明块框住目标（同样真实可命中）
+-- 范围脚本（真实部件放大版）
+-- 把选中的真实部件放大成红色半透明立方体（真实命中体积）
+-- 不生成任何额外部件，钩子拉人、物理效果均不受影响
 if getgenv().__RANGE_ENLARGE_LOADED then return end
 getgenv().__RANGE_ENLARGE_LOADED = true
 
@@ -16,20 +17,19 @@ local LocalPlayer = Players.LocalPlayer
 local Config = {
     Enable = false,
     TargetMode = "全部",
-    PlayerMode = "部件放大",
     Range = 150,            -- 有效距离
     CubeSize = 10,          -- 立方体边长（自由调节，最低 10）
-    Transparency = 0.7,     -- 统一透明度
+    Transparency = 0.7,     -- 透明度
     PhysicalCollide = false,-- 近战物理碰撞
     Parts = {"头部"}        -- 多选部件
 }
 
 local State = {
-    originals = {},   -- 部件放大模式的快照（恢复后即清空）
+    originals = {},   -- 快照（恢复后即清空）
     enlarged = {},    -- 当前已放大的模型
-    boxes = {},       -- 半透明方框模式：模型 -> 透明块
     npcList = {},
     lastNpcUpdate = 0,
+    enforceTimer = 0,
     refreshQueued = false
 }
 
@@ -84,7 +84,7 @@ local function isAllowed(model)
     return isNpcModel(model) and (Config.TargetMode == "NPC" or Config.TargetMode == "全部")
 end
 
--- ============ 快照 / 恢复（部件放大模式） ============
+-- ============ 快照 / 恢复 ============
 local function snapshotPart(part)
     if not State.originals[part] then
         local okM, mass = pcall(function()
@@ -137,75 +137,6 @@ local function restoreAll()
     State.enlarged = {}
 end
 
--- ============ 半透明方框模式：独立透明块（真实命中体积） ============
-local function getPrimaryPart(character)
-    local hasHead = false
-    for _, v in ipairs(Config.Parts) do
-        if v == "头部" then
-            hasHead = true
-            break
-        end
-    end
-    if hasHead then
-        local head = character:FindFirstChild("Head") or character:FindFirstChild("head")
-        if head then return head end
-    end
-    return getCharacterRoot(character)
-end
-
-local function updateBox(box, model)
-    local part = getPrimaryPart(model)
-    if not part then return end
-
-    box.CFrame = part.CFrame
-    box.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
-    box.Transparency = Config.Transparency
-    box.Color = Color3.fromRGB(255, 0, 0)
-    box.CanCollide = Config.PhysicalCollide
-end
-
-local function createBox(model)
-    local part = getPrimaryPart(model)
-    if not part then return end
-
-    local ok, box = pcall(function()
-        local b = Instance.new("Part")
-        b.Name = "RangeEnlargeBox"
-        b.Anchored = true
-        b.CanCollide = Config.PhysicalCollide
-        b.CanQuery = true
-        b.CanTouch = true
-        b.Massless = true
-        b.Material = Enum.Material.Neon
-        b.Transparency = Config.Transparency
-        b.Color = Color3.fromRGB(255, 0, 0)
-        b.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
-        b.Parent = model
-        return b
-    end)
-    if ok and box then
-        State.boxes[model] = box
-        updateBox(box, model)
-    end
-end
-
-local function destroyBox(model)
-    local box = State.boxes[model]
-    if box then
-        pcall(function() box:Destroy() end)
-    end
-    State.boxes[model] = nil
-end
-
-local function destroyAllBoxes()
-    for model, box in pairs(State.boxes) do
-        if box then
-            pcall(function() box:Destroy() end)
-        end
-    end
-    State.boxes = {}
-end
-
 -- ============ 部件选择 ============
 local function hasPart(name)
     for _, v in ipairs(Config.Parts) do
@@ -249,7 +180,7 @@ local function getSelectedParts(character)
     return parts
 end
 
--- ============ 部件放大模式：BS 风格，选中部件变成真实大立方体 ============
+-- ============ 放大：真实部件变成红色半透明大立方体 ============
 local function applyEnlarge(character)
     local parts = getSelectedParts(character)
     for _, part in ipairs(parts) do
@@ -265,8 +196,8 @@ local function applyEnlarge(character)
             part.CanQuery = true
             part.CanTouch = true
 
-            -- 放大后保持总质量与原部件一致：密度按体积反比调小，
-            -- 这样钩子拉人等物理效果不受影响
+            -- 放大后保持总质量与原部件一致（密度按体积反比调小），
+            -- 钩子拉人等物理效果不受影响
             local oldVol = old.Size.X * old.Size.Y * old.Size.Z
             local newVol = part.Size.X * part.Size.Y * part.Size.Z
             if old.Mass and old.Mass > 0 and oldVol > 0 and newVol > 0 then
@@ -287,35 +218,19 @@ local function applyEnlarge(character)
     end
 end
 
--- 每帧处理单个目标：只做状态变化时的恢复/创建，放大按帧锁定
+-- 每帧处理单个目标：只做状态变化，放大不每帧重写
 local function processTarget(model)
-    if not Config.Enable or not model or not model.Parent then
-        if model then destroyBox(model) end
-        return
-    end
+    if not Config.Enable or not model or not model.Parent then return end
 
     local eligible = isAllowed(model) and getDistanceToLocal(model) <= Config.Range
 
-    if Config.PlayerMode == "半透明方框" then
-        local box = State.boxes[model]
-        if eligible then
-            if not box then
-                createBox(model)
-            else
-                updateBox(box, model)
-            end
-        elseif box then
-            destroyBox(model)
+    if eligible then
+        if not State.enlarged[model] then
+            applyEnlarge(model)
+            State.enlarged[model] = true
         end
-    else
-        if eligible then
-            if not State.enlarged[model] then
-                applyEnlarge(model)
-                State.enlarged[model] = true
-            end
-        elseif State.enlarged[model] then
-            restoreCharacter(model)
-        end
+    elseif State.enlarged[model] then
+        restoreCharacter(model)
     end
 end
 
@@ -336,7 +251,6 @@ end
 
 local function rebuildAll()
     restoreAll()
-    destroyAllBoxes()
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -359,12 +273,11 @@ local function queueRefresh()
             rebuildAll()
         else
             restoreAll()
-            destroyAllBoxes()
         end
     end)
 end
 
--- 主循环
+-- 主循环：状态处理每帧跑（开销小），尺寸锁定 0.5 秒兜底
 RunService.Heartbeat:Connect(function()
     if not Config.Enable then return end
 
@@ -372,8 +285,7 @@ RunService.Heartbeat:Connect(function()
         updateNpcList()
     end
 
-    -- 低频重新锁定尺寸（0.5 秒一次），避免和游戏拉人动画抢属性
-    if os.clock() - (State.enforceTimer or 0) >= 0.5 then
+    if os.clock() - State.enforceTimer >= 0.5 then
         State.enforceTimer = os.clock()
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LocalPlayer and plr.Character and State.enlarged[plr.Character] then
@@ -420,7 +332,6 @@ local mainToggle = Tab:Toggle({
             queueRefresh()
         else
             restoreAll()
-            destroyAllBoxes()
         end
     end
 })
@@ -444,16 +355,6 @@ Tab:Dropdown({
     Multi = true,
     Callback = function(v)
         Config.Parts = v
-        queueRefresh()
-    end
-})
-
-Tab:Dropdown({
-    Title = "放大方式",
-    Values = {"部件放大", "半透明方框"},
-    Value = Config.PlayerMode,
-    Callback = function(v)
-        Config.PlayerMode = v
         queueRefresh()
     end
 })
@@ -491,11 +392,6 @@ Tab:Slider({
                 part.Transparency = v
             end
         end
-        for _, box in pairs(State.boxes) do
-            if box then
-                box.Transparency = v
-            end
-        end
     end
 })
 
@@ -510,11 +406,6 @@ Tab:Toggle({
                 part.CanCollide = v
             end
         end
-        for _, box in pairs(State.boxes) do
-            if box then
-                box.CanCollide = v
-            end
-        end
     end
 })
 
@@ -523,7 +414,6 @@ Tab:Button({
     Callback = function()
         Config.Enable = false
         restoreAll()
-        destroyAllBoxes()
         if mainToggle and mainToggle.Set then
             pcall(mainToggle.Set, mainToggle, false)
         end
