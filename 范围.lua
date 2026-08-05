@@ -27,9 +27,9 @@ local Config = {
 local State = {
     originals = {},   -- 快照（恢复后即清空）
     enlarged = {},    -- 当前已放大的模型
+    pending = {},     -- 等待首次放大的模型（等尺寸稳定再快照）
     npcList = {},
     lastNpcUpdate = 0,
-    enforceTimer = 0,
     refreshQueued = false
 }
 
@@ -116,6 +116,7 @@ end
 
 local function restoreCharacter(model)
     if not model then return end
+    State.pending[model] = nil
     for part, _ in pairs(State.originals) do
         if (not part.Parent) or model:IsAncestorOf(part) then
             restorePart(part)
@@ -131,6 +132,7 @@ local function restoreAll()
     end
     State.originals = {}
     State.enlarged = {}
+    State.pending = {}
 end
 
 -- ============ 部件选择 ============
@@ -185,46 +187,57 @@ end
 
 -- ============ 放大：两种模式都用真实部件 ============
 local function applyEnlarge(character)
+    local firstApply = not State.enlarged[character]
     local parts = getSelectedParts(character)
     for _, part in ipairs(parts) do
+        if not part or not part.Parent then continue end
         snapshotPart(part)
         local old = State.originals[part]
         if not old then continue end
         pcall(function()
+            local targetSize, targetTransparency, targetMaterial, targetColor
             if Config.PlayerMode == "普通部件放大" then
                 -- 普通放大：按倍率放大，保留原外观
-                part.Size = old.Size * Config.Scale
-                part.Transparency = old.Transparency
-                part.Material = old.Material
-                part.Color = old.Color
+                targetSize = old.Size * Config.Scale
+                targetTransparency = old.Transparency
+                targetMaterial = old.Material
+                targetColor = old.Color
             else
                 -- 半透明方框放大（BS 风格）：统一改成正方形方块，半透明红色霓虹
                 local s = math.max(old.Size.X, old.Size.Y, old.Size.Z) * Config.Scale
-                part.Size = Vector3.new(s, s, s)
-                part.Transparency = Config.Transparency
-                part.Material = Enum.Material.Neon
-                part.Color = Color3.fromRGB(255, 0, 0)
+                targetSize = Vector3.new(s, s, s)
+                targetTransparency = Config.Transparency
+                targetMaterial = Enum.Material.Neon
+                targetColor = Color3.fromRGB(255, 0, 0)
             end
-            part.CanCollide = Config.PhysicalCollide
-            part.CanQuery = true
-            part.CanTouch = true
 
-            -- 放大后保持总质量与原部件一致（密度按体积反比调小），
+            -- 只在值不同时才写入，避免每帧反复覆盖（防巨大/闪烁）
+            if part.Size ~= targetSize then part.Size = targetSize end
+            if part.Transparency ~= targetTransparency then part.Transparency = targetTransparency end
+            if part.Material ~= targetMaterial then part.Material = targetMaterial end
+            if part.Color ~= targetColor then part.Color = targetColor end
+            if part.CanCollide ~= Config.PhysicalCollide then part.CanCollide = Config.PhysicalCollide end
+            if not part.CanQuery then part.CanQuery = true end
+            if not part.CanTouch then part.CanTouch = true end
+
+            -- 首次放大时保持总质量与原部件一致（密度按体积反比调小），
             -- 钩子拉人等物理效果不受影响
-            local oldVol = old.Size.X * old.Size.Y * old.Size.Z
-            local newVol = part.Size.X * part.Size.Y * part.Size.Z
-            if old.Mass and old.Mass > 0 and oldVol > 0 and newVol > 0 then
-                local density = old.Mass / newVol
-                if old.PhysProps then
-                    part.CustomPhysicalProperties = PhysicalProperties.new(
-                        density,
-                        old.PhysProps.Friction,
-                        old.PhysProps.Elasticity,
-                        old.PhysProps.FrictionWeight,
-                        old.PhysProps.ElasticityWeight
-                    )
-                else
-                    part.CustomPhysicalProperties = PhysicalProperties.new(density, 0.3, 0.5)
+            if firstApply then
+                local oldVol = old.Size.X * old.Size.Y * old.Size.Z
+                local newVol = targetSize.X * targetSize.Y * targetSize.Z
+                if old.Mass and old.Mass > 0 and oldVol > 0 and newVol > 0 then
+                    local density = old.Mass / newVol
+                    if old.PhysProps then
+                        part.CustomPhysicalProperties = PhysicalProperties.new(
+                            density,
+                            old.PhysProps.Friction,
+                            old.PhysProps.Elasticity,
+                            old.PhysProps.FrictionWeight,
+                            old.PhysProps.ElasticityWeight
+                        )
+                    else
+                        part.CustomPhysicalProperties = PhysicalProperties.new(density, 0.3, 0.5)
+                    end
                 end
             end
         end)
@@ -239,8 +252,17 @@ local function processTarget(model)
 
     if eligible then
         if not State.enlarged[model] then
-            applyEnlarge(model)
-            State.enlarged[model] = true
+            -- 新角色先等 0.5 秒再快照放大，避免把出生瞬间的临时大尺寸当原始尺寸
+            if not State.pending[model] then
+                State.pending[model] = true
+                task.delay(0.5, function()
+                    State.pending[model] = nil
+                    if Config.Enable and model.Parent and isAllowed(model) then
+                        applyEnlarge(model)
+                        State.enlarged[model] = true
+                    end
+                end)
+            end
         end
     elseif State.enlarged[model] then
         restoreCharacter(model)
@@ -290,7 +312,7 @@ local function queueRefresh()
     end)
 end
 
--- 主循环：状态处理每帧跑（开销小），尺寸锁定 0.5 秒兜底
+-- 主循环：状态处理每帧跑，已放大目标每帧锁定尺寸（值相同则不写入）
 RunService.Heartbeat:Connect(function()
     if not Config.Enable then return end
 
@@ -298,17 +320,15 @@ RunService.Heartbeat:Connect(function()
         updateNpcList()
     end
 
-    if os.clock() - State.enforceTimer >= 0.5 then
-        State.enforceTimer = os.clock()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character and State.enlarged[plr.Character] then
-                pcall(applyEnlarge, plr.Character)
-            end
+    -- 每帧锁定已放大的目标：游戏/服务器把尺寸改大后，下一帧立刻改回，防巨大
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and State.enlarged[plr.Character] then
+            pcall(applyEnlarge, plr.Character)
         end
-        for _, npc in ipairs(State.npcList) do
-            if State.enlarged[npc] then
-                pcall(applyEnlarge, npc)
-            end
+    end
+    for _, npc in ipairs(State.npcList) do
+        if State.enlarged[npc] then
+            pcall(applyEnlarge, npc)
         end
     end
 
