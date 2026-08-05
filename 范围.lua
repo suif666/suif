@@ -1,3 +1,4 @@
+-- 范围脚本（BS 风格合并版）
 -- 部件放大：把选中的真实部件放大成可调大小的红色半透明立方体（真实命中体积）
 -- 半透明方框：生成独立透明块框住目标（同样真实可命中）
 if getgenv().__RANGE_ENLARGE_LOADED then return end
@@ -91,6 +92,7 @@ local function snapshotPart(part)
             Size = part.Size,
             Transparency = part.Transparency,
             CanCollide = part.CanCollide,
+            Massless = part.Massless,
             Material = part.Material,
             Color = part.Color
         }
@@ -104,6 +106,7 @@ local function restorePart(part)
             part.Size = old.Size
             part.Transparency = old.Transparency
             part.CanCollide = old.CanCollide
+            part.Massless = old.Massless
             part.Material = old.Material
             part.Color = old.Color
         end)
@@ -167,6 +170,7 @@ local function createBox(model)
         b.CanCollide = Config.PhysicalCollide
         b.CanQuery = true
         b.CanTouch = true
+        b.Massless = true
         b.Material = Enum.Material.Neon
         b.Transparency = Config.Transparency
         b.Color = Color3.fromRGB(255, 0, 0)
@@ -253,6 +257,7 @@ local function applyEnlarge(character)
             part.Material = Enum.Material.Neon
             part.Color = Color3.fromRGB(255, 0, 0)
             part.CanCollide = Config.PhysicalCollide
+            part.Massless = true          -- 零质量：不影响钩子拉人等物理效果
             part.CanQuery = true
             part.CanTouch = true
         end)
