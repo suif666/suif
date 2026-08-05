@@ -1,6 +1,5 @@
--- 范围脚本（两种放大方式，均为真实部件放大，共用范围大小倍率）
+-- 范围脚本（两种放大方式，均为真实部件放大）
 -- 1. 普通部件放大：部件按倍率放大，保留原外观
--- 2. 半透明方框放大：部件同样按倍率放大，但变成半透明红色方框
 if getgenv().__RANGE_ENLARGE_LOADED then return end
 getgenv().__RANGE_ENLARGE_LOADED = true
 
@@ -17,12 +16,12 @@ local LocalPlayer = Players.LocalPlayer
 local Config = {
     Enable = false,
     TargetMode = "全部",
-    PlayerMode = "普通部件放大",
-    Range = 500,            -- 有效距离（默认最高）
+    PlayerMode = "半透明方框放大",  -- 默认方框模式，一眼可见
     Scale = 1.8,            -- 范围大小（两种方式共用，1~10，默认 1.8）
     Transparency = 0.7,     -- 半透明方框模式的透明度
     PhysicalCollide = false,-- 近战物理碰撞
-    Parts = {"头部"}        -- 多选部件
+    TeamCheck = false,      -- 队友检测：开启后跳过同队玩家
+    Parts = {"根部件"}      -- 默认根部件，任何游戏都有
 }
 
 local State = {
@@ -52,13 +51,6 @@ local function getCharacterRoot(character)
         or character:FindFirstChildWhichIsA("BasePart")
 end
 
-local function getDistanceToLocal(character)
-    local myRoot = LocalPlayer.Character and getCharacterRoot(LocalPlayer.Character)
-    local theirRoot = getCharacterRoot(character)
-    if not myRoot or not theirRoot then return math.huge end
-    return (myRoot.Position - theirRoot.Position).Magnitude
-end
-
 -- 更宽松的 NPC 判定（递归找 Humanoid / AnimationController）
 local function isNpcModel(model)
     if not model or not model:IsA("Model") then return false end
@@ -80,6 +72,9 @@ local function isAllowed(model)
     if model == LocalPlayer.Character then return false end
     local plr = Players:GetPlayerFromCharacter(model)
     if plr then
+        if Config.TeamCheck and plr.Team and LocalPlayer.Team and plr.Team == LocalPlayer.Team then
+            return false
+        end
         return Config.TargetMode == "玩家" or Config.TargetMode == "全部"
     end
     return isNpcModel(model) and (Config.TargetMode == "NPC" or Config.TargetMode == "全部")
@@ -181,7 +176,7 @@ local function getSelectedParts(character)
     return parts
 end
 
--- ============ 放大：两种模式都用真实部件，共用范围大小 ============
+-- ============ 放大：两种模式都用真实部件 ============
 local function applyEnlarge(character)
     local parts = getSelectedParts(character)
     for _, part in ipairs(parts) do
@@ -196,7 +191,7 @@ local function applyEnlarge(character)
                 part.Material = old.Material
                 part.Color = old.Color
             else
-                -- 半透明方框放大：同样按倍率放大，变成半透明红色方框
+                -- 半透明方框放大（BS 风格）：统一改成正方形方块，半透明红色霓虹
                 local s = math.max(old.Size.X, old.Size.Y, old.Size.Z) * Config.Scale
                 part.Size = Vector3.new(s, s, s)
                 part.Transparency = Config.Transparency
@@ -233,7 +228,7 @@ end
 local function processTarget(model)
     if not Config.Enable or not model or not model.Parent then return end
 
-    local eligible = isAllowed(model) and getDistanceToLocal(model) <= Config.Range
+    local eligible = isAllowed(model)
 
     if eligible then
         if not State.enlarged[model] then
@@ -359,6 +354,16 @@ Tab:Dropdown({
     end
 })
 
+Tab:Toggle({
+    Title = "队友检测",
+    Desc = "开启后跳过同队玩家（只影响玩家目标，NPC 不受影响）",
+    Value = Config.TeamCheck,
+    Callback = function(v)
+        Config.TeamCheck = v
+        queueRefresh()
+    end
+})
+
 Tab:Dropdown({
     Title = "放大方式",
     Values = {"普通部件放大", "半透明方框放大"},
@@ -376,16 +381,6 @@ Tab:Dropdown({
     Multi = true,
     Callback = function(v)
         Config.Parts = v
-        queueRefresh()
-    end
-})
-
-Tab:Slider({
-    Title = "有效范围",
-    Step = 1,
-    Value = { Min = 0, Max = 500, Default = Config.Range },
-    Callback = function(v)
-        Config.Range = v
         queueRefresh()
     end
 })
