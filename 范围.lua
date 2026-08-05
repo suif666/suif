@@ -17,7 +17,9 @@ local LocalPlayer = Players.LocalPlayer
 local Config = {
     Enable = false,
     TargetMode = "全部",
+    PlayerMode = "正常部件放大",
     Range = 150,            -- 有效距离
+    Scale = 1.8,            -- 正常部件放大：倍率
     CubeSize = 10,          -- 立方体边长（自由调节，最低 10）
     Transparency = 0.7,     -- 透明度
     PhysicalCollide = false,-- 近战物理碰撞
@@ -188,10 +190,19 @@ local function applyEnlarge(character)
         local old = State.originals[part]
         if not old then continue end
         pcall(function()
-            part.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
-            part.Transparency = Config.Transparency
-            part.Material = Enum.Material.Neon
-            part.Color = Color3.fromRGB(255, 0, 0)
+            if Config.PlayerMode == "正常部件放大" then
+                -- 正常放大：保留原外观，只按倍率放大尺寸
+                part.Size = old.Size * Config.Scale
+                part.Transparency = old.Transparency
+                part.Material = old.Material
+                part.Color = old.Color
+            else
+                -- 半透明方块放大：变成红色半透明大立方体
+                part.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
+                part.Transparency = Config.Transparency
+                part.Material = Enum.Material.Neon
+                part.Color = Color3.fromRGB(255, 0, 0)
+            end
             part.CanCollide = Config.PhysicalCollide
             part.CanQuery = true
             part.CanTouch = true
@@ -349,6 +360,16 @@ Tab:Dropdown({
 })
 
 Tab:Dropdown({
+    Title = "放大方式",
+    Values = {"正常部件放大", "半透明方块放大"},
+    Value = Config.PlayerMode,
+    Callback = function(v)
+        Config.PlayerMode = v
+        queueRefresh()
+    end
+})
+
+Tab:Dropdown({
     Title = "放大部位（可多选）",
     Values = {"头部", "身体", "根部件", "左臂", "右臂", "左腿", "右腿", "全部"},
     Value = Config.Parts,
@@ -370,8 +391,19 @@ Tab:Slider({
 })
 
 Tab:Slider({
+    Title = "放大倍率",
+    Desc = "正常部件放大模式生效",
+    Step = 0.1,
+    Value = { Min = 1, Max = 10, Default = Config.Scale },
+    Callback = function(v)
+        Config.Scale = v
+        queueRefresh()
+    end
+})
+
+Tab:Slider({
     Title = "范围大小",
-    Desc = "立方体边长（studs），最低 10",
+    Desc = "半透明方块放大模式生效，边长（studs）最低 10",
     Step = 1,
     Value = { Min = 10, Max = 2500, Default = Config.CubeSize },
     Callback = function(v)
@@ -387,9 +419,11 @@ Tab:Slider({
     Value = { Min = 0, Max = 1, Default = Config.Transparency },
     Callback = function(v)
         Config.Transparency = v
-        for part, _ in pairs(State.originals) do
-            if part and part.Parent then
-                part.Transparency = v
+        if Config.PlayerMode == "半透明方块放大" then
+            for part, _ in pairs(State.originals) do
+                if part and part.Parent then
+                    part.Transparency = v
+                end
             end
         end
     end
