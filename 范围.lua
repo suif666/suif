@@ -1,7 +1,10 @@
+-- 范围放大/范围方框（优化版）
+-- 部件放大：修改原部件尺寸（锁定防重置）
+-- 半透明方框：生成独立透明块框住目标，原部件完全不动
 if getgenv().__RANGE_ENLARGE_LOADED then return end
 getgenv().__RANGE_ENLARGE_LOADED = true
 
-local Tab = getgenv().Tabs and getgenv().Tabs.RangeTab
+local Tab = (getgenv().Tabs and getgenv().Tabs.RangeTab) or getgenv().SutureRangeTab
 if not Tab then
     warn("[RangeEnlarge] 未找到 getgenv().Tabs.RangeTab，请先在主脚本赋值")
     return
@@ -23,7 +26,9 @@ local Config = {
 }
 
 local State = {
-    originals = {},
+    originals = {},   -- 部件放大模式的快照（恢复后即清空）
+    enlarged = {},    -- 当前已放大的模型
+    boxes = {},       -- 半透明方框模式：模型 -> 透明块
     npcList = {},
     lastNpcUpdate = 0,
     refreshQueued = false
@@ -75,6 +80,7 @@ local function isAllowed(model)
     return isNpcModel(model) and (Config.TargetMode == "NPC" or Config.TargetMode == "全部")
 end
 
+-- ============ 部件放大模式：快照 / 恢复 ============
 local function snapshotPart(part)
     if not State.originals[part] then
         State.originals[part] = {
@@ -100,24 +106,79 @@ local function restorePart(part)
     end
 end
 
+-- 恢复某个模型的所有快照部件，并清掉对应快照（不再残留）
 local function restoreCharacter(model)
     if not model then return end
-    local head = model:FindFirstChild("Head") or model:FindFirstChild("head")
-    if head then restorePart(head) end
-    for _, name in ipairs(bodyPartNames) do
-        local p = model:FindFirstChild(name)
-        if p then restorePart(p) end
+    for part, _ in pairs(State.originals) do
+        if (not part.Parent) or model:IsAncestorOf(part) then
+            restorePart(part)
+            State.originals[part] = nil
+        end
     end
-    -- 兜底恢复 PrimaryPart
-    if model.PrimaryPart then restorePart(model.PrimaryPart) end
+    State.enlarged[model] = nil
 end
 
 local function restoreAll()
     for part, _ in pairs(State.originals) do
         restorePart(part)
     end
+    State.originals = {}
+    State.enlarged = {}
 end
 
+-- ============ 半透明方框模式：独立透明块 ============
+local function updateBox(box, model)
+    local ok, cf, size = pcall(function()
+        return model:GetBoundingBox()
+    end)
+    if not ok or not cf then return end
+
+    box.CFrame = cf
+    local s = math.max(size.X, size.Y, size.Z) * Config.Scale
+    box.Size = Vector3.new(s, s, s)
+    box.Transparency = Config.BoxTransparency
+    box.Color = Config.Color
+end
+
+local function createBox(model)
+    local ok, box = pcall(function()
+        local b = Instance.new("Part")
+        b.Name = "RangeEnlargeBox"
+        b.Anchored = true
+        b.CanCollide = false
+        b.CanQuery = false
+        b.CanTouch = false
+        b.Material = Enum.Material.Neon
+        b.Transparency = Config.BoxTransparency
+        b.Color = Config.Color
+        b.Size = Vector3.new(1, 1, 1)
+        b.Parent = workspace
+        return b
+    end)
+    if ok and box then
+        State.boxes[model] = box
+        updateBox(box, model)
+    end
+end
+
+local function destroyBox(model)
+    local box = State.boxes[model]
+    if box then
+        pcall(function() box:Destroy() end)
+    end
+    State.boxes[model] = nil
+end
+
+local function destroyAllBoxes()
+    for model, box in pairs(State.boxes) do
+        if box then
+            pcall(function() box:Destroy() end)
+        end
+    end
+    State.boxes = {}
+end
+
+-- ============ 目标处理 ============
 local function hasPart(name)
     for _, v in ipairs(Config.Parts) do
         if v == name then return true end
@@ -145,7 +206,6 @@ local function getSelectedParts(character)
         for _, name in ipairs(bodyPartNames) do
             add(character:FindFirstChild(name))
         end
-        -- 如果一个标准部件都没找到，就用 PrimaryPart 或任意 BasePart 兜底
         if #parts == 0 then
             add(character.PrimaryPart)
             add(character:FindFirstChildWhichIsA("BasePart"))
@@ -161,41 +221,45 @@ local function applyEnlarge(character)
         snapshotPart(part)
         local old = State.originals[part]
         if not old then continue end
-
         pcall(function()
-            if Config.PlayerMode == "部件放大" then
-                part.Size = old.Size * Config.Scale
-                part.Transparency = old.Transparency
-                part.Material = old.Material
-                part.Color = old.Color
-            else
-                -- 半透明方框：强制立方体 + Neon
-                local s = math.max(old.Size.X, old.Size.Y, old.Size.Z) * Config.Scale
-                part.Size = Vector3.new(s, s, s)
-                part.Transparency = Config.BoxTransparency
-                part.Material = Enum.Material.Neon
-                part.Color = Config.Color
-            end
+            part.Size = old.Size * Config.Scale
             part.CanCollide = false
             part.CanQuery = true
         end)
     end
 end
 
-local function refreshCharacter(model)
+-- 每帧/每次变更处理单个目标：只做状态变化时的恢复/创建，放大按帧锁定
+local function processTarget(model)
     if not Config.Enable or not model or not model.Parent then return end
 
-    if not isAllowed(model) or getDistanceToLocal(model) > Config.Range then
-        restoreCharacter(model)
-        return
-    end
+    local eligible = isAllowed(model) and getDistanceToLocal(model) <= Config.Range
 
-    applyEnlarge(model)
+    if Config.PlayerMode == "半透明方框" then
+        local box = State.boxes[model]
+        if eligible then
+            if not box then
+                createBox(model)
+            else
+                updateBox(box, model)
+            end
+        elseif box then
+            destroyBox(model)
+        end
+    else
+        if eligible then
+            applyEnlarge(model)
+            State.enlarged[model] = true
+        elseif State.enlarged[model] then
+            restoreCharacter(model)
+        end
+    end
 end
 
+-- NPC 列表：增量收集为主，全量扫描降频到 3 秒兜底
 local function updateNpcList()
     local now = os.clock()
-    if now - State.lastNpcUpdate < 0.8 then return end
+    if now - State.lastNpcUpdate < 3 then return end
     State.lastNpcUpdate = now
 
     local list = {}
@@ -207,16 +271,19 @@ local function updateNpcList()
     State.npcList = list
 end
 
-local function refreshAll()
+-- 配置变化后的完整重建（已节流）
+local function rebuildAll()
     restoreAll()
+    destroyAllBoxes()
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
-            refreshCharacter(plr.Character)
+            processTarget(plr.Character)
         end
     end
     updateNpcList()
     for _, npc in ipairs(State.npcList) do
-        refreshCharacter(npc)
+        processTarget(npc)
     end
 end
 
@@ -227,26 +294,30 @@ local function queueRefresh()
         task.wait(0.05)
         State.refreshQueued = false
         if Config.Enable then
-            refreshAll()
+            rebuildAll()
         else
             restoreAll()
+            destroyAllBoxes()
         end
     end)
 end
 
--- 主循环
+-- 主循环：只处理玩家 + NPC 列表，不再每帧全量恢复
 RunService.Heartbeat:Connect(function()
     if not Config.Enable then return end
 
+    if os.clock() - State.lastNpcUpdate >= 3 then
+        updateNpcList()
+    end
+
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
-            refreshCharacter(plr.Character)
+            pcall(processTarget, plr.Character)
         end
     end
 
-    updateNpcList()
     for _, npc in ipairs(State.npcList) do
-        refreshCharacter(npc)
+        pcall(processTarget, npc)
     end
 end)
 
@@ -256,14 +327,14 @@ workspace.DescendantAdded:Connect(function(obj)
     if obj:IsA("Model") and isNpcModel(obj) then
         task.delay(0.15, function()
             if obj.Parent and isAllowed(obj) then
-                refreshCharacter(obj)
+                processTarget(obj)
             end
         end)
     end
 end)
 
--- UI
-Tab:Toggle({
+-- ============ UI ============
+local mainToggle = Tab:Toggle({
     Title = "主开关",
     Value = false,
     Callback = function(v)
@@ -272,6 +343,7 @@ Tab:Toggle({
             queueRefresh()
         else
             restoreAll()
+            destroyAllBoxes()
         end
     end
 })
@@ -335,6 +407,11 @@ Tab:Slider({
     Value = { Min = 0, Max = 1, Default = Config.BoxTransparency },
     Callback = function(v)
         Config.BoxTransparency = v
+        for _, box in pairs(State.boxes) do
+            if box then
+                box.Transparency = v
+            end
+        end
     end
 })
 
@@ -343,5 +420,11 @@ Tab:Button({
     Callback = function()
         Config.Enable = false
         restoreAll()
+        destroyAllBoxes()
+        if mainToggle and mainToggle.Set then
+            pcall(mainToggle.Set, mainToggle, false)
+        end
     end
 })
+
+print("[RangeEnlarge] 范围脚本加载完成")
