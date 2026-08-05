@@ -1,4 +1,3 @@
--- 范围脚本（BS 风格合并版）
 -- 部件放大：把选中的真实部件放大成可调大小的红色半透明立方体（真实命中体积）
 -- 半透明方框：生成独立透明块框住目标（同样真实可命中）
 if getgenv().__RANGE_ENLARGE_LOADED then return end
@@ -88,11 +87,16 @@ end
 -- ============ 快照 / 恢复（部件放大模式） ============
 local function snapshotPart(part)
     if not State.originals[part] then
+        local okM, mass = pcall(function()
+            return part:GetMass()
+        end)
         State.originals[part] = {
             Size = part.Size,
             Transparency = part.Transparency,
             CanCollide = part.CanCollide,
             Massless = part.Massless,
+            Mass = okM and mass or nil,
+            PhysProps = part.CustomPhysicalProperties,
             Material = part.Material,
             Color = part.Color
         }
@@ -107,6 +111,7 @@ local function restorePart(part)
             part.Transparency = old.Transparency
             part.CanCollide = old.CanCollide
             part.Massless = old.Massless
+            part.CustomPhysicalProperties = old.PhysProps
             part.Material = old.Material
             part.Color = old.Color
         end)
@@ -257,9 +262,27 @@ local function applyEnlarge(character)
             part.Material = Enum.Material.Neon
             part.Color = Color3.fromRGB(255, 0, 0)
             part.CanCollide = Config.PhysicalCollide
-            part.Massless = true          -- 零质量：不影响钩子拉人等物理效果
             part.CanQuery = true
             part.CanTouch = true
+
+            -- 放大后保持总质量与原部件一致：密度按体积反比调小，
+            -- 这样钩子拉人等物理效果不受影响
+            local oldVol = old.Size.X * old.Size.Y * old.Size.Z
+            local newVol = part.Size.X * part.Size.Y * part.Size.Z
+            if old.Mass and old.Mass > 0 and oldVol > 0 and newVol > 0 then
+                local density = old.Mass / newVol
+                if old.PhysProps then
+                    part.CustomPhysicalProperties = PhysicalProperties.new(
+                        density,
+                        old.PhysProps.Friction,
+                        old.PhysProps.Elasticity,
+                        old.PhysProps.FrictionWeight,
+                        old.PhysProps.ElasticityWeight
+                    )
+                else
+                    part.CustomPhysicalProperties = PhysicalProperties.new(density, 0.3, 0.5)
+                end
+            end
         end)
     end
 end
@@ -286,8 +309,10 @@ local function processTarget(model)
         end
     else
         if eligible then
-            applyEnlarge(model)
-            State.enlarged[model] = true
+            if not State.enlarged[model] then
+                applyEnlarge(model)
+                State.enlarged[model] = true
+            end
         elseif State.enlarged[model] then
             restoreCharacter(model)
         end
@@ -345,6 +370,21 @@ RunService.Heartbeat:Connect(function()
 
     if os.clock() - State.lastNpcUpdate >= 3 then
         updateNpcList()
+    end
+
+    -- 低频重新锁定尺寸（0.5 秒一次），避免和游戏拉人动画抢属性
+    if os.clock() - (State.enforceTimer or 0) >= 0.5 then
+        State.enforceTimer = os.clock()
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and State.enlarged[plr.Character] then
+                pcall(applyEnlarge, plr.Character)
+            end
+        end
+        for _, npc in ipairs(State.npcList) do
+            if State.enlarged[npc] then
+                pcall(applyEnlarge, npc)
+            end
+        end
     end
 
     for _, plr in ipairs(Players:GetPlayers()) do
