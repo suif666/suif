@@ -1,6 +1,5 @@
--- 范围放大/范围方框（优化版）
--- 部件放大：修改原部件尺寸（锁定防重置）
--- 半透明方框：生成独立透明块框住目标，原部件完全不动
+-- 部件放大：把选中的真实部件放大成可调大小的红色半透明立方体（真实命中体积）
+-- 半透明方框：生成独立透明块框住目标（同样真实可命中）
 if getgenv().__RANGE_ENLARGE_LOADED then return end
 getgenv().__RANGE_ENLARGE_LOADED = true
 
@@ -18,11 +17,11 @@ local Config = {
     Enable = false,
     TargetMode = "全部",
     PlayerMode = "部件放大",
-    Range = 150,
-    Scale = 1.8,
-    BoxTransparency = 0.55,
-    Color = Color3.fromRGB(255, 60, 60),
-    Parts = {"头部"}
+    Range = 150,            -- 有效距离
+    CubeSize = 10,          -- 立方体边长（自由调节，最低 10）
+    Transparency = 0.7,     -- 统一透明度
+    PhysicalCollide = false,-- 近战物理碰撞
+    Parts = {"头部"}        -- 多选部件
 }
 
 local State = {
@@ -34,10 +33,15 @@ local State = {
     refreshQueued = false
 }
 
--- 兼容更多 NPC 的身体部件名
-local bodyPartNames = {
-    "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso",
-    "RootPart", "HumanoidRoot", "Body", "Chest", "Hip"
+-- 部件分组（兼容 R6/R15 命名）
+local PART_GROUPS = {
+    ["头部"] = { "Head", "head" },
+    ["身体"] = { "HumanoidRootPart", "UpperTorso", "LowerTorso", "Torso", "RootPart", "HumanoidRoot", "Body", "Chest", "Hip" },
+    ["根部件"] = { "HumanoidRootPart", "RootPart", "HumanoidRoot" },
+    ["左臂"] = { "Left Arm", "LeftUpperArm", "LeftLowerArm", "LeftHand" },
+    ["右臂"] = { "Right Arm", "RightUpperArm", "RightLowerArm", "RightHand" },
+    ["左腿"] = { "Left Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot" },
+    ["右腿"] = { "Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot" },
 }
 
 local function getCharacterRoot(character)
@@ -80,7 +84,7 @@ local function isAllowed(model)
     return isNpcModel(model) and (Config.TargetMode == "NPC" or Config.TargetMode == "全部")
 end
 
--- ============ 部件放大模式：快照 / 恢复 ============
+-- ============ 快照 / 恢复（部件放大模式） ============
 local function snapshotPart(part)
     if not State.originals[part] then
         State.originals[part] = {
@@ -106,7 +110,6 @@ local function restorePart(part)
     end
 end
 
--- 恢复某个模型的所有快照部件，并清掉对应快照（不再残留）
 local function restoreCharacter(model)
     if not model then return end
     for part, _ in pairs(State.originals) do
@@ -126,33 +129,49 @@ local function restoreAll()
     State.enlarged = {}
 end
 
--- ============ 半透明方框模式：独立透明块 ============
-local function updateBox(box, model)
-    local ok, cf, size = pcall(function()
-        return model:GetBoundingBox()
-    end)
-    if not ok or not cf then return end
+-- ============ 半透明方框模式：独立透明块（真实命中体积） ============
+local function getPrimaryPart(character)
+    local hasHead = false
+    for _, v in ipairs(Config.Parts) do
+        if v == "头部" then
+            hasHead = true
+            break
+        end
+    end
+    if hasHead then
+        local head = character:FindFirstChild("Head") or character:FindFirstChild("head")
+        if head then return head end
+    end
+    return getCharacterRoot(character)
+end
 
-    box.CFrame = cf
-    local s = math.max(size.X, size.Y, size.Z) * Config.Scale
-    box.Size = Vector3.new(s, s, s)
-    box.Transparency = Config.BoxTransparency
-    box.Color = Config.Color
+local function updateBox(box, model)
+    local part = getPrimaryPart(model)
+    if not part then return end
+
+    box.CFrame = part.CFrame
+    box.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
+    box.Transparency = Config.Transparency
+    box.Color = Color3.fromRGB(255, 0, 0)
+    box.CanCollide = Config.PhysicalCollide
 end
 
 local function createBox(model)
+    local part = getPrimaryPart(model)
+    if not part then return end
+
     local ok, box = pcall(function()
         local b = Instance.new("Part")
         b.Name = "RangeEnlargeBox"
         b.Anchored = true
-        b.CanCollide = false
-        b.CanQuery = false
-        b.CanTouch = false
+        b.CanCollide = Config.PhysicalCollide
+        b.CanQuery = true
+        b.CanTouch = true
         b.Material = Enum.Material.Neon
-        b.Transparency = Config.BoxTransparency
-        b.Color = Config.Color
-        b.Size = Vector3.new(1, 1, 1)
-        b.Parent = workspace
+        b.Transparency = Config.Transparency
+        b.Color = Color3.fromRGB(255, 0, 0)
+        b.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
+        b.Parent = model
         return b
     end)
     if ok and box then
@@ -178,7 +197,7 @@ local function destroyAllBoxes()
     State.boxes = {}
 end
 
--- ============ 目标处理 ============
+-- ============ 部件选择 ============
 local function hasPart(name)
     for _, v in ipairs(Config.Parts) do
         if v == name then return true end
@@ -197,24 +216,31 @@ local function getSelectedParts(character)
         end
     end
 
-    if hasPart("头部") then
-        add(character:FindFirstChild("Head"))
-        add(character:FindFirstChild("head"))
+    if hasPart("全部") then
+        for _, p in ipairs(character:GetDescendants()) do
+            add(p)
+        end
+        return parts
     end
 
-    if hasPart("身体") then
-        for _, name in ipairs(bodyPartNames) do
-            add(character:FindFirstChild(name))
+    for groupName, names in pairs(PART_GROUPS) do
+        if hasPart(groupName) then
+            for _, name in ipairs(names) do
+                add(character:FindFirstChild(name))
+            end
         end
-        if #parts == 0 then
-            add(character.PrimaryPart)
-            add(character:FindFirstChildWhichIsA("BasePart"))
-        end
+    end
+
+    -- 兜底：选了身体但标准部件都没找到时
+    if hasPart("身体") and #parts == 0 then
+        add(character.PrimaryPart)
+        add(character:FindFirstChildWhichIsA("BasePart"))
     end
 
     return parts
 end
 
+-- ============ 部件放大模式：BS 风格，选中部件变成真实大立方体 ============
 local function applyEnlarge(character)
     local parts = getSelectedParts(character)
     for _, part in ipairs(parts) do
@@ -222,16 +248,23 @@ local function applyEnlarge(character)
         local old = State.originals[part]
         if not old then continue end
         pcall(function()
-            part.Size = old.Size * Config.Scale
-            part.CanCollide = false
+            part.Size = Vector3.new(Config.CubeSize, Config.CubeSize, Config.CubeSize)
+            part.Transparency = Config.Transparency
+            part.Material = Enum.Material.Neon
+            part.Color = Color3.fromRGB(255, 0, 0)
+            part.CanCollide = Config.PhysicalCollide
             part.CanQuery = true
+            part.CanTouch = true
         end)
     end
 end
 
--- 每帧/每次变更处理单个目标：只做状态变化时的恢复/创建，放大按帧锁定
+-- 每帧处理单个目标：只做状态变化时的恢复/创建，放大按帧锁定
 local function processTarget(model)
-    if not Config.Enable or not model or not model.Parent then return end
+    if not Config.Enable or not model or not model.Parent then
+        if model then destroyBox(model) end
+        return
+    end
 
     local eligible = isAllowed(model) and getDistanceToLocal(model) <= Config.Range
 
@@ -256,7 +289,7 @@ local function processTarget(model)
     end
 end
 
--- NPC 列表：增量收集为主，全量扫描降频到 3 秒兜底
+-- NPC 列表：增量收集为主，全量扫描 3 秒兜底
 local function updateNpcList()
     local now = os.clock()
     if now - State.lastNpcUpdate < 3 then return end
@@ -271,7 +304,6 @@ local function updateNpcList()
     State.npcList = list
 end
 
--- 配置变化后的完整重建（已节流）
 local function rebuildAll()
     restoreAll()
     destroyAllBoxes()
@@ -302,7 +334,7 @@ local function queueRefresh()
     end)
 end
 
--- 主循环：只处理玩家 + NPC 列表，不再每帧全量恢复
+-- 主循环
 RunService.Heartbeat:Connect(function()
     if not Config.Enable then return end
 
@@ -362,7 +394,7 @@ Tab:Dropdown({
 
 Tab:Dropdown({
     Title = "放大部位（可多选）",
-    Values = {"头部", "身体"},
+    Values = {"头部", "身体", "根部件", "左臂", "右臂", "左腿", "右腿", "全部"},
     Value = Config.Parts,
     Multi = true,
     Callback = function(v)
@@ -392,24 +424,50 @@ Tab:Slider({
 })
 
 Tab:Slider({
-    Title = "放大倍率",
-    Step = 0.1,
-    Value = { Min = 1, Max = 10, Default = Config.Scale },
+    Title = "范围大小",
+    Desc = "立方体边长（studs），最低 10",
+    Step = 1,
+    Value = { Min = 10, Max = 2500, Default = Config.CubeSize },
     Callback = function(v)
-        Config.Scale = v
+        Config.CubeSize = v
         queueRefresh()
     end
 })
 
 Tab:Slider({
-    Title = "方框透明度",
+    Title = "透明度",
+    Desc = "0 全透明，1 不透明，改动即时生效",
     Step = 0.05,
-    Value = { Min = 0, Max = 1, Default = Config.BoxTransparency },
+    Value = { Min = 0, Max = 1, Default = Config.Transparency },
     Callback = function(v)
-        Config.BoxTransparency = v
+        Config.Transparency = v
+        for part, _ in pairs(State.originals) do
+            if part and part.Parent then
+                part.Transparency = v
+            end
+        end
         for _, box in pairs(State.boxes) do
             if box then
                 box.Transparency = v
+            end
+        end
+    end
+})
+
+Tab:Toggle({
+    Title = "物理碰撞（近战命中）",
+    Desc = "开启后武器实体碰到也算命中，但会挡人",
+    Value = Config.PhysicalCollide,
+    Callback = function(v)
+        Config.PhysicalCollide = v
+        for part, _ in pairs(State.originals) do
+            if part and part.Parent then
+                part.CanCollide = v
+            end
+        end
+        for _, box in pairs(State.boxes) do
+            if box then
+                box.CanCollide = v
             end
         end
     end
