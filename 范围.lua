@@ -363,6 +363,7 @@ end)
 -- ============ UI ============
 Tab:Toggle({
     Title = "主开关",
+     Desc = "字面意思",
     Value = false,
     Callback = function(v)
         Config.Enable = v
@@ -378,6 +379,7 @@ Tab:Space()
 
 Tab:Dropdown({
     Title = "放大对象",
+     Desc = "可以选择放大的对象",
     Values = {"玩家", "NPC", "全部"},
     Value = Config.TargetMode,
     Callback = function(v)
@@ -388,7 +390,7 @@ Tab:Dropdown({
 
 Tab:Toggle({
     Title = "队友检测",
-    Desc = "开启后跳过同队玩家（只影响玩家目标，NPC 不受影响）",
+    Desc = "略过同队玩家 无法识别同队NPC 只对玩家生效",
     Value = Config.TeamCheck,
     Callback = function(v)
         Config.TeamCheck = v
@@ -398,6 +400,7 @@ Tab:Toggle({
 
 Tab:Dropdown({
     Title = "放大方式",
+     Desc = "都是字面意思嗯对",
     Values = {"普通部件放大", "半透明方框放大"},
     Value = Config.PlayerMode,
     Callback = function(v)
@@ -408,7 +411,7 @@ Tab:Dropdown({
 
 Tab:Dropdown({
     Title = "放大部位（可多选）",
-    Desc = "仅普通部件放大模式生效，半透明方框模式固定放大根部件",
+    Desc = "仅对普通放大模式生效，半透明方框锁死根部件",
     Values = {"头部", "身体", "左臂", "右臂", "左腿", "右腿", "全部"},
     Value = Config.Parts,
     Multi = true,
@@ -420,7 +423,7 @@ Tab:Dropdown({
 
 Tab:Slider({
     Title = "范围大小",
-    Desc = "普通部件放大和半透明方框放大共用，最低 1，最高 10",
+    Desc = "普通放大和半透明放大共用",
     Step = 0.1,
     Value = { Min = 1, Max = 10, Default = Config.Scale },
     Callback = function(v)
@@ -431,7 +434,7 @@ Tab:Slider({
 
 Tab:Slider({
     Title = "透明度",
-    Desc = "半透明方框模式生效，0 全透明，1 不透明",
+    Desc = "仅对半透明模式生效，0=全透明，1=不透明",
     Step = 0.05,
     Value = { Min = 0, Max = 1, Default = Config.Transparency },
     Callback = function(v)
@@ -447,8 +450,8 @@ Tab:Slider({
 })
 
 Tab:Toggle({
-    Title = "物理碰撞（近战命中）",
-    Desc = "开启后武器实体碰到也算命中，但会挡人",
+    Title = "启用物理碰撞",
+    Desc = "字面意思 开启后你可以触碰到放大的部件",
     Value = Config.PhysicalCollide,
     Callback = function(v)
         Config.PhysicalCollide = v
