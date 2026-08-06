@@ -175,9 +175,10 @@ local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false 
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
 local SfTab = funcSec:Tab({ Title = "甩飞类", Icon = "user", Locked = false })
+local amTab = funcSec:Tab({ Title = "自瞄类", Icon = "user", Locked = false })
+local sayTab = funcSec:Tab({ Title = "发言类", Icon = "user", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
-local amTab = funcSec:Tab({ Title = "自瞄类", Icon = "user", Locked = false })
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
@@ -827,6 +828,12 @@ getgenv().Tabs.AimbotTab = amTab
 getgenv().SutureAimbotTab = amTab
 
 loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "自瞄类")
+
+--发言类远程
+getgenv().Tabs.SayTab = sayTab
+getgenv().SutureSayTab = sayTab
+
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "发言类")
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
