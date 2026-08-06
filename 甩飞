@@ -391,13 +391,41 @@ local function StopTPLoop()
 end
 
 -- ===== UI 控件（直接使用 Tab）=====
-local TargetDropdown = Tab:Dropdown({
+local TargetDropdown = nil
+local listKey = ""
+local lastListRefresh = 0
+local selectedNames = {"ALL"}
+
+local function updatePlayerList(force)
+    -- 限流：3 秒内最多真正刷新一次，避免频繁重建下拉框导致卡顿
+    local now = os.clock()
+    if not force and now - lastListRefresh < 3 then return end
+    rebuildPlayerList()
+    local key = table.concat(playerNameList, ",")
+    if force or key ~= listKey then
+        listKey = key
+        lastListRefresh = now
+        pcall(function()
+            if TargetDropdown.Refresh then
+                TargetDropdown:Refresh(playerNameList, selectedNames)
+            else
+                TargetDropdown:SetValues(playerNameList)
+            end
+        end)
+    end
+end
+
+TargetDropdown = Tab:Dropdown({
     Title = "选择目标",
  Desc = "可多选嗯对",
     Values = playerNameList,
     Value = {"ALL"},
     Multi = true,
     Callback = function(values)
+        selectedNames = {}
+        for _, name in ipairs(values) do
+            table.insert(selectedNames, name)
+        end
         SelectedTargets = {}
         for _, name in ipairs(values) do
             if name == "ALL" then
@@ -411,26 +439,19 @@ local TargetDropdown = Tab:Dropdown({
     end
 })
 
-Tab:Button({
-    Title = "刷新玩家列表",
- Desc = "等我有空了在改成全自动的",
-    Callback = function()
-        rebuildPlayerList()
-        pcall(function()
-            TargetDropdown:SetValues(playerNameList)
-        end)
-        Notify("列表", "玩家列表已刷新", 2)
-    end
-})
-
-Players.PlayerAdded:Connect(function(p)
-    rebuildPlayerList()
-    pcall(function() TargetDropdown:SetValues(playerNameList) end)
+Players.PlayerAdded:Connect(function()
+    updatePlayerList(false)
 end)
 
-Players.PlayerRemoving:Connect(function(p)
-    rebuildPlayerList()
-    pcall(function() TargetDropdown:SetValues(playerNameList) end)
+Players.PlayerRemoving:Connect(function()
+    updatePlayerList(false)
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        updatePlayerList(false)
+    end
 end)
 
 Tab:Button({
@@ -465,11 +486,13 @@ Tab:Toggle({
 
 Tab:Toggle({
     Title = "防甩飞",
-    Desc = "开启后小学生成功急眼😂",
+    Desc = "开启后小学生会不会急眼🤡",
     Value = false,
     Callback = function(v)
         if v then
             startAntiFling()
+        else
+            stopAntiFling()
         end
     end
 })
