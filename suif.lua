@@ -182,6 +182,7 @@ local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = fal
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
+local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = false })
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
@@ -834,6 +835,13 @@ getgenv().Tabs.SayTab = sayTab
 getgenv().SutureSayTab = sayTab
 
 loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "发言类")
+
+--ESP远程
+getgenv().Tabs.ESPTab = espTab
+getgenv().SutureESPTab = espTab
+
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "ESP")
+
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
