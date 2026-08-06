@@ -747,6 +747,13 @@ gnjbTab:Paragraph({
 gnjbTab:Space()
 
 gnjbTab:Button({
+    Title = "叶脚本", Desc = "国内老资历 群[336554662]", Icon = "shell",
+    Callback = function()
+    run("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua", "夜脚本")
+    end
+})
+
+gnjbTab:Button({
     Title = "夜脚本", Desc = "国内脚本 群[711757444]", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/ylt410/roblox-Script/refs/heads/main/yejiaoben", "夜脚本")
