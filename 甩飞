@@ -465,15 +465,11 @@ Tab:Toggle({
 
 Tab:Toggle({
     Title = "防甩飞",
-    Desc = "关闭所有角色碰撞并清零异常速度，防止被物理撞飞；关闭后恢复碰撞",
+    Desc = "开启后小学生成功急眼😂",
     Value = false,
     Callback = function(v)
         if v then
             startAntiFling()
-            Notify("防甩飞", "已开启", 2)
-        else
-            stopAntiFling()
-            Notify("防甩飞", "已关闭", 2)
         end
     end
 })
