@@ -78,11 +78,6 @@ local function loadRemote(url, desc)
     end)
 end
 
-local function getHum()
-    local c = lp.Character
-    return c and c:FindFirstChildOfClass("Humanoid")
-end
-
 -- 全局通用防爆杀 (Adonis Bypass)
 getgenv().bypass_adonis = true
 
@@ -109,6 +104,19 @@ local win = WindUI:CreateWindow({
 })
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+
+-- 主窗口可见性广播：子脚本的独立浮层（雷达、Ping/FPS 等）跟随主 UI 一起显示/隐藏
+getgenv().SutureMainWindow = win
+getgenv().SutureMainUIVisible = true
+task.spawn(function()
+    while true do
+        task.wait(0.15)
+        local ok, vis = pcall(function()
+            return win.UIElements.Main.Visible
+        end)
+        getgenv().SutureMainUIVisible = ok and vis or false
+    end
+end)
 
 --// 【彩虹边框】原版 while 逻辑回归
 local UIStroke = Instance.new("UIStroke")
@@ -169,11 +177,13 @@ local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false }
 local SfTab = funcSec:Tab({ Title = "甩飞类", Icon = "user", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
+local amTab = funcSec:Tab({ Title = "自瞄类", Icon = "user", Locked = false })
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
+local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
@@ -326,118 +336,6 @@ task.spawn(updateCount)
 
 mainTab:Select()
 
--- 玩家
-getgenv().SutureMoveCfg = getgenv().SutureMoveCfg or {
-    WalkSpeed = 16,
-    JumpPower = 50,
-    Lock = true
-}
-
-local MoveCfg = getgenv().SutureMoveCfg
-
-local function applyMovementToHumanoid(h)
-    if not h or not h.Parent then return end
-
-    if h.WalkSpeed ~= MoveCfg.WalkSpeed then
-        h.WalkSpeed = MoveCfg.WalkSpeed
-    end
-
-    if not h.UseJumpPower then
-        h.UseJumpPower = true
-    end
-
-    if h.JumpPower ~= MoveCfg.JumpPower then
-        h.JumpPower = MoveCfg.JumpPower
-    end
-end
-
-local function applyMovement()
-    local h = getHum()
-    if h then
-        applyMovementToHumanoid(h)
-    end
-end
-
-getgenv().SutureMoveToken = (getgenv().SutureMoveToken or 0) + 1
-local MoveToken = getgenv().SutureMoveToken
-
-task.spawn(function()
-    while getgenv().SutureMoveToken == MoveToken do
-        if MoveCfg.Lock then
-            applyMovement()
-        end
-        task.wait(0.25)
-    end
-end)
-
-lp.CharacterAdded:Connect(function(char)
-    task.spawn(function()
-        local h = char:WaitForChild("Humanoid", 8)
-        if h then
-            task.wait(0.2)
-            applyMovementToHumanoid(h)
-        end
-    end)
-end)
-
-playerTab:Slider({
-    Title = "移动速度",
-    Desc = "修改并锁定 WalkSpeed，防止被游戏重置",
-    Step = 1,
-    Value = { Min = 16, Max = 100, Default = MoveCfg.WalkSpeed or 16 },
-    Callback = function(v)
-        MoveCfg.WalkSpeed = tonumber(v) or 16
-        applyMovement()
-    end
-})
-
-playerTab:Slider({
-    Title = "跳跃高度",
-    Desc = "修改并锁定 JumpPower，防止被游戏重置",
-    Step = 1,
-    Value = { Min = 50, Max = 200, Default = MoveCfg.JumpPower or 50 },
-    Callback = function(v)
-        MoveCfg.JumpPower = tonumber(v) or 50
-        applyMovement()
-    end
-})
-
-playerTab:Toggle({
-    Title = "锁定速度跳跃",
-    Desc = "开启后会持续维持上面的速度和跳跃数值",
-    Icon = "lock",
-    Type = "Checkbox",
-    Value = MoveCfg.Lock,
-    Callback = function(s)
-        MoveCfg.Lock = s
-        if s then
-            applyMovement()
-        end
-    end
-})
-
-playerTab:Button({
-    Title = "恢复默认属性",
-    Desc = "恢复默认速度和跳跃，并继续锁定默认值",
-    Callback = function()
-        MoveCfg.WalkSpeed = 16
-        MoveCfg.JumpPower = 50
-        MoveCfg.Lock = true
-        applyMovement()
-    end
-})
-
-playerTab:Button({
-    Title = "重置角色",
-    Desc = "让自己的角色重生",
-    Callback = function()
-        local h = getHum()
-        if h then
-            h.Health = 0
-        end
-    end
-})
-
 fyTab:Paragraph({
     Title = "注意",
     Desc = "先用别人写好的 等我用空了在自己写一个"
@@ -453,6 +351,31 @@ fyTab:Button({
 })
 
 -- 视觉
+
+-- ============ 视野（FOV） ============
+local RunService = game:GetService("RunService")
+local fovConn = nil
+pcall(function()
+    fovTab:Slider({
+        Title = "视野角度",
+        Desc = "70 = 默认，120 = 广角，会持续锁定防止被游戏重置",
+        Step = 1,
+        Value = { Min = 70, Max = 120, Default = workspace.CurrentCamera and workspace.CurrentCamera.FieldOfView or 70 },
+        Callback = function(v)
+            local fov = tonumber(v) or 70
+            if fovConn then
+                fovConn:Disconnect()
+                fovConn = nil
+            end
+            fovConn = RunService.RenderStepped:Connect(function()
+                local cam = workspace.CurrentCamera
+                if cam and cam.FieldOfView ~= fov then
+                    cam.FieldOfView = fov
+                end
+            end)
+        end
+    })
+end)
 
 -- 即时互动（极简版，几乎不掉帧）
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
@@ -892,6 +815,18 @@ getgenv().Tabs.RadarTab = radarTab
 getgenv().SutureRadarTab = radarTab
 
 loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "雷达")
+
+--玩家类远程
+getgenv().Tabs.PlayerTab = playerTab
+getgenv().SuturePlayerTab = playerTab
+
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类")
+
+--自瞄类远程
+getgenv().Tabs.AimbotTab = amTab
+getgenv().SutureAimbotTab = amTab
+
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "自瞄类")
 
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
