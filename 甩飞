@@ -11,6 +11,7 @@ end
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 -- ===== 状态 =====
 local FlingLoop = false
@@ -176,6 +177,85 @@ local function SkidFling(TargetPlayer)
 
     if DeadConn then DeadConn:Disconnect() end
     Flinging = false
+end
+
+-- ===== 防甩飞（参考 BS 的 AntiFling） =====
+local AntiFling = false
+local antiFlingConn = nil
+local antiFlingPlayerConn = nil
+local antiFlingCharConn = nil
+
+local function setAllCharactersCollide(collide)
+    for _, p in ipairs(Players:GetPlayers()) do
+        local c = p.Character
+        if c then
+            for _, part in ipairs(c:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        part.CanCollide = collide
+                    end)
+                end
+            end
+        end
+    end
+end
+
+local function startAntiFling()
+    if AntiFling then return end
+    AntiFling = true
+    setAllCharactersCollide(false)
+
+    antiFlingPlayerConn = Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    pcall(function()
+                        part.CanCollide = false
+                    end)
+                end
+            end
+        end)
+    end)
+
+    antiFlingCharConn = LocalPlayer.CharacterAdded:Connect(function(character)
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                pcall(function()
+                    part.CanCollide = false
+                end)
+            end
+        end
+    end)
+
+    antiFlingConn = RunService.Heartbeat:Connect(function()
+        pcall(function()
+            setAllCharactersCollide(false)
+
+            local c = LocalPlayer.Character
+            local root = c and c:FindFirstChild("HumanoidRootPart")
+            if root then
+                if root.Velocity.Magnitude > 500 then
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                end
+                for _, child in ipairs(root:GetChildren()) do
+                    if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
+                        pcall(function()
+                            child:Destroy()
+                        end)
+                    end
+                end
+            end
+        end)
+    end)
+end
+
+local function stopAntiFling()
+    AntiFling = false
+    if antiFlingConn then pcall(function() antiFlingConn:Disconnect() end) antiFlingConn = nil end
+    if antiFlingPlayerConn then pcall(function() antiFlingPlayerConn:Disconnect() end) antiFlingPlayerConn = nil end
+    if antiFlingCharConn then pcall(function() antiFlingCharConn:Disconnect() end) antiFlingCharConn = nil end
+    setAllCharactersCollide(true)
 end
 
 -- ===== 传送 =====
@@ -380,6 +460,21 @@ Tab:Toggle({
     Value = false,
     Callback = function(v)
         if v then StartFlingLoop() else StopFlingLoop() end
+    end
+})
+
+Tab:Toggle({
+    Title = "防甩飞",
+    Desc = "关闭所有角色碰撞并清零异常速度，防止被物理撞飞；关闭后恢复碰撞",
+    Value = false,
+    Callback = function(v)
+        if v then
+            startAntiFling()
+            Notify("防甩飞", "已开启", 2)
+        else
+            stopAntiFling()
+            Notify("防甩飞", "已关闭", 2)
+        end
     end
 })
 
