@@ -188,6 +188,8 @@ local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locke
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 
+
+--[[
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
@@ -202,6 +204,7 @@ local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked =
 local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
 local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
+]]
 local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
 local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
 local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
