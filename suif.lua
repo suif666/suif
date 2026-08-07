@@ -829,7 +829,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E
 getgenv().Tabs.PlayerTab = playerTab
 getgenv().SuturePlayerTab = playerTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类")
+--loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类")
 
 --自瞄类远程
 getgenv().Tabs.AimbotTab = amTab
