@@ -212,6 +212,7 @@ local nzyhhyTab = scriptSec:Tab({ Title = "内脏与黑火药/GB", Icon = "shell
 local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Locked = false })
 local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
 local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
+local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -896,6 +897,13 @@ zxdyTab:Button({
     Title = "[🔑]重型钓鱼", Desc = "感觉中规中矩 要是觉得不好用再右上角反馈功能进行反馈", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E9%87%8D%E5%9E%8B%E9%92%93%E9%B1%BC.lua", "重型钓鱼")
+    end
+})
+
+zxdyTab:Button({
+    Title = "传送击杀", Desc = "大概就是搭配连点器发挥最大功效", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/eweucw5F", "手枪竞技场")
     end
 })
 
