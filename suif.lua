@@ -179,6 +179,7 @@ local amTab = funcSec:Tab({ Title = "自瞄类", Icon = "user", Locked = false }
 local sayTab = funcSec:Tab({ Title = "发言类", Icon = "user", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
+local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
@@ -849,6 +850,13 @@ getgenv().Tabs.ESPTab = espTab
 getgenv().SutureESPTab = espTab
 
 loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "ESP")
+
+--服务器类远程
+getgenv().Tabs.ServerTab = serverTab
+getgenv().SutureServerTab = serverTab
+
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类")
+
 
 
 tyscriptTab:Button({
