@@ -202,13 +202,11 @@ local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked =
 local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
 local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
 local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
-
 local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
 local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
 local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
 local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
 local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
---[[
 local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
 local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
 local nzyhhyTab = scriptSec:Tab({ Title = "内脏与黑火药/GB", Icon = "shell", Locked = false })
@@ -216,7 +214,6 @@ local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Lock
 local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
 local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
 local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
-]]
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 
@@ -832,7 +829,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E
 getgenv().Tabs.PlayerTab = playerTab
 getgenv().SuturePlayerTab = playerTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类")
+--loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类")
 
 --自瞄类远程
 getgenv().Tabs.AimbotTab = amTab
