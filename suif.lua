@@ -188,6 +188,8 @@ local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locke
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 
+
+--[[
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
@@ -216,7 +218,7 @@ local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked =
 local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
-
+]]
 
 
 -- WindUI 原生顶栏反馈入口
@@ -813,7 +815,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI
 
---loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick()), "甩飞")
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick()), "甩飞")
 
 --ping fps显示
 getgenv().Tabs.PingFPSTab = pingfpsTab
