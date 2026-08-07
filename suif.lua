@@ -813,7 +813,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI
 
-loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick()), "甩飞")
+--loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E?t=" .. tostring(tick()), "甩飞")
 
 --ping fps显示
 getgenv().Tabs.PingFPSTab = pingfpsTab
