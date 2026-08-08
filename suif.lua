@@ -169,7 +169,6 @@ end)
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 mainTab:Select()
 
---[[
 -- 功能类
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
@@ -215,7 +214,6 @@ local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = f
 local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
 local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
-]]
 
 -- WindUI 原生顶栏反馈入口
 local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
