@@ -242,6 +242,8 @@ local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Lock
 local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
 local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
 local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
+local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
+
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
 -- WindUI 原生顶栏反馈入口
@@ -933,10 +935,17 @@ zxdyTab:Button({
     end
 })
 
-zxdyTab:Button({
+sqjjcTab:Button({
     Title = "传送击杀", Desc = "大概就是搭配连点器发挥最大功效", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/eweucw5F", "手枪竞技场")
+    end
+})
+
+hcyghdTab:Button({
+    Title = "自动类", Desc = "挺好用的 就是飞行和移动类功能不要开 不然容易被ban", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/vNgFeLGR", "合成一个核弹")
     end
 })
 
