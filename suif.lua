@@ -80,16 +80,45 @@ end
 
 -- 全局通用防爆杀 (Adonis Bypass)
 getgenv().bypass_adonis = true
-
+--反挂机
 if not getgenv().SutureHubAntiAFK then
     getgenv().SutureHubAntiAFK = true
-    local vu = game:GetService("VirtualUser")
-    lp.Idled:Connect(function()
-        vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-        task.wait(1)
-        vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-    end)
-    notify("防挂机", "正在运行", "info", 2)
+
+    local function disableIdleConnections()
+        if not getconnections then
+            return nil, "当前执行器不支持 getconnections"
+        end
+
+        local found = false
+        for _, conn in ipairs(getconnections(lp.Idled)) do
+            found = true
+            if conn.Disable then
+                conn:Disable()
+            elseif conn.Disconnect then
+                conn:Disconnect()
+            end
+        end
+        if not found then
+            return nil, "未发现闲置检测连接"
+        end
+        return true
+    end
+
+    local ok, res = pcall(disableIdleConnections)
+    if ok and res then
+        notify("防挂机", "正在运行", "info", 2)
+        -- 定时复查：防止游戏脚本重新挂上闲置检测连接
+        task.spawn(function()
+            while getgenv().SutureHubAntiAFK do
+                task.wait(180)
+                pcall(disableIdleConnections)
+            end
+        end)
+    elseif ok then
+        warn("防挂机:", res)
+    else
+        warn("防挂机启动失败:", res)
+    end
 end
 
 local uiSet = { Theme = "Dark", Transparent = true, HideSearchBar = false, SideBarWidth = 180 }
