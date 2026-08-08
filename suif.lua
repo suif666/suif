@@ -817,7 +817,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%9
 getgenv().Tabs.PingFPSTab = pingfpsTab
 getgenv().SuturePingFPSTab = pingfpsTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示")
+--loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示")
 
 --雷达
 getgenv().Tabs.RadarTab = radarTab
