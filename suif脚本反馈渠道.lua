@@ -232,5 +232,3 @@ end
 Window:CreateTopbarButton("suture-feedback", "message-square", function()
     createFeedbackTab()
 end, 989)
-
-notify("反馈模块", "WindUI顶栏入口已加载", "check", 2)
