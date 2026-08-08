@@ -183,9 +183,3 @@ local uiOk, uiErr = pcall(function()
         Desc = "实时显示当前 FPS 和 Ping 值。\n可切换四个角落位置，并调整文字大小。",
     })
 end)
-
-if not uiOk then
-    warn("[PingFPS] Tab UI 创建失败:", uiErr)
-else
-    print("[PingFPS] 远程脚本已加载到 Tab")
-end
