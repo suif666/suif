@@ -513,5 +513,3 @@ Tab:Toggle({
         if v then StartTPLoop() else StopTPLoop() end
     end
 })
-
-print("[甩飞与传送] 远程功能已加载")
