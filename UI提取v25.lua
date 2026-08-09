@@ -100,6 +100,7 @@ local CurrentUIScale = 1
 -- ==================== 创建单行（支持对象池） ====================
 local RowPool = {}
 local MAX_POOL_SIZE = 400
+local ScanErrorLog = 0 -- 扫描错误日志计数（只打印前几条，避免刷屏）
 
 -- 搜索防抖相关
 local SearchDebounceTimer = nil
@@ -175,7 +176,7 @@ local function AddText(section, text)
     if not data or data.Map[text] then return false end
     data.Map[text] = true
     table.insert(data.Texts, text)
-    Rebuild(section)
+    -- 不再每次插入都重建 AllText（O(N²) 性能瓶颈），由扫描结束处统一 Rebuild
     return true
 end
 
@@ -212,33 +213,38 @@ local function RebuildAll()
     Rebuild("全部")
 end
 
-local function BelongsToSection(obj, section)
+-- skipContainer：调用方已确认对象所在容器时跳过重复的 IsDescendantOf 判断，
+-- 大幅减少扫描耗时；RobloxGui/PlayerList 仍需要路径匹配
+local function BelongsToSection(obj, section, skipContainer)
     if not obj or obj:IsDescendantOf(ScreenGui) then return false end
     if not IsVisible(obj) then return false end
-    local path = GetObjectPath(obj)
-    local huiRoot = getHui()
 
     if section == "PlayerGui" then
-        return obj:IsDescendantOf(PlayerGui)
+        return skipContainer or obj:IsDescendantOf(PlayerGui)
     elseif section == "Workspace" then
-        return obj:IsDescendantOf(Workspace)
+        return skipContainer or obj:IsDescendantOf(Workspace)
     elseif section == "CoreGui" then
-        return obj:IsDescendantOf(CoreGui)
+        return skipContainer or obj:IsDescendantOf(CoreGui)
     elseif section == "RobloxGui" then
-        return obj:IsDescendantOf(CoreGui) and string.find(path, "RobloxGui", 1, true) ~= nil
+        return (skipContainer or obj:IsDescendantOf(CoreGui)) and string.find(GetObjectPath(obj), "RobloxGui", 1, true) ~= nil
     elseif section == "PlayerList" then
-        return obj:IsDescendantOf(CoreGui) and string.find(path, "PlayerList", 1, true) ~= nil
+        return (skipContainer or obj:IsDescendantOf(CoreGui)) and string.find(GetObjectPath(obj), "PlayerList", 1, true) ~= nil
     elseif section == "第三方UI" then
-        local inGui = obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or (huiRoot and obj:IsDescendantOf(huiRoot))
-        return inGui and not IsSystemUI(obj)
+        if not skipContainer then
+            local huiRoot = getHui()
+            local inGui = obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or (huiRoot and obj:IsDescendantOf(huiRoot))
+            if not inGui then return false end
+        end
+        return not IsSystemUI(obj)
     elseif section == "全部" then
-        return obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or obj:IsDescendantOf(Workspace) or (huiRoot and obj:IsDescendantOf(huiRoot))
+        local huiRoot = getHui()
+        return skipContainer or obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or obj:IsDescendantOf(Workspace) or (huiRoot and obj:IsDescendantOf(huiRoot))
     end
     return false
 end
 
-local function TryReadText(obj, section)
-    if not BelongsToSection(obj, section) then return 0 end
+local function TryReadText(obj, section, skipContainer)
+    if not BelongsToSection(obj, section, skipContainer) then return 0 end
     local added = 0
     local function save(v)
         if AddTextWithAll(section, v) then added = added + 1 end
@@ -250,21 +256,27 @@ local function TryReadText(obj, section)
     return added
 end
 
-local function ScanContainer(root, section)
+local function ScanContainer(root, section, skipContainer)
     local added = 0
     if not root then return 0 end
-    pcall(function()
-        local descendants = root:GetDescendants()
-        for i, obj in ipairs(descendants) do
-            if IsTextObject(obj) then
-                added = added + TryReadText(obj, section)
-            end
-            -- 每处理 80 个元素 yield 一次，防止大量 UI 元素时阻塞主线程导致卡顿
-            if i % 80 == 0 then
-                task.wait()
+    local descendants = root:GetDescendants()
+    for i, obj in ipairs(descendants) do
+        if IsTextObject(obj) then
+            -- 单个文本对象出错只跳过该对象，绝不能让整批扫描静默失败
+            local okT, errT = pcall(function()
+                added = added + TryReadText(obj, section, skipContainer)
+            end)
+            if not okT and ScanErrorLog < 5 then
+                ScanErrorLog = ScanErrorLog + 1
+                warn("[UI提取] 跳过文本对象:", errT)
             end
         end
-    end)
+        -- 每处理 400 个元素 yield 一次：既防止阻塞主线程，也避免频繁让帧
+        -- 导致大场景扫描耗时过长
+        if i % 400 == 0 then
+            task.wait()
+        end
+    end
     return added
 end
 
@@ -272,17 +284,22 @@ local function ScanSection(section)
     local added = 0
     local huiRoot = getHui()
     if section == "PlayerGui" then
-        added = added + ScanContainer(PlayerGui, section)
+        added = added + ScanContainer(PlayerGui, section, true)
     elseif section == "Workspace" then
-        added = added + ScanContainer(Workspace, section)
-    elseif section == "CoreGui" or section == "RobloxGui" or section == "PlayerList" then
-        added = added + ScanContainer(CoreGui, section)
-        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section) end
+        added = added + ScanContainer(Workspace, section, true)
+    elseif section == "CoreGui" then
+        added = added + ScanContainer(CoreGui, section, true)
+        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section, true) end
+    elseif section == "RobloxGui" or section == "PlayerList" then
+        added = added + ScanContainer(CoreGui, section, false)
+        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section, false) end
     elseif section == "第三方UI" then
-        added = added + ScanContainer(PlayerGui, section)
-        added = added + ScanContainer(CoreGui, section)
-        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section) end
+        added = added + ScanContainer(PlayerGui, section, false)
+        added = added + ScanContainer(CoreGui, section, false)
+        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section, false) end
     elseif section == "全部" then
+        -- 恢复原逻辑：扫一遍容器、文本同时归入具体分区与"全部"，
+        -- 避免切换分区后显示为空（此前"只扫一遍"的去重会把具体分区漏掉，已回退）
         added = added + ScanSection("PlayerGui")
         added = added + ScanSection("CoreGui")
         added = added + ScanSection("第三方UI")
@@ -773,7 +790,9 @@ local CurrentUpdateToken = 0
 
 local function ClearScroll()
     for _, obj in ipairs(Scroll:GetChildren()) do
-        if obj:IsA("Frame") then
+        if obj:IsA("UIListLayout") then
+            -- 保留布局对象
+        elseif obj:IsA("Frame") then
             obj.Visible = false
             obj.Parent = nil
             if #RowPool < MAX_POOL_SIZE then
@@ -781,6 +800,9 @@ local function ClearScroll()
             else
                 obj:Destroy()
             end
+        else
+            -- 空提示（TextButton）等非 Frame 子元素直接销毁，避免无限累积
+            obj:Destroy()
         end
     end
     DisplayedRows = {}
@@ -810,6 +832,12 @@ end
 local function GetCurrentText()
     Rebuild(CurrentSection)
     return SectionData[CurrentSection] and SectionData[CurrentSection].AllText or "未检测到 UI 文本"
+end
+
+-- 显示层直接使用数据条目（行数组），避免含换行的文本被拆散后无法匹配删除/复制
+local function GetCurrentLines()
+    local data = SectionData[CurrentSection]
+    return data and data.Texts or {}
 end
 
 -- ==================== 行尺寸计算（响应式：UI越大越宽松，越小越紧凑） ====================
@@ -873,8 +901,14 @@ local function RestyleVisibleRows()
 end
 
 -- ==================== 创建单行（支持对象池） ====================
+-- 前置声明：CreateDisplayRow 内的删除回调也会调用 SetDisplay，
+-- 若不提前声明，闭包捕获到的是全局 nil，点删除会报 "attempt to call a nil value"
+local SetDisplay
+
 local function CreateDisplayRow(line, index)
-    local displayLine = (#line > 500) and (string.sub(line, 1, 500) .. "...") or line
+    -- 多行文本用 ⏎ 占位显示为单行，数据本身（line）保持完整，复制/删除不受影响
+    local displayLine = string.gsub(line, "\n", " ⏎ ")
+    if #displayLine > 500 then displayLine = string.sub(displayLine, 1, 500) .. "..." end
     local m = ComputeRowMetrics()
 
     local row = table.remove(RowPool)
@@ -977,7 +1011,7 @@ local function CreateDisplayRow(line, index)
             RemoveText(CurrentSection, line)
             RebuildAll()
         end
-        SetDisplay(GetCurrentText(), false)
+        SetDisplay(GetCurrentLines(), false)
         task.defer(function()
             task.wait()
             if Scroll then
@@ -995,10 +1029,27 @@ end
 -- animate: 是否在重建列表时做一个轻微滑入过渡（仅用于切换分区/搜索等主动操作，
 --          自动刷新不传这个参数，避免每次自动刷新都做动画）
 -- forceRebuild: 强制重建，即使内容和当前显示的一致
-local SetDisplay
+-- 统一把"字符串文本"或"行数组"整理成行数组：直接传数组可以保留含换行的完整
+-- 条目，不再按 \n 拆分，从而保证每个显示行都能精确对应一条数据
+local function PrepareLines(text)
+    local lines = {}
+    if type(text) == "table" then
+        for _, line in ipairs(text) do
+            line = CleanText(line)
+            if line ~= "" then table.insert(lines, line) end
+        end
+    else
+        for line in string.gmatch(tostring(text or "") .. "\n", "(.-)\n") do
+            line = CleanText(line)
+            if line ~= "" then table.insert(lines, line) end
+        end
+    end
+    return lines
+end
 
 SetDisplay = function(text, autoBottom, animate, forceRebuild)
-    CurrentDisplayText = text
+    local newLines = PrepareLines(text)
+    CurrentDisplayText = table.concat(newLines, "\n")
 
     -- 关键修复：无论接下来走哪个分支，都先让"旧的渲染协程"失效。
     -- 旧版本只在非空分支里递增 token，导致空文本分支不会打断后台正在
@@ -1006,12 +1057,6 @@ SetDisplay = function(text, autoBottom, animate, forceRebuild)
     -- 切换分区才能恢复正常"的问题。现在统一在入口处递增，彻底杜绝竞态。
     CurrentUpdateToken = CurrentUpdateToken + 1
     local token = CurrentUpdateToken
-
-    local newLines = {}
-    for line in string.gmatch(tostring(text or "") .. "\n", "(.-)\n") do
-        line = CleanText(line)
-        if line ~= "" then table.insert(newLines, line) end
-    end
 
     if #newLines == 0 then
         ClearScroll()
@@ -1064,7 +1109,8 @@ SetDisplay = function(text, autoBottom, animate, forceRebuild)
         if CurrentUpdateToken ~= token then return end
         local row = CreateDisplayRow(line, i)
         table.insert(DisplayedRows, row)
-        if i % 12 == 0 then
+        -- 每 40 行让一帧：行创建很轻量，太频繁让帧反而让大列表渲染耗时数秒
+        if i % 40 == 0 then
             task.wait()
             if CurrentUpdateToken ~= token then return end
         end
@@ -1105,7 +1151,7 @@ local function SearchNow()
     if keyword == "" then
         LastSearchKeyword = ""
         LastSearchResult = nil
-        SetDisplay(GetCurrentText(), false, true)
+        SetDisplay(GetCurrentLines(), false, true)
         Scroll.CanvasPosition = Vector2.new(0,0)
         UpdateStatus("显示全部文本")
         return
@@ -1128,7 +1174,7 @@ local function SearchNow()
         SetDisplay("没有搜索到包含【"..keyword.."】的文本", false, true, true)
         UpdateStatus("搜索结果 0 条")
     else
-        SetDisplay(table.concat(result, "\n"), false, true, true)
+        SetDisplay(result, false, true, true)
         UpdateStatus("搜索结果 "..#result.." 条")
     end
     Scroll.CanvasPosition = Vector2.new(0,0)
@@ -1139,7 +1185,7 @@ local function RefreshDisplay(added)
     if CleanText(SearchBox.Text) ~= "" then
         SearchNow()
     else
-        SetDisplay(GetCurrentText(), added and added > 0)
+        SetDisplay(GetCurrentLines(), added and added > 0)
         if added and added > 0 then UpdateStatus("新增 "..added.." 条") else UpdateStatus("暂无新增") end
     end
 end
@@ -1177,7 +1223,7 @@ local function ClearCurrent()
         RebuildAll()
     end
     SearchBox.Text = ""
-    SetDisplay(GetCurrentText(), false)
+    SetDisplay(GetCurrentLines(), false)
     Scroll.CanvasPosition = Vector2.new(0,0)
     UpdateSectionButtons()
     UpdateStatus(BlockMode and "已清空并加入屏蔽" or "已清空当前分区")
@@ -1195,7 +1241,9 @@ local function LayoutUI()
     if h <= 0 then h = 340 end
 
     -- 基准尺寸为默认的 480x340，scale=1 时还原成默认版式
-    local scale = math.clamp(math.min(w / 480, h / 340), 0.72, 1.7)
+    -- 用几何平均：任意方向拖动都会触发整体缩放。原 min 版本只在宽高同时
+    -- 同比例变化时才缩放，只拉宽/只拉高时左侧功能区纹丝不动
+    local scale = math.clamp(math.sqrt((w / 480) * (h / 340)), 0.72, 1.7)
     CurrentUIScale = scale
 
     local pad = math.floor(math.clamp(8 * scale, 6, 14))
@@ -1296,7 +1344,7 @@ for _, section in ipairs(Sections) do
     SectionButtons[section].MouseButton1Click:Connect(function()
         CurrentSection = section
         SearchBox.Text = ""
-        SetDisplay(GetCurrentText(), false, true, true)
+        SetDisplay(GetCurrentLines(), false, true, true)
         Scroll.CanvasPosition = Vector2.new(0,0)
         UpdateSectionButtons()
         UpdateStatus("已切换分区")
