@@ -1,5 +1,4 @@
 local WindUI
- WindUI
 do
     local ok, res = pcall(function()
         local source = game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
