@@ -950,12 +950,6 @@ hcyghdTab:Button({
     end
 })
 
-cclsTab:Paragraph({
-    Title = "注意",
-    Desc = "因为用的机翻 汉化问题在所难免 如果
-发现问题请在右上角进行反馈"
-})
-
 cclsTab:Button({
     Title = "储存猎手01", Desc = "功能很多 会开可以实现全自动 不会开就是一坨了", Icon = "shell",
     Callback = function()
