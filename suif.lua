@@ -1,4 +1,4 @@
-local WindUI
+ WindUI
 do
     local ok, res = pcall(function()
         local source = game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
@@ -243,6 +243,7 @@ local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = f
 local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
 local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
 local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
+local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
 
@@ -946,6 +947,20 @@ hcyghdTab:Button({
     Title = "自动类", Desc = "挺好用的 就是飞行和移动类功能不要开 不然容易被ban", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/vNgFeLGR", "合成一个核弹")
+    end
+})
+
+cclsTab:Button({
+    Title = "储存猎手01", Desc = "功能很多 会开可以实现全自动 不会开就是一坨了", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%82%A8%E5%AD%98%E7%8C%8E%E4%BA%BA.lua", "储存猎手01")
+    end
+})
+
+cclsTab:Button({
+    Title = "储存猎手02", Desc = "不如用上面的 我加这个纯随手加的", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%82%A8%E5%AD%98%E7%8C%8E%E6%89%8B02.lua", "储存猎手02")
     end
 })
 
