@@ -586,11 +586,6 @@ fkgsTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
 })
 
-zrzhTab:Button({
-    Title = "自然灾害 龙卷风", Desc = "大风车呀滴溜溜的转...", Icon = "shell",
-    Callback = function() run("https://pastebin.com/raw/JR7RBh2a", "自然灾害") end
-})
-
 xesqTab:Button({
     Title = "将会发生些邪恶事情", Desc = "无限体力 且用且珍惜不知道还能活多久", Icon = "shell",
     Callback = function() run("https://pastebin.com/raw/U3jij1JE", "邪恶事情") end
@@ -885,6 +880,12 @@ getgenv().SutureServerTab = serverTab
 
 loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类")
 
+--自然灾害远程
+getgenv().Tabs.ZRZHTab = zrzhTab
+getgenv().SutureZRZHTab = zrzhTab
+
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害")
+
 
 
 tyscriptTab:Button({
@@ -898,13 +899,6 @@ nzyhhyTab:Button({
     Title = "内脏与黑火药Skin4.1", Desc = "国内脚本 群[1079452161] 搜不到就是禁止加入了", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/wzhxll/Invincible-Willow-Leaf/refs/heads/main/Skin%20HUB%204.1.lua", "内脏与黑火药Skin")
-    end
-})
-
-zrzhTab:Button({
-    Title = "未锚定部件吸附", Desc = "花样龙卷风 还可以嫁祸别人 嗯对反正我用不明白", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E9%BB%91%E6%B4%9E.lua", "未锚定部件吸附")
     end
 })
 
