@@ -134,6 +134,99 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
+-- ============ 开/关窗口改为淡入淡出（替换 0.8~0.9s 缩放动画） ============
+-- WindUI 自带的缩放动画会让大 Hub 在动画期间每帧重排全部元素，移动端卡顿明显。
+-- 用 CanvasGroup 整体淡入淡出：只 tween 一个 GroupTransparency，不逐个处理元素。
+local TweenService = game:GetService("TweenService")
+local FADE_TIME = 0.18
+local FadeGroup = nil
+local fadeTween = nil
+
+pcall(function()
+	local mainParent = win.UIElements.Main.Parent
+	if mainParent then
+		FadeGroup = Instance.new("CanvasGroup")
+		FadeGroup.Name = "SutureFadeGroup"
+		FadeGroup.BackgroundTransparency = 1
+		FadeGroup.Size = UDim2.fromScale(1, 1)
+		FadeGroup.GroupTransparency = 1
+		FadeGroup.Parent = mainParent
+		win.UIElements.Main.Parent = FadeGroup
+	end
+end)
+
+local function setWindowVisible(visible)
+	pcall(function()
+		if win.UIElements and win.UIElements.Main then
+			if fadeTween then
+				fadeTween:Cancel()
+				fadeTween = nil
+			end
+
+			if visible then
+				win.UIElements.Main.Visible = true
+				local content = win.UIElements.Main:FindFirstChild("Main")
+				if content then
+					content.Visible = true
+				end
+				if FadeGroup then
+					FadeGroup.Visible = true
+					FadeGroup.GroupTransparency = 1
+					fadeTween = TweenService:Create(FadeGroup, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 })
+					fadeTween:Play()
+				end
+			else
+				if FadeGroup then
+					fadeTween = TweenService:Create(FadeGroup, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { GroupTransparency = 1 })
+					fadeTween.Completed:Connect(function()
+						if FadeGroup then
+							FadeGroup.Visible = false
+						end
+						pcall(function()
+							win.UIElements.Main.Visible = false
+						end)
+					end)
+					fadeTween:Play()
+				else
+					win.UIElements.Main.Visible = false
+				end
+			end
+		end
+	end)
+end
+
+function win:Open(...)
+	if win.Destroyed then return end
+	if win.OnOpenCallback then
+		task.spawn(function()
+			pcall(win.OnOpenCallback)
+		end)
+	end
+	win.Closed = false
+	win.CanDropdown = true
+	win.CanResize = win.Resizable ~= false
+	setWindowVisible(true)
+	if win.OpenButtonMain and win.IsOpenButtonEnabled then
+		pcall(function() win.OpenButtonMain:Visible(false) end)
+	end
+end
+
+function win:Close(...)
+	if win.Destroyed then return end
+	if win.OnCloseCallback then
+		task.spawn(function()
+			pcall(win.OnCloseCallback)
+		end)
+	end
+	win.Closed = true
+	win.CanDropdown = false
+	setWindowVisible(false)
+	if win.OpenButtonMain and win.IsOpenButtonEnabled then
+		pcall(function() win.OpenButtonMain:Visible(true) end)
+	end
+end
+-- ==================================================================================
+
 -- 主窗口可见性广播：子脚本的独立浮层（雷达、Ping/FPS 等）跟随主 UI 一起显示/隐藏
 getgenv().SutureMainWindow = win
 getgenv().SutureMainUIVisible = true
@@ -884,7 +977,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E
 getgenv().Tabs.ZRZHTab = zrzhTab
 getgenv().SutureZRZHTab = zrzhTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害")
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3.lua?t=" .. tostring(tick()), "自然灾害")
 
 
 
