@@ -134,77 +134,15 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
--- ============ 开/关窗口改为淡入淡出（替换 0.8~0.9s 缩放动画） ============
+-- ============ 开/关窗口改为瞬间显示隐藏（去掉 WindUI 缩放动画） ============
 -- WindUI 自带的缩放动画会让大 Hub 在动画期间每帧重排全部元素，移动端卡顿明显。
--- 用 CanvasGroup 整体淡入淡出：只 tween 一个 GroupTransparency，不逐个处理元素。
-local TweenService = game:GetService("TweenService")
-local FADE_TIME = 0.18
-local FadeGroup = nil
-local fadeTween = nil
-
-pcall(function()
-	local mainParent = win.UIElements.Main.Parent
-	if mainParent then
-		FadeGroup = Instance.new("CanvasGroup")
-		FadeGroup.Name = "SutureFadeGroup"
-		FadeGroup.BackgroundTransparency = 1
-		FadeGroup.Size = UDim2.fromScale(1, 1)
-		FadeGroup.GroupTransparency = 1
-		FadeGroup.Parent = mainParent
-		win.UIElements.Main.Parent = FadeGroup
-	end
-end)
-
 local function setWindowVisible(visible)
 	pcall(function()
 		if win.UIElements and win.UIElements.Main then
-			if fadeTween then
-				fadeTween:Cancel()
-				fadeTween = nil
-			end
-
-			if visible then
-				win.UIElements.Main.Visible = true
-				local content = win.UIElements.Main:FindFirstChild("Main")
-				if content then
-					content.Visible = true
-				end
-				if FadeGroup then
-					FadeGroup.Visible = true
-					FadeGroup.GroupTransparency = 1
-					fadeTween = TweenService:Create(FadeGroup, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 })
-					fadeTween:Play()
-					-- 保险：tween 万一没生效，到点强制恢复显示
-					task.delay(FADE_TIME + 0.15, function()
-						if FadeGroup and FadeGroup.Visible and FadeGroup.GroupTransparency > 0 then
-							FadeGroup.GroupTransparency = 0
-						end
-					end)
-				end
-			else
-				if FadeGroup then
-					fadeTween = TweenService:Create(FadeGroup, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { GroupTransparency = 1 })
-					fadeTween.Completed:Connect(function()
-						if FadeGroup then
-							FadeGroup.Visible = false
-						end
-						pcall(function()
-							win.UIElements.Main.Visible = false
-						end)
-					end)
-					fadeTween:Play()
-					-- 保险：tween 没跑完也强制隐藏
-					task.delay(FADE_TIME + 0.15, function()
-						if FadeGroup then
-							FadeGroup.Visible = false
-						end
-						pcall(function()
-							win.UIElements.Main.Visible = false
-						end)
-					end)
-				else
-					win.UIElements.Main.Visible = false
-				end
+			win.UIElements.Main.Visible = visible
+			local content = win.UIElements.Main:FindFirstChild("Main")
+			if content then
+				content.Visible = visible
 			end
 		end
 	end)
