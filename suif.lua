@@ -174,6 +174,12 @@ local function setWindowVisible(visible)
 					FadeGroup.GroupTransparency = 1
 					fadeTween = TweenService:Create(FadeGroup, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 })
 					fadeTween:Play()
+					-- 保险：tween 万一没生效，到点强制恢复显示
+					task.delay(FADE_TIME + 0.15, function()
+						if FadeGroup and FadeGroup.Visible and FadeGroup.GroupTransparency > 0 then
+							FadeGroup.GroupTransparency = 0
+						end
+					end)
 				end
 			else
 				if FadeGroup then
@@ -187,6 +193,15 @@ local function setWindowVisible(visible)
 						end)
 					end)
 					fadeTween:Play()
+					-- 保险：tween 没跑完也强制隐藏
+					task.delay(FADE_TIME + 0.15, function()
+						if FadeGroup then
+							FadeGroup.Visible = false
+						end
+						pcall(function()
+							win.UIElements.Main.Visible = false
+						end)
+					end)
 				else
 					win.UIElements.Main.Visible = false
 				end
