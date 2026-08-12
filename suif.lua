@@ -633,6 +633,7 @@ fkgsTab:Button({
 })
 
 --邪恶事情远程
+getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.GameTab = xesqTab
 getgenv().SutureGameTab = xesqTab
 loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助")
