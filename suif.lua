@@ -134,52 +134,6 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
--- ============ 开/关窗口改为瞬间显示隐藏（去掉 WindUI 缩放动画） ============
--- WindUI 自带的缩放动画会让大 Hub 在动画期间每帧重排全部元素，移动端卡顿明显。
-local function setWindowVisible(visible)
-	pcall(function()
-		if win.UIElements and win.UIElements.Main then
-			win.UIElements.Main.Visible = visible
-			local content = win.UIElements.Main:FindFirstChild("Main")
-			if content then
-				content.Visible = visible
-			end
-		end
-	end)
-end
-
-function win:Open(...)
-	if win.Destroyed then return end
-	if win.OnOpenCallback then
-		task.spawn(function()
-			pcall(win.OnOpenCallback)
-		end)
-	end
-	win.Closed = false
-	win.CanDropdown = true
-	win.CanResize = win.Resizable ~= false
-	setWindowVisible(true)
-	if win.OpenButtonMain and win.IsOpenButtonEnabled then
-		pcall(function() win.OpenButtonMain:Visible(false) end)
-	end
-end
-
-function win:Close(...)
-	if win.Destroyed then return end
-	if win.OnCloseCallback then
-		task.spawn(function()
-			pcall(win.OnCloseCallback)
-		end)
-	end
-	win.Closed = true
-	win.CanDropdown = false
-	setWindowVisible(false)
-	if win.OpenButtonMain and win.IsOpenButtonEnabled then
-		pcall(function() win.OpenButtonMain:Visible(true) end)
-	end
-end
--- ==================================================================================
-
 -- 主窗口可见性广播：子脚本的独立浮层（雷达、Ping/FPS 等）跟随主 UI 一起显示/隐藏
 getgenv().SutureMainWindow = win
 getgenv().SutureMainUIVisible = true
@@ -237,6 +191,12 @@ dialog = win:Dialog({
 task.delay(1, function()
     if dialog and dialog.Show then
         dialog:Show()
+    end
+end)
+-- 防止公告弹窗挡住关闭/最小化按钮：5 秒后自动关闭
+task.delay(5, function()
+    if dialog and dialog.Close then
+        dialog:Close()
     end
 end)
 
