@@ -937,15 +937,13 @@ loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8
 tyscriptTab:Button({
     Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
     Callback = function()
-        run("https://pastebin.com/raw/4LzyCSnp", "已成功绕过群组检测")
+        run("https://pastebin.com/raw/4LzyCSnp", "绕过群组检测")
     end
 })
 
-nzyhhyTab:Button({
-    Title = "内脏与黑火药Skin4.1", Desc = "国内脚本 群[1079452161] 搜不到就是禁止加入了", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/wzhxll/Invincible-Willow-Leaf/refs/heads/main/Skin%20HUB%204.1.lua", "内脏与黑火药Skin")
-    end
+nzyhhyTab:Paragraph({
+    Title = "占位符",
+    Desc = "占位符"
 })
 
 nljjcTab:Button({
@@ -983,6 +981,11 @@ sqjjcTab:Button({
     end
 })
 
+hcyghdTab:Paragraph({
+    Title = "注意",
+    Desc = "因游戏判定有问题 极大可能出现抓错核弹合成不了的情况 建议挂个连点器一直点松手"
+})
+
 hcyghdTab:Button({
     Title = "自动类", Desc = "挺好用的 就是飞行和移动类功能不要开 不然容易被ban", Icon = "shell",
     Callback = function()
@@ -998,7 +1001,7 @@ cclsTab:Button({
 })
 
 cclsTab:Button({
-    Title = "储存猎手02", Desc = "不如用上面的 我加这个纯随手加的", Icon = "shell",
+    Title = "储存猎手02", Desc = "不如用上面的", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%82%A8%E5%AD%98%E7%8C%8E%E6%89%8B02.lua", "储存猎手02")
     end
