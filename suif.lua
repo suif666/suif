@@ -632,10 +632,10 @@ fkgsTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
 })
 
-xesqTab:Button({
-    Title = "将会发生些邪恶事情", Desc = "无限体力 且用且珍惜不知道还能活多久", Icon = "shell",
-    Callback = function() run("https://pastebin.com/raw/U3jij1JE", "邪恶事情") end
-})
+--邪恶事情远程
+getgenv().Tabs.GameTab = xesq
+getgenv().SutureGameTab = xeaq
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助")
 
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
@@ -930,7 +930,7 @@ loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E
 getgenv().Tabs.ZRZHTab = zrzhTab
 getgenv().SutureZRZHTab = zrzhTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3.lua?t=" .. tostring(tick()), "自然灾害")
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害")
 
 
 
