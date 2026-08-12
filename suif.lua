@@ -291,7 +291,7 @@ local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Lock
 local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
 local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 
-local settingsTab = win:Tab({ Title = "设置", Icon = "sliders-horizontal", Locked = false })
+local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
 -- WindUI 原生顶栏反馈入口
 local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
@@ -633,12 +633,10 @@ fkgsTab:Button({
 })
 
 --邪恶事情远程
- getgenv().Tabs.GameTab = xesqTab
-  getgenv().SutureGameTab = xesqTab
-  loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/
-  %E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "邪恶事情")
+getgenv().Tabs.GameTab = xesqTab
+getgenv().SutureGameTab = xesqTab
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助")
 
-	
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
     Callback = function()
