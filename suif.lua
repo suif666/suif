@@ -224,33 +224,125 @@ local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = fals
 
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
-local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
-local gnjbTab = scriptSec:Tab({ Title = "国内脚本", Icon = "shell", Opened = false })
-local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
-local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
-local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
-local stgTab = scriptSec:Tab({ Title = "死铁轨", Icon = "shell", Locked = false })
-local slTab = scriptSec:Tab({ Title = "扫雷", Icon = "shell", Locked = false })
-local fkgsTab = scriptSec:Tab({ Title = "方块故事", Icon = "shell", Locked = false })
-local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked = false })
-local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
-local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
-local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
-local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
-local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
-local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
-local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
-local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
-local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
-local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
-local nzyhhyTab = scriptSec:Tab({ Title = "内脏与黑火药/GB", Icon = "shell", Locked = false })
-local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Locked = false })
-local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
-local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
-local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
-local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
-local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
-local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
+-- 脚本区由后台动态配置生成（/scriptconfig）
+local HttpService = game:GetService("HttpService")
+getgenv().Tabs = getgenv().Tabs or {}
+
+local scriptConfigOk, scriptConfig = pcall(function()
+	local src = game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/scriptconfig", true)
+	return HttpService:JSONDecode(src)
+end)
+
+if scriptConfigOk and type(scriptConfig) == "table" and type(scriptConfig.tabs) == "table" then
+	for _, tabData in ipairs(scriptConfig.tabs) do
+		local tab = scriptSec:Tab({ Title = tabData.name or "未命名", Icon = tabData.icon or "shell", Locked = false })
+		getgenv().Tabs[tabData.var or tabData.name] = tab
+		if tabData.var == "xesqTab" then
+			getgenv().SutureGameTab = tab
+			getgenv().Tabs.GameTab = tab
+		elseif tabData.var == "zrzhTab" then
+			getgenv().SutureZRZHTab = tab
+			getgenv().Tabs.ZRZHTab = tab
+		end
+		local frags = tabData.codeFrags
+		if type(frags) ~= "table" or #frags == 0 then
+			-- 兼容旧配置：按 notes/scripts/module/autoRun 顺序渲染
+			for _, note in ipairs(tabData.notes or {}) do
+				tab:Paragraph({ Title = note.title or "", Desc = note.desc or "" })
+			end
+			for _, s in ipairs(tabData.scripts or {}) do
+				tab:Button({
+					Title = s.name or "脚本",
+					Icon = "shell",
+					Callback = function()
+						if s.preCode and s.preCode ~= "" then
+							local preFn, preErr = loadstring(s.preCode)
+							if preFn then
+								pcall(preFn)
+							else
+								warn("[SutureHub] 前置代码错误:", preErr)
+							end
+						end
+						run(s.url, s.displayName or s.name)
+					end
+				})
+			end
+			if tabData.moduleUrl and tabData.moduleUrl ~= "" then
+				local moduleUrl = tabData.moduleUrl
+				if moduleUrl:find("?t=", 1, true) then
+					moduleUrl = moduleUrl .. tostring(tick())
+				elseif moduleUrl:find("?", 1, true) then
+					moduleUrl = moduleUrl .. "&t=" .. tostring(tick())
+				else
+					moduleUrl = moduleUrl .. "?t=" .. tostring(tick())
+				end
+				loadRemote(moduleUrl, tabData.name or "模块")
+			end
+			for _, autoUrl in ipairs(tabData.autoRun or {}) do
+				run(autoUrl, tabData.name or "自动脚本")
+			end
+		else
+			-- 按 codeFrags 顺序渲染（后台可调整位置，游戏内同样生效）
+			for _, frag in ipairs(frags) do
+				if frag.type == "paragraph" then
+					local n = tabData.notes and tabData.notes[frag.noteIdx]
+					if n then
+						tab:Paragraph({ Title = n.title or "", Desc = n.desc or "" })
+					end
+				elseif frag.type == "space" then
+					tab:Space()
+				elseif frag.type == "button" then
+					local s = nil
+					if frag.scriptId then
+						for _, x in ipairs(tabData.scripts or {}) do
+							if x.id == frag.scriptId then
+								s = x
+								break
+							end
+						end
+					end
+					if s then
+						tab:Button({
+							Title = s.name or "脚本",
+							Icon = "shell",
+							Callback = function()
+								if s.preCode and s.preCode ~= "" then
+									local preFn, preErr = loadstring(s.preCode)
+									if preFn then
+										pcall(preFn)
+									else
+										warn("[SutureHub] 前置代码错误:", preErr)
+									end
+								end
+								run(s.url, s.displayName or s.name)
+							end
+						})
+					end
+				elseif frag.type == "module" then
+					if tabData.moduleUrl and tabData.moduleUrl ~= "" then
+						local moduleUrl = tabData.moduleUrl
+						if moduleUrl:find("?t=", 1, true) then
+							moduleUrl = moduleUrl .. tostring(tick())
+						elseif moduleUrl:find("?", 1, true) then
+							moduleUrl = moduleUrl .. "&t=" .. tostring(tick())
+						else
+							moduleUrl = moduleUrl .. "?t=" .. tostring(tick())
+						end
+						loadRemote(moduleUrl, tabData.name or "模块")
+					end
+				elseif frag.type == "run" then
+					local u = tabData.autoRun and tabData.autoRun[frag.runIdx]
+					if u and u ~= "" then
+						run(u, tabData.name or "自动脚本")
+					end
+				end
+				-- line 片段：getgenv 引用已由上方特判处理，直接跳过
+			end
+		end
+	end
+else
+	warn("[SutureHub] 后台脚本配置加载失败，脚本区为空")
+end
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -514,328 +606,6 @@ toolTab:Button({
 
 
 
--- 脚本区域
-doorsTab:Button({
-    Title = "全自动刷旋钮", Desc = "字面意思 执行后什么都不用管了", Icon = "shell",
-    Callback = function()
-        getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
-        run("https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua", "Doors 脚本")
-    end
-})
-
-doorsTab:Button({
-    Title = "半自动刷旋钮",
-    Desc = "字面意思 大厅执行后进游戏里收集金币就可以了",
-    Icon = "shell",
-    Callback = function()
-        getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
-        run("https://api.jnkie.com/api//luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download", "Doors 脚本")
-    end
-})
-
-doorsTab:Button({
-    Title = "[🔑]mspaint",
-    Desc = "需卡密 超好用",
-    Icon = "shell",
-    Callback = function()
-        local link = "https://www.mspaint.cc/key"
-        if setclipboard then
-            setclipboard(link)
-        else
-            warn("复制失败：当前环境不支持复制链接")
-        end
-        run("https://api.luarmor.net/files/v3/loaders/002c19202c9946e6047b0c6e0ad51f84.lua", "Doors msp")
-    end
-})
-
-byqTab:Button({
-    Title = "fart[suif汉化]", Desc = "个人感觉很好用", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/fa%E6%B1%89%E5%8C%96", "被遗弃脚本") end
-})
-
-byqTab:Button({
-    Title = "jnkie", Desc = "依旧国外大手子制作", Icon = "shell",
-    Callback = function() run("https://api.jnkie.com/api/v1/luascripts/public/d36d2b96db2abcbb0f20b5c556b53cc5260ff74db0f8bfc3bea83eaa1da7947f/download", "被遗弃脚本02") 
-end
-})
-
-stgTab:Button({
-    Title = "[🔑]叶子", Desc = "好长时间都没有更新了...", Icon = "shell",
-    Callback = function() run("https://getnative.cc/script/loader", "死铁轨叶子") end
-})
-
-stgTab:Button({
-    Title = "ringta[suif汉化]", Desc = "应该是最好用", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
-})
-
-stgTab:Button({
-    Title = "Alkaline[suif汉化]", Desc = "对ringta拙劣的模仿 但还是有自己的功能的", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%AD%BB%E9%93%81%E8%BD%A8alkaline", "死铁轨Alkaline") end
-})
-
-stgTab:Button({
-    Title = "死铁轨刷债券", Desc = "速度也是非常快好吧 蜗牛在修复司马😡😡😡", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/afkar-gg/sc/refs/heads/main/auto-bond", "死铁轨刷债券") end
-})
-
-slTab:Button({
-    Title = "扫雷", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
-    Callback = function() run("https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download", "扫雷") end
-})
-
-slTab:Button({
-    Title = "扫雷02", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='", "扫雷") end
-})
-
-fkgsTab:Button({
-    Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
-})
-
---邪恶事情远程
-getgenv().Tabs = getgenv().Tabs or {}
-getgenv().Tabs.GameTab = xesqTab
-getgenv().SutureGameTab = xesqTab
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助")
-
-wqkTab:Button({
-    Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/FakeAngles/PasteWare-v2/refs/heads/main/PasteWare.lua", "武器库")
-    end
-})
-
-getgenv().Tabs = getgenv().Tabs or {}
-getgenv().Tabs.wxlgTab = wxlgTab
-
-run("https://pastebin.com/raw/wV07BGnS")
-
-fescriptTab:Button({
-    Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "无敌少侠")
-    end
-})
-
-fescriptTab:Button({
-    Title = "fe祖国人[suif汉化]", Desc = "晚安,阿祖", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96.lua", "祖国人")
-    end
-})
-
-fescriptTab:Button({
-    Title = "fe火车头[suif汉化]", Desc = "情侣拆散器", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%B3%E8%BD%A4%E6%B1%89%E5%8C%96.lua", "火车头")
-    end
-})
-
-fescriptTab:Button({
-    Title = "fe死亡[suif汉化]", Desc = "他人可见 优质的动作脚本", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/uhhhhhh.lua", "uhhhh")
-    end
-})
-
-fescriptTab:Button({
-    Title = "凋零风暴fe", Desc = "他人不可见 优质的fe脚本 建议在自然灾害执行", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/ian49972/SCRIPTS/refs/heads/main/Wither", "凋零风暴")
-    end
-})
-
-
-tyscriptTab:Button({
-    Title = "飞行V3", Desc = "顾名思义", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/FlyGuiV3.lua", "飞行V3")
-    end
-})
-
-tyscriptTab:Button({
-    Title = "npc控制[suif汉化]", Desc = "可以控制npc", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E6%B1%89%E5%8C%96.lua", "npc控制")
-    end
-})
-
-dwyyTab:Button({
-    Title = "[🔑]动物医院 自动类01[suif汉化]", Desc = "有些事件需要手动去完成 另外我用这个只活到15天", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/HBtj3VFu", "动物医院")
-    end
-})
-
-dwyyTab:Button({
-    Title = "[🔑]动物医院 自动类02[suif汉化]", Desc = "有些事件需要手动去完成 没测试最高多少天", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/pFzZvHum", "动物医院02")
-    end
-})
-
-dwyyTab:Button({
-    Title = "[🔑]动物医院 自动类03[suif汉化]", Desc = "高度自定义 至少ui挺好看 不好用", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8F.lua", "动物医院03")
-    end
-})
-
-dwyyTab:Button({
-    Title = "动物医院 自动类04[suif汉化]", Desc = "美丽ui 挺好用 就是容易治死人导致游戏结束 等作者优化吧 启动时会有雷霆大叫[调低音量]", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2Foxname%5Bsuifhanghang%5D.lua", "动物医院04")
-    end
-})
-
-pghsTab:Button({
-    Title = "排干湖水 自动类01[suif汉化]", Desc = "离售卖机远了没法自动售卖  15分钟左右通关", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/heads/main/%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
-    end
-})
-
-lcTab:Button({
-    Title = "lc脚本01", Desc = "", Icon = "shell",
-    Callback = function()
-        local link = "heiqiang-fa84d1b1-141d-46ad-991a-73b65016038c"
-        if setclipboard then
-            setclipboard(link)
-            notify("复制成功", "卡密已复制到剪贴板！", "clipboard", 2)
-        end
-        run("https://api.jnkie.com/api/v1/luascripts/public/6bd5c94e9da68dce4a2bdf5abd1f6fb9a1379f41faaadbc0354b98d543066f58/download", "lc莱克星顿与康科德")
-    end
-})
-
-zhyfxTab:Button({
-    Title = "最后一封信 自动类01[suif汉化]", Desc = "有些词脚本想不出来 还是人脑牛逼👍🏻👍🏻👍🏻", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%99%E4%B8%80%E5%B0%81%E4%BF%A1%5B%E6%B1%89%E5%8C%96%5D.lua", "最后一封信01")
-    end
-})
-
-sxmsaTab:Button({
-    Title = "数学谋杀案 自动类01[suif汉化]", Desc = "这游戏有什么好开的。。", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%5B%E6%B1%89%E5%8C%96%5D.lua", "数学谋杀案01")
-    end
-})
-
-zbjscqtTab:Button({
-    Title = "[🔑]在北极生存7天 自动类01[suif汉化]", Desc = "加载时间可能比较长 不好用", Icon = "shell",
-    Callback = function()
-        local link = "https://wayoutscript.netlify.app/getkey"
-        if setclipboard then
-            setclipboard(link)
-            notify("复制成功", "解卡链接已复制到剪贴板！", "clipboard", 2)
-        end
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9C%A8%E5%8C%97%E6%9E%81%E7%94%9F%E5%AD%987%E5%A4%A9.lua", "在北极生存7天01")
-    end
-})
-
-
-
-fescriptTab:Button({
-    Title = "r15动作包[suif汉化]", Desc = "他人可见 注意只支持r15 r6用了会直接僵直", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "r15动作包")
-    end
-})
-
-scjsjjcTab:Button({
-    Title = "生存僵尸竞技场01[suif汉化]", Desc = "汉化不全 但无关紧要 主要的功能都是汉化过的 感觉还行", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "生存僵尸竞技场01")
-    end
-})
-
-fescriptTab:Button({
-    Title = "我的世界fe", Desc = "他人不可见 米米世界牛逼。", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/ian49972/SCRIPTS/refs/heads/main/Steve", "我的世界fe")
-    end
-})
-
-tyscriptTab:Button({
-    Title = "定位传送", Desc = "借鉴[夜脚本]的闪电尖兵大招", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/Ctx5L33c", "定位传送")
-    end
-})
-
-fescriptTab:Button({
-    Title = "召唤吉吉fe", Desc = "他人不可见 嗯对没有蛋仔。", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/fqm5dDXN", "召唤吉吉fe")
-    end
-})
-
-
-gnjbTab:Paragraph({
-    Title = "注意",
-    Desc = "我只收录我QQ群里看得见的脚本 不论好坏 如果你不想让你的脚本出现在这里 可以点击右上角反馈按钮进行反馈"
-})
-
-gnjbTab:Space()
-
-gnjbTab:Button({
-    Title = "叶脚本", Desc = "国内老资历 群[336554662]", Icon = "shell",
-    Callback = function()
-    run("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua", "夜脚本")
-    end
-})
-
-gnjbTab:Button({
-    Title = "夜脚本", Desc = "国内脚本 群[711757444]", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/ylt410/roblox-Script/refs/heads/main/yejiaoben", "夜脚本")
-    end
-})
-
-gnjbTab:Button({
-    Title = "霖溺脚本", Desc = "国内脚本 群[744830231] 需加入roblox指定社区", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/ShenJiaoBen/ScriptLoader/refs/heads/main/Linni_FreeLoader.lua", "霖溺")
-    end
-})
-
-gnjbTab:Button({
-    Title = "XA脚本", Desc = "国内脚本 群[1057545155] 可能有时执行不了", Icon = "shell",
-    Callback = function()
-        run("https://raw.gitcode.com/Xingtaiduan/Scripts/raw/main/Loader.lua", "XA脚本")
-    end
-})
-
-gnjbTab:Button({
-    Title = "黑白脚本", Desc = "国内脚本 群[1062578052]", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8", "黑白脚本")
-    end
-})
-
-gnjbTab:Button({
-    Title = "kunkun脚本", Desc = "国内脚本 群[1009291930]", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/cfCbSrqr", "kunkun脚本")
-    end
-})
-
-gnjbTab:Button({
-    Title = "TrashHub脚本", Desc = "国内脚本 群[786284990]", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/WasKKal/OnlyJumpToOther/main/loader.lua", "TrashHub脚本")
-    end
-})
-
-gnjbTab:Button({
-    Title = "Rb脚本", Desc = "国内脚本 群[1018099361]", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/Yungengxin/roblox/refs/heads/main/Rb-Hub", "Rb脚本")
-    end
-})
-
 --范围远程
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
@@ -888,100 +658,6 @@ getgenv().Tabs.ServerTab = serverTab
 getgenv().SutureServerTab = serverTab
 
 loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类")
-
---自然灾害远程
-getgenv().Tabs.ZRZHTab = zrzhTab
-getgenv().SutureZRZHTab = zrzhTab
-
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害")
-
-
-
-tyscriptTab:Button({
-    Title = "绕过群组检测", Desc = "可以绕过部分脚本的群组检测", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/4LzyCSnp", "绕过群组检测")
-    end
-})
-
-nzyhhyTab:Paragraph({
-    Title = "占位符",
-    Desc = "占位符"
-})
-
-nljjcTab:Button({
-    Title = "[🔑]能力竞技场", Desc = "外网很多人在用 就搬过来了 不适合演戏 不适合手机游玩 功能挺多", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%83%BD%E5%8A%9B%E7%AB%9E%E6%8A%80%E5%9C%BA.lua", "能力竞技场")
-    end
-})
-
-bdh2Tab:Paragraph({
-    Title = "注意",
-    Desc = "这个神人服务器长期霸占我主页 不找脚本有点过不去了"
-})
-
-bdh2Tab:Space()
-
-bdh2Tab:Button({
-    Title = "[🔑]冰大亨2[自动化]", Desc = "功能很多 自动化功能全开之后就可以睡觉了😛😛😛", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%B0%E5%A4%A7%E4%BA%A82.lua", "冰大亨2")
-    end
-})
-
-zxdyTab:Button({
-    Title = "[🔑]重型钓鱼", Desc = "感觉中规中矩 要是觉得不好用再右上角反馈功能进行反馈", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E9%87%8D%E5%9E%8B%E9%92%93%E9%B1%BC.lua", "重型钓鱼")
-    end
-})
-
-sqjjcTab:Button({
-    Title = "传送击杀", Desc = "大概就是搭配连点器发挥最大功效", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/eweucw5F", "手枪竞技场")
-    end
-})
-
-hcyghdTab:Paragraph({
-    Title = "注意",
-    Desc = "因游戏判定有问题 极大可能出现抓错核弹合成不了的情况 建议挂个连点器一直点松手"
-})
-
-hcyghdTab:Button({
-    Title = "自动类", Desc = "挺好用的 就是飞行和移动类功能不要开 不然容易被ban", Icon = "shell",
-    Callback = function()
-        run("https://pastebin.com/raw/vNgFeLGR", "合成一个核弹")
-    end
-})
-
-cclsTab:Button({
-    Title = "储存猎手01", Desc = "功能很多 会开可以实现全自动 不会开就是一坨了", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%82%A8%E5%AD%98%E7%8C%8E%E4%BA%BA.lua", "储存猎手01")
-    end
-})
-
-cclsTab:Button({
-    Title = "储存猎手02", Desc = "不如用上面的", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%82%A8%E5%AD%98%E7%8C%8E%E6%89%8B02.lua", "储存猎手02")
-    end
-})
-
-smnmTab:Paragraph({
-    Title = "注意",
-    Desc = "还有两个需要卡密的 我看功能差不多就没加 要是觉得这个不好用我再考虑加上"
-})
-
-smnmTab:Button({
-    Title = "售卖柠檬[自动化]", Desc = "神人小游戏 依旧通货膨胀", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%94%AE%E5%8D%96%E6%9F%A0%E6%AA%AC.lua", "售卖柠檬")
-    end
-})
-
 
 -- UI设置
 local themeMap = {
