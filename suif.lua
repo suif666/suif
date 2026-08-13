@@ -250,6 +250,7 @@ local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Lock
 local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
 local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
+local zwfzwfTab = scriptSec:Tab({ Title = "占位符", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
