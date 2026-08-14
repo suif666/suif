@@ -903,11 +903,6 @@ tyscriptTab:Button({
     end
 })
 
-nzyhhyTab:Paragraph({
-    Title = "占位符",
-    Desc = "占位符"
-})
-
 nljjcTab:Button({
     Title = "[🔑]能力竞技场", Desc = "外网很多人在用 就搬过来了 不适合演戏 不适合手机游玩 功能挺多", Icon = "shell",
     Callback = function()
