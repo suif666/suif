@@ -578,15 +578,21 @@ stgTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/afkar-gg/sc/refs/heads/main/auto-bond", "死铁轨刷债券") end
 })
 
-slTab:Button({
-    Title = "扫雷", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
-    Callback = function() run("https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download", "扫雷") end
+slTab:Paragraph({
+    Title = "注意",
+    Desc = "此区域下的所有脚本均只适用于bLockerman's Minesweeper"
 })
 
+
 slTab:Button({
-    Title = "扫雷02", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='", "扫雷") end
+    Title = "扫雷01", Desc = "无gui 带问号的方块谨慎踩踏", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/Nattalz/rblx/refs/heads/main/blockerman_full.lua?='", "扫雷") end
 })
+
+--扫雷远程
+  getgenv().Tabs.MinesweeperTab = slTab
+  getgenv().SutureMinesweeperTab = slTab
+  loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷")
 
 fkgsTab:Button({
     Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
