@@ -593,8 +593,7 @@ slTab:Button({
   getgenv().Tabs = getgenv().Tabs or {}
   getgenv().Tabs.MinesweeperTab = slTab
   getgenv().SutureMinesweeperTab = slTab
-  loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/
-  %E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷")
+  loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷")
 
 fkgsTab:Button({
     Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
