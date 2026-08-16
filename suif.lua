@@ -55,8 +55,8 @@ local function run(url, name)
     end)
 end
 
--- 后台异步加载远程模块：失败自动重试 3 次，仍失败时给出可见提示并回调 onFail
-local function loadRemote(url, desc, onFail)
+-- 后台异步加载远程模块：失败自动重试 3 次，成功回调 onSuccess，仍失败时给出可见提示并回调 onFail
+local function loadRemote(url, desc, onSuccess, onFail)
     task.spawn(function()
         local ok, err
         for attempt = 1, 3 do
@@ -69,6 +69,10 @@ local function loadRemote(url, desc, onFail)
                 fn()
             end)
             if ok then
+                if onSuccess then
+                    pcall(onSuccess)
+                end
+                pcall(notify, desc or "远程脚本", "已加载", "check", 1.5)
                 return
             end
             task.wait(0.5 * attempt)
@@ -81,12 +85,28 @@ local function loadRemote(url, desc, onFail)
     end)
 end
 
--- 懒加载登记表：Index -> { url, desc, loaded, failed }
+-- 懒加载登记表：Index -> item{ url, desc, state }
+-- state: pending(未加载) / loading(加载中) / done(成功) / failed(失败待重试)
 local lazyTabs = {}
+local lazyOrder = {}
 local function lazyLoad(url, desc, tab)
     if tab and tab.Index then
-        lazyTabs[tab.Index] = { url = url, desc = desc, loaded = false, failed = false }
+        local item = { url = url, desc = desc, state = "pending" }
+        lazyTabs[tab.Index] = item
+        lazyOrder[#lazyOrder + 1] = item
     end
+end
+
+-- 统一加载入口：状态机驱动
+local function startLoad(item)
+    item.state = "loading"
+    loadRemote(item.url, item.desc,
+        function()
+            item.state = "done"
+        end,
+        function()
+            item.state = "failed"
+        end)
 end
 
 -- 全局通用防爆杀 (Adonis Bypass)
@@ -158,6 +178,68 @@ task.spawn(function()
     end
 end)
 
+-- ============ 公告系统：后台公告 + WindUI Popup ============
+-- 主窗口先隐藏，公告确认后（点“执行”）再显示；点“取消”保持隐藏；无公告/失败直接显示
+local HttpService = game:GetService("HttpService")
+local ANNOUNCEMENT_API = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
+
+local mainShown = false
+local function showMainWindow()
+    if mainShown then
+        return
+    end
+    mainShown = true
+    getgenv().SutureMainUIVisible = true
+    pcall(function()
+        win.UIElements.Main.Visible = true
+    end)
+end
+
+-- 先隐藏主窗口，等公告确认
+pcall(function()
+    win.UIElements.Main.Visible = false
+end)
+getgenv().SutureMainUIVisible = false
+
+task.spawn(function()
+    local ok, res = pcall(function()
+        return game:HttpGet(ANNOUNCEMENT_API, true)
+    end)
+    if not ok then
+        warn("公告获取失败，直接显示主窗口:", res)
+        showMainWindow()
+        return
+    end
+    local okDecode, decoded = pcall(function()
+        return HttpService:JSONDecode(tostring(res))
+    end)
+    if not okDecode then
+        warn("公告解析失败，直接显示主窗口:", decoded)
+        showMainWindow()
+        return
+    end
+    if not decoded or decoded.content == nil or decoded.content == "" or decoded.enabled == false then
+        showMainWindow()
+        return
+    end
+    -- 有公告：Popup 让用户选择是否执行
+    local popupOk, popupErr = pcall(function()
+        WindUI:Popup({
+            Title = decoded.title or "公告",
+            Content = decoded.content or "",
+            Icon = "megaphone",
+            Buttons = {
+                { Title = "执行", Callback = function() showMainWindow() end },
+                { Title = "取消", Callback = function() end }
+            }
+        })
+    end)
+    if not popupOk then
+        warn("公告 Popup 创建失败，直接显示主窗口:", popupErr)
+        showMainWindow()
+    end
+end)
+
 --// 【彩虹边框】原版 while 逻辑回归
 local UIStroke = Instance.new("UIStroke")
 UIStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -177,7 +259,7 @@ UIGradient.Color = ColorSequence.new{
 }
 UIGradient.Parent = UIStroke
 
--- 懒加载轮询：进入对应 Tab 时才加载远程脚本；失败后再次进入该 Tab 会重新尝试
+-- 懒加载轮询：进入对应 Tab 时立即加载（避免等待后台慢加载）
 local lastLazyCur = win.CurrentTab
 task.spawn(function()
     while true do
@@ -186,15 +268,29 @@ task.spawn(function()
         if cur and cur ~= lastLazyCur then
             lastLazyCur = cur
             local item = lazyTabs[cur]
-            if item and (not item.loaded or item.failed) then
-                item.loaded = true
-                item.failed = false
-                loadRemote(item.url, item.desc, function()
-                    item.loaded = false
-                    item.failed = true
-                end)
+            if item and (item.state == "pending" or item.state == "failed") then
+                startLoad(item)
             end
         end
+    end
+end)
+
+-- 柔和瞬间加载：启动后按顺序自动加载全部远程脚本，每个间隔 0.5 秒错开
+-- 避免一次性并发 10 个请求导致卡顿；全部加载完自动退出
+-- 每个脚本加载成功/失败都会有通知
+local AUTO_LOAD_DELAY = 0.5
+task.spawn(function()
+    local idx = 1
+    while true do
+        local item = lazyOrder[idx]
+        if not item then
+            break
+        end
+        if item.state == "pending" or item.state == "failed" then
+            startLoad(item)
+        end
+        idx = idx + 1
+        task.wait(AUTO_LOAD_DELAY)
     end
 end)
 
