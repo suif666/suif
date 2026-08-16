@@ -333,6 +333,63 @@ local countText = mainTab:Paragraph({
     Desc = "正在获取..."
 })
 
+-- 历史公告查看：请求后台历史公告列表，用 WindUI Popup 逐条显示
+mainTab:Button({
+    Title = "历史公告",
+    Desc = "查看后台发布过的历史公告",
+    Icon = "history",
+    Callback = function()
+        task.spawn(function()
+            local http = game:GetService("HttpService")
+            local api = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
+            local ok, res = pcall(function()
+                return game:HttpGet(api .. "?history=1", true)
+            end)
+            if not ok then
+                notify("历史公告", "获取失败：网络请求异常", "warning", 3)
+                return
+            end
+            local okDecode, list = pcall(function()
+                return http:JSONDecode(tostring(res))
+            end)
+            if not okDecode or type(list) ~= "table" then
+                notify("历史公告", "暂无历史公告", "info", 3)
+                return
+            end
+            if #list == 0 then
+                notify("历史公告", "暂无历史公告", "info", 3)
+                return
+            end
+            -- 逐条显示为 Popup（最新的先展示）
+            local idx = 1
+            local function showOne()
+                if idx > #list then
+                    notify("历史公告", "已看完所有历史公告", "check", 2)
+                    return
+                end
+                local h = list[idx]
+                local t = h.title or "公告"
+                if h.version and h.version ~= "" then
+                    t = t .. "  " .. h.version
+                end
+                if h.time and h.time ~= "" then
+                    t = t .. "\n" .. h.time
+                end
+                WindUI:Popup({
+                    Title = t,
+                    Content = h.content or "",
+                    Icon = "megaphone",
+                    Buttons = {
+                        { Title = "下一条", Callback = function() idx = idx + 1; showOne() end },
+                        { Title = "关闭", Callback = function() end }
+                    }
+                })
+            end
+            showOne()
+        end)
+    end
+})
+
 local function updateCount()
     local ok, res = pcall(function()
         local player = game.Players.LocalPlayer
@@ -1080,9 +1137,14 @@ task.spawn(function()
         return
     end
     -- 有公告：Popup 让用户选择是否执行
+    -- 版本号拼到标题（有版本才显示）
+    local popupTitle = decoded.title or "公告"
+    if decoded.version and decoded.version ~= "" then
+        popupTitle = popupTitle .. "  " .. decoded.version
+    end
     local popupOk, popupErr = pcall(function()
         WindUI:Popup({
-            Title = decoded.title or "公告",
+            Title = popupTitle,
             Content = decoded.content or "",
             Icon = "megaphone",
             Buttons = {
