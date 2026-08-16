@@ -72,7 +72,6 @@ local function loadRemote(url, desc, onSuccess, onFail)
                 if onSuccess then
                     pcall(onSuccess)
                 end
-                pcall(notify, desc or "远程脚本", "已加载", "check", 1.5)
                 return
             end
             task.wait(0.5 * attempt)
@@ -200,41 +199,7 @@ UIGradient.Color = ColorSequence.new{
 }
 UIGradient.Parent = UIStroke
 
--- 懒加载轮询：进入对应 Tab 时立即加载（避免等待后台慢加载）
-local lastLazyCur = win.CurrentTab
-task.spawn(function()
-    while true do
-        task.wait(0.25)
-        local cur = win.CurrentTab
-        if cur and cur ~= lastLazyCur then
-            lastLazyCur = cur
-            local item = lazyTabs[cur]
-            if item and (item.state == "pending" or item.state == "failed") then
-                startLoad(item)
-            end
-        end
-    end
-end)
-
--- 柔和瞬间加载：启动后按顺序自动加载全部远程脚本，每个间隔 0.5 秒错开
--- 避免一次性并发 10 个请求导致卡顿；全部加载完自动退出
--- 每个脚本加载成功/失败都会有通知
-local AUTO_LOAD_DELAY = 0.5
-task.spawn(function()
-    local idx = 1
-    while true do
-        local item = lazyOrder[idx]
-        if not item then
-            break
-        end
-        if item.state == "pending" or item.state == "failed" then
-            startLoad(item)
-        end
-        idx = idx + 1
-        task.wait(AUTO_LOAD_DELAY)
-    end
-end)
-
+--// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
 --// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
 task.spawn(function()
     while true do
@@ -1062,6 +1027,21 @@ WindUI:Notify({
     Icon = "message-square-warning",
     Duration = 10
 })
+
+-- ============ 全量自动加载全部远程脚本 ============
+-- 位置放在所有 lazyLoad 登记点之后，确保 lazyOrder 已全部登记
+-- 每个脚本间隔 0.5 秒错开加载（柔和化，避免 10 个请求同时炸出卡顿）
+-- 每个脚本加载成功/失败都会通知
+local AUTO_LOAD_DELAY = 0.5
+task.spawn(function()
+    task.wait(0.3)
+    for _, item in ipairs(lazyOrder) do
+        if item.state == "pending" or item.state == "failed" then
+            startLoad(item)
+        end
+        task.wait(AUTO_LOAD_DELAY)
+    end
+end)
 
 end
 
