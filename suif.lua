@@ -109,6 +109,9 @@ local function startLoad(item)
         end)
 end
 
+-- ============ 主脚本主体：公告确认后才执行 ============
+local function initMainScript()
+
 -- 全局通用防爆杀 (Adonis Bypass)
 getgenv().bypass_adonis = true
 --反挂机
@@ -178,68 +181,6 @@ task.spawn(function()
     end
 end)
 
--- ============ 公告系统：后台公告 + WindUI Popup ============
--- 主窗口先隐藏，公告确认后（点“执行”）再显示；点“取消”保持隐藏；无公告/失败直接显示
-local HttpService = game:GetService("HttpService")
-local ANNOUNCEMENT_API = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
-
-local mainShown = false
-local function showMainWindow()
-    if mainShown then
-        return
-    end
-    mainShown = true
-    getgenv().SutureMainUIVisible = true
-    pcall(function()
-        win.UIElements.Main.Visible = true
-    end)
-end
-
--- 先隐藏主窗口，等公告确认
-pcall(function()
-    win.UIElements.Main.Visible = false
-end)
-getgenv().SutureMainUIVisible = false
-
-task.spawn(function()
-    local ok, res = pcall(function()
-        return game:HttpGet(ANNOUNCEMENT_API, true)
-    end)
-    if not ok then
-        warn("公告获取失败，直接显示主窗口:", res)
-        showMainWindow()
-        return
-    end
-    local okDecode, decoded = pcall(function()
-        return HttpService:JSONDecode(tostring(res))
-    end)
-    if not okDecode then
-        warn("公告解析失败，直接显示主窗口:", decoded)
-        showMainWindow()
-        return
-    end
-    if not decoded or decoded.content == nil or decoded.content == "" or decoded.enabled == false then
-        showMainWindow()
-        return
-    end
-    -- 有公告：Popup 让用户选择是否执行
-    local popupOk, popupErr = pcall(function()
-        WindUI:Popup({
-            Title = decoded.title or "公告",
-            Content = decoded.content or "",
-            Icon = "megaphone",
-            Buttons = {
-                { Title = "执行", Callback = function() showMainWindow() end },
-                { Title = "取消", Callback = function() end }
-            }
-        })
-    end)
-    if not popupOk then
-        warn("公告 Popup 创建失败，直接显示主窗口:", popupErr)
-        showMainWindow()
-    end
-end)
-
 --// 【彩虹边框】原版 while 逻辑回归
 local UIStroke = Instance.new("UIStroke")
 UIStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -306,31 +247,7 @@ task.spawn(function()
 end)
 
 
-local dialog
-dialog = win:Dialog({
-    Icon = "megaphone", Title = "公告", Content = "觉得脚本好用的话可以分享给好友 如果感觉哪里不好可以点击右上角反馈按钮进行反馈",
-    Buttons = {
-        {
-            Title = "我知晓",
-            Callback = function()
-                if dialog and dialog.Close then
-                    dialog:Close()
-                end
-            end
-        }
-    }
-})
-task.delay(1, function()
-    if dialog and dialog.Show then
-        dialog:Show()
-    end
-end)
--- 防止公告弹窗挡住关闭/最小化按钮：5 秒后自动关闭
-task.delay(5, function()
-    if dialog and dialog.Close then
-        dialog:Close()
-    end
-end)
+-- 固定公告弹窗已移除：公告统一走后台公告系统（公告确认 Popup）
 
 -- 主页
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
@@ -1145,3 +1062,57 @@ WindUI:Notify({
     Icon = "message-square-warning",
     Duration = 10
 })
+
+end
+
+-- ============ 公告确认：先弹公告 Popup，点“执行”才启动主脚本 ============
+local HttpService = game:GetService("HttpService")
+local ANNOUNCEMENT_API = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
+
+local bootRequested = false
+local function requestBoot()
+    if bootRequested then
+        return
+    end
+    bootRequested = true
+    initMainScript()
+end
+
+task.spawn(function()
+    local ok, res = pcall(function()
+        return game:HttpGet(ANNOUNCEMENT_API, true)
+    end)
+    if not ok then
+        warn("公告获取失败，直接启动主脚本:", res)
+        requestBoot()
+        return
+    end
+    local okDecode, decoded = pcall(function()
+        return HttpService:JSONDecode(tostring(res))
+    end)
+    if not okDecode then
+        warn("公告解析失败，直接启动主脚本:", decoded)
+        requestBoot()
+        return
+    end
+    if not decoded or decoded.content == nil or decoded.content == "" or decoded.enabled == false then
+        requestBoot()
+        return
+    end
+    -- 有公告：Popup 让用户选择是否执行
+    local popupOk, popupErr = pcall(function()
+        WindUI:Popup({
+            Title = decoded.title or "公告",
+            Content = decoded.content or "",
+            Icon = "megaphone",
+            Buttons = {
+                { Title = "执行", Callback = function() requestBoot() end },
+                { Title = "取消", Callback = function() end }
+            }
+        })
+    end)
+    if not popupOk then
+        warn("公告 Popup 创建失败，直接启动主脚本:", popupErr)
+        requestBoot()
+    end
+end)
