@@ -55,8 +55,8 @@ local function run(url, name)
     end)
 end
 
--- 后台异步加载远程模块：失败自动重试，仍失败时给出可见提示
-local function loadRemote(url, desc)
+-- 后台异步加载远程模块：失败自动重试 3 次，仍失败时给出可见提示并回调 onFail
+local function loadRemote(url, desc, onFail)
     task.spawn(function()
         local ok, err
         for attempt = 1, 3 do
@@ -75,7 +75,18 @@ local function loadRemote(url, desc)
         end
         warn((desc or "远程脚本") .. " 加载失败:", err)
         pcall(notify, desc or "远程脚本", "加载失败：" .. tostring(err), "warning", 5)
+        if onFail then
+            pcall(onFail)
+        end
     end)
+end
+
+-- 懒加载登记表：Index -> { url, desc, loaded, failed }
+local lazyTabs = {}
+local function lazyLoad(url, desc, tab)
+    if tab and tab.Index then
+        lazyTabs[tab.Index] = { url = url, desc = desc, loaded = false, failed = false }
+    end
 end
 
 -- 全局通用防爆杀 (Adonis Bypass)
@@ -166,10 +177,35 @@ UIGradient.Color = ColorSequence.new{
 }
 UIGradient.Parent = UIStroke
 
+-- 懒加载轮询：进入对应 Tab 时才加载远程脚本；失败后再次进入该 Tab 会重新尝试
+local lastLazyCur = win.CurrentTab
 task.spawn(function()
     while true do
-        local dt = task.wait()
-        UIGradient.Rotation = (UIGradient.Rotation + dt * 200) % 360
+        task.wait(0.25)
+        local cur = win.CurrentTab
+        if cur and cur ~= lastLazyCur then
+            lastLazyCur = cur
+            local item = lazyTabs[cur]
+            if item and (not item.loaded or item.failed) then
+                item.loaded = true
+                item.failed = false
+                loadRemote(item.url, item.desc, function()
+                    item.loaded = false
+                    item.failed = true
+                end)
+            end
+        end
+    end
+end)
+
+--// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        local main = win.UIElements.Main
+        if main and main.Visible then
+            UIGradient.Rotation = (UIGradient.Rotation + 10) % 360
+        end
     end
 end)
 
@@ -593,7 +629,7 @@ slTab:Button({
   getgenv().Tabs = getgenv().Tabs or {}
   getgenv().Tabs.MinesweeperTab = slTab
   getgenv().SutureMinesweeperTab = slTab
-  loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷")
+  lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷", slTab)
 
 fkgsTab:Button({
     Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
@@ -604,7 +640,7 @@ fkgsTab:Button({
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.GameTab = xesqTab
 getgenv().SutureGameTab = xesqTab
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助", xesqTab)
 
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
@@ -616,7 +652,7 @@ wqkTab:Button({
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.wxlgTab = wxlgTab
 
-run("https://pastebin.com/raw/wV07BGnS")
+lazyLoad("https://pastebin.com/raw/wV07BGnS", "无限旅馆", wxlgTab)
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
@@ -845,61 +881,61 @@ gnjbTab:Button({
 --范围远程
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
-loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick()), "范围")
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick()), "范围", FwTab)
 
 --甩飞远程
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI
 
-loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua?t=" .. tostring(tick()), "甩飞")
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua?t=" .. tostring(tick()), "甩飞", SfTab)
 
 --ping fps显示
 getgenv().Tabs.PingFPSTab = pingfpsTab
 getgenv().SuturePingFPSTab = pingfpsTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示")
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示", pingfpsTab)
 
 --雷达
 getgenv().Tabs.RadarTab = radarTab
 getgenv().SutureRadarTab = radarTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "雷达")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "雷达", radarTab)
 
 --玩家类远程
 getgenv().Tabs.PlayerTab = playerTab
 getgenv().SuturePlayerTab = playerTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类", playerTab)
 
 --自瞄类远程
 getgenv().Tabs.AimbotTab = amTab
 getgenv().SutureAimbotTab = amTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "自瞄类")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "自瞄类", amTab)
 
 --发言类远程
 getgenv().Tabs.SayTab = sayTab
 getgenv().SutureSayTab = sayTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "发言类")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "发言类", sayTab)
 
 --ESP远程
 getgenv().Tabs.ESPTab = espTab
 getgenv().SutureESPTab = espTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "ESP")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "ESP", espTab)
 
 --服务器类远程
 getgenv().Tabs.ServerTab = serverTab
 getgenv().SutureServerTab = serverTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类", serverTab)
 
 --自然灾害远程
 getgenv().Tabs.ZRZHTab = zrzhTab
 getgenv().SutureZRZHTab = zrzhTab
 
-loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害")
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害", zrzhTab)
 
 
 
