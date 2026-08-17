@@ -199,6 +199,12 @@ function win:Open()
         pendingCloseTask = nil
     end
     self.Closed = false
+    -- 打开时隐藏胶囊栏
+    pcall(function()
+        if self.OpenButtonMain then
+            self.OpenButtonMain:Visible(false)
+        end
+    end)
     local m = getWindowMain()
     if m then
         m.Visible = true
@@ -225,6 +231,15 @@ end
 function win:Close()
     if self.Destroyed then return end
     self.Closed = true
+    -- 补充官方 Close 里的状态设置
+    pcall(function()
+        self.CanDropdown = false
+    end)
+    pcall(function()
+        if self.WindUI and self.WindUI.ToggleAcrylic then
+            self.WindUI:ToggleAcrylic(false)
+        end
+    end)
     local m = getWindowMain()
     if m then
         local c = getWindowContent(m)
@@ -240,6 +255,12 @@ function win:Close()
         pendingCloseTask = task.delay(0.15, function()
             pendingCloseTask = nil
             pcall(function() m.Visible = false end)
+        end)
+        -- 关闭时显示胶囊栏（最小化后点它重新打开）
+        pcall(function()
+            if self.OpenButtonMain then
+                self.OpenButtonMain:Visible(true)
+            end
         end)
     end
     if self.OnCloseCallback then
