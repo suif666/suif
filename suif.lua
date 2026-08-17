@@ -261,6 +261,7 @@ local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Lock
 local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
 local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
 local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
+local sgTab = scriptSec:Tab({ Title = "闪光", Icon = "shell", Locked = false })
 local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
 local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
@@ -1014,6 +1015,11 @@ sqjjcTab:Button({
 getgenv().Tabs.SQJJC = sqjjcTab
 getgenv().SutureSQJJC = sqjjcTab
 lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%8B%E6%9E%AA%E7%AB%9E%E6%8A%80%E5%9C%BA%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "手枪竞技场Ragebot", sqjjcTab)
+
+--闪光 Ragebot 远程（子弹追踪）
+getgenv().Tabs.SGTab = sgTab
+getgenv().SutureSGTab = sgTab
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%97%AA%E5%85%89%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "闪光Ragebot", sgTab)
 
 
 hcyghdTab:Paragraph({
