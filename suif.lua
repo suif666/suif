@@ -795,6 +795,11 @@ sxmsaTab:Button({
     end
 })
 
+--数学谋杀案远程
+getgenv().Tabs.SXMSATab = sxmsaTab
+getgenv().SutureSXMSATab = sxmsaTab
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "数学谋杀案自动答题", sxmsaTab)
+
 zbjscqtTab:Button({
     Title = "[🔑]在北极生存7天 自动类01[suif汉化]", Desc = "加载时间可能比较长 不好用", Icon = "shell",
     Callback = function()
