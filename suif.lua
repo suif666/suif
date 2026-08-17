@@ -265,6 +265,7 @@ local sgTab = scriptSec:Tab({ Title = "闪光", Icon = "shell", Locked = false }
 local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
 local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
+local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -972,6 +973,10 @@ getgenv().SutureZRZHTab = zrzhTab
 
 lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害", zrzhTab)
 
+--po大po 功能远程
+getgenv().Tabs.POTab = podpoTab
+getgenv().SuturePOTab = podpoTab
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/PO%E5%A4%A7PO%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "po大po功能", podpoTab)
 
 
 tyscriptTab:Button({
