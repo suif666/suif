@@ -55,8 +55,8 @@ local function run(url, name)
     end)
 end
 
--- 后台异步加载远程模块：失败自动重试 3 次，成功回调 onSuccess，仍失败时给出可见提示并回调 onFail
-local function loadRemote(url, desc, onSuccess, onFail)
+-- 后台异步加载远程模块：失败自动重试，仍失败时给出可见提示
+local function loadRemote(url, desc)
     task.spawn(function()
         local ok, err
         for attempt = 1, 3 do
@@ -69,47 +69,14 @@ local function loadRemote(url, desc, onSuccess, onFail)
                 fn()
             end)
             if ok then
-                if onSuccess then
-                    pcall(onSuccess)
-                end
                 return
             end
             task.wait(0.5 * attempt)
         end
         warn((desc or "远程脚本") .. " 加载失败:", err)
         pcall(notify, desc or "远程脚本", "加载失败：" .. tostring(err), "warning", 5)
-        if onFail then
-            pcall(onFail)
-        end
     end)
 end
-
--- 懒加载登记表：Index -> item{ url, desc, state }
--- state: pending(未加载) / loading(加载中) / done(成功) / failed(失败待重试)
-local lazyTabs = {}
-local lazyOrder = {}
-local function lazyLoad(url, desc, tab)
-    if tab and tab.Index then
-        local item = { url = url, desc = desc, state = "pending" }
-        lazyTabs[tab.Index] = item
-        lazyOrder[#lazyOrder + 1] = item
-    end
-end
-
--- 统一加载入口：状态机驱动
-local function startLoad(item)
-    item.state = "loading"
-    loadRemote(item.url, item.desc,
-        function()
-            item.state = "done"
-        end,
-        function()
-            item.state = "failed"
-        end)
-end
-
--- ============ 主脚本主体：公告确认后才执行 ============
-local function initMainScript()
 
 -- 全局通用防爆杀 (Adonis Bypass)
 getgenv().bypass_adonis = true
@@ -199,20 +166,39 @@ UIGradient.Color = ColorSequence.new{
 }
 UIGradient.Parent = UIStroke
 
---// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
---// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
 task.spawn(function()
     while true do
-        task.wait(0.05)
-        local main = win.UIElements.Main
-        if main and main.Visible then
-            UIGradient.Rotation = (UIGradient.Rotation + 10) % 360
-        end
+        local dt = task.wait()
+        UIGradient.Rotation = (UIGradient.Rotation + dt * 200) % 360
     end
 end)
 
 
--- 固定公告弹窗已移除：公告统一走后台公告系统（公告确认 Popup）
+local dialog
+dialog = win:Dialog({
+    Icon = "megaphone", Title = "公告", Content = "觉得脚本好用的话可以分享给好友 如果感觉哪里不好可以点击右上角反馈按钮进行反馈",
+    Buttons = {
+        {
+            Title = "我知晓",
+            Callback = function()
+                if dialog and dialog.Close then
+                    dialog:Close()
+                end
+            end
+        }
+    }
+})
+task.delay(1, function()
+    if dialog and dialog.Show then
+        dialog:Show()
+    end
+end)
+-- 防止公告弹窗挡住关闭/最小化按钮：5 秒后自动关闭
+task.delay(5, function()
+    if dialog and dialog.Close then
+        dialog:Close()
+    end
+end)
 
 -- 主页
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
@@ -333,57 +319,6 @@ local countText = mainTab:Paragraph({
     Desc = "正在获取..."
 })
 
--- 历史公告查看：请求后台历史公告列表，一次 Popup 显示全部（内容区可滚动）
-mainTab:Button({
-    Title = "历史公告",
-    Desc = "查看后台发布过的历史公告（一次显示全部）",
-    Icon = "history",
-    Callback = function()
-        task.spawn(function()
-            local http = game:GetService("HttpService")
-            local api = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
-            local ok, res = pcall(function()
-                return game:HttpGet(api .. "?history=1", true)
-            end)
-            if not ok then
-                notify("历史公告", "获取失败：网络请求异常", "warning", 3)
-                return
-            end
-            local okDecode, list = pcall(function()
-                return http:JSONDecode(tostring(res))
-            end)
-            if not okDecode or type(list) ~= "table" then
-                notify("历史公告", "暂无历史公告", "info", 3)
-                return
-            end
-            if #list == 0 then
-                notify("历史公告", "暂无历史公告", "info", 3)
-                return
-            end
-            -- 全部历史拼成一个大文本，一次 Popup 显示（最新在前）
-            local parts = {}
-            for _, h in ipairs(list) do
-                local head = (h.title or "公告")
-                if h.version and h.version ~= "" then
-                    head = head .. "  " .. h.version
-                end
-                if h.time and h.time ~= "" then
-                    head = head .. "\n" .. h.time
-                end
-                table.insert(parts, head .. "\n" .. (h.content or ""))
-            end
-            WindUI:Popup({
-                Title = "历史公告（共 " .. #list .. " 条）",
-                Content = table.concat(parts, "\n\n──────────────────\n\n"),
-                Icon = "history",
-                Buttons = {
-                    { Title = "关闭", Callback = function() end }
-                }
-            })
-        end)
-    end
-})
-
 local function updateCount()
     local ok, res = pcall(function()
         local player = game.Players.LocalPlayer
@@ -395,10 +330,14 @@ local function updateCount()
 
         -- 获取真实游戏名
         local gameName = game.Name
+        local gameIcon = ""
         pcall(function()
             local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
             if info and info.Name then
                 gameName = info.Name
+            end
+            if info and info.ImageId then
+                gameIcon = "https://www.roblox.com/asset/?id=" .. tostring(info.ImageId)
             end
         end)
 
@@ -415,6 +354,7 @@ local function updateCount()
             .. "&userid="      .. HttpService:UrlEncode(userId)
             .. "&game="        .. HttpService:UrlEncode(gameName)
             .. "&placeid="     .. HttpService:UrlEncode(tostring(game.PlaceId))
+            .. "&gameicon="    .. HttpService:UrlEncode(gameIcon)
             .. "&accountage="  .. HttpService:UrlEncode(accountAge)
             .. "&executor="    .. HttpService:UrlEncode(executor)
             .. "&maxplayers="  .. HttpService:UrlEncode(maxPlayers)
@@ -643,22 +583,21 @@ stgTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/afkar-gg/sc/refs/heads/main/auto-bond", "死铁轨刷债券") end
 })
 
-slTab:Paragraph({
-    Title = "注意",
-    Desc = "此区域下的所有脚本均只适用于bLockerman's Minesweeper"
+slTab:Button({
+    Title = "扫雷", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
+    Callback = function() run("https://project-xiaeo.vercel.app/api/v1/luascripts/public/3d7d1c298ca6ff866ccb419f77d6b97d9e22c6be0d239b80d46d753f539d31e8/download", "扫雷") end
 })
-
 
 slTab:Button({
-    Title = "扫雷01", Desc = "无gui 带问号的方块谨慎踩踏", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/Nattalz/rblx/refs/heads/main/blockerman_full.lua?='", "扫雷") end
+    Title = "扫雷02", Desc = "支持服务器bLockerman's Minesweeper", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/timmytim12354-png/simplescriptz/refs/heads/main/loader.lua?='", "扫雷") end
 })
 
- --扫雷远程
-  getgenv().Tabs = getgenv().Tabs or {}
-  getgenv().Tabs.MinesweeperTab = slTab
-  getgenv().SutureMinesweeperTab = slTab
-  lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷", slTab)
+--扫雷远程
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.MinesweeperTab = slTab
+getgenv().SutureMinesweeperTab = slTab
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷")
 
 fkgsTab:Button({
     Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
@@ -669,7 +608,7 @@ fkgsTab:Button({
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.GameTab = xesqTab
 getgenv().SutureGameTab = xesqTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助", xesqTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助")
 
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
@@ -681,7 +620,7 @@ wqkTab:Button({
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.wxlgTab = wxlgTab
 
-lazyLoad("https://pastebin.com/raw/wV07BGnS", "无限旅馆", wxlgTab)
+run("https://pastebin.com/raw/wV07BGnS")
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
@@ -910,61 +849,61 @@ gnjbTab:Button({
 --范围远程
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick()), "范围", FwTab)
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick()), "范围")
 
 --甩飞远程
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua?t=" .. tostring(tick()), "甩飞", SfTab)
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua?t=" .. tostring(tick()), "甩飞")
 
 --ping fps显示
 getgenv().Tabs.PingFPSTab = pingfpsTab
 getgenv().SuturePingFPSTab = pingfpsTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示", pingfpsTab)
+loadRemote("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示")
 
 --雷达
 getgenv().Tabs.RadarTab = radarTab
 getgenv().SutureRadarTab = radarTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "雷达", radarTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "雷达")
 
 --玩家类远程
 getgenv().Tabs.PlayerTab = playerTab
 getgenv().SuturePlayerTab = playerTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类", playerTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类")
 
 --自瞄类远程
 getgenv().Tabs.AimbotTab = amTab
 getgenv().SutureAimbotTab = amTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "自瞄类", amTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "自瞄类")
 
 --发言类远程
 getgenv().Tabs.SayTab = sayTab
 getgenv().SutureSayTab = sayTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "发言类", sayTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "发言类")
 
 --ESP远程
 getgenv().Tabs.ESPTab = espTab
 getgenv().SutureESPTab = espTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "ESP", espTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "ESP")
 
 --服务器类远程
 getgenv().Tabs.ServerTab = serverTab
 getgenv().SutureServerTab = serverTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类", serverTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类")
 
 --自然灾害远程
 getgenv().Tabs.ZRZHTab = zrzhTab
 getgenv().SutureZRZHTab = zrzhTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害", zrzhTab)
+loadRemote("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害")
 
 
 
@@ -973,6 +912,11 @@ tyscriptTab:Button({
     Callback = function()
         run("https://pastebin.com/raw/4LzyCSnp", "绕过群组检测")
     end
+})
+
+nzyhhyTab:Paragraph({
+    Title = "占位符",
+    Desc = "占位符"
 })
 
 nljjcTab:Button({
@@ -1009,6 +953,11 @@ sqjjcTab:Button({
         run("https://pastebin.com/raw/eweucw5F", "手枪竞技场")
     end
 })
+
+--手枪竞技场 Ragebot 远程（自动锁定 + 子弹追踪）
+getgenv().Tabs.SQJJC = sqjjcTab
+getgenv().SutureSQJJC = sqjjcTab
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%8B%E6%9E%AA%E7%AB%9E%E6%8A%80%E5%9C%BA%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "手枪竞技场Ragebot", sqjjcTab)
 
 hcyghdTab:Paragraph({
     Title = "注意",
@@ -1078,77 +1027,3 @@ WindUI:Notify({
     Icon = "message-square-warning",
     Duration = 10
 })
-
--- ============ 全量自动加载全部远程脚本 ============
--- 位置放在所有 lazyLoad 登记点之后，确保 lazyOrder 已全部登记
--- 每个脚本间隔 0.5 秒错开加载（柔和化，避免 10 个请求同时炸出卡顿）
--- 每个脚本加载成功/失败都会通知
-local AUTO_LOAD_DELAY = 0.5
-task.spawn(function()
-    task.wait(0.3)
-    for _, item in ipairs(lazyOrder) do
-        if item.state == "pending" or item.state == "failed" then
-            startLoad(item)
-        end
-        task.wait(AUTO_LOAD_DELAY)
-    end
-end)
-
-end
-
--- ============ 公告确认：先弹公告 Popup，点“执行”才启动主脚本 ============
-local HttpService = game:GetService("HttpService")
-local ANNOUNCEMENT_API = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
-
-local bootRequested = false
-local function requestBoot()
-    if bootRequested then
-        return
-    end
-    bootRequested = true
-    initMainScript()
-end
-
-task.spawn(function()
-    local ok, res = pcall(function()
-        return game:HttpGet(ANNOUNCEMENT_API, true)
-    end)
-    if not ok then
-        warn("公告获取失败，直接启动主脚本:", res)
-        requestBoot()
-        return
-    end
-    local okDecode, decoded = pcall(function()
-        return HttpService:JSONDecode(tostring(res))
-    end)
-    if not okDecode then
-        warn("公告解析失败，直接启动主脚本:", decoded)
-        requestBoot()
-        return
-    end
-    if not decoded or decoded.content == nil or decoded.content == "" or decoded.enabled == false then
-        requestBoot()
-        return
-    end
-    -- 有公告：Popup 让用户选择是否执行
-    -- 版本号拼到标题（有版本才显示）
-    local popupTitle = decoded.title or "公告"
-    if decoded.version and decoded.version ~= "" then
-        popupTitle = popupTitle .. "  " .. decoded.version
-    end
-    local popupOk, popupErr = pcall(function()
-        WindUI:Popup({
-            Title = popupTitle,
-            Content = decoded.content or "",
-            Icon = "megaphone",
-            Buttons = {
-                { Title = "执行", Callback = function() requestBoot() end },
-                { Title = "取消", Callback = function() end }
-            }
-        })
-    end)
-    if not popupOk then
-        warn("公告 Popup 创建失败，直接启动主脚本:", popupErr)
-        requestBoot()
-    end
-end)
