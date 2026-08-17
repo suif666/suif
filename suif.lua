@@ -167,6 +167,86 @@ local win = WindUI:CreateWindow({
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
+-- ============ 轻量开关窗口动画（借鉴小西 Wind 库：不做整窗 Size 动画，避免元素多时卡顿） ============
+local TweenService = game:GetService("TweenService")
+local function getWindowMain()
+    local ok, m = pcall(function()
+        return win.UIElements and win.UIElements.Main
+    end)
+    return ok and m
+end
+local function getWindowContent(m)
+    if not m then return nil end
+    local ok, c = pcall(function()
+        return m:FindFirstChild("Main")
+    end)
+    return ok and c
+end
+local function getWindowBackground(m)
+    if not m then return nil end
+    local ok, b = pcall(function()
+        return m:FindFirstChild("Background")
+    end)
+    return ok and b
+end
+
+-- 覆盖 Open：先显示外壳，内容延迟 0.05s 再显示（避免一次性渲染全部元素卡顿）
+local pendingCloseTask = nil
+function win:Open()
+    if self.Destroyed then return end
+    if pendingCloseTask then
+        task.cancel(pendingCloseTask)
+        pendingCloseTask = nil
+    end
+    self.Closed = false
+    local m = getWindowMain()
+    if m then
+        m.Visible = true
+        local bg = getWindowBackground(m)
+        if bg then
+            pcall(function()
+                bg.ImageTransparency = 0
+            end)
+        end
+        task.spawn(function()
+            task.wait(0.05)
+            local c = getWindowContent(m)
+            if c then
+                pcall(function() c.Visible = true end)
+            end
+        end)
+    end
+    if self.OnOpenCallback then
+        task.spawn(self.OnOpenCallback)
+    end
+end
+
+-- 覆盖 Close：隐藏内容后只淡出背景再隐藏整窗（不做 0.9 秒 Size 缩小动画，不触发全窗口重排）
+function win:Close()
+    if self.Destroyed then return end
+    self.Closed = true
+    local m = getWindowMain()
+    if m then
+        local c = getWindowContent(m)
+        if c then
+            pcall(function() c.Visible = false end)
+        end
+        local bg = getWindowBackground(m)
+        if bg then
+            pcall(function()
+                TweenService:Create(bg, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { ImageTransparency = 1 }):Play()
+            end)
+        end
+        pendingCloseTask = task.delay(0.15, function()
+            pendingCloseTask = nil
+            pcall(function() m.Visible = false end)
+        end)
+    end
+    if self.OnCloseCallback then
+        task.spawn(self.OnCloseCallback)
+    end
+end
+
 -- 主窗口可见性广播：子脚本的独立浮层（雷达、Ping/FPS 等）跟随主 UI 一起显示/隐藏
 getgenv().SutureMainWindow = win
 getgenv().SutureMainUIVisible = true
