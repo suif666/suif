@@ -367,6 +367,7 @@ local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", 
 local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
 local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = false })
+local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1168,6 +1169,13 @@ smnmTab:Button({
     Title = "售卖柠檬[自动化]", Desc = "神人小游戏 依旧通货膨胀", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%94%AE%E5%8D%96%E6%9F%A0%E6%AA%AC.lua", "售卖柠檬")
+    end
+})
+
+slaTab:Button({
+    Title = "vxsans", Desc = "外网比较火的脚本 功能有很多", Icon = "shell",
+    Callback = function()
+        run("loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/PO%E5%A4%A7PO%E7%A4%BA%E4%BE%8B.lua"))()", "售卖柠檬")
     end
 })
 
