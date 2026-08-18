@@ -1173,9 +1173,16 @@ smnmTab:Button({
 })
 
 slaTab:Button({
-    Title = "vxsans", Desc = "外网比较火的脚本 功能有很多", Icon = "shell",
+    Title = "[🔑]vxsans", Desc = "外网比较火的脚本 功能有很多", Icon = "shell",
     Callback = function()
         run("loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/PO%E5%A4%A7PO%E7%A4%BA%E4%BE%8B.lua"))()", "售卖柠檬")
+    end
+})
+
+slaTab:Button({
+    Title = "sanx", Desc = "外网第二火 最大的优点就是不要卡密", Icon = "shell",
+    Callback = function()
+        run("loadstring(game:HttpGet(" https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%9C%A3%E5%A5%A5%E9%87%8Csanx.lua"))()", "售卖柠檬")
     end
 })
 
