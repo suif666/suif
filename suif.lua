@@ -367,12 +367,11 @@ local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", 
 local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
 local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = false })
-local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
 -- WindUI 原生顶栏反馈入口
-local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
+local FeedbackURL = "https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
 
 -- 屏蔽“执行脚本时反馈模块自己弹出的加载通知”
 -- 但保留用户真正发送反馈时可能需要的成功/失败提示
@@ -667,17 +666,17 @@ toolTab:Toggle({
 
 toolTab:Button({
     Title = "Gui文本获取v25", Desc = "自制 ai神力 感谢李藝州🙏🙏🙏", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/UI%E6%96%87%E6%9C%AC%E6%8F%90%E5%8F%96.lua", "Gui文本获取v25") end
+    Callback = function() run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=UI%E6%96%87%E6%9C%AC%E6%8F%90%E5%8F%96.lua", "Gui文本获取v25") end
 })
 
 toolTab:Button({
     Title = "dex汉化", Desc = "顾名思义", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/dex.lua", "dex汉化") end
+    Callback = function() run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=dex.lua", "dex汉化") end
 })
 
 toolTab:Button({
     Title = "iy汉化", Desc = "顾名思义", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/config/iy%E6%B1%89%E5%8C%96%E7%89%88", "iy汉化") end
+    Callback = function() run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=config/iy%E6%B1%89%E5%8C%96%E7%89%88", "iy汉化") end
 })
 
 
@@ -718,7 +717,7 @@ doorsTab:Button({
 
 byqTab:Button({
     Title = "fart[suif汉化]", Desc = "个人感觉很好用", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/fa%E6%B1%89%E5%8C%96", "被遗弃脚本") end
+    Callback = function() run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=fa%E6%B1%89%E5%8C%96", "被遗弃脚本") end
 })
 
 byqTab:Button({
@@ -734,12 +733,12 @@ stgTab:Button({
 
 stgTab:Button({
     Title = "ringta[suif汉化]", Desc = "应该是最好用", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
+    Callback = function() run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=Ringta%E6%AD%BB%E9%93%81%E8%BD%A8.lua", "死铁轨ringta") end
 })
 
 stgTab:Button({
     Title = "Alkaline[suif汉化]", Desc = "对ringta拙劣的模仿 但还是有自己的功能的", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%AD%BB%E9%93%81%E8%BD%A8alkaline", "死铁轨Alkaline") end
+    Callback = function() run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%AD%BB%E9%93%81%E8%BD%A8alkaline", "死铁轨Alkaline") end
 })
 
 stgTab:Button({
@@ -762,18 +761,18 @@ slTab:Button({
   getgenv().Tabs = getgenv().Tabs or {}
   getgenv().Tabs.MinesweeperTab = slTab
   getgenv().SutureMinesweeperTab = slTab
-  lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自写扫雷", slTab)
+  lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua", "自写扫雷", slTab)
 
 fkgsTab:Button({
     Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
+    Callback = function() run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
 })
 
 --邪恶事情远程
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.GameTab = xesqTab
 getgenv().SutureGameTab = xesqTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "游戏辅助", xesqTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua", "游戏辅助", xesqTab)
 
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
@@ -797,21 +796,21 @@ fescriptTab:Button({
 fescriptTab:Button({
     Title = "fe祖国人[suif汉化]", Desc = "晚安,阿祖", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96.lua", "祖国人")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96.lua", "祖国人")
     end
 })
 
 fescriptTab:Button({
     Title = "fe火车头[suif汉化]", Desc = "情侣拆散器", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%B3%E8%BD%A4%E6%B1%89%E5%8C%96.lua", "火车头")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E7%81%B3%E8%BD%A4%E6%B1%89%E5%8C%96.lua", "火车头")
     end
 })
 
 fescriptTab:Button({
     Title = "fe死亡[suif汉化]", Desc = "他人可见 优质的动作脚本", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/uhhhhhh.lua", "uhhhh")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=uhhhhhh.lua", "uhhhh")
     end
 })
 
@@ -826,14 +825,14 @@ fescriptTab:Button({
 tyscriptTab:Button({
     Title = "飞行V3", Desc = "顾名思义", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/FlyGuiV3.lua", "飞行V3")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=FlyGuiV3.lua", "飞行V3")
     end
 })
 
 tyscriptTab:Button({
     Title = "npc控制[suif汉化]", Desc = "可以控制npc", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/npc%E6%B1%89%E5%8C%96.lua", "npc控制")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=npc%E6%B1%89%E5%8C%96.lua", "npc控制")
     end
 })
 
@@ -854,21 +853,21 @@ dwyyTab:Button({
 dwyyTab:Button({
     Title = "[🔑]动物医院 自动类03[suif汉化]", Desc = "高度自定义 至少ui挺好看 不好用", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8F.lua", "动物医院03")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8F.lua", "动物医院03")
     end
 })
 
 dwyyTab:Button({
     Title = "动物医院 自动类04[suif汉化]", Desc = "美丽ui 挺好用 就是容易治死人导致游戏结束 等作者优化吧 启动时会有雷霆大叫[调低音量]", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2Foxname%5Bsuifhanghang%5D.lua", "动物医院04")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2Foxname%5Bsuifhanghang%5D.lua", "动物医院04")
     end
 })
 
 pghsTab:Button({
     Title = "排干湖水 自动类01[suif汉化]", Desc = "离售卖机远了没法自动售卖  15分钟左右通关", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/heads/main/%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%8E%92%E7%A9%BA%E6%B9%96%E6%B0%B4.lua", "排干湖水01")
     end
 })
 
@@ -887,21 +886,21 @@ lcTab:Button({
 zhyfxTab:Button({
     Title = "最后一封信 自动类01[suif汉化]", Desc = "有些词脚本想不出来 还是人脑牛逼👍🏻👍🏻👍🏻", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%99%E4%B8%80%E5%B0%81%E4%BF%A1%5B%E6%B1%89%E5%8C%96%5D.lua", "最后一封信01")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%86%99%E4%B8%80%E5%B0%81%E4%BF%A1%5B%E6%B1%89%E5%8C%96%5D.lua", "最后一封信01")
     end
 })
 
 sxmsaTab:Button({
     Title = "数学谋杀案 自动类01[suif汉化]", Desc = "这游戏有什么好开的。。", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%5B%E6%B1%89%E5%8C%96%5D.lua", "数学谋杀案01")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%5B%E6%B1%89%E5%8C%96%5D.lua", "数学谋杀案01")
     end
 })
 
 --数学谋杀案远程
 getgenv().Tabs.SXMSATab = sxmsaTab
 getgenv().SutureSXMSATab = sxmsaTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "数学谋杀案自动答题", sxmsaTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%E7%A4%BA%E4%BE%8B.lua", "数学谋杀案自动答题", sxmsaTab)
 
 zbjscqtTab:Button({
     Title = "[🔑]在北极生存7天 自动类01[suif汉化]", Desc = "加载时间可能比较长 不好用", Icon = "shell",
@@ -911,7 +910,7 @@ zbjscqtTab:Button({
             setclipboard(link)
             notify("复制成功", "解卡链接已复制到剪贴板！", "clipboard", 2)
         end
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9C%A8%E5%8C%97%E6%9E%81%E7%94%9F%E5%AD%987%E5%A4%A9.lua", "在北极生存7天01")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%9C%A8%E5%8C%97%E6%9E%81%E7%94%9F%E5%AD%987%E5%A4%A9.lua", "在北极生存7天01")
     end
 })
 
@@ -920,14 +919,14 @@ zbjscqtTab:Button({
 fescriptTab:Button({
     Title = "r15动作包[suif汉化]", Desc = "他人可见 注意只支持r15 r6用了会直接僵直", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "r15动作包")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "r15动作包")
     end
 })
 
 scjsjjcTab:Button({
     Title = "生存僵尸竞技场01[suif汉化]", Desc = "汉化不全 但无关紧要 主要的功能都是汉化过的 感觉还行", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "生存僵尸竞技场01")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=r15%E5%8A%A8%E4%BD%9C%E5%8C%85fe", "生存僵尸竞技场01")
     end
 })
 
@@ -1019,66 +1018,66 @@ gnjbTab:Button({
 --范围远程
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua?t=" .. tostring(tick()), "范围", FwTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E8%8C%83%E5%9B%B4.lua", "范围", FwTab)
 
 --甩飞远程
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua?t=" .. tostring(tick()), "甩飞", SfTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E7%94%A9%E9%A3%9E.lua", "甩飞", SfTab)
 
 --ping fps显示
 getgenv().Tabs.PingFPSTab = pingfpsTab
 getgenv().SuturePingFPSTab = pingfpsTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua?t=" .. tostring(tick()), "ping/fps显示", pingfpsTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua", "ping/fps显示", pingfpsTab)
 
 --雷达
 getgenv().Tabs.RadarTab = radarTab
 getgenv().SutureRadarTab = radarTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "雷达", radarTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", "雷达", radarTab)
 
 --玩家类远程
 getgenv().Tabs.PlayerTab = playerTab
 getgenv().SuturePlayerTab = playerTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "玩家类", playerTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "玩家类", playerTab)
 
 --自瞄类远程
 getgenv().Tabs.AimbotTab = amTab
 getgenv().SutureAimbotTab = amTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua?t=" .. tostring(tick()), "自瞄类", amTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "自瞄类", amTab)
 
 --发言类远程
 getgenv().Tabs.SayTab = sayTab
 getgenv().SutureSayTab = sayTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "发言类", sayTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua", "发言类", sayTab)
 
 --ESP远程
 getgenv().Tabs.ESPTab = espTab
 getgenv().SutureESPTab = espTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "ESP", espTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=esp%E7%A4%BA%E4%BE%8B.lua", "ESP", espTab)
 
 --服务器类远程
 getgenv().Tabs.ServerTab = serverTab
 getgenv().SutureServerTab = serverTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "服务器类", serverTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", "服务器类", serverTab)
 
 --自然灾害远程
 getgenv().Tabs.ZRZHTab = zrzhTab
 getgenv().SutureZRZHTab = zrzhTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "自然灾害", zrzhTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua", "自然灾害", zrzhTab)
 
 --po大po 功能远程
 getgenv().Tabs.POTab = podpoTab
 getgenv().SuturePOTab = podpoTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/PO%E5%A4%A7PO%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "po大po功能", podpoTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=PO%E5%A4%A7PO%E7%A4%BA%E4%BE%8B.lua", "po大po功能", podpoTab)
 
 
 tyscriptTab:Button({
@@ -1091,7 +1090,7 @@ tyscriptTab:Button({
 nljjcTab:Button({
     Title = "[🔑]能力竞技场", Desc = "外网很多人在用 就搬过来了 不适合演戏 不适合手机游玩 功能挺多", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%83%BD%E5%8A%9B%E7%AB%9E%E6%8A%80%E5%9C%BA.lua", "能力竞技场")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E8%83%BD%E5%8A%9B%E7%AB%9E%E6%8A%80%E5%9C%BA.lua", "能力竞技场")
     end
 })
 
@@ -1105,14 +1104,14 @@ bdh2Tab:Space()
 bdh2Tab:Button({
     Title = "[🔑]冰大亨2[自动化]", Desc = "功能很多 自动化功能全开之后就可以睡觉了😛😛😛", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%86%B0%E5%A4%A7%E4%BA%A82.lua", "冰大亨2")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%86%B0%E5%A4%A7%E4%BA%A82.lua", "冰大亨2")
     end
 })
 
 zxdyTab:Button({
     Title = "[🔑]重型钓鱼", Desc = "感觉中规中矩 要是觉得不好用再右上角反馈功能进行反馈", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E9%87%8D%E5%9E%8B%E9%92%93%E9%B1%BC.lua", "重型钓鱼")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E9%87%8D%E5%9E%8B%E9%92%93%E9%B1%BC.lua", "重型钓鱼")
     end
 })
 
@@ -1126,12 +1125,12 @@ sqjjcTab:Button({
 --手枪竞技场 Ragebot 远程
 getgenv().Tabs.SQJJC = sqjjcTab
 getgenv().SutureSQJJC = sqjjcTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%8B%E6%9E%AA%E7%AB%9E%E6%8A%80%E5%9C%BA%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "手枪竞技场Ragebot", sqjjcTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E6%89%8B%E6%9E%AA%E7%AB%9E%E6%8A%80%E5%9C%BA%E7%A4%BA%E4%BE%8B.lua", "手枪竞技场Ragebot", sqjjcTab)
 
 --闪光 Ragebot 远程（子弹追踪）
 getgenv().Tabs.SGTab = sgTab
 getgenv().SutureSGTab = sgTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%97%AA%E5%85%89%E7%A4%BA%E4%BE%8B.lua?t=" .. tostring(tick()), "闪光Ragebot", sgTab)
+lazyLoad("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E9%97%AA%E5%85%89%E7%A4%BA%E4%BE%8B.lua", "闪光Ragebot", sgTab)
 
 
 hcyghdTab:Paragraph({
@@ -1149,14 +1148,14 @@ hcyghdTab:Button({
 cclsTab:Button({
     Title = "储存猎手01", Desc = "功能很多 会开可以实现全自动 不会开就是一坨了", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%82%A8%E5%AD%98%E7%8C%8E%E4%BA%BA.lua", "储存猎手01")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%82%A8%E5%AD%98%E7%8C%8E%E4%BA%BA.lua", "储存猎手01")
     end
 })
 
 cclsTab:Button({
     Title = "储存猎手02", Desc = "不如用上面的", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%82%A8%E5%AD%98%E7%8C%8E%E6%89%8B02.lua", "储存猎手02")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%82%A8%E5%AD%98%E7%8C%8E%E6%89%8B02.lua", "储存猎手02")
     end
 })
 
@@ -1168,21 +1167,7 @@ smnmTab:Paragraph({
 smnmTab:Button({
     Title = "售卖柠檬[自动化]", Desc = "神人小游戏 依旧通货膨胀", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%94%AE%E5%8D%96%E6%9F%A0%E6%AA%AC.lua", "售卖柠檬")
-    end
-})
-
-slaTab:Button({
-    Title = "[🔑]vxsans", Desc = "外网比较火的脚本 功能有很多", Icon = "shell",
-    Callback = function()
-        run("loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/PO%E5%A4%A7PO%E7%A4%BA%E4%BE%8B.lua"))()", "售卖柠檬")
-    end
-})
-
-slaTab:Button({
-    Title = "sanx", Desc = "外网第二火 最大的优点就是不要卡密", Icon = "shell",
-    Callback = function()
-        run("loadstring(game:HttpGet(" https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%9C%A3%E5%A5%A5%E9%87%8Csanx.lua"))()", "售卖柠檬")
+        run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%94%AE%E5%8D%96%E6%9F%A0%E6%AA%AC.lua", "售卖柠檬")
     end
 })
 
