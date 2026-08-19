@@ -367,6 +367,7 @@ local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", 
 local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
 local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
 local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = false })
+local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1170,6 +1171,33 @@ smnmTab:Button({
         run("https://suture-hub-counter.sfbdsl666.workers.dev/script?key=4635a718b666b25276311829c9b7c4380aa299fae3ed5ee6&name=%E5%94%AE%E5%8D%96%E6%9F%A0%E6%AA%AC.lua", "售卖柠檬")
     end
 })
+
+slaTab:Paragraph({
+    Title = "注意",
+    Desc = "此游戏反作弊较强 谨慎游玩"
+})
+
+slaTab:Button({
+    Title = "[🔑]vxsans", Desc = "外网最火 功能很多", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%9C%A3%E5%A5%A5%E9%87%8Cvx.lua", "圣里奥vx")
+    end
+})
+
+slaTab:Button({
+    Title = "sanx", Desc = "外网第二火 功能比较少", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%9C%A3%E5%A5%A5%E9%87%8Csanx.lua", "圣里奥sanx")
+    end
+})
+
+slaTab:Button({
+    Title = "恐脚本", Desc = "国内圣里奥", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/kongbaNB/9178/refs/heads/main/恐脚本.NB", "恐脚本圣里奥")
+    end
+})
+
 
 
 -- UI设置
