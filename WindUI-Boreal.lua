@@ -6559,7 +6559,7 @@ Desc=af.Desc or nil,
 
 Locked=af.Locked or false,
 }
-local ah=a.D()(af)
+local ah=a.E()(af)
 
 ag.ParagraphFrame=ah
 if af.Buttons and#af.Buttons>0 then
@@ -6703,7 +6703,7 @@ UIElements={}
 
 local ag=true
 
-af.ButtonFrame=a.D(){
+af.ButtonFrame=a.E(){
 Title=af.Title,
 Desc=af.Desc,
 Parent=ae.Parent,
@@ -6824,7 +6824,7 @@ UIElements={}
 local aj=true
 local ak=false
 
-ai.ButtonKeybindFrame=a.D(){
+ai.ButtonKeybindFrame=a.E(){
 Title=ai.Title,
 Desc=ai.Desc,
 Parent=ah.Parent,
@@ -7302,9 +7302,6 @@ local ad=ab.Tween
 function aa.New(ae,af,ag,ah,ai,aj)
 ag=ag or 23
 local ak={}
-if _G.PB then
-_G.PB[#_G.PB+1]="[PB-JFIX] ae="..tostring(ae).." af="..typeof(af).." ag="..tostring(ag).." stack="..tostring(debug and debug.traceback and debug.traceback(nil,2)or"无")
-end
 
 af=af or"sfsymbols:checkmark"
 
@@ -7398,8 +7395,8 @@ end
 return aa end function a.K():typeof(__modImpl())local aa=a.cache.K if not aa then aa={c=__modImpl()}a.cache.K=aa end return aa.c end end do local function __modImpl()
 local aa=a.c()
 
-local ab=a.I().New
-local ac=a.J().New
+local ab=a.J().New
+local ac=a.K().New
 
 local ad={}
 
@@ -7417,7 +7414,7 @@ Type=af.Type or"Toggle",
 Callback=af.Callback or function()end,
 UIElements={}
 }
-ag.ToggleFrame=a.D(){
+ag.ToggleFrame=a.E(){
 Title=ag.Title,
 Desc=ag.Desc,
 
@@ -7490,7 +7487,7 @@ end
 
 return ad end function a.L():typeof(__modImpl())local aa=a.cache.L if not aa then aa={c=__modImpl()}a.cache.L=aa end return aa.c end end do local function __modImpl()
 
-local aa=a.K()
+local aa=a.L()
 
 local ab={}
 
@@ -7513,8 +7510,8 @@ local ab=aa(game:GetService"UserInputService")
 local ac=a.c()
 local ad=ac.New
 
-local ae=a.I().New
-local af=a.J().New
+local ae=a.J().New
+local af=a.K().New
 local ag=a.v().New
 
 local ah={}
@@ -7556,7 +7553,7 @@ end
 
 local an=(40.8)
 
-ak.ToggleKeybindFrame=a.D(){
+ak.ToggleKeybindFrame=a.E(){
 Title=ak.Title,
 Desc=ak.Desc,
 Window=aj.Window,
@@ -7848,7 +7845,7 @@ au.Size=UDim2.new(0,ak.IconSize,0,ak.IconSize)
 av=av+ak.IconSize-2
 end
 end
-ak.SliderFrame=a.D(){
+ak.SliderFrame=a.E(){
 Title=ak.Title,
 Desc=ak.Desc,
 Parent=aj.Parent,
@@ -7949,7 +7946,7 @@ Visible=ak.IsTextbox,
 
 local aw
 if ak.IsTooltip then
-aw=a.C().New(ao,ak.UIElements.SliderIcon.Frame.Thumb,true,"Secondary","Small",false)
+aw=a.D().New(ao,ak.UIElements.SliderIcon.Frame.Thumb,true,"Secondary","Small",false)
 aw.Container.AnchorPoint=Vector2.new(0.5,1)
 aw.Container.Position=UDim2.new(0.5,0,0,-8)
 end
@@ -8198,7 +8195,7 @@ local as=typeof(ai.Width)=="number"and math.max(math.floor(ai.Width),168)or 182
 local at=typeof(ai.ButtonSize)=="number"and math.max(math.floor(ai.ButtonSize),28)or 34
 local au=math.max(ai.Window.ElementConfig.UICorner-4,8)
 
-ao.StepperFrame=a.D(){
+ao.StepperFrame=a.E(){
 Title=ao.Title,
 Desc=ao.Desc,
 Parent=ai.Parent,
@@ -8610,7 +8607,7 @@ UIElements={},
 
 local ak=true
 
-aj.KeybindFrame=a.D(){
+aj.KeybindFrame=a.E(){
 Title=aj.Title,
 Desc=aj.Desc,
 Parent=ai.Parent,
@@ -8764,7 +8761,7 @@ Width=150,
 
 local aj=true
 
-ai.InputFrame=a.D(){
+ai.InputFrame=a.E(){
 Title=ai.Title,
 Desc=ai.Desc,
 Parent=ah.Parent,
@@ -9522,7 +9519,7 @@ af.Tween
 
 local ai=a.v().New local aj=a.m()
 .New
-local ak=a.R().New local al=
+local ak=a.S().New local al=
 
 workspace.CurrentCamera
 
@@ -9733,7 +9730,7 @@ end
 
 local as=true
 
-ap.DropdownFrame=a.D(){
+ap.DropdownFrame=a.E(){
 Title=ap.Title,
 Desc=ap.Desc,
 Parent=ao.Parent,
@@ -10056,7 +10053,7 @@ local ap=typeof(ai.SegmentPaddingX)=="number"and math.max(math.floor(ai.SegmentP
 local aq=typeof(ai.SegmentGap)=="number"and math.max(math.floor(ai.SegmentGap),4)or 6
 local ar=math.max(ai.Window.ElementConfig.UICorner-5,8)
 
-ak.SegmentedFrame=a.D(){
+ak.SegmentedFrame=a.E(){
 Title=ak.Title,
 Desc=ak.Desc,
 Parent=ai.Parent,
@@ -11683,7 +11680,7 @@ local au=true
 
 
 
-at.ColorpickerFrame=a.D(){
+at.ColorpickerFrame=a.E(){
 Title=at.Title,
 Desc=at.Desc,
 Parent=as.Parent,
@@ -11833,7 +11830,7 @@ UIElements={},
 
 local ap=true
 
-ao.ProgressFrame=a.D(){
+ao.ProgressFrame=a.E(){
 Title=ao.Title,
 Desc=ao.Desc,
 Parent=ai.Parent,
@@ -12199,7 +12196,7 @@ UIElements={},
 local an=true
 local ao={}
 
-am.StatsFrame=a.D(){
+am.StatsFrame=a.E(){
 Title=am.Title,
 Desc=am.Desc,
 Parent=ag.Parent,
@@ -14912,32 +14909,32 @@ return ae end function a.ai():typeof(__modImpl())local aa=a.cache.ai if not aa t
 
 return{
 Elements={
-Paragraph=a.E(),
-Label=a.F(),
-Button=a.G(),
-ButtonKeybind=a.H(),
-Toggle=a.K(),
-Checkbox=a.L(),
-ToggleKeybind=a.M(),
-Slider=a.N(),
-Stepper=a.O(),
-Keybind=a.P(),
-Input=a.Q(),
-Dropdown=a.S(),
-Segmented=a.T(),
-Code=a.W(),
-Colorpicker=a.X(),
-Progress=a.Y(),
-Stats=a.Z(),
-Notice=a.aa(),
-Tags=a.ac(),
-Section=a.ad(),
-MultiSection=a.ae(),
-Space=a.w(),
-Divider=a.x(),
-Image=a.af(),
-Group=a.ag(),
-Video=a.ah(),
+Paragraph=a.F(),
+Label=a.G(),
+Button=a.H(),
+ButtonKeybind=a.I(),
+Toggle=a.L(),
+Checkbox=a.M(),
+ToggleKeybind=a.N(),
+Slider=a.O(),
+Stepper=a.P(),
+Keybind=a.Q(),
+Input=a.R(),
+Dropdown=a.T(),
+Segmented=a.U(),
+Code=a.X(),
+Colorpicker=a.Y(),
+Progress=a.Z(),
+Stats=a._(),
+Notice=a.ab(),
+Tags=a.ad(),
+Section=a.ae(),
+MultiSection=a.af(),
+Space=a.x(),
+Divider=a.y(),
+Image=a.ag(),
+Group=a.ah(),
+Video=a.ai(),
 },
 Load=function(aa,ad,ae,af,ag,ai,ak,al,am)
 local function ResolveShapeFrame(an)
