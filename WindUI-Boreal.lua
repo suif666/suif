@@ -7303,8 +7303,6 @@ function aa.New(ae,af,ag,ah,ai,aj)
 ag=ag or 23
 local ak={}
 if _G.PB then
-local t={}
-for i=1,select("#",...)do t[i]=tostring(select(i,...))end
 _G.PB[#_G.PB+1]="[PB-JFIX] ae="..tostring(ae).." af="..typeof(af).." ag="..tostring(ag).." stack="..tostring(debug and debug.traceback and debug.traceback(nil,2)or"无")
 end
 
