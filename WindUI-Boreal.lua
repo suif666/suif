@@ -8,15 +8,16 @@
 
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
 
--- [修复] GetIcons 远程不存在时不再卡死：FindFirstChild + pcall 兜底，失败用内置空图标表
-local d={Icons={},Spritesheets={}}
-pcall(function()
-    local remote=b(game:GetService"ReplicatedStorage"):FindFirstChild("GetIcons")
-    if remote and remote:IsA("RemoteFunction") then
-        local ok,res=pcall(function()return remote:InvokeServer()end)
-        if ok and type(res)=="table" then d=res end
-    end
+local d
+local dOk,dErr=pcall(function()
+d=b(game:GetService"ReplicatedStorage":FindFirstChild("GetIcons")and game:GetService"ReplicatedStorage".GetIcons:InvokeServer()or nil)
 end)
+if not dOk or type(d)~="table"then
+warn("[Boreal] GetIcons 获取失败，图标功能将不可用: "..tostring(dErr))
+d={Icons={},Spritesheets={}}
+end
+if type(d.Icons)~="table"then d.Icons={} end
+if type(d.Spritesheets)~="table"then d.Spritesheets={} end
 
 local function parseIconString(e)
 if type(e)=="string"then
@@ -6536,6 +6537,7 @@ local ab=aa.New
 
 local ac={}
 
+print("[PROBE-AE] a.E body start, a.l().New type=", typeof(a.l().New))
 local ad=a.l().New
 
 function ac.New(ae,af)
@@ -6551,6 +6553,7 @@ Desc=af.Desc or nil,
 
 Locked=af.Locked or false,
 }
+print("[PROBE-AENEW] a.E.New: typeof(a.E())=", typeof(a.E()), " af.Window=", tostring(af and af.Window), " af.Title=", tostring(af and af.Title))
 local ah=a.E()(af)
 
 ag.ParagraphFrame=ah
@@ -7294,6 +7297,7 @@ local ad=ab.Tween
 function aa.New(ae,af,ag,ah,ai,aj)
 local ak={}
 
+print("[PROBE-JNEW] a.J.New Icon param type=", typeof(af), " value=", tostring(af))
 af=af or"sfsymbols:checkmark"
 
 local al=9
@@ -7392,6 +7396,7 @@ local ac=a.K().New
 local ad={}
 
 function ad.New(ae,af)
+print("[PROBE-KNEW] Toggle factory: af.Icon=", tostring(af.Icon), " typeof=", typeof(af.Icon), " af.Type=", tostring(af.Type))
 local ag={
 __type="Toggle",
 Title=af.Title or"Toggle",
@@ -11650,6 +11655,7 @@ return av
 end
 
 function aq.New(ar,as)
+print("[PROBE-XNEW] Colorpicker factory: af.Value type=", typeof(af.Value), " af.Title=", tostring(af.Title))
 local at={
 __type="Colorpicker",
 Title=as.Title or"Colorpicker",
@@ -14902,7 +14908,7 @@ Label=a.F(),
 Button=a.G(),
 ButtonKeybind=a.H(),
 Toggle=a.K(),
-Checkbox=a.I(),
+Checkbox=a.L(),
 ToggleKeybind=a.M(),
 Slider=a.N(),
 Stepper=a.O(),
@@ -14970,16 +14976,7 @@ aq.WindUI=ag
 aq.UIScale=al
 aq.ElementsModule=ak local
 
-local aOk,aErr=pcall(function()
 ar, as=ao:New(aq)
-end)
-if not aOk then
-warn("[WindUI-DIAG] 元素创建失败: "..tostring(an).." -> "..tostring(aErr))
-if debug and debug.traceback then
-warn("[WindUI-DIAG] 调用栈: "..tostring(debug.traceback("",2)))
-end
-return
-end
 if typeof(as)=="table"then
 as.ParentType=aq.ParentType
 end
