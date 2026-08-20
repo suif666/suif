@@ -1,7 +1,19 @@
 local WindUI
 do
     local ok, res = pcall(function()
-        local source = game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
+        local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua"
+        local source
+        for i = 1, 3 do
+            local s, e = pcall(function() return game:HttpGet(url) end)
+            if s and e and #tostring(e) > 500 then
+                source = e
+                break
+            end
+            task.wait(1)
+        end
+        if not source then
+            error("Boreal UI 库获取失败（已重试 3 次）")
+        end
         local fn, compileErr = loadstring(source)
         if not fn then
             error(compileErr)
@@ -10,7 +22,7 @@ do
     end)
 
     if not ok or not res then
-        warn("WindUI 加载失败，脚本已停止:", res)
+        warn("WindUI(Boreal) 加载失败，脚本已停止:", res)
         return
     end
 
@@ -165,7 +177,7 @@ local win = WindUI:CreateWindow({
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+win:Tags({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
 -- ============ 轻量开关窗口动画（借鉴小西 Wind 库：不做整窗 Size 动画，避免元素多时卡顿） ============
 local TweenService = game:GetService("TweenService")
@@ -320,7 +332,7 @@ local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 mainTab:Select()
 
 -- 功能类
-local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
+local funcSec = win:MultiSection({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
 local SfTab = funcSec:Tab({ Title = "甩飞类", Icon = "user", Locked = false })
@@ -331,14 +343,14 @@ local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = fal
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
 
 -- 视觉类
-local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
+local shijueSec = win:MultiSection({ Title = "视觉类", Icon = "palette", Locked = false })
 local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = false })
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 
 -- 脚本类
-local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
+local scriptSec = win:MultiSection({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
 local gnjbTab = scriptSec:Tab({ Title = "国内脚本", Icon = "shell", Opened = false })
 local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
@@ -805,7 +817,7 @@ fescriptTab:Button({
 fescriptTab:Button({
     Title = "fe火车头[suif汉化]", Desc = "情侣拆散器", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%B3%E8%BD%A4%E6%B1%89%E5%8C%96.lua", "火车头")
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%81%AB%E8%BD%A6%E5%A4%B4%E6%B1%89%E5%8C%96.lua", "火车头")
     end
 })
 
@@ -855,7 +867,7 @@ dwyyTab:Button({
 dwyyTab:Button({
     Title = "[🔑]动物医院 自动类03[suif汉化]", Desc = "高度自定义 至少ui挺好看 不好用", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8F.lua", "动物医院03")
+        run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%8A%A8%E7%89%A9%E5%8C%BB%E9%99%A2%20%E5%8A%9F%E8%83%BD%E4%B8%B0%E5%AF%8C.lua", "动物医院03")
     end
 })
 
@@ -1224,6 +1236,14 @@ settingsTab:Dropdown({
     end
 })
 
+settingsTab:Button({
+    Title = "退出脚本", Desc = "彻底关闭脚本 UI（销毁全部界面，不再显示）", Icon = "power",
+    Callback = function()
+        pcall(function() win:Destroy() end)
+        notify("Suture Hub", "已退出脚本，UI 已彻底关闭", "info", 3)
+    end
+})
+
 WindUI:Notify({
     Title = "Suture Hub",
     Content = "成功加载全部功能！",
@@ -1255,7 +1275,7 @@ end)
 
 end
 
--- ============ 公告确认：先弹公告 Popup，点“执行”才启动主脚本 ============
+-- ============ 公告确认：先弹公告 Popup，点"执行"才启动主脚本 ============
 local HttpService = game:GetService("HttpService")
 local ANNOUNCEMENT_API = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
 
@@ -1266,6 +1286,34 @@ local function requestBoot()
     end
     bootRequested = true
     initMainScript()
+end
+
+-- 公告 Popup（可重复弹出：WindUI 按钮点击会自动先关闭 Popup，所以复制后延迟重弹，公告保持可见）
+local function showAnnouncementPopup(popupTitle, contentText)
+    pcall(function()
+        WindUI:Popup({
+            Title = popupTitle,
+            Content = contentText or "",
+            Icon = "megaphone",
+            Buttons = {
+                { Title = "取消", Callback = function() end },
+                { Title = "复制", Callback = function()
+                    local clip = setclipboard or (getgenv and getgenv().setclipboard)
+                    if clip then
+                        clip(contentText or "")
+                        notify("公告", "公告内容已复制", "info", 2)
+                    else
+                        notify("公告", "当前环境不支持复制", "warning", 3)
+                    end
+                    -- WindUI 点击按钮会关闭 Popup，这里延迟重新弹出，公告不会消失
+                    task.delay(0.35, function()
+                        showAnnouncementPopup(popupTitle, contentText)
+                    end)
+                end },
+                { Title = "执行", Callback = function() requestBoot() end }
+            }
+        })
+    end)
 end
 
 task.spawn(function()
@@ -1296,24 +1344,7 @@ task.spawn(function()
         popupTitle = popupTitle .. "  " .. decoded.version
     end
     local popupOk, popupErr = pcall(function()
-        WindUI:Popup({
-            Title = popupTitle,
-            Content = decoded.content or "",
-            Icon = "megaphone",
-            Buttons = {
-                { Title = "取消", Callback = function() end },
-                { Title = "复制", Callback = function()
-                    local clip = setclipboard or (getgenv and getgenv().setclipboard)
-                    if clip then
-                        clip(decoded.content or "")
-                        notify("公告", "公告内容已复制", "info", 2)
-                    else
-                        notify("公告", "当前环境不支持复制", "warning", 3)
-                    end
-                end },
-                { Title = "执行", Callback = function() requestBoot() end }
-            }
-        })
+        showAnnouncementPopup(popupTitle, decoded.content or "")
     end)
     if not popupOk then
         warn("公告 Popup 创建失败，直接启动主脚本:", popupErr)
