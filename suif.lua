@@ -12,8 +12,7 @@ if not ok or not WindUI then
     return
 end
 
-local plrs = game:GetService("Players")
-local lp = plrs.LocalPlayer
+local lp = game:GetService("Players").LocalPlayer
 
 -- 【视觉体积优化版】全局通知函数
 local function notify(title, content, icon, duration)
@@ -156,112 +155,11 @@ local win = WindUI:CreateWindow({
     Size = UDim2.fromOffset(620, 460), MinSize = Vector2.new(560, 350), MaxSize = Vector2.new(900, 600),
     ToggleKey = Enum.KeyCode.RightShift, Transparent = uiSet.Transparent, Theme = uiSet.Theme,
     Resizable = true, SideBarWidth = uiSet.SideBarWidth, HideSearchBar = uiSet.HideSearchBar,
-    ScrollBarEnabled = true, NewElements = true,
+    ScrollBarEnabled = true,
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
-
--- ============ 轻量开关窗口动画（借鉴小西 Wind 库：不做整窗 Size 动画，避免元素多时卡顿） ============
-local TweenService = game:GetService("TweenService")
-local function getWindowMain()
-    local ok, m = pcall(function()
-        return win.UIElements and win.UIElements.Main
-    end)
-    return ok and m
-end
-local function getWindowContent(m)
-    if not m then return nil end
-    local ok, c = pcall(function()
-        return m:FindFirstChild("Main")
-    end)
-    return ok and c
-end
-local function getWindowBackground(m)
-    if not m then return nil end
-    local ok, b = pcall(function()
-        return m:FindFirstChild("Background")
-    end)
-    return ok and b
-end
-
--- 覆盖 Open：先显示外壳，内容延迟 0.05s 再显示（避免一次性渲染全部元素卡顿）
-local pendingCloseTask = nil
-function win:Open()
-    if self.Destroyed then return end
-    if pendingCloseTask then
-        task.cancel(pendingCloseTask)
-        pendingCloseTask = nil
-    end
-    self.Closed = false
-    -- 打开时隐藏胶囊栏
-    pcall(function()
-        if self.OpenButtonMain then
-            self.OpenButtonMain:Visible(false)
-        end
-    end)
-    local m = getWindowMain()
-    if m then
-        m.Visible = true
-        local bg = getWindowBackground(m)
-        if bg then
-            pcall(function()
-                bg.ImageTransparency = 0
-            end)
-        end
-        task.spawn(function()
-            task.wait(0.05)
-            local c = getWindowContent(m)
-            if c then
-                pcall(function() c.Visible = true end)
-            end
-        end)
-    end
-    if self.OnOpenCallback then
-        task.spawn(self.OnOpenCallback)
-    end
-end
-
--- 覆盖 Close：隐藏内容后只淡出背景再隐藏整窗（不做 0.9 秒 Size 缩小动画，不触发全窗口重排）
-function win:Close()
-    if self.Destroyed then return end
-    self.Closed = true
-    -- 补充官方 Close 里的状态设置
-    pcall(function()
-        self.CanDropdown = false
-    end)
-    pcall(function()
-        if self.WindUI and self.WindUI.ToggleAcrylic then
-            self.WindUI:ToggleAcrylic(false)
-        end
-    end)
-    local m = getWindowMain()
-    if m then
-        local c = getWindowContent(m)
-        if c then
-            pcall(function() c.Visible = false end)
-        end
-        local bg = getWindowBackground(m)
-        if bg then
-            pcall(function()
-                TweenService:Create(bg, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { ImageTransparency = 1 }):Play()
-            end)
-        end
-        pendingCloseTask = task.delay(0.15, function()
-            pendingCloseTask = nil
-            pcall(function() m.Visible = false end)
-        end)
-        -- 关闭时显示胶囊栏（最小化后点它重新打开）
-        pcall(function()
-            if self.OpenButtonMain then
-                self.OpenButtonMain:Visible(true)
-            end
-        end)
-    end
-    if self.OnCloseCallback then
-        task.spawn(self.OnCloseCallback)
-    end
-end
 
 -- 主窗口可见性广播：子脚本的独立浮层（雷达、Ping/FPS 等）跟随主 UI 一起显示/隐藏
 getgenv().SutureMainWindow = win
@@ -295,7 +193,6 @@ UIGradient.Color = ColorSequence.new{
 }
 UIGradient.Parent = UIStroke
 
---// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
 --// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
 task.spawn(function()
     while true do
@@ -413,7 +310,6 @@ task.spawn(function()
         warn("反馈模块加载失败:", err)
     end
 end)
-
 
 
 -- 主页
@@ -677,7 +573,6 @@ toolTab:Button({
 })
 
 
-
 -- 脚本区域
 doorsTab:Button({
     Title = "全自动刷旋钮", Desc = "字面意思 执行后什么都不用管了", Icon = "shell",
@@ -910,7 +805,6 @@ zbjscqtTab:Button({
         run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9C%A8%E5%8C%97%E6%9E%81%E7%94%9F%E5%AD%987%E5%A4%A9.lua", "在北极生存7天01")
     end
 })
-
 
 
 fescriptTab:Button({
@@ -1200,7 +1094,6 @@ hbhswTab:Button({
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E7%83%98%E7%84%99%E6%88%96%E6%AD%BB%E4%BA%A1.lua", "烘焙或死亡")
     end
 })
-
 
 
 -- UI设置
