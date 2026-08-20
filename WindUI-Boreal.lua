@@ -14970,7 +14970,16 @@ aq.WindUI=ag
 aq.UIScale=al
 aq.ElementsModule=ak local
 
+local aOk,aErr=pcall(function()
 ar, as=ao:New(aq)
+end)
+if not aOk then
+warn("[WindUI-DIAG] 元素创建失败: "..tostring(an).." -> "..tostring(aErr))
+if debug and debug.traceback then
+warn("[WindUI-DIAG] 调用栈: "..tostring(debug.traceback("",2)))
+end
+return
+end
 if typeof(as)=="table"then
 as.ParentType=aq.ParentType
 end
