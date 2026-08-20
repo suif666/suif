@@ -6703,7 +6703,7 @@ UIElements={}
 
 local ag=true
 
-af.ButtonFrame=a.E(){
+af.ButtonFrame=a.D(){
 Title=af.Title,
 Desc=af.Desc,
 Parent=ae.Parent,
@@ -6824,7 +6824,7 @@ UIElements={}
 local aj=true
 local ak=false
 
-ai.ButtonKeybindFrame=a.E(){
+ai.ButtonKeybindFrame=a.D(){
 Title=ai.Title,
 Desc=ai.Desc,
 Parent=ah.Parent,
@@ -7398,8 +7398,8 @@ end
 return aa end function a.K():typeof(__modImpl())local aa=a.cache.K if not aa then aa={c=__modImpl()}a.cache.K=aa end return aa.c end end do local function __modImpl()
 local aa=a.c()
 
-local ab=a.J().New
-local ac=a.K().New
+local ab=a.I().New
+local ac=a.J().New
 
 local ad={}
 
@@ -7417,7 +7417,7 @@ Type=af.Type or"Toggle",
 Callback=af.Callback or function()end,
 UIElements={}
 }
-ag.ToggleFrame=a.E(){
+ag.ToggleFrame=a.D(){
 Title=ag.Title,
 Desc=ag.Desc,
 
@@ -7513,8 +7513,8 @@ local ab=aa(game:GetService"UserInputService")
 local ac=a.c()
 local ad=ac.New
 
-local ae=a.J().New
-local af=a.K().New
+local ae=a.I().New
+local af=a.J().New
 local ag=a.v().New
 
 local ah={}
@@ -7556,7 +7556,7 @@ end
 
 local an=(40.8)
 
-ak.ToggleKeybindFrame=a.E(){
+ak.ToggleKeybindFrame=a.D(){
 Title=ak.Title,
 Desc=ak.Desc,
 Window=aj.Window,
@@ -7848,7 +7848,7 @@ au.Size=UDim2.new(0,ak.IconSize,0,ak.IconSize)
 av=av+ak.IconSize-2
 end
 end
-ak.SliderFrame=a.E(){
+ak.SliderFrame=a.D(){
 Title=ak.Title,
 Desc=ak.Desc,
 Parent=aj.Parent,
@@ -7949,7 +7949,7 @@ Visible=ak.IsTextbox,
 
 local aw
 if ak.IsTooltip then
-aw=a.D().New(ao,ak.UIElements.SliderIcon.Frame.Thumb,true,"Secondary","Small",false)
+aw=a.C().New(ao,ak.UIElements.SliderIcon.Frame.Thumb,true,"Secondary","Small",false)
 aw.Container.AnchorPoint=Vector2.new(0.5,1)
 aw.Container.Position=UDim2.new(0.5,0,0,-8)
 end
@@ -8198,7 +8198,7 @@ local as=typeof(ai.Width)=="number"and math.max(math.floor(ai.Width),168)or 182
 local at=typeof(ai.ButtonSize)=="number"and math.max(math.floor(ai.ButtonSize),28)or 34
 local au=math.max(ai.Window.ElementConfig.UICorner-4,8)
 
-ao.StepperFrame=a.E(){
+ao.StepperFrame=a.D(){
 Title=ao.Title,
 Desc=ao.Desc,
 Parent=ai.Parent,
@@ -8610,7 +8610,7 @@ UIElements={},
 
 local ak=true
 
-aj.KeybindFrame=a.E(){
+aj.KeybindFrame=a.D(){
 Title=aj.Title,
 Desc=aj.Desc,
 Parent=ai.Parent,
@@ -8764,7 +8764,7 @@ Width=150,
 
 local aj=true
 
-ai.InputFrame=a.E(){
+ai.InputFrame=a.D(){
 Title=ai.Title,
 Desc=ai.Desc,
 Parent=ah.Parent,
@@ -9522,7 +9522,7 @@ af.Tween
 
 local ai=a.v().New local aj=a.m()
 .New
-local ak=a.S().New local al=
+local ak=a.R().New local al=
 
 workspace.CurrentCamera
 
@@ -9733,7 +9733,7 @@ end
 
 local as=true
 
-ap.DropdownFrame=a.E(){
+ap.DropdownFrame=a.D(){
 Title=ap.Title,
 Desc=ap.Desc,
 Parent=ao.Parent,
@@ -10056,7 +10056,7 @@ local ap=typeof(ai.SegmentPaddingX)=="number"and math.max(math.floor(ai.SegmentP
 local aq=typeof(ai.SegmentGap)=="number"and math.max(math.floor(ai.SegmentGap),4)or 6
 local ar=math.max(ai.Window.ElementConfig.UICorner-5,8)
 
-ak.SegmentedFrame=a.E(){
+ak.SegmentedFrame=a.D(){
 Title=ak.Title,
 Desc=ak.Desc,
 Parent=ai.Parent,
@@ -11683,7 +11683,7 @@ local au=true
 
 
 
-at.ColorpickerFrame=a.E(){
+at.ColorpickerFrame=a.D(){
 Title=at.Title,
 Desc=at.Desc,
 Parent=as.Parent,
@@ -11833,7 +11833,7 @@ UIElements={},
 
 local ap=true
 
-ao.ProgressFrame=a.E(){
+ao.ProgressFrame=a.D(){
 Title=ao.Title,
 Desc=ao.Desc,
 Parent=ai.Parent,
@@ -12199,7 +12199,7 @@ UIElements={},
 local an=true
 local ao={}
 
-am.StatsFrame=a.E(){
+am.StatsFrame=a.D(){
 Title=am.Title,
 Desc=am.Desc,
 Parent=ag.Parent,
