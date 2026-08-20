@@ -1251,259 +1251,6 @@ end
 local HttpService = game:GetService("HttpService")
 local ANNOUNCEMENT_API = "https://suture-hub-counter.sfbdsl666.workers.dev/announcement"
 
--- ============ 公告弹窗（自定义，内容支持长按选择复制） ============
--- 长按内容 → 进入选择（黄色高亮）→ 拖动调整选区 → 点"复制选中"复制
-local TextService = game:GetService("TextService")
-
-local function showAnnouncementPopup(popupTitle, contentText)
-	contentText = contentText or ""
-	-- 清理旧弹窗
-	pcall(function()
-		local old = game:GetService("CoreGui"):FindFirstChild("SutureAnnPopup")
-		if old then old:Destroy() end
-	end)
-
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "SutureAnnPopup"
-	screenGui.ResetOnSpawn = false
-	screenGui.IgnoreGuiInset = true
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	pcall(function() screenGui.Parent = game:GetService("CoreGui") end)
-	if not screenGui.Parent then
-		pcall(function() screenGui.Parent = lp:WaitForChild("PlayerGui", 5) end)
-	end
-
-	local dim = Instance.new("Frame")
-	dim.Size = UDim2.fromScale(1, 1)
-	dim.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	dim.BackgroundTransparency = 0.6
-	dim.BorderSizePixel = 0
-	dim.Parent = screenGui
-
-	local card = Instance.new("Frame")
-	card.Size = UDim2.fromScale(0.9, 0.68)
-	card.Position = UDim2.fromScale(0.05, 0.16)
-	card.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
-	card.BorderSizePixel = 0
-	card.Parent = screenGui
-	local cardCorner = Instance.new("UICorner")
-	cardCorner.CornerRadius = UDim.new(0, 14)
-	cardCorner.Parent = card
-	local cardStroke = Instance.new("UIStroke")
-	cardStroke.Thickness = 1
-	cardStroke.Color = Color3.fromRGB(70, 130, 255)
-	cardStroke.Parent = card
-
-	-- 标题
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, -28, 0, 42)
-	title.Position = UDim2.new(0, 14, 0, 10)
-	title.BackgroundTransparency = 1
-	title.Text = popupTitle
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.TextSize = 17
-	title.Font = Enum.Font.GothamBold
-	title.TextWrapped = true
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextYAlignment = Enum.TextYAlignment.Center
-	title.Parent = card
-
-	-- 内容区（可长按选择）
-	local content = Instance.new("TextLabel")
-	content.Size = UDim2.new(1, -28, 1, -118)
-	content.Position = UDim2.new(0, 14, 0, 58)
-	content.BackgroundColor3 = Color3.fromRGB(13, 13, 19)
-	content.BorderSizePixel = 0
-	content.Text = contentText
-	content.TextColor3 = Color3.fromRGB(222, 222, 230)
-	content.TextSize = 14
-	content.Font = Enum.Font.Gotham
-	content.TextWrapped = true
-	content.TextXAlignment = Enum.TextXAlignment.Left
-	content.TextYAlignment = Enum.TextYAlignment.Top
-	content.RichText = true
-	content.Parent = card
-	local contentCorner = Instance.new("UICorner")
-	contentCorner.CornerRadius = UDim.new(0, 10)
-	contentCorner.Parent = content
-
-	-- 长按提示
-	local tip = Instance.new("TextLabel")
-	tip.Size = UDim2.new(1, -28, 0, 16)
-	tip.Position = UDim2.new(0, 14, 1, -104)
-	tip.BackgroundTransparency = 1
-	tip.Text = "长按内容可选中文本"
-	tip.TextColor3 = Color3.fromRGB(140, 140, 150)
-	tip.TextSize = 11
-	tip.Font = Enum.Font.Gotham
-	tip.TextXAlignment = Enum.TextXAlignment.Center
-	tip.Parent = card
-
-	-- 按钮行：取消 | 复制公告 | 执行
-	local btnCancel = Instance.new("TextButton")
-	btnCancel.Size = UDim2.new(0.32, 0, 0, 46)
-	btnCancel.Position = UDim2.new(0, 0, 1, -56)
-	btnCancel.BackgroundColor3 = Color3.fromRGB(40, 42, 52)
-	btnCancel.Text = "取消"
-	btnCancel.TextColor3 = Color3.fromRGB(200, 200, 210)
-	btnCancel.TextSize = 16
-	btnCancel.Font = Enum.Font.GothamBold
-	btnCancel.Parent = card
-	local b1c = Instance.new("UICorner")
-	b1c.CornerRadius = UDim.new(0, 10)
-	b1c.Parent = btnCancel
-
-	local btnCopy = Instance.new("TextButton")
-	btnCopy.Size = UDim2.new(0.32, 0, 0, 46)
-	btnCopy.Position = UDim2.new(0.34, 0, 1, -56)
-	btnCopy.BackgroundColor3 = Color3.fromRGB(40, 42, 52)
-	btnCopy.Text = "复制公告"
-	btnCopy.TextColor3 = Color3.fromRGB(255, 209, 102)
-	btnCopy.TextSize = 16
-	btnCopy.Font = Enum.Font.GothamBold
-	btnCopy.Parent = card
-	local b2c = Instance.new("UICorner")
-	b2c.CornerRadius = UDim.new(0, 10)
-	b2c.Parent = btnCopy
-
-	local btnExec = Instance.new("TextButton")
-	btnExec.Size = UDim2.new(0.32, 0, 0, 46)
-	btnExec.Position = UDim2.new(0.68, 0, 1, -56)
-	btnExec.BackgroundColor3 = Color3.fromRGB(70, 130, 255)
-	btnExec.Text = "执行"
-	btnExec.TextColor3 = Color3.fromRGB(255, 255, 255)
-	btnExec.TextSize = 16
-	btnExec.Font = Enum.Font.GothamBold
-	btnExec.Parent = card
-	local b3c = Instance.new("UICorner")
-	b3c.CornerRadius = UDim.new(0, 10)
-	b3c.Parent = btnExec
-
-	-- ===== 长按选择复制逻辑 =====
-	local textRaw = contentText
-	local lines, lineStarts = nil, nil
-	local startIdx, endIdx = nil, nil
-	local selecting = false
-	local hasSelection = false
-
-	local function computeLines()
-		if lines then return end
-		lines = {}
-		lineStarts = {}
-		local maxW = content.AbsoluteSize.X
-		local cur, curStart = "", 1
-		for i = 1, #textRaw do
-			local c = string.sub(textRaw, i, i)
-			local w = TextService:GetTextBoundsAsync({ Text = cur .. c, Font = content.Font, TextSize = content.TextSize }).X
-			if w > maxW and cur ~= "" then
-				table.insert(lines, cur)
-				table.insert(lineStarts, curStart)
-				cur, curStart = c, i
-			else
-				cur = cur .. c
-			end
-		end
-		if cur ~= "" or #lines == 0 then
-			table.insert(lines, cur)
-			table.insert(lineStarts, curStart)
-		end
-	end
-
-	local function indexAt(x, y)
-		computeLines()
-		local lineH = TextService:GetTextBoundsAsync({ Text = "Ag", Font = content.Font, TextSize = content.TextSize }).Y + 2
-		local lineNo = math.floor(y / lineH) + 1
-		if lineNo < 1 then lineNo = 1 end
-		if lineNo > #lines then return #textRaw end
-		local line = lines[lineNo]
-		local lo, hi = 0, #line
-		while lo < hi do
-			local mid = math.ceil((lo + hi) / 2)
-			local w = TextService:GetTextBoundsAsync({ Text = string.sub(line, 1, mid), Font = content.Font, TextSize = content.TextSize }).X
-			if w >= x then hi = mid - 1 else lo = mid end
-		end
-		return lineStarts[lineNo] + lo - 1
-	end
-
-	local function paintSelection()
-		if not hasSelection or not startIdx or not endIdx then
-			content.Text = textRaw
-			return
-		end
-		local s, e = math.min(startIdx, endIdx), math.max(startIdx, endIdx)
-		if s < 1 then s = 1 end
-		if e > #textRaw then e = #textRaw end
-		if s > e then content.Text = textRaw return end
-		content.Text = string.sub(textRaw, 1, s - 1)
-			.. '<font color="#ffd166">' .. string.sub(textRaw, s, e) .. '</font>'
-			.. string.sub(textRaw, e + 1)
-	end
-
-	-- 长按进入选择
-	content.TouchLongPress:Connect(function(x, y)
-		selecting = true
-		computeLines()
-		startIdx = indexAt(x, y)
-		endIdx = startIdx
-		hasSelection = true
-		paintSelection()
-		btnCopy.Text = "复制选中"
-		tip.Text = "拖动调整选区，松手后点复制选中"
-	end)
-
-	-- 拖动更新选区
-	content.InputChanged:Connect(function(input)
-		if selecting and input.UserInputType == Enum.UserInputType.Touch then
-			local p = input.Position
-			if p then
-				endIdx = indexAt(p.X.Offset, p.Y.Offset)
-				paintSelection()
-			end
-		end
-	end)
-
-	-- 松手结束选择
-	content.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch and selecting then
-			selecting = false
-			tip.Text = "已选中，点「复制选中」或重新长按"
-		end
-	end)
-
-	-- 复制（有选中复制选中，否则复制全文）
-	btnCopy.MouseButton1Click:Connect(function()
-		local okClip = setclipboard or (getgenv and getgenv().setclipboard)
-		if hasSelection and startIdx and endIdx then
-			local s, e = math.min(startIdx, endIdx), math.max(startIdx, endIdx)
-			local txt = string.sub(textRaw, s, e)
-			if txt and txt ~= "" and okClip then
-				okClip(txt)
-				notify("公告", "已复制选中内容", "info", 2)
-			elseif not okClip then
-				notify("公告", "当前环境不支持复制", "warning", 3)
-			end
-		elseif okClip then
-			okClip(textRaw)
-			notify("公告", "公告内容已复制", "info", 2)
-		else
-			notify("公告", "当前环境不支持复制", "warning", 3)
-		end
-	end)
-
-	btnCancel.MouseButton1Click:Connect(function()
-		pcall(function() screenGui:Destroy() end)
-	end)
-	btnExec.MouseButton1Click:Connect(function()
-		pcall(function() screenGui:Destroy() end)
-		requestBoot()
-	end)
-	dim.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			pcall(function() screenGui:Destroy() end)
-		end
-	end)
-end
-
 local bootRequested = false
 local function requestBoot()
     if bootRequested then
@@ -1541,7 +1288,24 @@ task.spawn(function()
         popupTitle = popupTitle .. "  " .. decoded.version
     end
     local popupOk, popupErr = pcall(function()
-        showAnnouncementPopup(popupTitle, decoded.content or "")
+        WindUI:Popup({
+            Title = popupTitle,
+            Content = decoded.content or "",
+            Icon = "megaphone",
+            Buttons = {
+                { Title = "取消", Callback = function() end },
+                { Title = "复制", Callback = function()
+                    local clip = setclipboard or (getgenv and getgenv().setclipboard)
+                    if clip then
+                        clip(decoded.content or "")
+                        notify("公告", "公告内容已复制", "info", 2)
+                    else
+                        notify("公告", "当前环境不支持复制", "warning", 3)
+                    end
+                end },
+                { Title = "执行", Callback = function() requestBoot() end }
+            }
+        })
     end)
     if not popupOk then
         warn("公告 Popup 创建失败，直接启动主脚本:", popupErr)
