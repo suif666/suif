@@ -5929,7 +5929,6 @@ Color=af.Color,
 Scalable=af.Scalable,
 Parent=af.Parent,
 Justify=af.Justify or"Between",
-pb("FRAME","af.Title=",tostring(af.Title),"af.Window=",tostring(af.Window),"af.Window.ElementConfig=",tostring(af.Window and af.Window.ElementConfig),"af.Window.Folder=",tostring(af.Window and af.Window.Folder))
 UIPadding=af.Window.ElementConfig.UIPadding,
 UICorner=af.Window.ElementConfig.UICorner,
 Size=af.Size or"Default",
@@ -5937,6 +5936,8 @@ UIElements={},
 
 Index=af.Index
 }
+pb("FRAME","af.Title=",tostring(af.Title),"af.Window=",tostring(af.Window),"af.Window.ElementConfig=",tostring(af.Window and af.Window.ElementConfig),"af.Window.Folder=",tostring(af.Window and af.Window.Folder))
+pb("FRAMEBODY","ag.__type=",tostring(ag.__type),"af.Icon=",tostring(af.Icon),"af.Thumbnail=",tostring(af.Thumbnail))
 
 local ah=ag.Size=="Small"and-4 or ag.Size=="Large"and 4 or 0
 local ai=ag.Size=="Small"and-4 or ag.Size=="Large"and 4 or 0
@@ -11665,7 +11666,7 @@ return av
 end
 
 function aq.New(ar,as)
-pb("XNEW","Colorpicker: af.Value=",typeof(af.Value)," af.Title=",tostring(af.Title)," af.Window=",tostring(af.Window))
+pb("XNEW","Colorpicker: as.Value=",typeof(as.Value)," as.Title=",tostring(as.Title)," as.Window=",tostring(as.Window))
 local at={
 __type="Colorpicker",
 Title=as.Title or"Colorpicker",
