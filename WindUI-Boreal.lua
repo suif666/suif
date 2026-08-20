@@ -6559,7 +6559,7 @@ Desc=af.Desc or nil,
 
 Locked=af.Locked or false,
 }
-local ah=a.E()(af)
+local ah=a.D()(af)
 
 ag.ParagraphFrame=ah
 if af.Buttons and#af.Buttons>0 then
@@ -7490,7 +7490,7 @@ end
 
 return ad end function a.L():typeof(__modImpl())local aa=a.cache.L if not aa then aa={c=__modImpl()}a.cache.L=aa end return aa.c end end do local function __modImpl()
 
-local aa=a.L()
+local aa=a.K()
 
 local ab={}
 
@@ -14912,7 +14912,7 @@ return ae end function a.ai():typeof(__modImpl())local aa=a.cache.ai if not aa t
 
 return{
 Elements={
-Paragraph=a.F(),
+Paragraph=a.E(),
 Label=a.F(),
 Button=a.G(),
 ButtonKeybind=a.H(),
@@ -14923,7 +14923,7 @@ Slider=a.N(),
 Stepper=a.O(),
 Keybind=a.P(),
 Input=a.Q(),
-Dropdown=a.R(),
+Dropdown=a.S(),
 Segmented=a.T(),
 Code=a.W(),
 Colorpicker=a.X(),
