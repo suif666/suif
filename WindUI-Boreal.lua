@@ -6,14 +6,22 @@
 -- Discord: http://discord.gg/B3dEqP2EX6
 -- License: MIT
 
+_G.PB=_G.PB or{}
+local function pb(n,...)
+local t={}
+for i=1,select("#",...)do t[i]=tostring(select(i,...))end
+_G.PB[#_G.PB+1]="[PB-"..n.."] "..table.concat(t," ")
+end
+
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
 
 local d
 local dOk,dErr=pcall(function()
-d=b(game:GetService"ReplicatedStorage":FindFirstChild("GetIcons")and game:GetService"ReplicatedStorage".GetIcons:InvokeServer()or nil)
+local g=game:GetService"ReplicatedStorage":FindFirstChild("GetIcons")
+if g then d=g:InvokeServer() end
 end)
 if not dOk or type(d)~="table"then
-warn("[Boreal] GetIcons 获取失败，图标功能将不可用: "..tostring(dErr))
+warn("[Boreal] GetIcons 获取失败: "..tostring(dErr))
 d={Icons={},Spritesheets={}}
 end
 if type(d.Icons)~="table"then d.Icons={} end
@@ -5921,6 +5929,7 @@ Color=af.Color,
 Scalable=af.Scalable,
 Parent=af.Parent,
 Justify=af.Justify or"Between",
+pb("FRAME","af.Title=",tostring(af.Title),"af.Window=",tostring(af.Window),"af.Window.ElementConfig=",tostring(af.Window and af.Window.ElementConfig),"af.Window.Folder=",tostring(af.Window and af.Window.Folder))
 UIPadding=af.Window.ElementConfig.UIPadding,
 UICorner=af.Window.ElementConfig.UICorner,
 Size=af.Size or"Default",
@@ -6537,7 +6546,7 @@ local ab=aa.New
 
 local ac={}
 
-print("[PROBE-AE] a.E body start, a.l().New type=", typeof(a.l().New))
+pb("AE","a.l().New=",typeof(a.l().New))
 local ad=a.l().New
 
 function ac.New(ae,af)
@@ -6553,7 +6562,7 @@ Desc=af.Desc or nil,
 
 Locked=af.Locked or false,
 }
-print("[PROBE-AENEW] a.E.New: typeof(a.E())=", typeof(a.E()), " af.Window=", tostring(af and af.Window), " af.Title=", tostring(af and af.Title))
+pb("AENEW","a.E()=",typeof(a.E()),"af.Window=",tostring(af and af.Window),"af.Title=",tostring(af and af.Title),"af.WindowElemCfg=",tostring(af and af.Window and af.Window.ElementConfig))
 local ah=a.E()(af)
 
 ag.ParagraphFrame=ah
@@ -7297,7 +7306,7 @@ local ad=ab.Tween
 function aa.New(ae,af,ag,ah,ai,aj)
 local ak={}
 
-print("[PROBE-JNEW] a.J.New Icon param type=", typeof(af), " value=", tostring(af))
+pb("JNEW","IconParam=",typeof(af),tostring(af))
 af=af or"sfsymbols:checkmark"
 
 local al=9
@@ -7396,7 +7405,7 @@ local ac=a.K().New
 local ad={}
 
 function ad.New(ae,af)
-print("[PROBE-KNEW] Toggle factory: af.Icon=", tostring(af.Icon), " typeof=", typeof(af.Icon), " af.Type=", tostring(af.Type))
+pb("KNEW","Toggle: af.Icon=",typeof(af.Icon),tostring(af.Icon)," af.Type=",tostring(af.Type)," af.Window=",tostring(af.Window))
 local ag={
 __type="Toggle",
 Title=af.Title or"Toggle",
@@ -10664,6 +10673,7 @@ local an=false
 local ao=false
 local ap=false
 
+pb("URUN","ak=",typeof(ak),tostring(ak))
 for aq=1,#ak do
 local ar=ak:sub(aq,aq)
 
@@ -11655,7 +11665,7 @@ return av
 end
 
 function aq.New(ar,as)
-print("[PROBE-XNEW] Colorpicker factory: af.Value type=", typeof(af.Value), " af.Title=", tostring(af.Title))
+pb("XNEW","Colorpicker: af.Value=",typeof(af.Value)," af.Title=",tostring(af.Title)," af.Window=",tostring(af.Window))
 local at={
 __type="Colorpicker",
 Title=as.Title or"Colorpicker",
