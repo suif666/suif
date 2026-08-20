@@ -6,13 +6,6 @@
 -- Discord: http://discord.gg/B3dEqP2EX6
 -- License: MIT
 
-_G.PB=_G.PB or{}
-local function pb(n,...)
-local t={}
-for i=1,select("#",...)do t[i]=tostring(select(i,...))end
-_G.PB[#_G.PB+1]="[PB-"..n.."] "..table.concat(t," ")
-end
-
 local a={cache={}::any}do do local function __modImpl()local b=(cloneref or clonereference or function(b)return b end)
 
 local d
@@ -1055,6 +1048,9 @@ l.Init(r,"Icon")
 
 
 function p.SanitizeFilename(v)
+if type(v)~="string"then
+return"unknown"
+end
 local x=v:match"([^/]+)$"or v
 
 x=x:gsub("%.[^%.]+$","")
@@ -1069,6 +1065,9 @@ return x
 end
 
 function p.Image(v,x,z,A,B,C,F,G)
+if typeof(v)~="string"then
+v=""
+end
 if typeof(A)=="table"then
 A=A.Folder or A.Title
 end
@@ -5936,8 +5935,6 @@ UIElements={},
 
 Index=af.Index
 }
-pb("FRAME","af.Title=",tostring(af.Title),"af.Window=",tostring(af.Window),"af.Window.ElementConfig=",tostring(af.Window and af.Window.ElementConfig),"af.Window.Folder=",tostring(af.Window and af.Window.Folder))
-pb("FRAMEBODY","ag.__type=",tostring(ag.__type),"af.Icon=",tostring(af.Icon),"af.Thumbnail=",tostring(af.Thumbnail))
 
 local ah=ag.Size=="Small"and-4 or ag.Size=="Large"and 4 or 0
 local ai=ag.Size=="Small"and-4 or ag.Size=="Large"and 4 or 0
@@ -6547,7 +6544,6 @@ local ab=aa.New
 
 local ac={}
 
-pb("AE","a.l().New=",typeof(a.l().New))
 local ad=a.l().New
 
 function ac.New(ae,af)
@@ -6563,7 +6559,6 @@ Desc=af.Desc or nil,
 
 Locked=af.Locked or false,
 }
-pb("AENEW","a.E()=",typeof(a.E()),"af.Window=",tostring(af and af.Window),"af.Title=",tostring(af and af.Title),"af.WindowElemCfg=",tostring(af and af.Window and af.Window.ElementConfig))
 local ah=a.E()(af)
 
 ag.ParagraphFrame=ah
@@ -7307,7 +7302,6 @@ local ad=ab.Tween
 function aa.New(ae,af,ag,ah,ai,aj)
 local ak={}
 
-pb("JNEW","IconParam=",typeof(af),tostring(af))
 af=af or"sfsymbols:checkmark"
 
 local al=9
@@ -7406,7 +7400,6 @@ local ac=a.K().New
 local ad={}
 
 function ad.New(ae,af)
-pb("KNEW","Toggle: af.Icon=",typeof(af.Icon),tostring(af.Icon)," af.Type=",tostring(af.Type)," af.Window=",tostring(af.Window))
 local ag={
 __type="Toggle",
 Title=af.Title or"Toggle",
@@ -10667,6 +10660,9 @@ end
 end
 
 function aa.run(ak)
+if type(ak)~="string"then
+return""
+end
 local al={}
 local am=""
 
@@ -10674,7 +10670,6 @@ local an=false
 local ao=false
 local ap=false
 
-pb("URUN","ak=",typeof(ak),tostring(ak))
 for aq=1,#ak do
 local ar=ak:sub(aq,aq)
 
@@ -11666,7 +11661,6 @@ return av
 end
 
 function aq.New(ar,as)
-pb("XNEW","Colorpicker: as.Value=",typeof(as.Value)," as.Title=",tostring(as.Title)," as.Window=",tostring(as.Window))
 local at={
 __type="Colorpicker",
 Title=as.Title or"Colorpicker",
@@ -14914,7 +14908,7 @@ return ae end function a.ai():typeof(__modImpl())local aa=a.cache.ai if not aa t
 
 return{
 Elements={
-Paragraph={New=a.E()},
+Paragraph=a.F(),
 Label=a.F(),
 Button=a.G(),
 ButtonKeybind=a.H(),
