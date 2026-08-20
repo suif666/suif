@@ -1,3 +1,4 @@
+local __sOk, __sErr = pcall(function()
 local WindUI
 do
     local ok, res = pcall(function()
@@ -1351,3 +1352,13 @@ task.spawn(function()
         requestBoot()
     end
 end)
+
+end)
+if not __sOk then
+    local __msg = "[SutureHub 脚本错误]\n" .. tostring(__sErr) .. "\n" .. (debug and debug.traceback and debug.traceback(nil, 2) or "")
+    warn(__msg)
+    local ok2 = pcall(function()
+        if setclipboard then setclipboard(__msg) end
+    end)
+    print(">>> 错误已复制到剪贴板，请粘贴给 AI")
+end
