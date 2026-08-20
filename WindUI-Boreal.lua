@@ -14897,7 +14897,7 @@ return ae end function a.ai():typeof(__modImpl())local aa=a.cache.ai if not aa t
 
 return{
 Elements={
-Paragraph=a.E(),
+Paragraph={New=a.E()},
 Label=a.F(),
 Button=a.G(),
 ButtonKeybind=a.H(),
