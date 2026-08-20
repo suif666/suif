@@ -1,33 +1,15 @@
-local __sOk, __sErr = pcall(function()
-local WindUI
-do
-    local ok, res = pcall(function()
-        local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua"
-        local source
-        for i = 1, 3 do
-            local s, e = pcall(function() return game:HttpGet(url) end)
-            if s and e and #tostring(e) > 500 then
-                source = e
-                break
-            end
-            task.wait(1)
+local ok, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua"))()
+end)
+
+if not ok or not WindUI then
+    warn("WindUI(Boreal) 加载失败:", WindUI)
+    pcall(function()
+        if setclipboard then
+            setclipboard("Boreal加载失败: " .. tostring(WindUI))
         end
-        if not source then
-            error("Boreal UI 库获取失败（已重试 3 次）")
-        end
-        local fn, compileErr = loadstring(source)
-        if not fn then
-            error(compileErr)
-        end
-        return fn()
     end)
-
-    if not ok or not res then
-        warn("WindUI(Boreal) 加载失败，脚本已停止:", res)
-        return
-    end
-
-    WindUI = res
+    return
 end
 
 local plrs = game:GetService("Players")
@@ -178,7 +160,7 @@ local win = WindUI:CreateWindow({
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
 })
 
-win:Tags({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
+win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
 -- ============ 轻量开关窗口动画（借鉴小西 Wind 库：不做整窗 Size 动画，避免元素多时卡顿） ============
 local TweenService = game:GetService("TweenService")
@@ -333,7 +315,7 @@ local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 mainTab:Select()
 
 -- 功能类
-local funcSec = win:MultiSection({ Title = "功能", Icon = "folder", Opened = false })
+local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
 local SfTab = funcSec:Tab({ Title = "甩飞类", Icon = "user", Locked = false })
@@ -344,14 +326,14 @@ local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = fal
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
 
 -- 视觉类
-local shijueSec = win:MultiSection({ Title = "视觉类", Icon = "palette", Locked = false })
+local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
 local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = false })
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 
 -- 脚本类
-local scriptSec = win:MultiSection({ Title = "脚本类", Icon = "folder", Opened = false })
+local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
 local gnjbTab = scriptSec:Tab({ Title = "国内脚本", Icon = "shell", Opened = false })
 local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
@@ -1352,13 +1334,3 @@ task.spawn(function()
         requestBoot()
     end
 end)
-
-end)
-if not __sOk then
-    local __msg = "[SutureHub 脚本错误]\n" .. tostring(__sErr) .. "\n" .. (debug and debug.traceback and debug.traceback(nil, 2) or "")
-    warn(__msg)
-    local ok2 = pcall(function()
-        if setclipboard then setclipboard(__msg) end
-    end)
-    print(">>> 错误已复制到剪贴板，请粘贴给 AI")
-end
