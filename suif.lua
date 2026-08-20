@@ -368,6 +368,7 @@ local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "s
 local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
 local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = false })
 local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = false })
+local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1195,6 +1196,13 @@ slaTab:Button({
     Title = "恐脚本", Desc = "国内圣里奥", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/kongbaNB/9178/refs/heads/main/恐脚本.NB", "恐脚本圣里奥")
+    end
+})
+
+hbhswTab:Button({
+    Title = "烘焙或死亡", Desc = "功能很多 近战光环好像不能用", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E7%83%98%E7%84%99%E6%88%96%E6%AD%BB%E4%BA%A1.lua", "烘焙或死亡")
     end
 })
 
