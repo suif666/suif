@@ -309,7 +309,7 @@ end)
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 mainTab:Select()
 
--- 功能类
+--[[ 功能类
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
@@ -319,7 +319,7 @@ local sayTab = funcSec:Tab({ Title = "发言类", Icon = "user", Locked = false 
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
-
+]]
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
 local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = false })
@@ -327,7 +327,6 @@ local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locke
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 
---[[
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
@@ -362,7 +361,6 @@ local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = fal
 local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
 local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
 local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
-]]
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
 -- WindUI 原生顶栏反馈入口
