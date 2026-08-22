@@ -82,11 +82,26 @@ end
 -- state: pending(未加载) / loading(加载中) / done(成功) / failed(失败待重试)
 local lazyTabs = {}
 local lazyOrder = {}
-local function lazyLoad(url, desc, tab)
+-- onDemand=true 的游戏专属脚本：点对应 Tab 时才加载（避免启动全量加载卡顿）
+local function lazyLoad(url, desc, tab, onDemand)
     if tab and tab.Index then
-        local item = { url = url, desc = desc, state = "pending" }
+        local item = { url = url, desc = desc, state = "pending", onDemand = onDemand or false }
         lazyTabs[tab.Index] = item
         lazyOrder[#lazyOrder + 1] = item
+        if onDemand then
+            task.spawn(function()
+                pcall(function()
+                    local ti = tab.UIElements and tab.UIElements.TabItem
+                    if ti then
+                        ti.MouseButton1Click:Connect(function()
+                            if item.state == "pending" or item.state == "failed" then
+                                startLoad(item)
+                            end
+                        end)
+                    end
+                end)
+            end)
+        end
     end
 end
 
@@ -157,7 +172,7 @@ local win = WindUI:CreateWindow({
     Resizable = true, SideBarWidth = uiSet.SideBarWidth, HideSearchBar = uiSet.HideSearchBar,
     ScrollBarEnabled = true,
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end },
-    OpenButton = { Scale = 0.85, OnlyIcon = true }
+    OpenButton = { Scale = 0.85, OnlyIcon = false }
 })
 
 -- ============ 最小化方式：小圆圈（可选，替代胶囊栏）============
@@ -168,18 +183,42 @@ sgBall.ResetOnSpawn = false
 sgBall.Enabled = false
 sgBall.Parent = lp:WaitForChild("PlayerGui")
 
+-- 自定义样式（加载前可用 getgenv() 覆盖）：
+--   getgenv().SutureBallImage = "rbxassetid://xxx"
+--   getgenv().SutureBallSize  = 60          （大小，默认 48）
+--   getgenv().SutureBallColor = Color3.fromRGB(255,0,0)  （颜色，默认紫）
+-- ★ 内置圆圈图片（推荐）：图片上传到 Roblox 素材库后，把 ID 填到下面
+--   例：local BALL_IMAGE_ID = "rbxassetid://1234567890"
+--   留空 = 用默认的 ◉ 紫色圆圈
+local BALL_IMAGE_ID = ""
+local ballSize = getgenv().SutureBallSize or 48
+local ballColor = getgenv().SutureBallColor or Color3.fromRGB(99, 102, 241)
+local ballImg = getgenv().SutureBallImage or BALL_IMAGE_ID
+
 local ball = Instance.new("TextButton", sgBall)
-ball.Size = UDim2.fromOffset(48, 48)
-ball.Position = UDim2.new(0.9, -60, 0.9, -60)
-ball.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+ball.Size = UDim2.fromOffset(ballSize, ballSize)
+ball.Position = UDim2.new(0.9, -(ballSize + 12), 0.9, -(ballSize + 12))
+ball.BackgroundColor3 = ballColor
 ball.Text = "◉"
 ball.TextColor3 = Color3.new(1, 1, 1)
 ball.Font = Enum.Font.GothamBold
-ball.TextSize = 22
+ball.TextSize = ballSize * 0.45
 ball.AutoButtonColor = false
 ball.Active = true
 ball.Draggable = true
 Instance.new("UICorner", ball).CornerRadius = UDim.new(1, 0)
+
+-- 自定义图片（加载失败自动回退成 ◉）
+if ballImg ~= "" then
+    ball.Image = ballImg
+    ball.Text = ""
+    ball.ImageColor3 = Color3.new(1, 1, 1)
+    ball.ImageError:Connect(function()
+        ball.Image = ""
+        ball.Text = "◉"
+        ball.TextColor3 = Color3.new(1, 1, 1)
+    end)
+end
 
 ball.MouseButton1Click:Connect(function()
     sgBall.Enabled = false
@@ -224,7 +263,7 @@ getgenv().SutureMainWindow = win
 getgenv().SutureMainUIVisible = true
 task.spawn(function()
     while true do
-        task.wait(0.15)
+        task.wait(0.3)
         local ok, vis = pcall(function()
             return win.UIElements.Main.Visible
         end)
@@ -251,13 +290,15 @@ UIGradient.Color = ColorSequence.new{
 }
 UIGradient.Parent = UIStroke
 
---// 【彩虹边框】原版 while 逻辑回归（降频：0.05s 一步，窗口隐藏时不转，避免每帧重绘 UI）
+--// 【彩虹边框】窗口可见时 0.08s 一步；窗口隐藏时休眠（1s 一次空唤醒），不空转
 task.spawn(function()
     while true do
-        task.wait(0.05)
         local main = win.UIElements.Main
         if main and main.Visible then
             UIGradient.Rotation = (UIGradient.Rotation + 10) % 360
+            task.wait(0.08)
+        else
+            task.wait(1)
         end
     end
 end)
@@ -713,7 +754,7 @@ slTab:Button({
   getgenv().Tabs = getgenv().Tabs or {}
   getgenv().Tabs.MinesweeperTab = slTab
   getgenv().SutureMinesweeperTab = slTab
-  lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua", "自写扫雷", slTab)
+  lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%AB%E9%9B%B7%E7%A4%BA%E4%BE%8B.lua", "自写扫雷", slTab, true)
 
 fkgsTab:Button({
     Title = "方块故事[suif汉化]", Desc = "支持方块故事战斗模拟器", Icon = "shell",
@@ -724,7 +765,7 @@ fkgsTab:Button({
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.GameTab = xesqTab
 getgenv().SutureGameTab = xesqTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua", "游戏辅助", xesqTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua", "游戏辅助", xesqTab, true)
 
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
@@ -736,7 +777,7 @@ wqkTab:Button({
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.wxlgTab = wxlgTab
 
-lazyLoad("https://pastebin.com/raw/wV07BGnS", "无限旅馆", wxlgTab)
+lazyLoad("https://pastebin.com/raw/wV07BGnS", "无限旅馆", wxlgTab, true)
 
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
@@ -852,7 +893,7 @@ sxmsaTab:Button({
 --数学谋杀案远程
 getgenv().Tabs.SXMSATab = sxmsaTab
 getgenv().SutureSXMSATab = sxmsaTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%E7%A4%BA%E4%BE%8B.lua", "数学谋杀案自动答题", sxmsaTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%95%B0%E5%AD%A6%E8%B0%8B%E6%9D%80%E6%A1%88%E7%A4%BA%E4%BE%8B.lua", "数学谋杀案自动答题", sxmsaTab, true)
 
 zbjscqtTab:Button({
     Title = "[🔑]在北极生存7天 自动类01[suif汉化]", Desc = "加载时间可能比较长 不好用", Icon = "shell",
@@ -1076,12 +1117,12 @@ sqjjcTab:Button({
 --手枪竞技场 Ragebot 远程
 getgenv().Tabs.SQJJC = sqjjcTab
 getgenv().SutureSQJJC = sqjjcTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%8B%E6%9E%AA%E7%AB%9E%E6%8A%80%E5%9C%BA%E7%A4%BA%E4%BE%8B.lua", "手枪竞技场Ragebot", sqjjcTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%89%8B%E6%9E%AA%E7%AB%9E%E6%8A%80%E5%9C%BA%E7%A4%BA%E4%BE%8B.lua", "手枪竞技场Ragebot", sqjjcTab, true)
 
 --闪光 Ragebot 远程（子弹追踪）
 getgenv().Tabs.SGTab = sgTab
 getgenv().SutureSGTab = sgTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%97%AA%E5%85%89%E7%A4%BA%E4%BE%8B.lua", "闪光Ragebot", sgTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%97%AA%E5%85%89%E7%A4%BA%E4%BE%8B.lua", "闪光Ragebot", sgTab, true)
 
 
 hcyghdTab:Paragraph({
@@ -1226,7 +1267,8 @@ local AUTO_LOAD_DELAY = 0.5
 task.spawn(function()
     task.wait(0.3)
     for _, item in ipairs(lazyOrder) do
-        if item.state == "pending" or item.state == "failed" then
+        -- onDemand（游戏专属）跳过：等用户点对应 Tab 时才加载
+        if not item.onDemand and (item.state == "pending" or item.state == "failed") then
             startLoad(item)
         end
         task.wait(AUTO_LOAD_DELAY)
