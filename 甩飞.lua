@@ -382,7 +382,7 @@ local function StartTPLoop()
     task.spawn(function()
         while TP_Loop do
             TeleportToTarget()
-            task.wait(0.1)  -- 频率已提高
+            task.wait(0.03)  -- 33次/秒：提高跟脚性，目标移动也能紧贴
         end
     end)
     Notify("传送", "循环传送已启动", 2)
@@ -450,12 +450,15 @@ Players.PlayerRemoving:Connect(function()
     updatePlayerList(false)
 end)
 
-task.spawn(function()
-    while true do
-        task.wait(30)  -- 玩家进出已由事件实时更新，这只是兜底，30s 一次足够
-        updatePlayerList(false)
+Tab:Button({
+    Title = "刷新玩家列表",
+    Desc = "手动刷新目标选择列表（玩家进出会自动更新，列表异常时点这个）",
+    Icon = "refresh-cw",
+    Callback = function()
+        updatePlayerList(true)
+        Notify("已刷新", "玩家列表已更新", 2)
     end
-end)
+})
 
 Tab:Button({
     Title = "单次甩飞",
