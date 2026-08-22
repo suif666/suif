@@ -1016,25 +1016,25 @@ gnjbTab:Button({
 --范围远程
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", "范围", FwTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", "范围", FwTab)
 
 --甩飞远程
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua", "甩飞", SfTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua", "甩飞", SfTab)
 
 --ping fps显示
 getgenv().Tabs.PingFPSTab = pingfpsTab
 getgenv().SuturePingFPSTab = pingfpsTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua", "ping/fps显示", pingfpsTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua", "ping/fps显示", pingfpsTab)
 
 --雷达
 getgenv().Tabs.RadarTab = radarTab
 getgenv().SutureRadarTab = radarTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", "雷达", radarTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", "雷达", radarTab)
 
 --玩家类远程
 getgenv().Tabs.PlayerTab = playerTab
@@ -1046,25 +1046,25 @@ lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%
 getgenv().Tabs.AimbotTab = amTab
 getgenv().SutureAimbotTab = amTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "自瞄类", amTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "自瞄类", amTab)
 
 --发言类远程
 getgenv().Tabs.SayTab = sayTab
 getgenv().SutureSayTab = sayTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua", "发言类", sayTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua", "发言类", sayTab)
 
 --ESP远程
 getgenv().Tabs.ESPTab = espTab
 getgenv().SutureESPTab = espTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", "ESP", espTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", "ESP", espTab)
 
 --服务器类远程
 getgenv().Tabs.ServerTab = serverTab
 getgenv().SutureServerTab = serverTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", "服务器类", serverTab)
+--lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", "服务器类", serverTab)
 
 --自然灾害远程
 getgenv().Tabs.ZRZHTab = zrzhTab
