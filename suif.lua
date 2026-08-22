@@ -156,8 +156,66 @@ local win = WindUI:CreateWindow({
     ToggleKey = Enum.KeyCode.RightShift, Transparent = uiSet.Transparent, Theme = uiSet.Theme,
     Resizable = true, SideBarWidth = uiSet.SideBarWidth, HideSearchBar = uiSet.HideSearchBar,
     ScrollBarEnabled = true,
-    User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end }
+    User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end },
+    OpenButton = { Scale = 0.85, OnlyIcon = true }
 })
+
+-- ============ 最小化方式：小圆圈（可选，替代胶囊栏）============
+local minimizeMode = "capsule"  -- capsule=胶囊栏(默认) / ball=小圆圈
+local sgBall = Instance.new("ScreenGui")
+sgBall.Name = "SutureBall"
+sgBall.ResetOnSpawn = false
+sgBall.Enabled = false
+sgBall.Parent = lp:WaitForChild("PlayerGui")
+
+local ball = Instance.new("TextButton", sgBall)
+ball.Size = UDim2.fromOffset(48, 48)
+ball.Position = UDim2.new(0.9, -60, 0.9, -60)
+ball.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
+ball.Text = "◉"
+ball.TextColor3 = Color3.new(1, 1, 1)
+ball.Font = Enum.Font.GothamBold
+ball.TextSize = 22
+ball.AutoButtonColor = false
+ball.Active = true
+ball.Draggable = true
+Instance.new("UICorner", ball).CornerRadius = UDim.new(1, 0)
+
+ball.MouseButton1Click:Connect(function()
+    sgBall.Enabled = false
+    win:Open()
+end)
+
+-- 窗口无论怎么打开，圆圈都隐藏
+win:OnOpen(function()
+    sgBall.Enabled = false
+end)
+
+-- 拦截右上角最小化按钮（点最小化 → 弹圆圈）
+local minBtn
+for _, v in pairs(win.TopBarButtons or {}) do
+    if v.Name == "Minimize" then
+        minBtn = v
+        break
+    end
+end
+if minBtn and minBtn.Object then
+    minBtn.Object.MouseButton1Click:Connect(function()
+        if minimizeMode == "ball" then
+            sgBall.Enabled = true
+        end
+    end)
+end
+
+-- 切换最小化方式
+local function setMinimizeMode(mode)
+    minimizeMode = mode
+    if mode == "ball" then
+        pcall(function() win:EditOpenButton({ Enabled = false }) end)
+    else
+        win.IsOpenButtonEnabled = true
+    end
+end
 
 win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radius = 0 })
 
@@ -1126,6 +1184,15 @@ settingsTab:Dropdown({
         local real = themeMap[name]
         uiSet.Theme = real
         if WindUI.SetTheme then WindUI:SetTheme(real) elseif win.SetTheme then win:SetTheme(real) end
+    end
+})
+
+settingsTab:Dropdown({
+    Title = "最小化方式", Desc = "胶囊栏：最小化后按RightShift恢复（手机点胶囊栏）；小圆圈：最小化后弹出圆圈，点圆圈恢复",
+    Values = { "胶囊栏(默认)", "小圆圈" },
+    Value = "胶囊栏(默认)",
+    Callback = function(v)
+        setMinimizeMode(v == "小圆圈" and "ball" or "capsule")
     end
 })
 
