@@ -82,6 +82,18 @@ end
 -- state: pending(未加载) / loading(加载中) / done(成功) / failed(失败待重试)
 local lazyTabs = {}
 local lazyOrder = {}
+-- 统一加载入口：状态机驱动
+local function startLoad(item)
+    item.state = "loading"
+    loadRemote(item.url, item.desc,
+        function()
+            item.state = "done"
+        end,
+        function()
+            item.state = "failed"
+        end)
+end
+
 -- onDemand=true 的游戏专属脚本：点对应 Tab 时才加载（避免启动全量加载卡顿）
 local function lazyLoad(url, desc, tab, onDemand)
     if tab and tab.Index then
@@ -109,18 +121,6 @@ local function lazyLoad(url, desc, tab, onDemand)
             end)
         end
     end
-end
-
--- 统一加载入口：状态机驱动
-local function startLoad(item)
-    item.state = "loading"
-    loadRemote(item.url, item.desc,
-        function()
-            item.state = "done"
-        end,
-        function()
-            item.state = "failed"
-        end)
 end
 
 -- ============ 主脚本主体：公告确认后才执行 ============
@@ -189,6 +189,13 @@ sgBall.ResetOnSpawn = false
 sgBall.Enabled = false
 sgBall.Parent = lp:WaitForChild("PlayerGui")
 
+-- 自定义样式（加载前可用 getgenv() 覆盖）：
+--   getgenv().SutureBallImage = "rbxassetid://xxx"
+--   getgenv().SutureBallSize  = 60          （大小，默认 48）
+--   getgenv().SutureBallColor = Color3.fromRGB(255,0,0)  （颜色，默认紫）
+-- ★ 内置圆圈图片（推荐）：图片上传到 Roblox 素材库后，把 ID 填到下面
+--   例：local BALL_IMAGE_ID = "rbxassetid://1234567890"
+--   留空 = 用默认的 ◉ 紫色圆圈
 local BALL_IMAGE_ID = ""
 local ballSize = getgenv().SutureBallSize or 48
 local ballColor = getgenv().SutureBallColor or Color3.fromRGB(99, 102, 241)
@@ -309,7 +316,7 @@ end)
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 mainTab:Select()
 
---功能类
+-- 功能类
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
@@ -361,6 +368,7 @@ local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = fal
 local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
 local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
 local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
+
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
 -- WindUI 原生顶栏反馈入口
