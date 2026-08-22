@@ -6562,6 +6562,23 @@ Locked=af.Locked or false,
 local ah=a.E()(af)
 
 ag.ParagraphFrame=ah
+
+-- ★ 段落顶部图片（Thumbnail）：仿小西 Wind 版
+-- 参数：Thumbnail=图片URL/rbxassetid, ThumbnailSize=高度(默认80), ThumbnailRadius=圆角(可选)
+if af.Thumbnail then
+    local thumb=ab("ImageLabel",{
+        Size=UDim2.new(1,0,0,af.ThumbnailSize or 80),
+        Image=af.Thumbnail,
+        BackgroundTransparency=1,
+        ScaleType="Fit",
+        LayoutOrder=-1,
+        Parent=ah.UIElements.Container,
+    })
+    if af.ThumbnailRadius then
+        ab("UICorner",{CornerRadius=UDim.new(0,af.ThumbnailRadius)}).Parent=thumb
+    end
+end
+
 if af.Buttons and#af.Buttons>0 then
 local ai=ab("Frame",{
 Size=UDim2.new(1,0,0,38),
