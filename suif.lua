@@ -309,7 +309,7 @@ end)
 local mainTab = win:Tab({ Title = "主页", Icon = "house", Locked = false })
 mainTab:Select()
 
---[[ 功能类
+--功能类
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
@@ -319,7 +319,7 @@ local sayTab = funcSec:Tab({ Title = "发言类", Icon = "user", Locked = false 
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
-]]
+
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
 local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = false })
