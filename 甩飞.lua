@@ -227,26 +227,29 @@ local function startAntiFling()
         end
     end)
 
+    -- 每帧只处理自己（速度/物理力，轻量）；全服 CanCollide 复查降到 2 秒一次
+    local lastAntiFlingCheck = 0
     antiFlingConn = RunService.Heartbeat:Connect(function()
-        pcall(function()
-            setAllCharactersCollide(false)
-
-            local c = LocalPlayer.Character
-            local root = c and c:FindFirstChild("HumanoidRootPart")
-            if root then
-                if root.Velocity.Magnitude > 500 then
-                    root.Velocity = Vector3.zero
-                    root.RotVelocity = Vector3.zero
-                end
-                for _, child in ipairs(root:GetChildren()) do
-                    if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
-                        pcall(function()
-                            child:Destroy()
-                        end)
-                    end
+        local c = LocalPlayer.Character
+        local root = c and c:FindFirstChild("HumanoidRootPart")
+        if root then
+            if root.Velocity.Magnitude > 500 then
+                root.Velocity = Vector3.zero
+                root.RotVelocity = Vector3.zero
+            end
+            for _, child in ipairs(root:GetChildren()) do
+                if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
+                    pcall(function()
+                        child:Destroy()
+                    end)
                 end
             end
-        end)
+        end
+        local now = os.clock()
+        if now - lastAntiFlingCheck >= 2 then
+            lastAntiFlingCheck = now
+            pcall(setAllCharactersCollide, false)
+        end
     end)
 end
 
@@ -449,7 +452,7 @@ end)
 
 task.spawn(function()
     while true do
-        task.wait(5)
+        task.wait(30)  -- 玩家进出已由事件实时更新，这只是兜底，30s 一次足够
         updatePlayerList(false)
     end
 end)
