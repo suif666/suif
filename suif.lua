@@ -189,13 +189,6 @@ sgBall.ResetOnSpawn = false
 sgBall.Enabled = false
 sgBall.Parent = lp:WaitForChild("PlayerGui")
 
--- 自定义样式（加载前可用 getgenv() 覆盖）：
---   getgenv().SutureBallImage = "rbxassetid://xxx"
---   getgenv().SutureBallSize  = 60          （大小，默认 48）
---   getgenv().SutureBallColor = Color3.fromRGB(255,0,0)  （颜色，默认紫）
--- ★ 内置圆圈图片（推荐）：图片上传到 Roblox 素材库后，把 ID 填到下面
---   例：local BALL_IMAGE_ID = "rbxassetid://1234567890"
---   留空 = 用默认的 ◉ 紫色圆圈
 local BALL_IMAGE_ID = ""
 local ballSize = getgenv().SutureBallSize or 48
 local ballColor = getgenv().SutureBallColor or Color3.fromRGB(99, 102, 241)
@@ -334,6 +327,7 @@ local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locke
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 
+--[[
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
 local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
@@ -368,7 +362,7 @@ local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = fal
 local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
 local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
 local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
-
+]]
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
 -- WindUI 原生顶栏反馈入口
