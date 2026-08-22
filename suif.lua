@@ -89,17 +89,23 @@ local function lazyLoad(url, desc, tab, onDemand)
         lazyTabs[tab.Index] = item
         lazyOrder[#lazyOrder + 1] = item
         if onDemand then
+            -- 挂 Tab 栏按钮点击（普通 Tab 的点击对象是 tab.UIElements.Main，
+            -- TabItem 只有 Dropdown 类型 Tab 才用，挂它点不动）
             task.spawn(function()
-                pcall(function()
-                    local ti = tab.UIElements and tab.UIElements.TabItem
-                    if ti then
-                        ti.MouseButton1Click:Connect(function()
-                            if item.state == "pending" or item.state == "failed" then
-                                startLoad(item)
-                            end
+                for retry = 1, 20 do
+                    local btn = tab.UIElements and tab.UIElements.Main
+                    if btn and btn.MouseButton1Click then
+                        pcall(function()
+                            btn.MouseButton1Click:Connect(function()
+                                if item.state == "pending" or item.state == "failed" then
+                                    startLoad(item)
+                                end
+                            end)
                         end)
+                        break
                     end
-                end)
+                    task.wait(0.1)
+                end
             end)
         end
     end
