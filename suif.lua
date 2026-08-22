@@ -262,6 +262,7 @@ local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = fal
 local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = false })
 local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
 local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
+local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1100,6 +1101,13 @@ tpzTab:Button({
     Title = "逃跑者", Desc = "拥有NPC杀戮光环跟带来物品 太美丽了", Icon = "shell",
     Callback = function()
         run("https://pastefy.app/WCaitq3c/raw?part=%E9%80%83%E8%B7%91%E8%80%85.lua", "逃跑者")
+    end
+})
+
+qlsylyTab:Button({
+    Title = "清理所有落叶", Desc = "不适合演戏 建议单人游玩", Icon = "shell",
+    Callback = function()
+        run("https://pastefy.app/kz8yf2Zq/raw", "清理所有落叶")
     end
 })
 
