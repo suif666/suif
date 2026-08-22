@@ -1016,19 +1016,19 @@ gnjbTab:Button({
 --范围远程
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
---lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", "范围", FwTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", "范围", FwTab)
 
 --甩飞远程
 getgenv().Tabs.FlingTPTab = SfTab
 getgenv().WindUI = WindUI
 
---lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua", "甩飞", SfTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua", "甩飞", SfTab)
 
 --ping fps显示
 getgenv().Tabs.PingFPSTab = pingfpsTab
 getgenv().SuturePingFPSTab = pingfpsTab
 
---lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua", "ping/fps显示", pingfpsTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua", "ping/fps显示", pingfpsTab)
 
 --雷达
 getgenv().Tabs.RadarTab = radarTab
