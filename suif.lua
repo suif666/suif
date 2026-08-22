@@ -1065,8 +1065,6 @@ getgenv().Tabs.ZRZHTab = zrzhTab
 getgenv().SutureZRZHTab = zrzhTab
 
 lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua", "自然灾害", zrzhTab, true)
-    
-    )
 
 --po大po 功能远程
 getgenv().Tabs.POTab = podpoTab
