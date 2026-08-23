@@ -368,6 +368,7 @@ local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = fal
 local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
 local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
 local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
+local swsxxmsTab = scriptSec:Tab({ Title = "死亡顺序：西蒙说", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1216,6 +1217,19 @@ qlsylyTab:Button({
     end
 })
 
+swsxxmsTab:Button({
+    Title = "Ouroboros", Desc = "功能还算可以 主要也没什么好用的", Icon = "shell",
+    Callback = function()
+        run("https://pastefy.app/BTiTpOkj/raw", "Ouroboros西蒙说")
+    end
+})
+
+swsxxmsTab:Button({
+    Title = "[🔑]yuri西蒙说", Desc = "没上面那个好用 拿来充数的", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/JsbyK9Ff", "yuri西蒙说")
+    end
+})
 
 
 -- UI设置
