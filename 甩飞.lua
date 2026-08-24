@@ -442,14 +442,6 @@ TargetDropdown = Tab:Dropdown({
     end
 })
 
-Players.PlayerAdded:Connect(function()
-    updatePlayerList(false)
-end)
-
-Players.PlayerRemoving:Connect(function()
-    updatePlayerList(false)
-end)
-
 Tab:Button({
     Title = "刷新玩家列表",
     Desc = "手动刷新目标选择列表（玩家进出会自动更新，列表异常时点这个）",
