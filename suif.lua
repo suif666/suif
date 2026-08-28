@@ -370,6 +370,7 @@ local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = fal
 local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
 local swsxxmsTab = scriptSec:Tab({ Title = "死亡顺序：西蒙说", Icon = "shell", Locked = false })
 local llcqTab = scriptSec:Tab({ Title = "力量传奇", Icon = "shell", Locked = false })
+local bcmjbTab = scriptSec:Tab({ Title = "保持门紧闭", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1244,6 +1245,13 @@ llcqTab:Button({
     Title = "刘脚本", Desc = "b站找的 看上去挺好用", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/LYHfailing/Muscle-Legends/refs/heads/main/%E5%88%98%E8%84%9A%E6%9C%AC%E5%8A%9B%E9%87%8F%E4%BC%A0%E5%A5%87-%E4%BD%9C%E8%80%852903144038%E8%84%9A%E6%9C%AC%E7%BE%A4810470906-%E5%85%8D%E8%B4%B9%E8%84%9A%E6%9C%AC.lua", "刘脚本")
+    end
+})
+
+bcmjbTab:Button({
+    Title = "保持门紧闭", Desc = "功能较多 油管较火", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E4%BF%9D%E6%8C%81%E9%97%A8%E7%B4%A7%E9%97%AD.lua", "保持门紧闭")
     end
 })
 
