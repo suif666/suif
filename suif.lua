@@ -1042,7 +1042,7 @@ lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%
 getgenv().Tabs.PlayerTab = playerTab
 getgenv().SuturePlayerTab = playerTab
 
---lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "玩家类", playerTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "玩家类", playerTab)
 
 --自瞄类远程
 getgenv().Tabs.AimbotTab = amTab
