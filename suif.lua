@@ -1214,7 +1214,7 @@ tpzTab:Button({
 tpzTab:Button({
     Title = "逃跑者刷钱", Desc = "脚本介绍说一局4k左右 对加速器、设备要求较高 不然没法正常运行", Icon = "shell",
     Callback = function()
-        run("https://pastefy.app/TRI9AviS/raw?part=%E9%80%83%E8%B7%91%E8%80%85%E8%87%AA%E5%8A%A8%E5%88%B74k.lua", "逃跑者刷钱4k")
+        run("https://pastebin.com/raw/MyQGSFSJ", "逃跑者刷钱4k")
     end
 })
 
