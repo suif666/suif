@@ -369,6 +369,7 @@ local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Lock
 local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
 local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
 local swsxxmsTab = scriptSec:Tab({ Title = "死亡顺序：西蒙说", Icon = "shell", Locked = false })
+local llcqTab = scriptSec:Tab({ Title = "力量传奇", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1230,6 +1231,14 @@ swsxxmsTab:Button({
         run("https://pastebin.com/raw/JsbyK9Ff", "yuri西蒙说")
     end
 })
+
+llcqTab:Button({
+    Title = "刘脚本", Desc = "b站找的 看上去挺好用", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/LYHfailing/Muscle-Legends/refs/heads/main/%E5%88%98%E8%84%9A%E6%9C%AC%E5%8A%9B%E9%87%8F%E4%BC%A0%E5%A5%87-%E4%BD%9C%E8%80%852903144038%E8%84%9A%E6%9C%AC%E7%BE%A4810470906-%E5%85%8D%E8%B4%B9%E8%84%9A%E6%9C%AC.lua", "刘脚本")
+    end
+})
+
 
 
 -- UI设置
