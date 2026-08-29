@@ -371,6 +371,7 @@ local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", 
 local swsxxmsTab = scriptSec:Tab({ Title = "死亡顺序：西蒙说", Icon = "shell", Locked = false })
 local llcqTab = scriptSec:Tab({ Title = "力量传奇", Icon = "shell", Locked = false })
 local bcmjbTab = scriptSec:Tab({ Title = "保持门紧闭", Icon = "shell", Locked = false })
+local bzyyzyzTab = scriptSec:Tab({ Title = "捕捉一亿只鸭子", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1252,6 +1253,13 @@ bcmjbTab:Button({
     Title = "保持门紧闭", Desc = "功能较多 油管较火", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E4%BF%9D%E6%8C%81%E9%97%A8%E7%B4%A7%E9%97%AD.lua", "保持门紧闭")
+    end
+})
+
+bzyyzyzTab:Button({
+    Title = "捕捉一亿只鸭子", Desc = "油管最火 非常稳定", Icon = "shell",
+    Callback = function()
+        run("https://pastebin.com/raw/nNZRLkh4", "捕捉一亿只鸭子")
     end
 })
 
