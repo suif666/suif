@@ -372,6 +372,7 @@ local swsxxmsTab = scriptSec:Tab({ Title = "死亡顺序：西蒙说", Icon = "s
 local llcqTab = scriptSec:Tab({ Title = "力量传奇", Icon = "shell", Locked = false })
 local bcmjbTab = scriptSec:Tab({ Title = "保持门紧闭", Icon = "shell", Locked = false })
 local bzyyzyzTab = scriptSec:Tab({ Title = "捕捉一亿只鸭子", Icon = "shell", Locked = false })
+local hbbTab = scriptSec:Tab({ Title = "汉堡包", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1260,6 +1261,20 @@ bzyyzyzTab:Button({
     Title = "捕捉一亿只鸭子", Desc = "油管最火 非常稳定", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/nNZRLkh4", "捕捉一亿只鸭子")
+    end
+})
+
+hbbTab:Paragraph({
+    Title = "注意",
+    Desc = "此游戏当前热度较低 脚本比较少"
+})
+
+hbbTab:Space()
+
+hbbTab:Button({
+    Title = "[未汉化]汉堡包", Desc = "ai制作 功能不保证有效", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/keeloby/-/refs/heads/main/alisonburgerz", "汉堡包")
     end
 })
 
