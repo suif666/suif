@@ -1221,6 +1221,14 @@ tpzTab:Button({
     end
 })
 
+tpzTab:Button({
+    Title = "逃跑者02", Desc = "功能很多 可以拿来演戏", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E9%80%83%E8%B7%91%E8%80%85r.lua", "逃跑者02")
+    end
+})
+
+
 
 qlsylyTab:Button({
     Title = "清理所有落叶", Desc = "不适合演戏 建议单人游玩", Icon = "shell",
