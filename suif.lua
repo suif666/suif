@@ -433,7 +433,12 @@ mainTab:Paragraph({
 
 mainTab:Paragraph({
     Title = "Suture Hub",
-    Desc = "欢迎使用 Suture Hub\n作者：suif\n当前玩家：" .. lp.Name
+    Desc = "欢迎使用 Suture Hub\n作者：suif\n企鹅群462989034\n当前玩家：" .. lp.Name
+})
+
+mainTab:Paragraph({
+    Title = "群聊",
+    Desc = "462989034"
 })
 
 local countText = mainTab:Paragraph({
