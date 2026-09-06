@@ -1158,13 +1158,6 @@ hcyghdTab:Button({
     end
 })
 
-hcyghdTab:Button({
-    Title = "Ouroboros", Desc = "无汉化 功能全开就行", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/joustingmatch/Ouroboros/main/loader.lua", "合成一个核弹")
-    end
-})
-
 cclsTab:Button({
     Title = "储存猎手01", Desc = "功能很多 会开可以实现全自动 不会开就是一坨了", Icon = "shell",
     Callback = function()
@@ -1225,9 +1218,9 @@ hbhswTab:Button({
 })
 
 tpzTab:Button({
-    Title = "逃跑者", Desc = "拥有NPC杀戮光环跟带来物品 太美丽了", Icon = "shell",
+    Title = "ouroboros", Desc = "应该最强 可以拿来演戏", Icon = "shell",
     Callback = function()
-        run("https://pastefy.app/WCaitq3c/raw?part=%E9%80%83%E8%B7%91%E8%80%85.lua", "逃跑者")
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E9%80%83%E8%B7%91%E8%80%85our.lua", "逃跑者ouroboros")
     end
 })
 
