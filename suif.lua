@@ -777,11 +777,16 @@ fkgsTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%96%B9%E5%9D%97%E6%95%85%E4%BA%8B%E6%B1%89%E5%8C%96.lua", "方块故事") end
 })
 
+xesqTab:Button({
+    Title = "Ouroboros", Desc = "无汉化 功能总共没几个 全开就行", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/joustingmatch/Ouroboros/main/loader.lua", "将会发生些邪恶事情") end
+})
+
 --邪恶事情远程
 getgenv().Tabs = getgenv().Tabs or {}
 getgenv().Tabs.GameTab = xesqTab
 getgenv().SutureGameTab = xesqTab
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua", "游戏辅助", xesqTab, true)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%82%AA%E6%81%B6%E4%BA%8B%E6%83%85%E7%A4%BA%E4%BE%8B.lua", "邪恶事情", xesqTab, true)
 
 wqkTab:Button({
     Title = "武器库 静默瞄准", Desc = "没有esp 但是有静默瞄准", Icon = "shell",
@@ -1150,6 +1155,13 @@ hcyghdTab:Button({
     Title = "自动类", Desc = "挺好用的 就是飞行和移动类功能不要开 不然容易被ban", Icon = "shell",
     Callback = function()
         run("https://pastebin.com/raw/vNgFeLGR", "合成一个核弹")
+    end
+})
+
+hcyghdTab:Button({
+    Title = "Ouroboros", Desc = "无汉化 功能全开就行", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/joustingmatch/Ouroboros/main/loader.lua", "合成一个核弹")
     end
 })
 
