@@ -373,6 +373,7 @@ local llcqTab = scriptSec:Tab({ Title = "力量传奇", Icon = "shell", Locked =
 local bcmjbTab = scriptSec:Tab({ Title = "保持门紧闭", Icon = "shell", Locked = false })
 local bzyyzyzTab = scriptSec:Tab({ Title = "捕捉一亿只鸭子", Icon = "shell", Locked = false })
 local hbbTab = scriptSec:Tab({ Title = "汉堡包", Icon = "shell", Locked = false })
+local zslzd99yTab = scriptSec:Tab({ Title = "在森林中的99夜", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1293,6 +1294,28 @@ hbbTab:Button({
         run("https://raw.githubusercontent.com/keeloby/-/refs/heads/main/alisonburgerz", "汉堡包")
     end
 })
+
+zslzd99yTab:Button({
+    Title = "[未汉化]ringta", Desc = "非常好用 并还在积极更新", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/wehibuyfgyuwe/99nights.github.io/refs/heads/main/ringta.lua", "在森林中的99夜")
+    end
+})
+
+zslzd99yTab:Button({
+    Title = "[未汉化]Voidware", Desc = "外网较火 功能很多", Icon = "shell",
+    Callback = function()
+        run("https://files.vapevoidware.xyz/VapeVoidware/VW-Add/main/nightsintheforest.lua", "在森林中的99夜")
+    end
+})
+
+zslzd99yTab:Button({
+    Title = "[未汉化]FoxnameHub", Desc = "脚本网站比较火爆 不保证功能可用性", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/caomod2077/Script/refs/heads/main/FoxnameHub.lua", "在森林中的99夜")
+    end
+})
+
 
 
 
