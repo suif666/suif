@@ -375,6 +375,7 @@ local bzyyzyzTab = scriptSec:Tab({ Title = "捕捉一亿只鸭子", Icon = "shel
 local hbbTab = scriptSec:Tab({ Title = "汉堡包", Icon = "shell", Locked = false })
 local zslzd99yTab = scriptSec:Tab({ Title = "在森林中的99夜", Icon = "shell", Locked = false })
 local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked = false })
+local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1345,6 +1346,12 @@ msjdTab:Button({
     end
 })
 
+tykdTab:Button({
+    Title = "[未汉化]Ouroboros", Desc = "脚本网站 youtube最火爆 功能较多", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/joustingmatch/Ouroboros/main/loader.lua", "偷一颗蛋")
+    end
+})
 
 
 -- UI设置
