@@ -374,6 +374,7 @@ local bcmjbTab = scriptSec:Tab({ Title = "保持门紧闭", Icon = "shell", Lock
 local bzyyzyzTab = scriptSec:Tab({ Title = "捕捉一亿只鸭子", Icon = "shell", Locked = false })
 local hbbTab = scriptSec:Tab({ Title = "汉堡包", Icon = "shell", Locked = false })
 local zslzd99yTab = scriptSec:Tab({ Title = "在森林中的99夜", Icon = "shell", Locked = false })
+local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1316,6 +1317,33 @@ zslzd99yTab:Button({
     end
 })
 
+msjdTab:Paragraph({
+    Title = "注意",
+    Desc = "youtube上的脚本都是几个月前的 不保证功能可用"
+})
+
+msjdTab:Space()
+
+msjdTab:Button({
+    Title = "[未汉化]eueuem", Desc = "找了个功能较多 发布时间近期的", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/eueuem/folk/refs/heads/main/Load.luau", "谋杀决斗")
+    end
+})
+
+msjdTab:Button({
+    Title = "[未汉化]murder-duels", Desc = "功能不多 反响较好", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/imshrak/murder-duels/refs/heads/main/main", "谋杀决斗")
+    end
+})
+
+msjdTab:Button({
+    Title = "[未汉化]MurderDuels", Desc = "两个月前的了 不保证功能能用", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/gumanba/Scripts/main/MurderDuels", "谋杀决斗")
+    end
+})
 
 
 
