@@ -325,6 +325,7 @@ local amTab = funcSec:Tab({ Title = "自瞄类", Icon = "user", Locked = false }
 local sayTab = funcSec:Tab({ Title = "发言类", Icon = "user", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
+local coordTab = funcSec:Tab({ Title = "坐标传送", Icon = "map-pin", Locked = false })
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
 
 -- 视觉类
@@ -1094,6 +1095,20 @@ lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%
 getgenv().Tabs.POTab = podpoTab
 getgenv().SuturePOTab = podpoTab
 lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/PO%E5%A4%A7PO%E7%A4%BA%E4%BE%8B.lua", "po大po功能", podpoTab, true)
+
+--坐标传送远程（把 Tab 交给远程脚本，界面直接建在主窗口的「坐标传送」标签页里）
+getgenv().Tabs = getgenv().Tabs or {}
+getgenv().Tabs.CoordTPTab = coordTab
+getgenv().SutureCoordTPTab = coordTab
+getgenv().WindUI = WindUI
+
+coordTab:Paragraph({
+    Title = "坐标传送",
+    Desc = "首次点这个标签页时自动加载（远程脚本）\n"
+        .. "功能：显示/复制/保存坐标、手动输入数值传送、过滤非当前游戏坐标",
+})
+
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BC%A0%E9%80%81.lua", "坐标传送", coordTab, true)
 
 
 tyscriptTab:Button({
