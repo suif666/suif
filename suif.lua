@@ -694,112 +694,164 @@ toolTab:Button({
 })
 
 -- ==================== 屏蔽购买弹窗 ====================
--- 开启后：所有 Roblox 购买弹窗都不再出现（游戏通行证 / 开发者产品 / 头像物品 / Robux / 订阅等）
--- 两层拦截：
---   1. 拦 MarketplaceService 的所有 Prompt* 调用（脚本触发的弹窗，直接吞掉，连请求都不发）
---   2. 扫描并清掉已经弹出来的购买界面（服务端触发的弹窗走不到第 1 层，所以必须有这一层）
+-- 开启后：Roblox 的购买弹窗不再出现（游戏通行证 / 开发者产品 / 头像物品 / 订阅 / Premium）
+-- 三层拦截：
+--   1. 钩 MarketplaceService 的 Prompt* 方法 —— 脚本触发的弹窗直接吞掉，连购买请求都不发
+--   2. 清掉已经弹出来的购买界面 —— 服务端/引擎直接弹的弹窗只能靠这层
+--      购买弹窗都在 CoreGui 的 RobloxPromptGui / PurchasePromptApp 里，按容器清，
+--      不再只靠"猜名字"（上一版就是这么漏掉的）
+--   3. 万一执行器身份不够、CoreGui 写不进去：退化成盖一层最高层级的透明层，至少点不到购买按钮，
+--      并且开启时会明确告诉你当前是哪种状态
 local BuyBlock = {
     on = false,
     conns = {},
-    sweepConn = nil,
+    thread = nil,
     hooked = false,
     oldNamecall = nil,
     hookMode = "无",
+    canWriteCoreGui = nil,
+    overlay = nil,
+    killed = 0,
 }
 
--- 判断某个界面是不是"购买类"弹窗
-local function isPurchaseGui(inst)
-    if not inst or not inst.Name then return false end
-    local n = string.lower(inst.Name)
+local function bbGetRoots()
+    local roots = {}
+    pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
+    pcall(function() if gethui then table.insert(roots, gethui()) end end)
+    local pg = lp:FindFirstChild("PlayerGui")
+    if pg then table.insert(roots, pg) end
+    return roots
+end
+
+-- 测试 CoreGui 能不能写（不能写就只能走"挡点击"兜底）
+local function bbTestCoreGuiWrite()
+    local cg
+    pcall(function() cg = game:GetService("CoreGui") end)
+    if not cg then return false end
+    return (pcall(function()
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "__BuyBlockTest"
+        sg.Parent = cg
+        sg:Destroy()
+    end))
+end
+
+-- 只认"几乎不可能是别的东西"的名字关键词（避免误伤游戏自己的交互提示）
+local function bbIsBuyName(name)
+    if not name or name == "" then return false end
+    local n = string.lower(name)
     if string.find(n, "purchase", 1, true) then return true end
     if string.find(n, "promptproduct", 1, true) then return true end
     if string.find(n, "promptgamepass", 1, true) then return true end
     if string.find(n, "promptbundle", 1, true) then return true end
     if string.find(n, "promptpremium", 1, true) then return true end
-    if string.find(n, "subscriptionprompt", 1, true) then return true end
+    if string.find(n, "subscription", 1, true) then return true end
     return false
 end
 
--- 购买按钮的文字特征（用于识别 Roblox 自带的 promptOverlay 里的购买界面）
-local function looksLikeBuyPrompt(inst)
-    if not inst or not inst.GetDescendants then return false end
-    local ok, found = pcall(function()
-        for _, d in ipairs(inst:GetDescendants()) do
-            if d:IsA("TextButton") or d:IsA("TextLabel") then
-                local t = d.Text
-                if t and (string.find(t, "购买", 1, true)
-                    or string.find(string.lower(t), "buy", 1, true)
-                    or string.find(string.lower(t), "purchase", 1, true)
-                    or string.find(t, "Robux", 1, true)) then
-                    return true
-                end
+-- Roblox 自己的提示容器：里面的东西基本都是购买/订阅类弹窗
+local BB_PROMPT_ROOTS = { "RobloxPromptGui", "PurchasePromptApp", "RobloxPurchasePrompt", "PurchasePrompt" }
+local BB_SKIP_INSIDE = { "toast", "notification", "leave", "chat", "invite", "friend" }
+
+local function bbHide(inst)
+    if not inst or not inst.Parent then return false end
+    local ok1 = pcall(function() inst.Visible = false end)
+    local ok2 = pcall(function() inst:Destroy() end)
+    if ok1 or ok2 then
+        BuyBlock.killed = BuyBlock.killed + 1
+        return true
+    end
+    return false
+end
+
+local function bbSweepOne(root)
+    if not root then return end
+    -- 1) 按名字直接命中
+    pcall(function()
+        for _, d in ipairs(root:GetDescendants()) do
+            if (d:IsA("GuiObject") or d:IsA("ScreenGui") or d:IsA("LayerCollector")) and bbIsBuyName(d.Name) then
+                bbHide(d)
             end
         end
-        return false
     end)
-    return ok and found
+    -- 2) Roblox 的提示容器：整块清（跳过少数非购买提示）
+    for _, cname in ipairs(BB_PROMPT_ROOTS) do
+        local ok, container = pcall(function() return root:FindFirstChild(cname) end)
+        if ok and container then
+            local kids = nil
+            pcall(function() kids = container:GetChildren() end)
+            for _, c in ipairs(kids or {}) do
+                local skip = false
+                local ln = string.lower(c.Name)
+                for _, k in ipairs(BB_SKIP_INSIDE) do
+                    if string.find(ln, k, 1, true) then
+                        skip = true
+                        break
+                    end
+                end
+                if not skip then bbHide(c) end
+            end
+        end
+    end
 end
 
-local function killPurchaseGui(inst)
-    if not inst or not inst.Parent then return end
-    pcall(function() inst.Visible = false end)
-    task.defer(function()
-        pcall(function() inst:Destroy() end)
-    end)
-end
-
-local function sweepPurchaseGui()
+local function bbSweep()
     if not BuyBlock.on then return end
-    local roots = {}
-    pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
-    pcall(function() if gethui then table.insert(roots, gethui()) end end)
-    if lp:FindFirstChild("PlayerGui") then table.insert(roots, lp.PlayerGui) end
+    for _, root in ipairs(bbGetRoots()) do
+        bbSweepOne(root)
+    end
+end
 
-    for _, root in ipairs(roots) do
+-- 还有没有购买界面存在（用于决定兜底透明层要不要盖）
+local function bbAnyBuyGui()
+    for _, root in ipairs(bbGetRoots()) do
+        local found = false
         pcall(function()
             for _, d in ipairs(root:GetDescendants()) do
-                if d:IsA("GuiObject") or d:IsA("ScreenGui") then
-                    if isPurchaseGui(d) then
-                        killPurchaseGui(d)
-                    elseif d.Parent and d.Parent.Name == "promptOverlay" and looksLikeBuyPrompt(d) then
-                        killPurchaseGui(d)
-                    end
+                if (d:IsA("GuiObject") or d:IsA("ScreenGui")) and bbIsBuyName(d.Name) then
+                    found = true
+                    break
                 end
             end
         end)
+        if found then return true end
+    end
+    return false
+end
+
+-- CoreGui 写不进去时的兜底：盖一层最高层级的透明层，点不到购买按钮
+local function bbOverlayShow(show)
+    if show then
+        if BuyBlock.overlay and BuyBlock.overlay.Parent then return end
+        pcall(function()
+            local parent = (gethui and gethui()) or lp:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+            local sg = Instance.new("ScreenGui")
+            sg.Name = "__BuyBlockOverlay"
+            sg.IgnoreGuiInset = true
+            sg.ResetOnSpawn = false
+            sg.DisplayOrder = 2147483647
+            sg.Parent = parent
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.new(1, 0, 1, 0)
+            b.BackgroundTransparency = 1
+            b.Text = ""
+            b.AutoButtonColor = false
+            b.Active = true
+            b.Parent = sg
+            BuyBlock.overlay = sg
+        end)
+    else
+        if BuyBlock.overlay then
+            pcall(function() BuyBlock.overlay:Destroy() end)
+            BuyBlock.overlay = nil
+        end
     end
 end
 
-local function setBuyBlock(on)
-    BuyBlock.on = on
-
-    -- 关：还原所有改动
-    if not on then
-        if BuyBlock.sweepConn then
-            pcall(function() BuyBlock.sweepConn:Disconnect() end)
-            BuyBlock.sweepConn = nil
-        end
-        for _, c in ipairs(BuyBlock.conns) do
-            pcall(function() c:Disconnect() end)
-        end
-        BuyBlock.conns = {}
-        if BuyBlock.hooked and BuyBlock.oldNamecall then
-            pcall(function()
-                local mt = getrawmetatable and getrawmetatable(game)
-                if mt then
-                    pcall(function() if setreadonly then setreadonly(mt, false) end end)
-                    mt.__namecall = BuyBlock.oldNamecall
-                    pcall(function() if setreadonly then setreadonly(mt, true) end end)
-                end
-            end)
-        end
-        BuyBlock.hooked = false
-        return true
-    end
-
-    -- 第 1 层：拦 MarketplaceService 的 Prompt* 方法
+local function bbInstallHook()
+    if BuyBlock.hooked then return end
     local Market = game:GetService("MarketplaceService")
-    local blockedMethods = {
+    local blocked = {
         PromptPurchase = true,
         PromptGamePassPurchase = true,
         PromptProductPurchase = true,
@@ -809,77 +861,177 @@ local function setBuyBlock(on)
         PromptThirdPartyPurchase = true,
         PromptNativePurchase = true,
     }
-    local hookBody = function(self, ...)
+    local function hookBody(self, ...)
         local method
         pcall(function() method = getnamecallmethod() end)
-        if BuyBlock.on and self == Market and method and blockedMethods[method] then
-            return nil   -- 直接吞掉：不弹窗、不发购买请求
+        if BuyBlock.on and self == Market and method and blocked[method] then
+            return nil   -- 吞掉：不弹窗、不发购买请求
         end
         return BuyBlock.oldNamecall(self, ...)
     end
+    -- 有 newcclosure 就用（更隐蔽），没有就直接用普通闭包（兼容只支持一半的执行器）
+    local wrapped = hookBody
+    if newcclosure then
+        local ok, res = pcall(newcclosure, hookBody)
+        if ok and res then wrapped = res end
+    end
 
-    if not BuyBlock.hooked then
-        if hookmetamethod and newcclosure then
-            local ok = pcall(function()
-                BuyBlock.oldNamecall = hookmetamethod(game, "__namecall", newcclosure(hookBody))
-            end)
-            if ok and BuyBlock.oldNamecall then
-                BuyBlock.hooked, BuyBlock.hookMode = true, "hookmetamethod"
-            end
-        end
-        if not BuyBlock.hooked and getrawmetatable and setreadonly and newcclosure then
-            local ok = pcall(function()
-                local mt = getrawmetatable(game)
-                BuyBlock.oldNamecall = mt.__namecall
-                setreadonly(mt, false)
-                mt.__namecall = newcclosure(hookBody)
-                setreadonly(mt, true)
-            end)
-            if ok and BuyBlock.oldNamecall then
-                BuyBlock.hooked, BuyBlock.hookMode = true, "getrawmetatable"
-            end
+    if hookmetamethod then
+        local ok, old = pcall(function()
+            return hookmetamethod(game, "__namecall", wrapped)
+        end)
+        if ok and old then
+            BuyBlock.oldNamecall = old
+            BuyBlock.hooked = true
+            BuyBlock.hookMode = "hookmetamethod"
+            return
         end
     end
 
-    -- 第 2 层：监听 + 定时清理已经弹出来的购买界面
-    local roots = {}
-    pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
-    pcall(function() if gethui then table.insert(roots, gethui()) end end)
-    if lp:FindFirstChild("PlayerGui") then table.insert(roots, lp.PlayerGui) end
-    for _, root in ipairs(roots) do
+    if getrawmetatable then
+        local ok, prev = pcall(function()
+            local mt = getrawmetatable(game)
+            local p = mt.__namecall
+            if setreadonly then pcall(setreadonly, mt, false) end
+            mt.__namecall = wrapped
+            if setreadonly then pcall(setreadonly, mt, true) end
+            return p
+        end)
+        if ok and prev then
+            BuyBlock.oldNamecall = prev
+            BuyBlock.hooked = true
+            BuyBlock.hookMode = "getrawmetatable"
+            return
+        end
+    end
+
+    BuyBlock.hookMode = "不支持（执行器没有 hookmetamethod/getrawmetatable）"
+end
+
+local function bbUninstallHook()
+    if not BuyBlock.hooked or not BuyBlock.oldNamecall then return end
+    pcall(function()
+        local mt = getrawmetatable and getrawmetatable(game)
+        if mt then
+            if setreadonly then pcall(setreadonly, mt, false) end
+            mt.__namecall = BuyBlock.oldNamecall
+            if setreadonly then pcall(setreadonly, mt, true) end
+        end
+    end)
+    BuyBlock.hooked = false
+end
+
+local function setBuyBlock(on)
+    BuyBlock.on = on
+
+    -- 关：还原钩子、断连接、收掉兜底层
+    if not on then
+        if BuyBlock.thread then
+            pcall(task.cancel, BuyBlock.thread)
+            BuyBlock.thread = nil
+        end
+        for _, c in ipairs(BuyBlock.conns) do
+            pcall(function() c:Disconnect() end)
+        end
+        BuyBlock.conns = {}
+        bbOverlayShow(false)
+        bbUninstallHook()
+        return "已关闭"
+    end
+
+    if BuyBlock.canWriteCoreGui == nil then
+        BuyBlock.canWriteCoreGui = bbTestCoreGuiWrite()
+    end
+
+    bbInstallHook()
+
+    -- 监听新出现的界面 + 定时补扫（弹窗有时是复用已有界面，只改 Visible）
+    for _, root in ipairs(bbGetRoots()) do
         pcall(function()
             BuyBlock.conns[#BuyBlock.conns + 1] = root.DescendantAdded:Connect(function(d)
                 if not BuyBlock.on then return end
-                if (d:IsA("GuiObject") or d:IsA("ScreenGui")) and isPurchaseGui(d) then
-                    killPurchaseGui(d)
+                local okIs = pcall(function()
+                    return d:IsA("GuiObject") or d:IsA("ScreenGui") or d:IsA("LayerCollector")
+                end)
+                if okIs and (d:IsA("GuiObject") or d:IsA("ScreenGui") or d:IsA("LayerCollector")) and bbIsBuyName(d.Name) then
+                    bbHide(d)
                 end
             end)
         end)
     end
-    sweepPurchaseGui()   -- 立先扫一遍（可能已经弹出来了）
-    BuyBlock.sweepConn = task.spawn(function()
+
+    bbSweep()
+    BuyBlock.thread = task.spawn(function()
         while BuyBlock.on do
-            task.wait(0.5)
-            if BuyBlock.on then sweepPurchaseGui() end
+            task.wait(0.3)
+            if BuyBlock.on then
+                bbSweep()
+                if not BuyBlock.canWriteCoreGui then
+                    bbOverlayShow(bbAnyBuyGui())
+                end
+            end
         end
     end)
-
-    return true, BuyBlock.hookMode
+    return BuyBlock.hookMode
 end
 
 toolTab:Toggle({
     Title = "屏蔽购买弹窗",
-    Desc = "开启后所有 Roblox 购买弹窗都不再出现（通行证/开发者产品/头像物品/Robux/订阅）",
+    Desc = "开启后 Roblox 购买弹窗不再出现（通行证 / 开发者产品 / 头像物品 / 订阅）",
     Icon = "shield-off",
     Type = "Checkbox",
     Value = false,
     Callback = function(s)
-        local ok, mode = setBuyBlock(s)
+        local mode = setBuyBlock(s)
         if s then
-            notify("屏蔽购买弹窗", "已开启（拦截方式：" .. tostring(mode) .. "）", "check", 3)
+            local extra = BuyBlock.canWriteCoreGui and "CoreGui 可写" or "CoreGui 不可写（改用挡点击兜底）"
+            notify("屏蔽购买弹窗", "已开启 · " .. extra .. " · 钩子：" .. tostring(mode), "check", 6)
         else
             notify("屏蔽购买弹窗", "已关闭", "info", 3)
         end
+    end
+})
+
+toolTab:Button({
+    Title = "购买弹窗诊断",
+    Desc = "不生效时点这个：把拦截状态和 CoreGui 里的界面名字报出来（发给作者）",
+    Icon = "stethoscope",
+    Callback = function()
+        task.spawn(function()
+            local mode = BuyBlock.hookMode
+            local write = bbTestCoreGuiWrite()
+            BuyBlock.canWriteCoreGui = write
+            local cg
+            pcall(function() cg = game:GetService("CoreGui") end)
+            local names = {}
+            pcall(function()
+                for _, d in ipairs(cg:GetDescendants()) do
+                    if d:IsA("ScreenGui") then
+                        names[#names + 1] = d.Name
+                        if #names >= 30 then break end
+                    end
+                end
+            end)
+            local promptKids = {}
+            pcall(function()
+                local rpg = cg and cg:FindFirstChild("RobloxPromptGui")
+                if rpg then
+                    for _, c in ipairs(rpg:GetDescendants()) do
+                        promptKids[#promptKids + 1] = c.ClassName .. ":" .. c.Name
+                        if #promptKids >= 30 then break end
+                    end
+                end
+            end)
+
+            local txt = "钩子：" .. tostring(mode)
+                .. "\nCoreGui 可写：" .. tostring(write)
+                .. "\nCoreGui 的 ScreenGui：" .. (#names > 0 and table.concat(names, ", ") or "没读到")
+                .. "\nRobloxPromptGui 内容：" .. (#promptKids > 0 and table.concat(promptKids, ", ") or "空/不存在")
+            notify("购买弹窗诊断", txt, "info", 15)
+            print("[购买弹窗诊断] hookMode=" .. tostring(mode) .. " coreGuiWritable=" .. tostring(write))
+            print("[购买弹窗诊断] ScreenGui: " .. table.concat(names, " | "))
+            print("[购买弹窗诊断] RobloxPromptGui: " .. table.concat(promptKids, " | "))
+        end)
     end
 })
 
@@ -1397,7 +1549,7 @@ end
 
 local ndsMainSec = zrzhTab:Section({ Title = "主要功能", Icon = "cloud-lightning", Opened = true })
 
--- 自动胜利1 / 自动胜利2（原版把 while 循环直接写在回调里会卡住界面，这里改成开关 + 独立线程）
+-- 自动胜利1（原版把 while 循环直接写在回调里会卡住界面，这里改成开关 + 独立线程）
 local ndsWinOn = { false, false }
 local ndsWinThread = { nil, nil }
 local function ndsWinSet(idx, on, cf, name)
@@ -1432,36 +1584,6 @@ ndsMainSec:Toggle({
     Value = false,
     Callback = function(s)
         ndsWinSet(1, s, NDS_CF.win1, "自动胜利1")
-    end
-})
-
-ndsMainSec:Toggle({
-    Title = "自动胜利2",
-    Desc = "持续传送到胜利位置2",
-    Icon = "trophy",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(s)
-        ndsWinSet(2, s, NDS_CF.win2, "自动胜利2")
-    end
-})
-
-ndsMainSec:Toggle({
-    Title = "显示地图投票界面",
-    Desc = "显示/隐藏游戏自带的地图投票界面（MainGui.MapVotePage）",
-    Icon = "vote",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(s)
-        local pg = lp:FindFirstChild("PlayerGui")
-        local gui = pg and pg:FindFirstChild("MainGui")
-        local page = gui and gui:FindFirstChild("MapVotePage")
-        if not page then
-            notify("没找到界面", "PlayerGui.MainGui.MapVotePage 不存在（可能不在自然灾害里）", "x", 4)
-            return
-        end
-        pcall(function() page.Visible = s end)
-        notify("地图投票界面", s and "已显示" or "已隐藏", "info", 2)
     end
 })
 
@@ -1504,45 +1626,6 @@ ndsMainSec:Toggle({
         else
             notify("岛边缘碰撞", (s and "已开启，" or "已关闭，") .. "处理了 " .. n .. " 个", "check", 2)
         end
-    end
-})
-
--- 隐藏暴风雪 / 沙尘暴覆盖层（原版是 Destroy 不可逆，这里改成隐藏，关掉能恢复）
-local ndsWeatherOn = false
-local ndsWeatherThread = nil
-local function ndsWeatherApply()
-    local pg = lp:FindFirstChild("PlayerGui")
-    if not pg then return end
-    for _, name in ipairs({ "BlizzardGui", "SandStormGui" }) do
-        local g = pg:FindFirstChild(name)
-        if g and (g:IsA("GuiObject") or g:IsA("LayerCollector")) then
-            pcall(function() g.Visible = ndsWeatherOn end)
-        end
-    end
-end
-
-ndsMainSec:Toggle({
-    Title = "隐藏暴风雪/沙尘暴界面",
-    Desc = "隐藏灾难时糊住屏幕的暴风雪/沙尘暴覆盖层（关掉可恢复）",
-    Icon = "eye-off",
-    Type = "Checkbox",
-    Value = false,
-    Callback = function(s)
-        ndsWeatherOn = s
-        if ndsWeatherThread then
-            pcall(task.cancel, ndsWeatherThread)
-            ndsWeatherThread = nil
-        end
-        ndsWeatherApply()
-        if s then
-            ndsWeatherThread = task.spawn(function()
-                while ndsWeatherOn do
-                    task.wait(0.2)
-                    if ndsWeatherOn then ndsWeatherApply() end
-                end
-            end)
-        end
-        notify("暴风雪/沙尘暴界面", s and "已隐藏" or "已恢复", "info", 2)
     end
 })
 
@@ -1608,13 +1691,6 @@ ndsMainSec:Toggle({
 
 -- ==================== 自然灾害：传送 ====================
 local ndsTpSec = zrzhTab:Section({ Title = "传送", Icon = "map-pin", Opened = false })
-
-ndsTpSec:Button({
-    Title = "传送到地图",
-    Desc = "传送到主要地图位置",
-    Icon = "map-pin",
-    Callback = function() ndsTeleport(NDS_CF.map, "已传送到地图位置") end
-})
 
 ndsTpSec:Button({
     Title = "灾害岛",
