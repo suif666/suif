@@ -693,6 +693,196 @@ toolTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/config/iy%E6%B1%89%E5%8C%96%E7%89%88", "iy汉化") end
 })
 
+-- ==================== 屏蔽购买弹窗 ====================
+-- 开启后：所有 Roblox 购买弹窗都不再出现（游戏通行证 / 开发者产品 / 头像物品 / Robux / 订阅等）
+-- 两层拦截：
+--   1. 拦 MarketplaceService 的所有 Prompt* 调用（脚本触发的弹窗，直接吞掉，连请求都不发）
+--   2. 扫描并清掉已经弹出来的购买界面（服务端触发的弹窗走不到第 1 层，所以必须有这一层）
+local BuyBlock = {
+    on = false,
+    conns = {},
+    sweepConn = nil,
+    hooked = false,
+    oldNamecall = nil,
+    hookMode = "无",
+}
+
+-- 判断某个界面是不是"购买类"弹窗
+local function isPurchaseGui(inst)
+    if not inst or not inst.Name then return false end
+    local n = string.lower(inst.Name)
+    if string.find(n, "purchase", 1, true) then return true end
+    if string.find(n, "promptproduct", 1, true) then return true end
+    if string.find(n, "promptgamepass", 1, true) then return true end
+    if string.find(n, "promptbundle", 1, true) then return true end
+    if string.find(n, "promptpremium", 1, true) then return true end
+    if string.find(n, "subscriptionprompt", 1, true) then return true end
+    return false
+end
+
+-- 购买按钮的文字特征（用于识别 Roblox 自带的 promptOverlay 里的购买界面）
+local function looksLikeBuyPrompt(inst)
+    if not inst or not inst.GetDescendants then return false end
+    local ok, found = pcall(function()
+        for _, d in ipairs(inst:GetDescendants()) do
+            if d:IsA("TextButton") or d:IsA("TextLabel") then
+                local t = d.Text
+                if t and (string.find(t, "购买", 1, true)
+                    or string.find(string.lower(t), "buy", 1, true)
+                    or string.find(string.lower(t), "purchase", 1, true)
+                    or string.find(t, "Robux", 1, true)) then
+                    return true
+                end
+            end
+        end
+        return false
+    end)
+    return ok and found
+end
+
+local function killPurchaseGui(inst)
+    if not inst or not inst.Parent then return end
+    pcall(function() inst.Visible = false end)
+    task.defer(function()
+        pcall(function() inst:Destroy() end)
+    end)
+end
+
+local function sweepPurchaseGui()
+    if not BuyBlock.on then return end
+    local roots = {}
+    pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
+    pcall(function() if gethui then table.insert(roots, gethui()) end end)
+    if lp:FindFirstChild("PlayerGui") then table.insert(roots, lp.PlayerGui) end
+
+    for _, root in ipairs(roots) do
+        pcall(function()
+            for _, d in ipairs(root:GetDescendants()) do
+                if d:IsA("GuiObject") or d:IsA("ScreenGui") then
+                    if isPurchaseGui(d) then
+                        killPurchaseGui(d)
+                    elseif d.Parent and d.Parent.Name == "promptOverlay" and looksLikeBuyPrompt(d) then
+                        killPurchaseGui(d)
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local function setBuyBlock(on)
+    BuyBlock.on = on
+
+    -- 关：还原所有改动
+    if not on then
+        if BuyBlock.sweepConn then
+            pcall(function() BuyBlock.sweepConn:Disconnect() end)
+            BuyBlock.sweepConn = nil
+        end
+        for _, c in ipairs(BuyBlock.conns) do
+            pcall(function() c:Disconnect() end)
+        end
+        BuyBlock.conns = {}
+        if BuyBlock.hooked and BuyBlock.oldNamecall then
+            pcall(function()
+                local mt = getrawmetatable and getrawmetatable(game)
+                if mt then
+                    pcall(function() if setreadonly then setreadonly(mt, false) end end)
+                    mt.__namecall = BuyBlock.oldNamecall
+                    pcall(function() if setreadonly then setreadonly(mt, true) end end)
+                end
+            end)
+        end
+        BuyBlock.hooked = false
+        return true
+    end
+
+    -- 第 1 层：拦 MarketplaceService 的 Prompt* 方法
+    local Market = game:GetService("MarketplaceService")
+    local blockedMethods = {
+        PromptPurchase = true,
+        PromptGamePassPurchase = true,
+        PromptProductPurchase = true,
+        PromptBundlePurchase = true,
+        PromptRobloxPurchase = true,
+        PromptPremiumPurchase = true,
+        PromptThirdPartyPurchase = true,
+        PromptNativePurchase = true,
+    }
+    local hookBody = function(self, ...)
+        local method
+        pcall(function() method = getnamecallmethod() end)
+        if BuyBlock.on and self == Market and method and blockedMethods[method] then
+            return nil   -- 直接吞掉：不弹窗、不发购买请求
+        end
+        return BuyBlock.oldNamecall(self, ...)
+    end
+
+    if not BuyBlock.hooked then
+        if hookmetamethod and newcclosure then
+            local ok = pcall(function()
+                BuyBlock.oldNamecall = hookmetamethod(game, "__namecall", newcclosure(hookBody))
+            end)
+            if ok and BuyBlock.oldNamecall then
+                BuyBlock.hooked, BuyBlock.hookMode = true, "hookmetamethod"
+            end
+        end
+        if not BuyBlock.hooked and getrawmetatable and setreadonly and newcclosure then
+            local ok = pcall(function()
+                local mt = getrawmetatable(game)
+                BuyBlock.oldNamecall = mt.__namecall
+                setreadonly(mt, false)
+                mt.__namecall = newcclosure(hookBody)
+                setreadonly(mt, true)
+            end)
+            if ok and BuyBlock.oldNamecall then
+                BuyBlock.hooked, BuyBlock.hookMode = true, "getrawmetatable"
+            end
+        end
+    end
+
+    -- 第 2 层：监听 + 定时清理已经弹出来的购买界面
+    local roots = {}
+    pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
+    pcall(function() if gethui then table.insert(roots, gethui()) end end)
+    if lp:FindFirstChild("PlayerGui") then table.insert(roots, lp.PlayerGui) end
+    for _, root in ipairs(roots) do
+        pcall(function()
+            BuyBlock.conns[#BuyBlock.conns + 1] = root.DescendantAdded:Connect(function(d)
+                if not BuyBlock.on then return end
+                if (d:IsA("GuiObject") or d:IsA("ScreenGui")) and isPurchaseGui(d) then
+                    killPurchaseGui(d)
+                end
+            end)
+        end)
+    end
+    sweepPurchaseGui()   -- 立先扫一遍（可能已经弹出来了）
+    BuyBlock.sweepConn = task.spawn(function()
+        while BuyBlock.on do
+            task.wait(0.5)
+            if BuyBlock.on then sweepPurchaseGui() end
+        end
+    end)
+
+    return true, BuyBlock.hookMode
+end
+
+toolTab:Toggle({
+    Title = "屏蔽购买弹窗",
+    Desc = "开启后所有 Roblox 购买弹窗都不再出现（通行证/开发者产品/头像物品/Robux/订阅）",
+    Icon = "shield-off",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        local ok, mode = setBuyBlock(s)
+        if s then
+            notify("屏蔽购买弹窗", "已开启（拦截方式：" .. tostring(mode) .. "）", "check", 3)
+        else
+            notify("屏蔽购买弹窗", "已关闭", "info", 3)
+        end
+    end
+})
+
 
 -- 脚本区域
 doorsTab:Button({
@@ -1090,6 +1280,92 @@ getgenv().Tabs.ZRZHTab = zrzhTab
 getgenv().SutureZRZHTab = zrzhTab
 
 lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E7%A4%BA%E4%BE%8B.lua", "自然灾害", zrzhTab, true)
+
+-- ==================== 自然灾害：苹果/气球刷（点击倍率） ====================
+-- 原理：自然灾害把"点苹果 / 点气球"做成了远程 ReplicatedStorage.Event，
+--       指令是 "ClickedApple" / "ClickedBalloon"。每帧多发几次就等于把点击速度放大几倍。
+--       没有这个远程时，自动退回点道具上的 ClickDetector（BillboardApple / BillboardBalloon）。
+-- 说明：这两个点击在游戏服务端的结算会把玩家装扮变成 noob（就是外面那个「让所有人变成NOOB」
+--       脚本干的事，FE 所有人可见），所以"后面进来的玩家变 noob"是游戏行为，不是本地掉帧。
+local NDS = { on = false, rate = 10, conn = nil }
+
+local function ndsStop()
+    NDS.on = false
+    if NDS.conn then
+        pcall(function() NDS.conn:Disconnect() end)
+        NDS.conn = nil
+    end
+end
+
+local function ndsStart()
+    ndsStop()
+    local RS = game:GetService("ReplicatedStorage")
+    local rem = RS:FindFirstChild("Event")
+    local detApple, detBalloon
+    if not rem then
+        for _, name in ipairs({ "BillboardApple", "BillboardBalloon" }) do
+            local obj = workspace:FindFirstChild(name)
+            local board = obj and obj:FindFirstChild("Board")
+            local det = board and board:FindFirstChildOfClass("ClickDetector")
+            if name == "BillboardApple" then
+                detApple = det
+            else
+                detBalloon = det
+            end
+        end
+        if not detApple and not detBalloon then
+            notify("没找到目标", "ReplicatedStorage.Event 和 BillboardApple/BillboardBalloon 都不存在（可能不在自然灾害里）", "x", 5)
+            return false
+        end
+    end
+
+    NDS.on = true
+    NDS.conn = RunService.Heartbeat:Connect(function()
+        if not NDS.on then return end
+        for _ = 1, NDS.rate do
+            if rem then
+                pcall(function()
+                    rem:FireServer("ClickedApple")
+                    rem:FireServer("ClickedBalloon")
+                end)
+            else
+                if detApple and fireclickdetector then pcall(fireclickdetector, detApple) end
+                if detBalloon and fireclickdetector then pcall(fireclickdetector, detBalloon) end
+            end
+        end
+    end)
+    return true
+end
+
+local ndsSec = zrzhTab:Section({ Title = "苹果/气球刷", Icon = "apple", Opened = true })
+
+ndsSec:Toggle({
+    Title = "开启苹果/气球刷",
+    Desc = "每帧按下面倍率发送点击（原版脚本 AttackRate=10 就是这里的倍率 10）",
+    Icon = "zap",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        if s then
+            if ndsStart() then
+                notify("苹果/气球刷", "已开启，倍率 " .. tostring(NDS.rate), "check", 3)
+            end
+        else
+            ndsStop()
+            notify("苹果/气球刷", "已关闭", "info", 3)
+        end
+    end
+})
+
+ndsSec:Slider({
+    Title = "倍率",
+    Desc = "每帧发送次数（10 = 原版脚本强度，也就是每帧 20 次远程调用）",
+    Step = 1,
+    Value = { Min = 1, Max = 30, Default = 10 },
+    Callback = function(v)
+        NDS.rate = math.max(1, math.floor(tonumber(v) or 10))
+    end
+})
 
 --po大po 功能远程
 getgenv().Tabs.POTab = podpoTab
