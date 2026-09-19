@@ -1367,6 +1367,301 @@ ndsSec:Slider({
     end
 })
 
+-- ==================== 自然灾害：主要功能 ====================
+-- 以下坐标/对象名都是从 BS脚本 的自然灾害专区搬过来的（那边实测能用）
+local NDS_CF = {
+    win1   = CFrame.new(-236, 180, 360),
+    win2   = CFrame.new(-280, 170, 341),
+    tower  = CFrame.new(-280, 180, 341),
+    island = CFrame.new(-83.5, 38.5, -27.5, -1, 0, 0, 0, 1, 0, 0, 0, -1),
+    map    = CFrame.new(-115.828506, 65.4863434, 18.8461514,
+        0.00697017973, 0.0789371505, -0.996855199,
+        -3.13589936e-07, 0.996879458, 0.0789390653,
+        0.999975681, -0.000549906865, 0.00694845384),
+}
+
+-- 通用：把角色传送到指定位置（没角色就提示，不再像原版那样直接报错）
+local function ndsTeleport(cf, label, silent)
+    local char = lp.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then
+        notify("传送失败", "没有角色（先复活一次）", "x", 3)
+        return false
+    end
+    local ok = pcall(function() root.CFrame = cf end)
+    if not silent then
+        notify(ok and "传送成功" or "传送失败", label or "已传送", ok and "check" or "x", 2)
+    end
+    return ok
+end
+
+local ndsMainSec = zrzhTab:Section({ Title = "主要功能", Icon = "cloud-lightning", Opened = true })
+
+-- 自动胜利1 / 自动胜利2（原版把 while 循环直接写在回调里会卡住界面，这里改成开关 + 独立线程）
+local ndsWinOn = { false, false }
+local ndsWinThread = { nil, nil }
+local function ndsWinSet(idx, on, cf, name)
+    ndsWinOn[idx] = false
+    if ndsWinThread[idx] then
+        pcall(task.cancel, ndsWinThread[idx])
+        ndsWinThread[idx] = nil
+    end
+    if not on then
+        notify(name, "已关闭", "info", 2)
+        return
+    end
+    if not ndsTeleport(cf, nil, true) then
+        notify(name, "开启失败：没有角色", "x", 3)
+        return
+    end
+    ndsWinOn[idx] = true
+    ndsWinThread[idx] = task.spawn(function()
+        while ndsWinOn[idx] do
+            ndsTeleport(cf, nil, true)
+            task.wait(0.1)
+        end
+    end)
+    notify(name, "已开启（每 0.1 秒回胜利点）", "check", 2)
+end
+
+ndsMainSec:Toggle({
+    Title = "自动胜利1",
+    Desc = "持续传送到胜利位置1（原版写法会卡界面，这里改成开关）",
+    Icon = "trophy",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        ndsWinSet(1, s, NDS_CF.win1, "自动胜利1")
+    end
+})
+
+ndsMainSec:Toggle({
+    Title = "自动胜利2",
+    Desc = "持续传送到胜利位置2",
+    Icon = "trophy",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        ndsWinSet(2, s, NDS_CF.win2, "自动胜利2")
+    end
+})
+
+ndsMainSec:Toggle({
+    Title = "显示地图投票界面",
+    Desc = "显示/隐藏游戏自带的地图投票界面（MainGui.MapVotePage）",
+    Icon = "vote",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        local pg = lp:FindFirstChild("PlayerGui")
+        local gui = pg and pg:FindFirstChild("MainGui")
+        local page = gui and gui:FindFirstChild("MapVotePage")
+        if not page then
+            notify("没找到界面", "PlayerGui.MainGui.MapVotePage 不存在（可能不在自然灾害里）", "x", 4)
+            return
+        end
+        pcall(function() page.Visible = s end)
+        notify("地图投票界面", s and "已显示" or "已隐藏", "info", 2)
+    end
+})
+
+ndsMainSec:Toggle({
+    Title = "在水上行走",
+    Desc = "打开水面碰撞（把 WaterLevel 拉成 5000x1x5000），关掉恢复原样",
+    Icon = "waves",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        local w = workspace:FindFirstChild("WaterLevel")
+        if not w then
+            notify("没找到水面", "workspace.WaterLevel 不存在（可能不在自然灾害里）", "x", 4)
+            return
+        end
+        pcall(function()
+            w.CanCollide = s
+            w.Size = s and Vector3.new(5000, 1, 5000) or Vector3.new(10, 1, 10)
+        end)
+        notify("水上行走", s and "已开启" or "已关闭", "info", 2)
+    end
+})
+
+ndsMainSec:Toggle({
+    Title = "岛边缘实体碰撞",
+    Desc = "打开 LowerRocks 的碰撞，掉到岛边缘不会直接滑下去",
+    Icon = "mountain",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        local n = 0
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v.Name == "LowerRocks" then
+                pcall(function() v.CanCollide = s end)
+                n = n + 1
+            end
+        end
+        if n == 0 then
+            notify("没找到目标", "地图里没有 LowerRocks（可能不在自然灾害里）", "x", 4)
+        else
+            notify("岛边缘碰撞", (s and "已开启，" or "已关闭，") .. "处理了 " .. n .. " 个", "check", 2)
+        end
+    end
+})
+
+-- 隐藏暴风雪 / 沙尘暴覆盖层（原版是 Destroy 不可逆，这里改成隐藏，关掉能恢复）
+local ndsWeatherOn = false
+local ndsWeatherThread = nil
+local function ndsWeatherApply()
+    local pg = lp:FindFirstChild("PlayerGui")
+    if not pg then return end
+    for _, name in ipairs({ "BlizzardGui", "SandStormGui" }) do
+        local g = pg:FindFirstChild(name)
+        if g and (g:IsA("GuiObject") or g:IsA("LayerCollector")) then
+            pcall(function() g.Visible = ndsWeatherOn end)
+        end
+    end
+end
+
+ndsMainSec:Toggle({
+    Title = "隐藏暴风雪/沙尘暴界面",
+    Desc = "隐藏灾难时糊住屏幕的暴风雪/沙尘暴覆盖层（关掉可恢复）",
+    Icon = "eye-off",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        ndsWeatherOn = s
+        if ndsWeatherThread then
+            pcall(task.cancel, ndsWeatherThread)
+            ndsWeatherThread = nil
+        end
+        ndsWeatherApply()
+        if s then
+            ndsWeatherThread = task.spawn(function()
+                while ndsWeatherOn do
+                    task.wait(0.2)
+                    if ndsWeatherOn then ndsWeatherApply() end
+                end
+            end)
+        end
+        notify("暴风雪/沙尘暴界面", s and "已隐藏" or "已恢复", "info", 2)
+    end
+})
+
+-- 防击退（防摔伤）：每帧抵消一次速度，防止被灾害击飞/摔伤（BS脚本 的原始机制）
+local ndsKnockOn = false
+local ndsKnockConns = {}
+local ndsKnockCharConn = nil
+
+local function ndsKnockAttach(char)
+    local root = char:WaitForChild("HumanoidRootPart", 6)
+    if not root then return end
+    local conn = RunService.Heartbeat:Connect(function()
+        if not ndsKnockOn then return end
+        if not root or not root.Parent then return end
+        local v = root.AssemblyLinearVelocity
+        local av = root.AssemblyAngularVelocity
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        RunService.RenderStepped:Wait()
+        if root.Parent then
+            root.AssemblyLinearVelocity = v
+            root.AssemblyAngularVelocity = av
+        end
+    end)
+    ndsKnockConns[#ndsKnockConns + 1] = conn
+end
+
+local function ndsKnockStop()
+    ndsKnockOn = false
+    for _, c in ipairs(ndsKnockConns) do
+        pcall(function() c:Disconnect() end)
+    end
+    ndsKnockConns = {}
+    if ndsKnockCharConn then
+        pcall(function() ndsKnockCharConn:Disconnect() end)
+        ndsKnockCharConn = nil
+    end
+end
+
+ndsMainSec:Toggle({
+    Title = "防击退（防摔伤）",
+    Desc = "每帧抵消一次速度：防止被灾害击飞、摔伤；会造成移动手感发飘，只在需要时开",
+    Icon = "shield",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(s)
+        ndsKnockStop()
+        if not s then
+            notify("防击退", "已关闭，物理恢复正常", "info", 2)
+            return
+        end
+        ndsKnockOn = true
+        local char = lp.Character
+        if char then ndsKnockAttach(char) end
+        ndsKnockCharConn = lp.CharacterAdded:Connect(function(c)
+            if not ndsKnockOn then return end
+            task.wait(0.3)
+            if ndsKnockOn then ndsKnockAttach(c) end
+        end)
+        notify("防击退", "已开启", "check", 2)
+    end
+})
+
+-- ==================== 自然灾害：传送 ====================
+local ndsTpSec = zrzhTab:Section({ Title = "传送", Icon = "map-pin", Opened = false })
+
+ndsTpSec:Button({
+    Title = "传送到地图",
+    Desc = "传送到主要地图位置",
+    Icon = "map-pin",
+    Callback = function() ndsTeleport(NDS_CF.map, "已传送到地图位置") end
+})
+
+ndsTpSec:Button({
+    Title = "灾害岛",
+    Desc = "传送到灾害岛（位置可能偏差）",
+    Icon = "map-pin",
+    Callback = function() ndsTeleport(NDS_CF.island, "已传送到灾害岛") end
+})
+
+ndsTpSec:Button({
+    Title = "主塔",
+    Desc = "传送到主塔位置",
+    Icon = "map-pin",
+    Callback = function() ndsTeleport(NDS_CF.tower, "已传送到主塔") end
+})
+
+-- ==================== 自然灾害：道具功能 ====================
+local ndsItemSec = zrzhTab:Section({ Title = "道具功能", Icon = "compass", Opened = false })
+
+ndsItemSec:Button({
+    Title = "暂停游戏运行（所有人可见）",
+    Desc = "需要背包里有指南针；通过 Compass 远程投票让游戏卡住",
+    Icon = "pause",
+    Callback = function()
+        task.spawn(function()
+            local backpack = lp:FindFirstChild("Backpack")
+            local char = lp.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local compass = backpack and backpack:FindFirstChild("Compass")
+            local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+            local r = remotes and remotes:FindFirstChild("Compass")
+            if not (hum and compass and r) then
+                notify("条件不足", "需要指南针：背包/角色/Compass远程缺一个", "x", 5)
+                return
+            end
+            pcall(function() hum:EquipTool(compass) end)
+            task.wait(0.15)
+            pcall(function()
+                r:FireServer("Vote Map", 3)
+                r:FireServer("Vote Map", 4)
+            end)
+            task.wait(0.1)
+            pcall(function() hum:UnequipTools() end)
+            notify("已发送", "已通过指南针投票（暂停游戏）", "check", 3)
+        end)
+    end
+})
+
 --po大po 功能远程
 getgenv().Tabs.POTab = podpoTab
 getgenv().SuturePOTab = podpoTab
