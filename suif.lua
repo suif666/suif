@@ -689,8 +689,13 @@ toolTab:Button({
 })
 
 toolTab:Button({
-    Title = "iy汉化", Desc = "顾名思义", Icon = "shell",
+    Title = "iy汉化", Desc = "infiniteyield的汉化版 功能可能不会和原版同步", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/config/iy%E6%B1%89%E5%8C%96%E7%89%88", "iy汉化") end
+})
+
+toolTab:Button({
+    Title = "iy原版[英文]", Desc = "顾名思义", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source", "iy原版") end
 })
 
 -- ==================== 屏蔽购买弹窗 ====================
@@ -1225,24 +1230,6 @@ toolTab:Button({
 
 -- 脚本区域
 doorsTab:Button({
-    Title = "全自动刷旋钮", Desc = "字面意思 执行后什么都不用管了", Icon = "shell",
-    Callback = function()
-        getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
-        run("https://api.luarmor.net/files/v4/loaders/6e87698669de88a8f81d6348ce368b73.lua", "Doors 脚本")
-    end
-})
-
-doorsTab:Button({
-    Title = "半自动刷旋钮",
-    Desc = "字面意思 大厅执行后进游戏里收集金币就可以了",
-    Icon = "shell",
-    Callback = function()
-        getgenv().Config = { MinContainers = 10, MinCoins = 50, UseLockpick = false, UseRobuxKnobsBoost = false }
-        run("https://api.jnkie.com/api//luascripts/public/5d2e14fd21f767f03b28cfb5537f6260a6f45279ddeb806fd04e706153ed0ce0/download", "Doors 脚本")
-    end
-})
-
-doorsTab:Button({
     Title = "[🔑]mspaint",
     Desc = "需卡密 超好用",
     Icon = "shell",
@@ -1256,6 +1243,22 @@ doorsTab:Button({
         run("https://api.luarmor.net/files/v3/loaders/002c19202c9946e6047b0c6e0ad51f84.lua", "Doors msp")
     end
 })
+
+doorsTab:Button({
+    Title = "Abysall[原版最新]", Desc = "不如msp 但胜在无卡密", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau", "Abysall脚本") end
+})
+
+doorsTab:Button({
+    Title = "Abysall[汉化中文]", Desc = "和上面的Abysall是一样的 只不过是汉化版 功能可能不是最新", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/XxwanhexxX/doors-zh/refs/heads/main/Abysall.Hub", "Abysall脚本汉化") end
+})
+
+doorsTab:Button({
+    Title = "[🔑]msdoors", Desc = "据说是msp的巴西粉丝做的 功能方面还算可以", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/Sc-Rhyan57/msdoors/refs/heads/main/download/main.lua", "msdoors脚本") end
+})
+
 
 byqTab:Button({
     Title = "fart[suif汉化]", Desc = "个人感觉很好用", Icon = "shell",
