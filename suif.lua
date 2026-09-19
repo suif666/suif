@@ -598,6 +598,135 @@ pcall(function()
     })
 end)
 
+-- ==================== Xray 透视（IY 同款 + 可调节）====================
+-- 位置：视觉 →「透视类」标签页
+-- IY 的做法：改 workspace 里所有部件的 LocalTransparencyModifier。
+-- 这个属性是纯客户端的，不会同步到服务器 —— 也就是别人看不到你在透视。
+-- 这里比 IY 多三个调节项：透明度滑块 / 是否排除角色 / 循环模式（且用 0.5 秒节流，
+-- 不照 IY 那样每帧全场景扫一遍，手机上不卡）。
+do
+    local XRAY = { on = false, alpha = 0.5, skipChars = true, loop = true, saved = {}, conn = nil, next = 0 }
+
+    local function xrayIsCharPart(v)
+        local p = v.Parent
+        if not p then return false end
+        if p:FindFirstChildWhichIsA("Humanoid") then return true end
+        local pp = p.Parent
+        if pp and pp:FindFirstChildWhichIsA("Humanoid") then return true end
+        return false
+    end
+
+    local function xrayApply()
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") then
+                local skip = XRAY.skipChars and xrayIsCharPart(v)
+                if not skip then
+                    if XRAY.saved[v] == nil then
+                        XRAY.saved[v] = v.LocalTransparencyModifier
+                    end
+                    pcall(function() v.LocalTransparencyModifier = XRAY.alpha end)
+                end
+            end
+        end
+    end
+
+    -- 把"被改过的角色部件"还原（切到排除角色时用）
+    local function xrayRestoreChars()
+        for part, old in pairs(XRAY.saved) do
+            if part and part.Parent and xrayIsCharPart(part) then
+                pcall(function() part.LocalTransparencyModifier = old end)
+                XRAY.saved[part] = nil
+            end
+        end
+    end
+
+    local function xrayRestore()
+        for part, old in pairs(XRAY.saved) do
+            if part and part.Parent then
+                pcall(function() part.LocalTransparencyModifier = old end)
+            end
+        end
+        XRAY.saved = {}
+    end
+
+    local function xrayLoopStart()
+        if XRAY.conn or not XRAY.loop then return end
+        XRAY.conn = RunService.Heartbeat:Connect(function()
+            if not XRAY.on then return end
+            local now = os.clock()
+            if XRAY.next > now then return end
+            XRAY.next = now + 0.5
+            xrayApply()
+        end)
+    end
+
+    local function xrayLoopStop()
+        if XRAY.conn then
+            pcall(function() XRAY.conn:Disconnect() end)
+            XRAY.conn = nil
+        end
+    end
+
+    espTab:Toggle({
+        Title = "Xray 透视",
+        Desc = "把所有建筑变半透明（纯客户端，别人看不到）；关掉自动还原原样",
+        Icon = "eye",
+        Type = "Checkbox",
+        Value = false,
+        Callback = function(s)
+            XRAY.on = s
+            if s then
+                xrayApply()
+                xrayLoopStart()
+                notify("Xray", "已开启 · 透明度 " .. string.format("%.2f", XRAY.alpha), "check", 3)
+            else
+                xrayLoopStop()
+                xrayRestore()
+                notify("Xray", "已关闭并还原", "info", 3)
+            end
+        end
+    })
+
+    espTab:Slider({
+        Title = "Xray 透明度",
+        Desc = "开透视时生效：0.1 = 墙几乎看不见，1 = 完全透明；默认 0.5",
+        Step = 0.05,
+        Value = { Min = 0.1, Max = 1, Default = 0.5 },
+        Callback = function(v)
+            XRAY.alpha = tonumber(v) or 0.5
+            if XRAY.on then xrayApply() end
+        end
+    })
+
+    espTab:Toggle({
+        Title = "Xray 排除角色",
+        Desc = "开：只透视建筑，玩家/自己不变透明（默认）；关：连角色一起透明",
+        Icon = "user",
+        Type = "Checkbox",
+        Value = true,
+        Callback = function(s)
+            XRAY.skipChars = s
+            if XRAY.on then
+                if s then xrayRestoreChars() end
+                xrayApply()
+            end
+        end
+    })
+
+    espTab:Toggle({
+        Title = "Xray 循环模式",
+        Desc = "开：持续给新出现的部件生效（每 0.5 秒补一次）；关：只处理当前场景一次",
+        Icon = "refresh-cw",
+        Type = "Checkbox",
+        Value = true,
+        Callback = function(s)
+            XRAY.loop = s
+            if not XRAY.on then return end
+            if s then xrayLoopStart() else xrayLoopStop() end
+        end
+    })
+end
+
 -- 即时互动（极简版，几乎不掉帧）
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
 local PromptHoldCache = getgenv().SutureHubPromptHoldCache
@@ -803,134 +932,6 @@ do
             if s and getgenv().SutureNoPrompts then
                 bbLoopStart()
             end
-        end
-    })
-end
-
--- ==================== Xray 透视（IY 同款 + 可调节）====================
--- IY 的做法：改 workspace 里所有部件的 LocalTransparencyModifier。
--- 这个属性是纯客户端的，不会同步到服务器 —— 也就是别人看不到你在透视。
--- 这里比 IY 多三个调节项：透明度滑块 / 是否排除角色 / 循环模式（且用 0.5 秒节流，
--- 不照 IY 那样每帧全场景扫一遍，手机上不卡）。
-do
-    local XRAY = { on = false, alpha = 0.5, skipChars = true, loop = true, saved = {}, conn = nil, next = 0 }
-
-    local function xrayIsCharPart(v)
-        local p = v.Parent
-        if not p then return false end
-        if p:FindFirstChildWhichIsA("Humanoid") then return true end
-        local pp = p.Parent
-        if pp and pp:FindFirstChildWhichIsA("Humanoid") then return true end
-        return false
-    end
-
-    local function xrayApply()
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") then
-                local skip = XRAY.skipChars and xrayIsCharPart(v)
-                if not skip then
-                    if XRAY.saved[v] == nil then
-                        XRAY.saved[v] = v.LocalTransparencyModifier
-                    end
-                    pcall(function() v.LocalTransparencyModifier = XRAY.alpha end)
-                end
-            end
-        end
-    end
-
-    -- 把"被改过的角色部件"还原（切到排除角色时用）
-    local function xrayRestoreChars()
-        for part, old in pairs(XRAY.saved) do
-            if part and part.Parent and xrayIsCharPart(part) then
-                pcall(function() part.LocalTransparencyModifier = old end)
-                XRAY.saved[part] = nil
-            end
-        end
-    end
-
-    local function xrayRestore()
-        for part, old in pairs(XRAY.saved) do
-            if part and part.Parent then
-                pcall(function() part.LocalTransparencyModifier = old end)
-            end
-        end
-        XRAY.saved = {}
-    end
-
-    local function xrayLoopStart()
-        if XRAY.conn or not XRAY.loop then return end
-        XRAY.conn = RunService.Heartbeat:Connect(function()
-            if not XRAY.on then return end
-            local now = os.clock()
-            if XRAY.next > now then return end
-            XRAY.next = now + 0.5
-            xrayApply()
-        end)
-    end
-
-    local function xrayLoopStop()
-        if XRAY.conn then
-            pcall(function() XRAY.conn:Disconnect() end)
-            XRAY.conn = nil
-        end
-    end
-
-    toolTab:Toggle({
-        Title = "Xray 透视",
-        Desc = "把所有建筑变半透明（纯客户端，别人看不到）；关掉自动还原原样",
-        Icon = "eye",
-        Type = "Checkbox",
-        Value = false,
-        Callback = function(s)
-            XRAY.on = s
-            if s then
-                xrayApply()
-                xrayLoopStart()
-                notify("Xray", "已开启 · 透明度 " .. string.format("%.2f", XRAY.alpha), "check", 3)
-            else
-                xrayLoopStop()
-                xrayRestore()
-                notify("Xray", "已关闭并还原", "info", 3)
-            end
-        end
-    })
-
-    toolTab:Slider({
-        Title = "Xray 透明度",
-        Desc = "开透视时生效：0.1 = 墙几乎看不见，1 = 完全透明；默认 0.5",
-        Step = 0.05,
-        Value = { Min = 0.1, Max = 1, Default = 0.5 },
-        Callback = function(v)
-            XRAY.alpha = tonumber(v) or 0.5
-            if XRAY.on then xrayApply() end
-        end
-    })
-
-    toolTab:Toggle({
-        Title = "Xray 排除角色",
-        Desc = "开：只透视建筑，玩家/自己不变透明（默认）；关：连角色一起透明",
-        Icon = "user",
-        Type = "Checkbox",
-        Value = true,
-        Callback = function(s)
-            XRAY.skipChars = s
-            if XRAY.on then
-                if s then xrayRestoreChars() end
-                xrayApply()
-            end
-        end
-    })
-
-    toolTab:Toggle({
-        Title = "Xray 循环模式",
-        Desc = "开：持续给新出现的部件生效（每 0.5 秒补一次）；关：只处理当前场景一次",
-        Icon = "refresh-cw",
-        Type = "Checkbox",
-        Value = true,
-        Callback = function(s)
-            XRAY.loop = s
-            if not XRAY.on then return end
-            if s then xrayLoopStart() else xrayLoopStop() end
         end
     })
 end
