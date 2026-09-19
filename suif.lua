@@ -698,6 +698,241 @@ toolTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source", "iy原版") end
 })
 
+-- ==================== 屏蔽购买弹窗（IY 同款做法）====================
+-- IY 的 noprompts 只有一行：CoreGui.PurchasePromptApp.Enabled = false
+-- Roblox 的购买/会员提示都挂在这个容器里，把它关掉弹窗就不再显示。
+-- 这里额外给了「持续压制」开关：每 2 秒复查一次，防止游戏脚本或引擎又把它打开。
+do
+    local function bbRoot()
+        local cg
+        pcall(function() cg = (gethui and gethui()) or nil end)
+        if not cg then pcall(function() cg = game:GetService("CoreGui") end) end
+        if not cg then pcall(function() cg = lp:FindFirstChild("PlayerGui") end) end
+        return cg
+    end
+
+    local function bbPromptApp()
+        local cg = bbRoot()
+        if not cg then return nil end
+        local app = cg:FindFirstChild("PurchasePromptApp")
+        if app then return app end
+        -- 名字/层级偶尔不同，兜底扫一遍
+        local ok, found = pcall(function()
+            for _, d in ipairs(cg:GetChildren()) do
+                if d:IsA("ScreenGui") and tostring(d.Name):lower():find("purchaseprompt", 1, true) then
+                    return d
+                end
+            end
+        end)
+        if ok then return found end
+        return nil
+    end
+
+    local function bbDumpCoreGui()
+        local cg = bbRoot()
+        if not cg then return "连 CoreGui 都拿不到（执行器权限问题）" end
+        local ok, list = pcall(function()
+            local t = {}
+            for _, d in ipairs(cg:GetChildren()) do
+                t[#t + 1] = d.Name .. "(" .. d.ClassName .. ")"
+            end
+            return table.concat(t, ", ")
+        end)
+        return ok and list or "读取 CoreGui 失败"
+    end
+
+    local function bbSet(blocked)
+        local app = bbPromptApp()
+        if not app then
+            -- 把 CoreGui 里现有容器名打到控制台，方便排查是不是名字变了
+            warn("[屏蔽购买弹窗] 没找到 PurchasePromptApp。当前 CoreGui 内容：" .. bbDumpCoreGui())
+            return nil, "没找到 PurchasePromptApp（换成弹窗正显示时再点一次；控制台已列出 CoreGui 内容）"
+        end
+        local ok, err = pcall(function() app.Enabled = not blocked end)
+        if not ok then return nil, "写入被拦：" .. tostring(err) end
+        return true
+    end
+
+    local bbRunning = false
+    local function bbLoopStart()
+        if bbRunning then return end
+        bbRunning = true
+        task.spawn(function()
+            while getgenv().SutureNoPrompts and getgenv().SutureNoPromptsLoop do
+                task.wait(2)
+                pcall(bbSet, true)
+            end
+            bbRunning = false
+        end)
+    end
+
+    getgenv().SutureNoPromptsLoop = true
+
+    toolTab:Toggle({
+        Title = "屏蔽购买弹窗",
+        Desc = "IY 同款：关掉 CoreGui.PurchasePromptApp，购买/会员提示不再弹出",
+        Icon = "shield-off",
+        Type = "Checkbox",
+        Value = false,
+        Callback = function(s)
+            getgenv().SutureNoPrompts = s
+            local ok, err = bbSet(s)
+            if not ok then
+                notify("屏蔽购买弹窗", tostring(err), "x", 4)
+                return
+            end
+            if s then
+                if getgenv().SutureNoPromptsLoop then bbLoopStart() end
+                notify("屏蔽购买弹窗", "已开启", "check", 3)
+            else
+                notify("屏蔽购买弹窗", "已关闭（弹窗恢复显示）", "info", 3)
+            end
+        end
+    })
+
+    toolTab:Toggle({
+        Title = "持续压制弹窗",
+        Desc = "每 2 秒复查一次，防止游戏把 PurchasePromptApp 又打开（需要上面的开关先打开）",
+        Icon = "refresh-cw",
+        Type = "Checkbox",
+        Value = true,
+        Callback = function(s)
+            getgenv().SutureNoPromptsLoop = s
+            if s and getgenv().SutureNoPrompts then
+                bbLoopStart()
+            end
+        end
+    })
+end
+
+-- ==================== Xray 透视（IY 同款 + 可调节）====================
+-- IY 的做法：改 workspace 里所有部件的 LocalTransparencyModifier。
+-- 这个属性是纯客户端的，不会同步到服务器 —— 也就是别人看不到你在透视。
+-- 这里比 IY 多三个调节项：透明度滑块 / 是否排除角色 / 循环模式（且用 0.5 秒节流，
+-- 不照 IY 那样每帧全场景扫一遍，手机上不卡）。
+do
+    local XRAY = { on = false, alpha = 0.5, skipChars = true, loop = true, saved = {}, conn = nil, next = 0 }
+
+    local function xrayIsCharPart(v)
+        local p = v.Parent
+        if not p then return false end
+        if p:FindFirstChildWhichIsA("Humanoid") then return true end
+        local pp = p.Parent
+        if pp and pp:FindFirstChildWhichIsA("Humanoid") then return true end
+        return false
+    end
+
+    local function xrayApply()
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") then
+                local skip = XRAY.skipChars and xrayIsCharPart(v)
+                if not skip then
+                    if XRAY.saved[v] == nil then
+                        XRAY.saved[v] = v.LocalTransparencyModifier
+                    end
+                    pcall(function() v.LocalTransparencyModifier = XRAY.alpha end)
+                end
+            end
+        end
+    end
+
+    -- 把"被改过的角色部件"还原（切到排除角色时用）
+    local function xrayRestoreChars()
+        for part, old in pairs(XRAY.saved) do
+            if part and part.Parent and xrayIsCharPart(part) then
+                pcall(function() part.LocalTransparencyModifier = old end)
+                XRAY.saved[part] = nil
+            end
+        end
+    end
+
+    local function xrayRestore()
+        for part, old in pairs(XRAY.saved) do
+            if part and part.Parent then
+                pcall(function() part.LocalTransparencyModifier = old end)
+            end
+        end
+        XRAY.saved = {}
+    end
+
+    local function xrayLoopStart()
+        if XRAY.conn or not XRAY.loop then return end
+        XRAY.conn = RunService.Heartbeat:Connect(function()
+            if not XRAY.on then return end
+            local now = os.clock()
+            if XRAY.next > now then return end
+            XRAY.next = now + 0.5
+            xrayApply()
+        end)
+    end
+
+    local function xrayLoopStop()
+        if XRAY.conn then
+            pcall(function() XRAY.conn:Disconnect() end)
+            XRAY.conn = nil
+        end
+    end
+
+    toolTab:Toggle({
+        Title = "Xray 透视",
+        Desc = "把所有建筑变半透明（纯客户端，别人看不到）；关掉自动还原原样",
+        Icon = "eye",
+        Type = "Checkbox",
+        Value = false,
+        Callback = function(s)
+            XRAY.on = s
+            if s then
+                xrayApply()
+                xrayLoopStart()
+                notify("Xray", "已开启 · 透明度 " .. string.format("%.2f", XRAY.alpha), "check", 3)
+            else
+                xrayLoopStop()
+                xrayRestore()
+                notify("Xray", "已关闭并还原", "info", 3)
+            end
+        end
+    })
+
+    toolTab:Slider({
+        Title = "Xray 透明度",
+        Desc = "开透视时生效：0.1 = 墙几乎看不见，1 = 完全透明；默认 0.5",
+        Step = 0.05,
+        Value = { Min = 0.1, Max = 1, Default = 0.5 },
+        Callback = function(v)
+            XRAY.alpha = tonumber(v) or 0.5
+            if XRAY.on then xrayApply() end
+        end
+    })
+
+    toolTab:Toggle({
+        Title = "Xray 排除角色",
+        Desc = "开：只透视建筑，玩家/自己不变透明（默认）；关：连角色一起透明",
+        Icon = "user",
+        Type = "Checkbox",
+        Value = true,
+        Callback = function(s)
+            XRAY.skipChars = s
+            if XRAY.on then
+                if s then xrayRestoreChars() end
+                xrayApply()
+            end
+        end
+    })
+
+    toolTab:Toggle({
+        Title = "Xray 循环模式",
+        Desc = "开：持续给新出现的部件生效（每 0.5 秒补一次）；关：只处理当前场景一次",
+        Icon = "refresh-cw",
+        Type = "Checkbox",
+        Value = true,
+        Callback = function(s)
+            XRAY.loop = s
+            if not XRAY.on then return end
+            if s then xrayLoopStart() else xrayLoopStop() end
+        end
+    })
+end
+
 -- 脚本区域
 doorsTab:Button({
     Title = "[🔑]mspaint",
