@@ -776,17 +776,19 @@ do
         Value = false,
         Callback = function(s)
             getgenv().SutureNoPrompts = s
-            local ok, err = bbSet(s)
-            if not ok then
-                notify("屏蔽购买弹窗", tostring(err), "x", 4)
+            if not s then
+                pcall(bbSet, false)
+                notify("屏蔽购买弹窗", "已关闭（弹窗恢复显示）", "info", 3)
                 return
             end
-            if s then
-                if getgenv().SutureNoPromptsLoop then bbLoopStart() end
-                notify("屏蔽购买弹窗", "已开启", "check", 3)
+            local ok, err = bbSet(true)
+            if ok then
+                notify("屏蔽购买弹窗", "已开启" .. (getgenv().SutureNoPromptsLoop and " · 持续压制中" or ""), "check", 3)
             else
-                notify("屏蔽购买弹窗", "已关闭（弹窗恢复显示）", "info", 3)
+                -- 容器是懒加载的，现在可能还没生成：照样挂上压制，等它一出现就关掉
+                notify("屏蔽购买弹窗", tostring(err) .. "（已挂上持续压制，弹窗一出现就会自动关）", "info", 6)
             end
+            if getgenv().SutureNoPromptsLoop then bbLoopStart() end
         end
     })
 
