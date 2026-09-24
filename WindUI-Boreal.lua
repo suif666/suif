@@ -15075,7 +15075,8 @@ end
   })
   local ArrowIcon=Arrow:FindFirstChild("WindUIExpandArrowIcon")
   local function SetArrowIcon(Name)
-  local Icon=aa.Icon(Name)
+  local UI=aq.WindUI or aa
+  local Icon=UI.Icon and UI.Icon(Name)
   if Icon and Icon[1] and Icon[2] then
   Arrow.Text=""
   ArrowIcon.Image=Icon[1]
@@ -20089,7 +20090,7 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
-aa.ExpandFeatureVersion="expand-v6"
+aa.ExpandFeatureVersion="expand-v7"
 
 function aa.CreateWindow(au,av)
 local aw=a.ao()
