@@ -20000,6 +20000,8 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
+aa.ExpandFeatureVersion="expand-v1"
+
 function aa.CreateWindow(au,av)
 local aw=a.ao()
 local ax=av.Folder or av.Title or"Temp"
