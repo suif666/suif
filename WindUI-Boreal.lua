@@ -7473,10 +7473,21 @@ end
 
 local ai=ag.Value
 
+local BorealNativeSwitch=true
+if getgenv then
+local BorealEnv=getgenv()
+if type(BorealEnv)=="table"and BorealEnv.WindUI_NativeSwitchOnly==false then
+BorealNativeSwitch=false
+end
+end
+local BorealDrawType=ag.Type
+if BorealDrawType=="Checkbox"and BorealNativeSwitch then
+BorealDrawType="Toggle"
+end
 local aj,ak
-if ag.Type=="Toggle"then
+if BorealDrawType=="Toggle"then
 aj,ak=ab(ai,ag.Icon,ag.IconSize,ag.ToggleFrame.UIElements.Main,ag.Callback,af)
-elseif ag.Type=="Checkbox"then
+elseif BorealDrawType=="Checkbox"then
 aj,ak=ac(ai,ag.Icon,ag.IconSize,ag.ToggleFrame.UIElements.Main,ag.Callback,af)
 else
 error("Unknown Toggle Type: "..tostring(ag.Type))
@@ -7592,10 +7603,21 @@ ParentConfig=aj,
 
 local ao=ak.Value
 
+local BorealNativeSwitch2=true
+if getgenv then
+local BorealEnv2=getgenv()
+if type(BorealEnv2)=="table"and BorealEnv2.WindUI_NativeSwitchOnly==false then
+BorealNativeSwitch2=false
+end
+end
+local BorealDrawType2=ak.Type
+if BorealDrawType2=="Checkbox"and BorealNativeSwitch2 then
+BorealDrawType2="Toggle"
+end
 local ap,aq
-if ak.Type=="Toggle"then
+if BorealDrawType2=="Toggle"then
 ap,aq=ae(ao,ak.Icon,ak.IconSize,ak.ToggleKeybindFrame.UIElements.Main,ak.Callback,aj)
-elseif ak.Type=="Checkbox"then
+elseif BorealDrawType2=="Checkbox"then
 ap,aq=af(ao,ak.Icon,ak.IconSize,ak.ToggleKeybindFrame.UIElements.Main,ak.Callback,aj)
 else
 error("Unknown Toggle Type: "..tostring(ak.Type))
@@ -20018,7 +20040,7 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
-aa.ExpandFeatureVersion="expand-v3"
+aa.ExpandFeatureVersion="expand-v4"
 
 function aa.CreateWindow(au,av)
 local aw=a.ao()
