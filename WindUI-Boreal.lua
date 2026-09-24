@@ -7510,10 +7510,17 @@ local ab={}
 
 function ab.New(ac,ad)
 local ae=table.clone(ad)
-ae.Type="Checkbox"local
+local NativeSwitch=true
+if getgenv then
+local Env=getgenv()
+if type(Env)=="table"and Env.WindUI_NativeSwitchOnly==false then
+NativeSwitch=false
+end
+end
+ae.Type=NativeSwitch and"Toggle"or"Checkbox"local
 
 af, ag=aa:New(ae)
-ag.ElementVariant="Checkbox"
+ag.ElementVariant=ae.Type
 
 return"Checkbox",ag
 end
@@ -15012,9 +15019,9 @@ end
   local BaseColor=Config.BackgroundColor3 or PickRowColor()
   local Dark=(BaseColor.R+BaseColor.G+BaseColor.B)/3<0.5
   local InnerColor=Config.BackgroundColor3 or BaseColor:Lerp(Dark and Color3.new(1,1,1)or Color3.new(0,0,0),Dark and 0.07 or 0.05)
-  local ArrowSize=Config.ArrowSize or 28
-  local Pad=Config.Padding or 8
-  local Ratio=tonumber(Config.Width)or 0.82
+  local ArrowSize=Config.ArrowSize or 32
+  local Pad=Config.Padding or 0
+  local Ratio=tonumber(Config.Width)or 0.9
   if Ratio>1 then
   Ratio=Ratio/100
   end
@@ -15032,7 +15039,7 @@ end
   Size=UDim2.new(0,ArrowSize,0,ArrowSize),
   BackgroundTransparency=1,
   Text=Open,
-  TextSize=Config.ArrowTextSize or 16,
+  TextSize=Config.ArrowTextSize or 22,
   Font=Enum.Font.GothamBold,
   AutoButtonColor=false,
   TextTransparency=0.1,
@@ -15045,7 +15052,7 @@ end
   for _,Child in next,Main:GetChildren()do
   if Child~=Arrow and Child:IsA("GuiObject")and Child.AnchorPoint.X==1 and Child.Position.X.Scale==1 and not Child:GetAttribute("WindUIExpandShifted")then
   Child:SetAttribute("WindUIExpandShifted",true)
-  Child.Position=UDim2.new(1,-(ArrowSize+6),0.5,Child.Position.Y.Offset)
+  Child.Position=UDim2.new(1,-(ArrowSize+8),0.5,Child.Position.Y.Offset)
   end
   end
   local Wrapper=New("Frame",{
@@ -15077,7 +15084,7 @@ end
   },{}),
   New("UIListLayout",{
   FillDirection="Vertical",
-  Padding=UDim.new(0,Config.ElementGap or 6),
+  Padding=UDim.new(0,Config.ElementGap or 8),
   SortOrder="LayoutOrder",
   HorizontalAlignment="Left",
   },{}),
@@ -15167,7 +15174,8 @@ end
   Gui.Parent=ParentGui
   local Button=New("TextButton",{
   Name="Ball",
-  Size=BallConfig.Size or UDim2.fromOffset(66,28),
+  Size=BallConfig.Size or UDim2.fromOffset(0,BallConfig.Height or 28),
+  AutomaticSize=BallConfig.AutomaticSize or"X",
   Position=BallConfig.Position or UDim2.new(0,16,0.15,0),
   BackgroundColor3=as.Value and OnBackground or OffBackground,
   Text=Self.Title,
@@ -15181,6 +15189,10 @@ end
   },{
   New("UICorner",{
   CornerRadius=UDim.new(1,0),
+  },{}),
+  New("UIPadding",{
+  PaddingLeft=UDim.new(0,BallConfig.PaddingX or 14),
+  PaddingRight=UDim.new(0,BallConfig.PaddingX or 14),
   },{}),
   New("UIStroke",{
   Thickness=BallConfig.StrokeThickness or 1,
@@ -15287,6 +15299,12 @@ end
   Arrow.MouseButton1Click:Connect(function()
   SetExpanded(not Expanded)
   end)
+  if getgenv then
+  local Env=getgenv()
+  if type(Env)=="table"and Env.WindUI_ExpandDebug then
+  warn("[WindUI Expand] 标题="..tostring(as.Title).." | 行="..Main:GetFullName().." | 展开区="..Inner:GetFullName().." | 区宽比例="..tostring(Ratio).." | 内边距="..tostring(Pad).." | 行内子项="..tostring(#Main:GetChildren()).." | 区内子项="..tostring(#Inner:GetChildren()))
+  end
+  end
   as.ExpandFrame=Inner
   as.ExpandWrapper=Wrapper
   as.ExpandHolder=Holder
@@ -20000,7 +20018,7 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
-aa.ExpandFeatureVersion="expand-v2"
+aa.ExpandFeatureVersion="expand-v3"
 
 function aa.CreateWindow(au,av)
 local aw=a.ao()
