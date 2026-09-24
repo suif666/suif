@@ -14986,10 +14986,7 @@ end
 end
 
   local function CreateExpandArea(as,aq,aa,ae)
-  if type(aq.Expand)~="table"then
-  return
-  end
-  local Config=aq.Expand
+  local Config=type(aq.Expand)=="table"and aq.Expand or{}
   local Row=as.ToggleFrame
   if type(Row)~="table"or type(Row.UIElements)~="table"then
   return
@@ -15015,7 +15012,7 @@ end
   local BaseColor=Config.BackgroundColor3 or PickRowColor()
   local Dark=(BaseColor.R+BaseColor.G+BaseColor.B)/3<0.5
   local InnerColor=Config.BackgroundColor3 or BaseColor:Lerp(Dark and Color3.new(1,1,1)or Color3.new(0,0,0),Dark and 0.07 or 0.05)
-  local ArrowSize=Config.ArrowSize or 22
+  local ArrowSize=Config.ArrowSize or 28
   local Pad=Config.Padding or 8
   local Ratio=tonumber(Config.Width)or 0.82
   if Ratio>1 then
@@ -15035,7 +15032,7 @@ end
   Size=UDim2.new(0,ArrowSize,0,ArrowSize),
   BackgroundTransparency=1,
   Text=Open,
-  TextSize=Config.ArrowTextSize or 12,
+  TextSize=Config.ArrowTextSize or 16,
   Font=Enum.Font.GothamBold,
   AutoButtonColor=false,
   TextTransparency=0.1,
@@ -15065,7 +15062,7 @@ end
   Size=UDim2.new(Ratio,0,0,0),
   AutomaticSize="Y",
   BackgroundColor3=InnerColor,
-  BackgroundTransparency=Config.Transparency or 0.12,
+  BackgroundTransparency=Config.Transparency or 1,
   BorderSizePixel=0,
   LayoutOrder=1,
   },{
@@ -15105,6 +15102,7 @@ end
   Holder[Name]=function(Self,ChildConfig)
   ChildConfig=ChildConfig or{}
   ChildConfig.Parent=Inner
+  ChildConfig.__ExpandChild=true
   return aa[Name](aa,ChildConfig)
   end
   end
@@ -15247,8 +15245,10 @@ end
   end
   end
   if Config.DefaultKeybind~=false then
-  aa:Checkbox({
+  aa:Toggle({
   Parent=Inner,
+  __ExpandChild=true,
+  Type=Config.KeybindType or"Toggle",
   Title=Config.KeybindTitle or"创建快捷键（悬浮球）",
   Desc=Config.KeybindDesc,
   Value=false,
@@ -15441,7 +15441,7 @@ end
 if ai then
 ai(as,aa.Elements)
 end
-  if typeof(as)=="table"and as.__type=="Toggle"and type(aq.Expand)=="table"then
+  if typeof(as)=="table"and as.__type=="Toggle"and aq.Expand~=false and not aq.__ExpandChild then
   local OkExpand,ErrExpand=pcall(CreateExpandArea,as,aq,aa,ae)
   if not OkExpand then
   warn("[WindUI] 创建开关展开区失败: "..tostring(ErrExpand))
@@ -20000,7 +20000,7 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
-aa.ExpandFeatureVersion="expand-v1"
+aa.ExpandFeatureVersion="expand-v2"
 
 function aa.CreateWindow(au,av)
 local aw=a.ao()
