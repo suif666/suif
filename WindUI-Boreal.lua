@@ -14985,6 +14985,327 @@ end
 end
 end
 
+  local function CreateExpandArea(as,aq,aa,ae)
+  if type(aq.Expand)~="table"then
+  return
+  end
+  local Config=aq.Expand
+  local Row=as.ToggleFrame
+  if type(Row)~="table"or type(Row.UIElements)~="table"then
+  return
+  end
+  local Main=Row.UIElements.Main
+  local Container=Row.UIElements.Container
+  if not Main or not Container then
+  return
+  end
+  local Wind=a.c()
+  local New=Wind.New
+  local function PickRowColor()
+  for _,Child in next,Main:GetChildren()do
+  if Child:IsA("ImageLabel")and Child.Visible and Child.ImageTransparency<0.9 and not Child:FindFirstChild("UIGradient")then
+  return Child.ImageColor3
+  end
+  end
+  return Main.BackgroundColor3
+  end
+  local BaseColor=Config.BackgroundColor3 or PickRowColor()
+  local Dark=(BaseColor.R+BaseColor.G+BaseColor.B)/3<0.5
+  local InnerColor=Config.BackgroundColor3 or BaseColor:Lerp(Dark and Color3.new(1,1,1)or Color3.new(0,0,0),Dark and 0.07 or 0.05)
+  local ArrowSize=Config.ArrowSize or 22
+  local Pad=Config.Padding or 8
+  local Ratio=tonumber(Config.Width)or 0.82
+  if Ratio>1 then
+  Ratio=Ratio/100
+  end
+  Ratio=math.clamp(Ratio,0.2,1)
+  local Align=Config.Align or"Center"
+  if Align~="Left"and Align~="Right"then
+  Align="Center"
+  end
+  local Open=Config.IconOpen or"▶"
+  local Close=Config.IconClose or"▼"
+  local Arrow=New("TextButton",{
+  Name="WindUIExpandArrow",
+  AnchorPoint=Vector2.new(1,0.5),
+  Position=UDim2.new(1,-6,0.5,0),
+  Size=UDim2.new(0,ArrowSize,0,ArrowSize),
+  BackgroundTransparency=1,
+  Text=Open,
+  TextSize=Config.ArrowTextSize or 12,
+  Font=Enum.Font.GothamBold,
+  AutoButtonColor=false,
+  TextTransparency=0.1,
+  ZIndex=6,
+  ThemeTag={
+  TextColor3="Text",
+  },
+  },{})
+  Arrow.Parent=Main
+  for _,Child in next,Main:GetChildren()do
+  if Child~=Arrow and Child:IsA("GuiObject")and Child.AnchorPoint.X==1 and Child.Position.X.Scale==1 and not Child:GetAttribute("WindUIExpandShifted")then
+  Child:SetAttribute("WindUIExpandShifted",true)
+  Child.Position=UDim2.new(1,-(ArrowSize+6),0.5,Child.Position.Y.Offset)
+  end
+  end
+  local Wrapper=New("Frame",{
+  Name="WindUIExpandWrapper",
+  Size=UDim2.new(1,0,0,0),
+  AutomaticSize="Y",
+  BackgroundTransparency=1,
+  LayoutOrder=1000,
+  Visible=false,
+  },{})
+  Wrapper.Parent=Container
+  local Inner=New("Frame",{
+  Name="WindUIExpandArea",
+  Size=UDim2.new(Ratio,0,0,0),
+  AutomaticSize="Y",
+  BackgroundColor3=InnerColor,
+  BackgroundTransparency=Config.Transparency or 0.12,
+  BorderSizePixel=0,
+  LayoutOrder=1,
+  },{
+  New("UICorner",{
+  CornerRadius=UDim.new(0,Config.CornerRadius or 8),
+  },{}),
+  New("UIPadding",{
+  PaddingTop=UDim.new(0,Pad),
+  PaddingBottom=UDim.new(0,Pad),
+  PaddingLeft=UDim.new(0,Pad),
+  PaddingRight=UDim.new(0,Pad),
+  },{}),
+  New("UIListLayout",{
+  FillDirection="Vertical",
+  Padding=UDim.new(0,Config.ElementGap or 6),
+  SortOrder="LayoutOrder",
+  HorizontalAlignment="Left",
+  },{}),
+  })
+  if Align=="Left"then
+  Inner.AnchorPoint=Vector2.new(0,0)
+  Inner.Position=UDim2.new(0,0,0,0)
+  elseif Align=="Right"then
+  Inner.AnchorPoint=Vector2.new(1,0)
+  Inner.Position=UDim2.new(1,0,0,0)
+  else
+  Inner.AnchorPoint=Vector2.new(0.5,0)
+  Inner.Position=UDim2.new(0.5,0,0,0)
+  end
+  Inner.Parent=Wrapper
+  local Holder={
+  Frame=Inner,
+  Wrapper=Wrapper,
+  Toggle=as,
+  }
+  for Name in next,ae do
+  Holder[Name]=function(Self,ChildConfig)
+  ChildConfig=ChildConfig or{}
+  ChildConfig.Parent=Inner
+  return aa[Name](aa,ChildConfig)
+  end
+  end
+  local BallConfig=type(Config.Ball)=="table"and Config.Ball or{}
+  local OnText=BallConfig.OnText or Color3.fromRGB(51,199,89)
+  local OffText=BallConfig.OffText or Color3.fromRGB(140,140,140)
+  local OnBackground=BallConfig.OnBackground or Color3.fromRGB(20,22,20)
+  local OffBackground=BallConfig.OffBackground or Color3.fromRGB(26,26,30)
+  local Ball={
+  Title=Config.BallTitle or as.Title or"快捷键",
+  Gui=nil,
+  Button=nil,
+  Connections={},
+  }
+  local Face
+  local FaceOk,FaceResult=pcall(function()
+  return Font.new(Wind.Font or"rbxasset://fonts/families/GothamSSm.json",Enum.FontWeight.Bold)
+  end)
+  if FaceOk then
+  Face=FaceResult
+  end
+  function Ball.Destroy(Self)
+  for _,Connection in next,Self.Connections do
+  pcall(function()
+  Connection:Disconnect()
+  end)
+  end
+  Self.Connections={}
+  if Self.Gui then
+  pcall(function()
+  Self.Gui:Destroy()
+  end)
+  Self.Gui=nil
+  end
+  Self.Button=nil
+  end
+  function Ball.Create(Self)
+  if Self.Gui then
+  return
+  end
+  local ParentGui
+  local Ok,Result=pcall(function()
+  if gethui then
+  return gethui()
+  end
+  return game:GetService("CoreGui")
+  end)
+  if Ok then
+  ParentGui=Result
+  end
+  if not ParentGui then
+  local Player=game:GetService("Players").LocalPlayer
+  ParentGui=Player:FindFirstChildOfClass("PlayerGui")or Player:WaitForChild("PlayerGui")
+  end
+  local Gui=New("ScreenGui",{
+  Name="WindUIExpandBall",
+  ResetOnSpawn=false,
+  IgnoreGuiInset=true,
+  ZIndexBehavior="Sibling",
+  DisplayOrder=BallConfig.DisplayOrder or 999,
+  },{})
+  Gui.Parent=ParentGui
+  local Button=New("TextButton",{
+  Name="Ball",
+  Size=BallConfig.Size or UDim2.fromOffset(66,28),
+  Position=BallConfig.Position or UDim2.new(0,16,0.15,0),
+  BackgroundColor3=as.Value and OnBackground or OffBackground,
+  Text=Self.Title,
+  TextSize=BallConfig.TextSize or 13,
+  TextColor3=as.Value and OnText or OffText,
+  FontFace=Face,
+  AutoButtonColor=false,
+  BorderSizePixel=0,
+  Active=true,
+  ClipsDescendants=true,
+  },{
+  New("UICorner",{
+  CornerRadius=UDim.new(1,0),
+  },{}),
+  New("UIStroke",{
+  Thickness=BallConfig.StrokeThickness or 1,
+  Color=BallConfig.StrokeColor or(Dark and Color3.new(1,1,1)or Color3.new(0,0,0)),
+  Transparency=BallConfig.StrokeTransparency or 0.6,
+  },{}),
+  })
+  Button.Parent=Gui
+  Self.Gui=Gui
+  Self.Button=Button
+  local Dragging=false
+  local DragStart=nil
+  local StartPosition=nil
+  local Moved=0
+  local function Bind(Event,Handler)
+  local Connection=Event:Connect(Handler)
+  table.insert(Self.Connections,Connection)
+  end
+  Bind(Button.InputBegan,function(Input)
+  if Input.UserInputType==Enum.UserInputType.MouseButton1 or Input.UserInputType==Enum.UserInputType.Touch then
+  Dragging=true
+  Moved=0
+  DragStart=Input.Position
+  StartPosition=Button.Position
+  end
+  end)
+  Bind(Button.InputChanged,function(Input)
+  if Dragging and DragStart and(Input.UserInputType==Enum.UserInputType.MouseMovement or Input.UserInputType==Enum.UserInputType.Touch)then
+  local Delta=Input.Position-DragStart
+  Moved=math.max(Moved,math.abs(Delta.X)+math.abs(Delta.Y))
+  Button.Position=UDim2.new(StartPosition.X.Scale,StartPosition.X.Offset+Delta.X,StartPosition.Y.Scale,StartPosition.Y.Offset+Delta.Y)
+  end
+  end)
+  Bind(Button.InputEnded,function(Input)
+  if Input.UserInputType==Enum.UserInputType.MouseButton1 or Input.UserInputType==Enum.UserInputType.Touch then
+  if Dragging and Moved<6 then
+  pcall(function()
+  as:Set(not as.Value,nil,false)
+  end)
+  end
+  Dragging=false
+  end
+  end)
+  task.spawn(function()
+  while Self.Gui and Self.Gui.Parent do
+  if Self.Button then
+  local Value=as.Value and true or false
+  Self.Button.TextColor3=Value and OnText or OffText
+  Self.Button.BackgroundColor3=Value and OnBackground or OffBackground
+  if Self.Button.Text~=Self.Title then
+  Self.Button.Text=Self.Title
+  end
+  end
+  task.wait(0.12)
+  end
+  end)
+  end
+  function Ball.SetTitle(Self,Text)
+  Self.Title=tostring(Text or Self.Title)
+  if Self.Button then
+  Self.Button.Text=Self.Title
+  end
+  end
+  if Config.DefaultKeybind~=false then
+  aa:Checkbox({
+  Parent=Inner,
+  Title=Config.KeybindTitle or"创建快捷键（悬浮球）",
+  Desc=Config.KeybindDesc,
+  Value=false,
+  Callback=function(Value)
+  if Value then
+  Ball:Create()
+  else
+  Ball:Destroy()
+  end
+  end,
+  })
+  end
+  local Expanded=false
+  local Built=false
+  local function SetExpanded(Value)
+  Expanded=Value and true or false
+  Wrapper.Visible=Expanded
+  Arrow.Text=Expanded and Close or Open
+  if Expanded and type(Config.Elements)=="function"and not Built then
+  Built=true
+  task.spawn(function()
+  local Ok,Err=pcall(Config.Elements,Holder,as)
+  if not Ok then
+  warn("[WindUI] Expand.Elements 回调出错: "..tostring(Err))
+  end
+  end)
+  end
+  if Expanded and type(Config.OnExpand)=="function"then
+  pcall(Config.OnExpand,Holder,as)
+  end
+  if not Expanded and type(Config.OnCollapse)=="function"then
+  pcall(Config.OnCollapse,Holder,as)
+  end
+  end
+  Arrow.MouseButton1Click:Connect(function()
+  SetExpanded(not Expanded)
+  end)
+  as.ExpandFrame=Inner
+  as.ExpandWrapper=Wrapper
+  as.ExpandHolder=Holder
+  as.ExpandArrow=Arrow
+  as.Ball=Ball
+  function as.SetExpand(Self,Value)
+  SetExpanded(Value)
+  end
+  function as.SetBallTitle(Self,Text)
+  Ball:SetTitle(Text)
+  end
+  local OriginalDestroy=as.Destroy
+  as.Destroy=function(Self,...)
+  Ball:Destroy()
+  if OriginalDestroy then
+  return OriginalDestroy(Self,...)
+  end
+  end
+  if Config.DefaultOpen then
+  SetExpanded(true)
+  end
+  end
+
 for an,ao in next,ae do
 aa[an]=function(ap,aq)
 aq=aq or{}
@@ -14993,7 +15314,7 @@ aq.ParentType=aa.__type
 aq.ParentTable=aa
 aq.Index=#aa.Elements+1
 aq.GlobalIndex=#af.AllElements+1
-aq.Parent=ad
+aq.Parent=aq.Parent or ad
 aq.Window=af
 aq.WindUI=ag
 aq.UIScale=al
@@ -15116,6 +15437,12 @@ end
 if ai then
 ai(as,aa.Elements)
 end
+  if typeof(as)=="table"and as.__type=="Toggle"and type(aq.Expand)=="table"then
+  local OkExpand,ErrExpand=pcall(CreateExpandArea,as,aq,aa,ae)
+  if not OkExpand then
+  warn("[WindUI] 创建开关展开区失败: "..tostring(ErrExpand))
+  end
+  end
 return as
 end
 end
