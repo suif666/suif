@@ -669,6 +669,21 @@ do
 
     espTab:Toggle({
         Title = "Xray 透视",
+        Expand = {
+            BallTitle = "X光",
+            Elements = function(h)
+                h:Slider({
+                    Title = "Xray 透明度",
+                    Desc = "0.1 = 墙几乎看不见，1 = 完全透明；默认 0.5",
+                    Step = 0.05,
+                    Value = { Min = 0.1, Max = 1, Default = 0.5 },
+                    Callback = function(v)
+                        XRAY.alpha = tonumber(v) or 0.5
+                        if XRAY.on then xrayApply() end
+                    end
+                })
+            end
+        },
         Desc = "把所有建筑变半透明（纯客户端，别人看不到）；关掉自动还原原样",
         Icon = "eye",
         Type = "Checkbox",
@@ -687,19 +702,9 @@ do
         end
     })
 
-    espTab:Slider({
-        Title = "Xray 透明度",
-        Desc = "开透视时生效：0.1 = 墙几乎看不见，1 = 完全透明；默认 0.5",
-        Step = 0.05,
-        Value = { Min = 0.1, Max = 1, Default = 0.5 },
-        Callback = function(v)
-            XRAY.alpha = tonumber(v) or 0.5
-            if XRAY.on then xrayApply() end
-        end
-    })
-
     espTab:Toggle({
         Title = "Xray 排除角色",
+        Expand = { BallTitle = "排除角色" },
         Desc = "开：只透视建筑，玩家/自己不变透明（默认）；关：连角色一起透明",
         Icon = "user",
         Type = "Checkbox",
@@ -715,6 +720,7 @@ do
 
     espTab:Toggle({
         Title = "Xray 循环模式",
+        Expand = { BallTitle = "循环模式" },
         Desc = "开：持续给新出现的部件生效（每 0.5 秒补一次）；关：只处理当前场景一次",
         Icon = "refresh-cw",
         Type = "Checkbox",
@@ -786,6 +792,7 @@ end
 
 toolTab:Toggle({
     Title = "即时互动",
+    Expand = { BallTitle = "即时互动" },
     Desc = "关闭恢复初始数值，但可能需要玩家死亡一次或互动按钮刷新一次",
     Icon = "zap",
     Type = "Checkbox",
@@ -899,6 +906,7 @@ do
 
     toolTab:Toggle({
         Title = "屏蔽购买弹窗",
+        Expand = { BallTitle = "屏蔽弹窗" },
         Desc = "IY 同款：关掉 CoreGui.PurchasePromptApp，购买/会员提示不再弹出",
         Icon = "shield-off",
         Type = "Checkbox",
@@ -923,6 +931,7 @@ do
 
     toolTab:Toggle({
         Title = "持续压制弹窗",
+        Expand = { BallTitle = "压制弹窗" },
         Desc = "每 2 秒复查一次，防止游戏把 PurchasePromptApp 又打开（需要上面的开关先打开）",
         Icon = "refresh-cw",
         Type = "Checkbox",
