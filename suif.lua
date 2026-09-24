@@ -1,5 +1,5 @@
 local ok, WindUI = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand1"))()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand2"))()
 end)
 
 if not ok or not WindUI then
@@ -686,7 +686,7 @@ do
         },
         Desc = "把所有建筑变半透明（纯客户端，别人看不到）；关掉自动还原原样",
         Icon = "eye",
-        Type = "Checkbox",
+        Type = "Toggle",
         Value = false,
         Callback = function(s)
             XRAY.on = s
@@ -707,7 +707,7 @@ do
         Expand = { BallTitle = "排除角色" },
         Desc = "开：只透视建筑，玩家/自己不变透明（默认）；关：连角色一起透明",
         Icon = "user",
-        Type = "Checkbox",
+        Type = "Toggle",
         Value = true,
         Callback = function(s)
             XRAY.skipChars = s
@@ -723,7 +723,7 @@ do
         Expand = { BallTitle = "循环模式" },
         Desc = "开：持续给新出现的部件生效（每 0.5 秒补一次）；关：只处理当前场景一次",
         Icon = "refresh-cw",
-        Type = "Checkbox",
+        Type = "Toggle",
         Value = true,
         Callback = function(s)
             XRAY.loop = s
@@ -795,7 +795,7 @@ toolTab:Toggle({
     Expand = { BallTitle = "即时互动" },
     Desc = "关闭恢复初始数值，但可能需要玩家死亡一次或互动按钮刷新一次",
     Icon = "zap",
-    Type = "Checkbox",
+    Type = "Toggle",
     Value = false,
     Callback = function(s)
         getgenv().InstantInteract = s
@@ -909,7 +909,7 @@ do
         Expand = { BallTitle = "屏蔽弹窗" },
         Desc = "IY 同款：关掉 CoreGui.PurchasePromptApp，购买/会员提示不再弹出",
         Icon = "shield-off",
-        Type = "Checkbox",
+        Type = "Toggle",
         Value = false,
         Callback = function(s)
             getgenv().SutureNoPrompts = s
@@ -934,7 +934,7 @@ do
         Expand = { BallTitle = "压制弹窗" },
         Desc = "每 2 秒复查一次，防止游戏把 PurchasePromptApp 又打开（需要上面的开关先打开）",
         Icon = "refresh-cw",
-        Type = "Checkbox",
+        Type = "Toggle",
         Value = true,
         Callback = function(s)
             getgenv().SutureNoPromptsLoop = s
