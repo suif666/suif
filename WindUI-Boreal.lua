@@ -15041,7 +15041,7 @@ end
   local BaseColor=Config.BackgroundColor3 or PickRowColor()
   local Dark=(BaseColor.R+BaseColor.G+BaseColor.B)/3<0.5
   local InnerColor=Config.BackgroundColor3 or BaseColor:Lerp(Dark and Color3.new(1,1,1)or Color3.new(0,0,0),Dark and 0.07 or 0.05)
-  local ArrowSize=Config.ArrowSize or 36
+  local ArrowSize=Config.ArrowSize or 28
   local Pad=Config.Padding or 0
   local Ratio=tonumber(Config.Width)or 0.9
   if Ratio>1 then
@@ -15052,8 +15052,8 @@ end
   if Align~="Left"and Align~="Right"then
   Align="Center"
   end
-  local Open=Config.IconOpen or"chevron-right"
-  local Close=Config.IconClose or"chevron-down"
+  local Open=Config.IconOpen or"settings-2"
+  local Close=Config.IconClose or"settings-2"
   local Arrow=New("TextButton",{
   Name="WindUIExpandArrow",
   AnchorPoint=Vector2.new(1,0.5),
@@ -15084,7 +15084,7 @@ end
   ArrowIcon.ImageRectOffset=Icon[2].ImageRectPosition
   else
   ArrowIcon.Image=""
-  Arrow.Text=Name=="chevron-down"and"▼"or"▶"
+  Arrow.Text="⚙"
   Arrow.TextSize=Config.ArrowTextSize or 22
   end
   end
@@ -20090,7 +20090,7 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
-aa.ExpandFeatureVersion="expand-v7"
+aa.ExpandFeatureVersion="expand-v8"
 
 function aa.CreateWindow(au,av)
 local aw=a.ao()
