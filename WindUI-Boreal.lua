@@ -15071,12 +15071,38 @@ end
   },
   },{})
   Arrow.Parent=Main
+  local Shifted={}
   for _,Child in next,Main:GetChildren()do
   if Child~=Arrow and Child:IsA("GuiObject")and Child.AnchorPoint.X==1 and Child.Position.X.Scale==1 and not Child:GetAttribute("WindUIExpandShifted")then
   Child:SetAttribute("WindUIExpandShifted",true)
   Child.Position=UDim2.new(1,-(ArrowSize+8),0.5,Child.Position.Y.Offset)
+  Shifted[#Shifted+1]=Child
   end
   end
+  task.spawn(function()
+  local CY=nil
+  for _=1,10 do
+  local TitleFrame=Container and Container:FindFirstChild("TitleFrame")
+  if TitleFrame and TitleFrame.AbsoluteSize.Y and TitleFrame.AbsoluteSize.Y>0 then
+  CY=TitleFrame.AbsolutePosition.Y-Main.AbsolutePosition.Y+TitleFrame.AbsoluteSize.Y/2
+  if CY>0 then
+  break
+  end
+  end
+  task.wait()
+  end
+  if not CY or CY<=0 then
+  CY=Main.AbsoluteSize.Y>0 and Main.AbsoluteSize.Y/2 or 18
+  end
+  Arrow.AnchorPoint=Vector2.new(1,0.5)
+  Arrow.Position=UDim2.new(1,-6,0,CY)
+  for _,Child in next,Shifted do
+  if Child and Child.Parent then
+  Child.AnchorPoint=Vector2.new(1,0.5)
+  Child.Position=UDim2.new(1,-(ArrowSize+8),0,CY)
+  end
+  end
+  end)
   local Wrapper=New("Frame",{
   Name="WindUIExpandWrapper",
   Size=UDim2.new(1,0,0,0),
@@ -20040,7 +20066,7 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
-aa.ExpandFeatureVersion="expand-v4"
+aa.ExpandFeatureVersion="expand-v5"
 
 function aa.CreateWindow(au,av)
 local aw=a.ao()
