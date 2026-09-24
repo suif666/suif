@@ -15002,6 +15002,9 @@ end
   local Wind=a.c()
   local New=Wind.New
   local function PickRowColor()
+  if Main:IsA("ImageLabel")and Main.ImageTransparency<0.9 then
+  return Main.ImageColor3
+  end
   for _,Child in next,Main:GetChildren()do
   if Child:IsA("ImageLabel")and Child.Visible and Child.ImageTransparency<0.9 and not Child:FindFirstChild("UIGradient")then
   return Child.ImageColor3
@@ -15263,6 +15266,7 @@ end
   local function SetExpanded(Value)
   Expanded=Value and true or false
   Wrapper.Visible=Expanded
+  Inner.Visible=Expanded
   Arrow.Text=Expanded and Close or Open
   if Expanded and type(Config.Elements)=="function"and not Built then
   Built=true
