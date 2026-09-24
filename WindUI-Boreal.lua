@@ -15041,7 +15041,7 @@ end
   local BaseColor=Config.BackgroundColor3 or PickRowColor()
   local Dark=(BaseColor.R+BaseColor.G+BaseColor.B)/3<0.5
   local InnerColor=Config.BackgroundColor3 or BaseColor:Lerp(Dark and Color3.new(1,1,1)or Color3.new(0,0,0),Dark and 0.07 or 0.05)
-  local ArrowSize=Config.ArrowSize or 32
+  local ArrowSize=Config.ArrowSize or 36
   local Pad=Config.Padding or 0
   local Ratio=tonumber(Config.Width)or 0.9
   if Ratio>1 then
@@ -15052,24 +15052,42 @@ end
   if Align~="Left"and Align~="Right"then
   Align="Center"
   end
-  local Open=Config.IconOpen or"▶"
-  local Close=Config.IconClose or"▼"
+  local Open=Config.IconOpen or"chevron-right"
+  local Close=Config.IconClose or"chevron-down"
   local Arrow=New("TextButton",{
   Name="WindUIExpandArrow",
   AnchorPoint=Vector2.new(1,0.5),
   Position=UDim2.new(1,-6,0.5,0),
   Size=UDim2.new(0,ArrowSize,0,ArrowSize),
   BackgroundTransparency=1,
-  Text=Open,
-  TextSize=Config.ArrowTextSize or 22,
-  Font=Enum.Font.GothamBold,
   AutoButtonColor=false,
-  TextTransparency=0.1,
   ZIndex=6,
+  },{
+  New("ImageLabel",{
+  Name="WindUIExpandArrowIcon",
+  Size=UDim2.new(1,0,1,0),
+  BackgroundTransparency=1,
+  ImageTransparency=0,
   ThemeTag={
-  TextColor3="Text",
+  ImageColor3="Text",
   },
-  },{})
+  }),
+  })
+  local ArrowIcon=Arrow:FindFirstChild("WindUIExpandArrowIcon")
+  local function SetArrowIcon(Name)
+  local Icon=aa.Icon(Name)
+  if Icon and Icon[1] and Icon[2] then
+  Arrow.Text=""
+  ArrowIcon.Image=Icon[1]
+  ArrowIcon.ImageRectSize=Icon[2].ImageRectSize
+  ArrowIcon.ImageRectOffset=Icon[2].ImageRectPosition
+  else
+  ArrowIcon.Image=""
+  Arrow.Text=Name=="chevron-down"and"▼"or"▶"
+  Arrow.TextSize=Config.ArrowTextSize or 22
+  end
+  end
+  SetArrowIcon(Open)
   Arrow.Parent=Main
   local Shifted={}
   for _,Child in next,Main:GetChildren()do
@@ -15078,6 +15096,11 @@ end
   Child.Position=UDim2.new(1,-(ArrowSize+8),0.5,Child.Position.Y.Offset)
   Shifted[#Shifted+1]=Child
   end
+  end
+  local TitleBlock=Container:FindFirstChild("TitleFrame")
+  if TitleBlock and TitleBlock:IsA("GuiObject")and TitleBlock.Size.X.Scale==1 then
+  local SX=TitleBlock.Size.X
+  TitleBlock.Size=UDim2.new(SX.Scale,SX.Offset-(ArrowSize+14),0,0)
   end
   task.spawn(function()
   local CY=nil
@@ -15327,7 +15350,7 @@ end
   Expanded=Value and true or false
   Wrapper.Visible=Expanded
   Inner.Visible=Expanded
-  Arrow.Text=Expanded and Close or Open
+  SetArrowIcon(Expanded and Close or Open)
   if Expanded and type(Config.Elements)=="function"and not Built then
   Built=true
   task.spawn(function()
@@ -20066,7 +20089,7 @@ an.Themes=aa.Themes
 aa:SetTheme"Dark"
 aa:SetLanguage(an.Language)
 
-aa.ExpandFeatureVersion="expand-v5"
+aa.ExpandFeatureVersion="expand-v6"
 
 function aa.CreateWindow(au,av)
 local aw=a.ao()
