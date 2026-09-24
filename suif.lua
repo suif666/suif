@@ -1,5 +1,5 @@
 local ok, WindUI = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand3"))()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand4"))()
 end)
 
 if not ok or not WindUI then
