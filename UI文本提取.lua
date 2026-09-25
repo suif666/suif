@@ -99,7 +99,7 @@ local BlockMode = false
 local Minimized = false
 local Animating = false -- 最小化/还原动画进行中时，屏蔽重复触发
 local CurrentDisplayText = ""
-local LastNormalSize = Vector2.new(560, 460) -- 与默认UI大小匹配
+local LastNormalSize = Vector2.new(540, 370) -- 与默认UI大小匹配
 local LastNormalPosition = nil
 local LastCirclePosition = nil -- 悬浮圆点最后拖动到的位置
 
@@ -618,8 +618,8 @@ local function StyleButton(btn, color)
 end
 
 local Main = New("Frame", {
-    Size = UDim2.new(0, 560, 0, 460), -- 加了工具面板后默认给大一点；可拖动右下角↘手柄自由调整
-    Position = UDim2.new(0.5, -280, 0.5, -230),
+    Size = UDim2.new(0, 540, 0, 370), -- 默认给得紧凑些；拖动右下角↘手柄可以自由调整
+    Position = UDim2.new(0.5, -270, 0.5, -185),
     BackgroundColor3 = Theme.Panel,
     BorderSizePixel = 0,
     Active = true,
@@ -724,9 +724,9 @@ local SearchBtn = New("TextButton", {
 }, Content)
 StyleButton(SearchBtn, Theme.Purple)
 
--- ==================== 工具面板 ====================
--- 原版只有「导出Lua」一种输出、没有排序/正则/对比/替换，收藏和屏蔽也只存在内存里。
--- 这里把 12 个次级功能集中成两行小按钮 + 一行替换输入框，不占用左侧主按钮区。
+-- ==================== 功能列表（右栏） ====================
+-- 和文本列表分家：中间那栏只负责「看文字」，所有功能都放到右边这一栏，
+-- 并且按用途分组、每个按钮鼠标停上去都有说明（完整说明在「帮助」里）。
 local Tool = {}
 Tool.Panel = New("Frame", {
     BackgroundColor3 = Theme.Panel2,
@@ -737,9 +737,12 @@ Corner(Tool.Panel, 8)
 Stroke(Tool.Panel, Theme.Stroke, 1, 0.38)
 
 Tool.Order = {}
-local function MakeTool(name, text, color)
+Tool.ByKey = {}
+Tool.Headers = {}
+
+local function MakeTool(key, text, color)
     local b = New("TextButton", {
-        Name = name,
+        Name = key,
         Text = text,
         TextColor3 = Color3.new(1, 1, 1),
         Font = Enum.Font.SourceSansBold,
@@ -748,25 +751,36 @@ local function MakeTool(name, text, color)
     }, Tool.Panel)
     StyleButton(b, color)
     Tool.Order[#Tool.Order + 1] = b
+    Tool.ByKey[key] = b
     return b
 end
 
-Tool.Trans = MakeTool("Trans", "汉化表", Theme.Cyan)
-Tool.Json = MakeTool("Json", "JSON", Theme.Purple)
-Tool.Csv = MakeTool("Csv", "CSV", Theme.Purple)
-Tool.Txt = MakeTool("Txt", "TXT", Theme.Card2)
-Tool.Diff = MakeTool("Diff", "对比", Theme.Yellow)
-Tool.ReplaceBtn = MakeTool("Replace", "替换", Theme.Red)
-Tool.Hidden = MakeTool("Hidden", "含隐藏:关", Theme.Card2)
-Tool.Regex = MakeTool("Regex", "正则:关", Theme.Card2)
-Tool.Sort = MakeTool("Sort", "排序:默认", Theme.Card2)
-Tool.Save = MakeTool("Save", "保存", Theme.Green)
-Tool.Load = MakeTool("Load", "读取", Theme.Green)
-Tool.Perf = MakeTool("Perf", "性能", Theme.AccentDark)
+local function MakeHeader(text)
+    local hdr = New("TextLabel", {
+        Text = text,
+        TextColor3 = Theme.Muted,
+        BackgroundTransparency = 1,
+        Font = Enum.Font.SourceSansBold,
+        TextSize = 10,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, Tool.Panel)
+    Tool.Headers[#Tool.Headers + 1] = hdr
+    return hdr
+end
+
+Tool.HeaderExport = MakeHeader("导出")
+Tool.Trans  = MakeTool("Trans", "汉化表", Theme.Cyan)
+Tool.Json   = MakeTool("Json", "JSON", Theme.Purple)
+Tool.Csv    = MakeTool("Csv", "CSV", Theme.Purple)
+Tool.Txt    = MakeTool("Txt", "TXT", Theme.Card2)
+
+Tool.HeaderAct = MakeHeader("操作")
+Tool.Diff       = MakeTool("Diff", "对比", Theme.Yellow)
+Tool.ReplaceBtn = MakeTool("ReplaceBtn", "替换", Theme.Red)
 
 Tool.Replace = New("TextBox", {
     Text = "",
-    PlaceholderText = "替换为…（查找条件用上面的搜索框，可开正则）",
+    PlaceholderText = "替换为…",
     ClearTextOnFocus = false,
     BackgroundColor3 = Theme.Card,
     TextColor3 = Color3.new(1, 1, 1),
@@ -776,6 +790,234 @@ Tool.Replace = New("TextBox", {
 }, Tool.Panel)
 Corner(Tool.Replace, 8)
 Stroke(Tool.Replace, Theme.Stroke, 1, 0.38)
+
+Tool.HeaderView = MakeHeader("视图")
+Tool.Hidden = MakeTool("Hidden", "含隐藏:关", Theme.Card2)
+Tool.Regex  = MakeTool("Regex", "正则:关", Theme.Card2)
+Tool.Sort   = MakeTool("Sort", "排序:默认", Theme.Card2)
+
+Tool.HeaderStore = MakeHeader("存档 · 其它")
+Tool.Save = MakeTool("Save", "保存", Theme.Green)
+Tool.Load = MakeTool("Load", "读取", Theme.Green)
+Tool.Perf = MakeTool("Perf", "性能", Theme.AccentDark)
+Tool.Help = MakeTool("Help", "帮助", Theme.Accent)
+
+-- 右栏的分组顺序（LayoutUI 按这个顺序往下排）
+Tool.Layout = {
+    {header = Tool.HeaderExport, items = {Tool.Trans, Tool.Json, Tool.Csv, Tool.Txt}},
+    {header = Tool.HeaderAct,    items = {Tool.Diff, Tool.ReplaceBtn}, after = Tool.Replace},
+    {header = Tool.HeaderView,   items = {Tool.Hidden, Tool.Regex, Tool.Sort}},
+    {header = Tool.HeaderStore,  items = {Tool.Save, Tool.Load, Tool.Perf, Tool.Help}},
+}
+
+-- ==================== 功能说明（新人友好） ====================
+-- 每条 = {分组, 键, 显示名, 说明}。鼠标停在对应按钮上就把说明显示到状态栏；
+-- 「帮助」按钮会把这张表整份列出来。键和 Tool.ByKey / 下面 _G 的映射对应。
+local HELP_ROWS = {
+    {"分区", "sec", "分区",
+     "切换只看某个容器里的文字（全部 / PlayerGui / Workspace / CoreGui / RobloxGui / PlayerList / 第三方UI）。方括号里的数字是这个分区当前的文本条数。"},
+    {"分区", "search", "搜索框",
+     "在列表里筛文字。空格＝同时包含几个词；-词＝排除；class:类名 和 path:路径 只匹配对应字段；\"引号\" 可以把带空格的整句包起来。右键搜索框可以切换「区分大小写」。"},
+    {"分区", "rowText", "列表里的文字",
+     "点一下直接复制这句。鼠标停在上面时，状态栏会显示它来自哪个控件、完整路径，以及有几个控件在用同一句话（行首会标 [×N]）。"},
+    {"分区", "rowLocate", "定位",
+     "在屏幕上把那句话所在的控件用发光框圈出来，Studio 里还会同时选中它。同一句话对应多个控件时，反复点会在它们之间轮换。"},
+    {"分区", "rowFav", "收藏",
+     "把这句加进收藏栏。收藏内容会和屏蔽词一起保存，下次执行自动恢复。"},
+    {"分区", "rowDel", "删除",
+     "从列表里删掉这条。「屏蔽」打开时，删掉的同时会把它拉黑，以后扫描不再收录。"},
+    {"分区", "rowCopy", "复制",
+     "复制这条文字（和直接点文字效果一样）。"},
+
+    {"常用", "Refresh", "刷新",
+     "重新扫描整棵 UI 树，把界面上现有的文字全部重新收集一遍。快捷键 Ctrl+R。"},
+    {"常用", "Auto", "自动刷新",
+     "开启后定时自动重扫。关掉也没关系：新增控件、改写文字、删除控件都会实时反映到列表里。"},
+    {"常用", "CopyAll", "复制显示",
+     "把当前列表里的所有文字一次性复制到剪贴板。"},
+    {"常用", "Block", "屏蔽",
+     "开启后，点某一行的「删除」会把那句文字加入黑名单，以后不再收录。屏蔽词随配置一起保存。"},
+    {"常用", "Fav", "收藏栏",
+     "打开 / 收起收藏面板。收藏项会和屏蔽词一起保存，下次执行自动读回。"},
+    {"常用", "ExportLua", "导出Lua",
+     "按原版格式导出当前分区的文字，兼容以前的用法。"},
+    {"常用", "Clear", "清空",
+     "清空当前分区的列表。屏蔽模式开着时，被清掉的内容会同时加入黑名单。"},
+
+    {"导出", "Trans", "汉化表",
+     "导出成 return { [\"原文\"] = \"\", } 的 Lua 表，可以直接贴进汉化模板。快捷键 Ctrl+E。"},
+    {"导出", "Json", "JSON",
+     "导出带 text / class / path / count 字段的 JSON，方便给别的工具或脚本用。"},
+    {"导出", "Csv", "CSV",
+     "导出 CSV，带 UTF-8 BOM，Excel 双击打开不会乱码。"},
+    {"导出", "Txt", "TXT",
+     "导出纯文本，一行一条，最省事。"},
+
+    {"操作", "Diff", "对比",
+     "左键＝和上次快照比较，列出【新增】和【消失】的文字；右键＝把当前状态重新记成快照。"},
+    {"操作", "ReplaceBtn", "替换",
+     "把搜索框里的内容当成查找条件，替换成右边输入框填的内容。改写的是你本机的界面文字，只影响自己。"},
+    {"操作", "replaceBox", "替换输入框",
+     "要替换成的内容。查找条件用上面的搜索框，搜索开了正则就按正则替换。"},
+
+    {"视图", "Hidden", "含隐藏",
+     "是否把 Visible = false（看不见）的控件也算进来。默认只统计看得见的。"},
+    {"视图", "Regex", "正则",
+     "搜索按正则表达式匹配。左键切换开关，右键切换「区分大小写」。"},
+    {"视图", "Sort", "排序",
+     "切换排序方式：默认 / 文本↑ / 文本↓ / 长度 / 类名 / 路径。左键下一个，右键上一个。"},
+
+    {"存档 · 其它", "Save", "保存",
+     "把收藏和屏蔽词写入本地配置文件，下次执行自动读回。快捷键 Ctrl+S。"},
+    {"存档 · 其它", "Load", "读取",
+     "从本地配置文件恢复收藏和屏蔽词。"},
+    {"存档 · 其它", "Perf", "性能",
+     "显示运行数据：扫描耗时、文本对象数、已挂监听数、列表条数、已实例化的行数。"},
+    {"存档 · 其它", "Help", "帮助",
+     "打开这份功能说明。再点一次或者按 Esc 关闭。"},
+}
+
+local TIPS = {}
+for _, r in ipairs(HELP_ROWS) do TIPS[r[2]] = {name = r[3], desc = r[4]} end
+
+-- 数 UTF-8 字符个数（中文一个字算一个），用来算说明文字要占几行
+local function Utf8Chars(str)
+    local n = 0
+    for _ in tostring(str):gmatch("[%z\1-\127\194-\244][\128-\191]*") do n = n + 1 end
+    return n
+end
+
+-- 悬停提示：鼠标停在按钮上就弹出这个功能的说明。
+-- 真正实现在后面（要用到 Main 的尺寸），这里先占位，省得提前声明一堆局部变量。
+local Tip = {}
+Tip.show = function() end
+Tip.hide = function() end
+
+local function AttachTip(obj, key)
+    local t = TIPS[key]
+    if not obj or not t then return end
+    pcall(function()
+        obj.MouseEnter:Connect(function() Tool.Tip.show(obj, t.name, t.desc) end)
+    end)
+    pcall(function()
+        obj.MouseLeave:Connect(function() Tool.Tip.hide() end)
+    end)
+end
+Tool.Tip = Tip
+Tool.AttachTip = AttachTip
+-- 列表行里那几个按钮的说明键
+Tool.RowTipKeys = {LocateBtn = "rowLocate", FavBtn = "rowFav", DelBtn = "rowDel", CopyBtn = "rowCopy"}
+
+-- 提示浮层本体
+Tip.Box = New("Frame", {
+    Name = "TipBox",
+    BackgroundColor3 = Theme.Panel2,
+    BorderSizePixel = 0,
+    Visible = false,
+    ZIndex = 60,
+    Size = UDim2.new(0, 200, 0, 40),
+}, Content)
+Corner(Tip.Box, 6)
+Stroke(Tip.Box, Theme.Accent, 1, 0.12)
+
+Tip.Label = New("TextLabel", {
+    BackgroundTransparency = 1,
+    TextColor3 = Theme.Text,
+    Font = Enum.Font.SourceSans,
+    TextSize = 11,
+    TextWrapped = true,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Top,
+    ZIndex = 61,
+}, Tip.Box)
+
+-- 帮助面板：把上面那张说明表整份列出来，新人不用挨个悬停也能一次看完
+local Help = {}
+Help.Panel = New("Frame", {
+    Name = "Help.Panel",
+    BackgroundColor3 = Theme.Panel,
+    BackgroundTransparency = 0.03,
+    BorderSizePixel = 0,
+    Visible = false,
+    ZIndex = 40,
+}, Content)
+Corner(Help.Panel, 10)
+Stroke(Help.Panel, Theme.Accent, 1, 0.28)
+
+Help.Title = New("TextLabel", {
+    Text = "功能说明　（鼠标停在任意按钮上也会弹出提示）",
+    BackgroundTransparency = 1,
+    TextColor3 = Theme.AccentGlow,
+    Font = Enum.Font.SourceSansBold,
+    TextSize = 13,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 41,
+}, Help.Panel)
+
+Help.Close = New("TextButton", {
+    Text = "✕",
+    TextColor3 = Color3.new(1, 1, 1),
+    BackgroundColor3 = Theme.Red,
+    Font = Enum.Font.SourceSansBold,
+    TextSize = 13,
+    ZIndex = 42,
+}, Help.Panel)
+Corner(Help.Close, 6)
+StyleButton(Help.Close, Theme.Red)
+
+Help.Scroll = New("ScrollingFrame", {
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    CanvasSize = UDim2.new(0, 0, 0, 0),
+    ScrollBarThickness = 6,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+    VerticalScrollBarInset = Enum.ScrollBarInset.Always,
+    ScrollBarImageColor3 = Theme.Muted,
+    ClipsDescendants = true,
+    ZIndex = 41,
+}, Help.Panel)
+
+Help.Items = {}
+do
+    local lastGroup = nil
+    for _, r in ipairs(HELP_ROWS) do
+        if r[1] ~= lastGroup then
+            lastGroup = r[1]
+            local g = New("TextLabel", {
+                Text = "· " .. r[1] .. " ·",
+                BackgroundTransparency = 1,
+                TextColor3 = Theme.Cyan,
+                Font = Enum.Font.SourceSansBold,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 41,
+            }, Help.Scroll)
+            Help.Items[#Help.Items + 1] = {kind = "group", obj = g}
+        end
+        local nameObj = New("TextLabel", {
+            Text = r[3],
+            BackgroundTransparency = 1,
+            TextColor3 = Theme.Yellow,
+            Font = Enum.Font.SourceSansBold,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            ZIndex = 41,
+        }, Help.Scroll)
+        local descObj = New("TextLabel", {
+            Text = r[4],
+            BackgroundTransparency = 1,
+            TextColor3 = Theme.Text,
+            Font = Enum.Font.SourceSans,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            TextWrapped = true,
+            ZIndex = 41,
+        }, Help.Scroll)
+        Help.Items[#Help.Items + 1] = {kind = "row", name = nameObj, desc = descObj}
+    end
+end
 
 -- 性能数据（「性能」按钮展示）
 St.Perf = {scanMs = 0, total = 0, hooked = 0, roots = 0, at = "尚未扫描"}
@@ -1186,13 +1428,13 @@ local ROW_ACTIONS = 4
 local function ComputeRowMetrics()
     local s = CurrentUIScale or 1
     local rowH = math.floor(math.clamp(38 * s, 30, 56))
-    local actionW = math.floor(math.clamp(36 * s, 28, 52))
+    local actionW = math.floor(math.clamp(26 * s, 22, 44))
     local actionH = math.floor(math.clamp(23 * s, 18, 32))
     local rightPad = math.floor(math.clamp(7 * s, 5, 12))
     local gap = math.floor(math.clamp(4 * s, 3, 8))
     local labelTextSize = math.floor(math.clamp(12.5 * s, 10, 17))
     local actionTextSize = math.floor(math.clamp(11 * s, 9, 14))
-    local compact = actionW <= 34
+    local compact = actionW <= 36
     -- 从右到左：rightPad | 复制 | gap | 删除 | gap | 收藏 | gap | 定位 | gap(与标签的间隔)
     local actionsWidth = rightPad + actionW * ROW_ACTIONS + gap * (ROW_ACTIONS - 1) + gap
     return {
@@ -1222,6 +1464,7 @@ local function MakeAction(row, name, slot, color, m, full, short)
         BackgroundColor3 = color,
     }, row)
     StyleButton(btn, color)
+    AttachTip(btn, Tool.RowTipKeys[name])
     return btn
 end
 
@@ -1390,6 +1633,7 @@ local function CreateRowShell(m)
         TextTruncate = Enum.TextTruncate.AtEnd,
         AutoButtonColor = false,
     }, row)
+    AttachTip(label, "rowText")
 
     local locate = MakeAction(row, "LocateBtn", 3, Theme.Accent, m, "定位", "位")
     local fav = MakeAction(row, "FavBtn", 2, Theme.AccentDark, m, "收藏", "藏")
@@ -1629,7 +1873,8 @@ function UpdateStatus(msg)
     if msg and msg ~= "" then
         StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block.."｜"..msg
     else
-        StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block
+        -- 平时省掉「自动刷新」「屏蔽」这两项（按钮上本来就写着），腾出位置给新人提示
+        StatusLabel.Text = "状态："..CurrentSection.." "..Count(CurrentSection).."条｜"..block.."　·　鼠标停在按钮上看说明"
     end
 end
 
@@ -1873,23 +2118,25 @@ local function LayoutUI()
     local scale = math.clamp(math.sqrt((w / 480) * (h / 340)), 0.72, 1.7)
     CurrentUIScale = scale
 
-    local pad = math.floor(math.clamp(8 * scale, 6, 14))
-    local titleH = math.floor(math.clamp(32 * scale, 26, 48))
-    local sideW = math.floor(math.clamp(155 * scale, 120, 240))
-    local statusH = math.floor(math.clamp(20 * scale, 16, 30))
-    local searchH = math.floor(math.clamp(26 * scale, 20, 38))
-    local gap = math.floor(math.clamp(5 * scale, 3, 10))
-    local actionH = math.floor(math.clamp(24 * scale, 18, 36))
-    local sectionH = math.floor(math.clamp(24 * scale, 18, 36))
+    local pad = math.floor(math.clamp(7 * scale, 5, 12))
+    local titleH = math.floor(math.clamp(30 * scale, 24, 44))
+    local sideW = math.floor(math.clamp(88 * scale, 76, 130))
+    local toolW = math.floor(math.clamp(140 * scale, 124, 190))
+    local statusH = math.floor(math.clamp(19 * scale, 15, 28))
+    local searchH = math.floor(math.clamp(25 * scale, 19, 36))
+    local gap = math.floor(math.clamp(5 * scale, 3, 9))
+    local actionH = math.floor(math.clamp(23 * scale, 17, 34))
+    local sectionH = math.floor(math.clamp(23 * scale, 17, 34))
     local actionCount = 7
 
-    local titleTextSize = math.floor(math.clamp(17 * scale, 13, 24))
-    local topBtnSize = math.floor(math.clamp(28 * scale, 22, 40))
-    local sectionTextSize = math.floor(math.clamp(11 * scale, 9, 16))
-    local searchTextSize = math.floor(math.clamp(12 * scale, 10, 17))
-    local searchBtnTextSize = math.floor(math.clamp(13 * scale, 10, 18))
-    local actionTextSize = math.floor(math.clamp(11 * scale, 9, 16))
-    local statusTextSize = math.floor(math.clamp(12 * scale, 10, 17))
+    local titleTextSize = math.floor(math.clamp(16 * scale, 12, 22))
+    local topBtnSize = math.floor(math.clamp(26 * scale, 20, 38))
+    local sectionTextSize = math.floor(math.clamp(11 * scale, 9, 15))
+    local searchTextSize = math.floor(math.clamp(12 * scale, 10, 16))
+    local searchBtnTextSize = math.floor(math.clamp(12 * scale, 10, 17))
+    local actionTextSize = math.floor(math.clamp(11 * scale, 9, 15))
+    local statusTextSize = math.floor(math.clamp(11 * scale, 9, 15))
+    local helpTextSize = math.floor(math.clamp(11 * scale, 9, 14))
 
     Title.Size = UDim2.new(1, -math.floor(80*scale), 0, titleH)
     Title.Position = UDim2.new(0, pad, 0, 0)
@@ -1899,15 +2146,16 @@ local function LayoutUI()
 
     MinBtn.Size = UDim2.new(0, topBtnSize, 0, topBtnSize)
     MinBtn.Position = UDim2.new(1, -(topBtnSize*2 + 4), 0, 2)
-    MinBtn.TextSize = math.floor(math.clamp(18 * scale, 14, 24))
+    MinBtn.TextSize = math.floor(math.clamp(17 * scale, 13, 22))
 
     CloseBtn.Size = UDim2.new(0, topBtnSize, 0, topBtnSize)
     CloseBtn.Position = UDim2.new(1, -(topBtnSize + 2), 0, 2)
-    CloseBtn.TextSize = math.floor(math.clamp(16 * scale, 12, 22))
+    CloseBtn.TextSize = math.floor(math.clamp(15 * scale, 11, 20))
 
     Content.Size = UDim2.new(1, 0, 1, -titleH)
     Content.Position = UDim2.new(0, 0, 0, titleH)
 
+    -- ---------- 左栏：分区 + 常用操作 ----------
     LeftPanel.Size = UDim2.new(0, sideW, 1, -pad*2)
     LeftPanel.Position = UDim2.new(0, pad, 0, pad)
 
@@ -1922,7 +2170,6 @@ local function LayoutUI()
         b.TextSize = sectionTextSize
     end
 
-    -- LeftPanel 只包含分区按钮 + 功能按钮，不再包含搜索框
     local sideY = gap + sectionPanelH + gap
     local actionPanelH = actionCount * actionH + (actionCount-1) * gap
     BottomBar.Size = UDim2.new(1, -pad, 0, actionPanelH)
@@ -1938,50 +2185,133 @@ local function LayoutUI()
         b.TextSize = actionTextSize
     end
 
+    -- ---------- 中栏：状态栏 + 搜索 + 文本列表 ----------
     local listX = pad * 2 + sideW
-    local rightW = math.max(120, w - listX - pad)
+    local centerW = math.max(150, w - listX - toolW - gap - pad)
+    local toolX = listX + centerW + gap
 
-    StatusLabel.Size = UDim2.new(0, rightW, 0, statusH)
+    StatusLabel.Size = UDim2.new(0, centerW, 0, statusH)
     StatusLabel.Position = UDim2.new(0, listX, 0, pad)
     StatusLabel.TextSize = statusTextSize
 
-    -- 工具面板：两行小按钮 + 一行替换输入框（放在状态栏和搜索框之间）
-    local toolBtnH = math.floor(math.clamp(22 * scale, 17, 30))
-    local toolCols = 4
-    local toolGap = math.floor(math.clamp(3 * scale, 2, 6))
-    local toolPad = math.floor(math.clamp(5 * scale, 3, 9))
-    local toolRows = math.max(1, math.ceil(#Tool.Order / toolCols))
-    local toolW = (rightW - toolPad * 2 - toolGap * (toolCols - 1)) / toolCols
-    local toolGridH = toolBtnH * toolRows + toolGap * (toolRows - 1)
-    local toolPanelH = toolPad * 2 + toolGridH + toolGap + searchH
-    local toolY = pad + statusH + gap
-    Tool.Panel.Size = UDim2.new(0, rightW, 0, toolPanelH)
-    Tool.Panel.Position = UDim2.new(0, listX, 0, toolY)
-    for i, b in ipairs(Tool.Order) do
-        local col = (i - 1) % toolCols
-        local row = math.floor((i - 1) / toolCols)
-        b.Size = UDim2.new(0, toolW, 0, toolBtnH)
-        b.Position = UDim2.new(0, toolPad + col * (toolW + toolGap), 0, toolPad + row * (toolBtnH + toolGap))
-        b.TextSize = math.floor(math.clamp(10.5 * scale, 8, 13))
-    end
-    Tool.Replace.Size = UDim2.new(0, rightW - toolPad * 2, 0, searchH)
-    Tool.Replace.Position = UDim2.new(0, toolPad, 0, toolPad + toolGridH + toolGap)
-    Tool.Replace.TextSize = searchTextSize
-
-    -- 搜索框放在右侧区域：工具面板下方、文本列表上方，横跨整个右侧宽度
-    local searchRowY = toolY + toolPanelH + gap
-    SearchBtn.Size = UDim2.new(0, searchH * 2, 0, searchH)
+    local searchRowY = pad + statusH + gap
+    local searchBtnW = math.floor(searchH * 1.7)
+    SearchBtn.Size = UDim2.new(0, searchBtnW, 0, searchH)
     SearchBtn.Position = UDim2.new(0, listX, 0, searchRowY)
     SearchBtn.TextSize = searchBtnTextSize
 
     SearchBox.Visible = true
-    SearchBox.Size = UDim2.new(0, rightW - searchH * 2 - gap, 0, searchH)
-    SearchBox.Position = UDim2.new(0, listX + searchH * 2 + gap, 0, searchRowY)
+    SearchBox.Size = UDim2.new(0, math.max(60, centerW - searchBtnW - gap), 0, searchH)
+    SearchBox.Position = UDim2.new(0, listX + searchBtnW + gap, 0, searchRowY)
     SearchBox.TextSize = searchTextSize
 
     local scrollY = searchRowY + searchH + gap
-    Scroll.Size = UDim2.new(0, rightW, 1, -scrollY - pad)
+    Scroll.Size = UDim2.new(0, centerW, 1, -scrollY - pad)
     Scroll.Position = UDim2.new(0, listX, 0, scrollY)
+
+    -- ---------- 右栏：功能列表 ----------
+    -- 按组竖排。按钮高度由「可用高度 / 总行数」反推，所以窗口拉大拉小都不会溢出。
+    local toolPad = math.floor(math.clamp(5 * scale, 3, 8))
+    local headerH = math.floor(math.clamp(11 * scale, 9, 14))
+    local toolGap = math.floor(math.clamp(3 * scale, 2, 5))
+    local groupGap = math.floor(math.clamp(6 * scale, 4, 10))
+    local toolTop = pad
+    local toolH = h - titleH - pad * 2
+
+    local toolCols = 2
+    local toolRows = 0
+    for _, g in ipairs(Tool.Layout) do
+        toolRows = toolRows + math.max(1, math.ceil(#g.items / toolCols))
+    end
+
+    local fixedH = #Tool.Layout * (headerH + 2) + (#Tool.Layout - 1) * groupGap
+        + (toolRows + 1) * toolGap + toolPad * 2
+    local unitH = (toolH - fixedH) / math.max(1, toolRows + 1)
+    local toolBtnH = math.floor(math.clamp(unitH - toolGap, 14, 30))
+    local replaceH = math.floor(math.clamp(unitH - toolGap, 15, searchH))
+    local btnW = (toolW - toolPad * 2 - (toolCols - 1) * toolGap) / toolCols
+
+    Tool.Panel.Size = UDim2.new(0, toolW, 0, toolH)
+    Tool.Panel.Position = UDim2.new(0, toolX, 0, toolTop)
+
+    local cy = toolPad
+    for gi, g in ipairs(Tool.Layout) do
+        g.header.Size = UDim2.new(1, -toolPad * 2, 0, headerH)
+        g.header.Position = UDim2.new(0, toolPad, 0, cy)
+        g.header.TextSize = math.floor(math.clamp(10 * scale, 8, 13))
+        cy = cy + headerH + 2
+
+        local col = 0
+        for _, b in ipairs(g.items) do
+            b.Size = UDim2.new(0, btnW, 0, toolBtnH)
+            b.Position = UDim2.new(0, toolPad + col * (btnW + toolGap), 0, cy)
+            b.TextSize = math.floor(math.clamp(10 * scale, 8, 13))
+            col = col + 1
+            if col >= toolCols then
+                col = 0
+                cy = cy + toolBtnH + toolGap
+            end
+        end
+        if col > 0 then cy = cy + toolBtnH + toolGap end
+
+        if g.after then
+            g.after.Size = UDim2.new(1, -toolPad * 2, 0, replaceH)
+            g.after.Position = UDim2.new(0, toolPad, 0, cy)
+            g.after.TextSize = math.floor(math.clamp(11 * scale, 9, 14))
+            cy = cy + replaceH + toolGap
+        end
+        if gi < #Tool.Layout then cy = cy + groupGap - toolGap end
+    end
+
+    -- ---------- 悬停提示浮层 ----------
+    Tip.Label.TextSize = math.floor(math.clamp(11 * scale, 9, 14))
+
+    -- ---------- 帮助面板 ----------
+    if Help.Panel.Visible then
+        local hp = pad
+        local hTitleH = math.floor(math.clamp(20 * scale, 16, 26))
+        local closeW = math.floor(math.clamp(20 * scale, 16, 26))
+        Help.Panel.Position = UDim2.new(0, pad, 0, pad)
+        Help.Panel.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
+        local helpW = w - pad * 2
+        Help.Title.Size = UDim2.new(1, -(hp * 2 + closeW + gap), 0, hTitleH)
+        Help.Title.Position = UDim2.new(0, hp, 0, hp)
+        Help.Title.TextSize = helpTextSize
+        Help.Close.Size = UDim2.new(0, closeW, 0, closeW)
+        Help.Close.Position = UDim2.new(1, -(closeW + hp), 0, hp)
+        Help.Close.TextSize = helpTextSize
+
+        local hScrollTop = hp + hTitleH + gap
+        Help.Scroll.Position = UDim2.new(0, hp, 0, hScrollTop)
+        Help.Scroll.Size = UDim2.new(1, -hp * 2, 1, -(hScrollTop + hp))
+
+        local nameW = math.floor(math.clamp(64 * scale, 52, 92))
+        local descX = hp + nameW + gap
+        local descW = math.max(80, helpW - descX - hp - gap)
+        local charsPerLine = math.max(8, math.floor(descW / (helpTextSize * 0.62)))
+        local lineH = helpTextSize + 3
+        local hy = 0
+        for _, item in ipairs(Help.Items) do
+            if item.kind == "group" then
+                hy = hy + gap
+                item.obj.Size = UDim2.new(1, -hp * 2, 0, lineH)
+                item.obj.Position = UDim2.new(0, hp, 0, hy)
+                item.obj.TextSize = helpTextSize
+                hy = hy + lineH
+            else
+                local lines = math.max(1, math.ceil(Utf8Chars(item.desc.Text) / charsPerLine))
+                local rowH = lines * lineH
+                item.name.Size = UDim2.new(0, nameW, 0, lineH)
+                item.name.Position = UDim2.new(0, hp, 0, hy)
+                item.name.TextSize = helpTextSize
+                item.desc.Size = UDim2.new(0, descW, 0, rowH)
+                item.desc.Position = UDim2.new(0, descX, 0, hy)
+                item.desc.TextSize = helpTextSize
+                hy = hy + rowH + 2
+            end
+        end
+        Help.Scroll.CanvasSize = UDim2.new(0, 0, 0, hy + hp)
+    end
 
     ResizeHandle.Visible = true
     ResizeCanvas()
@@ -2602,6 +2932,68 @@ task.spawn(function()
     end
 end)
 
+-- ==================== 悬停说明 + 帮助面板 ====================
+-- 说明动辄几十个字，塞进状态栏那一行会被截断，所以做成贴在按钮旁边的浮层。
+Tool.Tip.show = function(obj, name, desc)
+    local w, h = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
+    if w <= 0 then w = 540 end
+    if h <= 0 then h = 370 end
+
+    local text = name .. "：" .. desc
+    Tip.Label.Text = text
+    local ts = Tip.Label.TextSize
+    local tw = math.floor(math.clamp(w * 0.46, 150, 330))
+    local perLine = math.max(10, math.floor((tw - 16) / (ts * 0.62)))
+    local lines = math.max(1, math.ceil(Utf8Chars(text) / perLine))
+    local th = lines * (ts + 3) + 12
+    Tip.Box.Size = UDim2.new(0, tw, 0, th)
+
+    -- 贴着按钮放：按钮在左半边就放右边，在右半边就放左边，免得挡住正在看的按钮
+    local ax, ay, aw = 0, 0, 0
+    pcall(function()
+        ax = obj.AbsolutePosition.X - Main.AbsolutePosition.X
+        ay = obj.AbsolutePosition.Y - Main.AbsolutePosition.Y
+        aw = obj.AbsoluteSize.X
+    end)
+    local x
+    if (ax + aw / 2) < w / 2 then x = ax + aw + 6 else x = ax - tw - 6 end
+    local tH = math.floor(math.clamp(30 * (CurrentUIScale or 1), 24, 44))
+    x = math.clamp(x, 4, math.max(4, w - tw - 4))
+    local y = math.clamp(ay + 8, tH + 4, math.max(tH + 4, h - th - 4))
+    Tip.Box.Position = UDim2.new(0, x, 0, y)
+    Tip.Box.Visible = true
+end
+
+Tool.Tip.hide = function()
+    Tip.Box.Visible = false
+end
+
+Help.Toggle = function()
+    Help.Panel.Visible = not Help.Panel.Visible
+    Tool.Tip.hide()
+    if Help.Panel.Visible then
+        StatusLabel.Text = "功能说明：滚轮翻页，点右上角 ✕ 或按 Esc 关闭"
+    else
+        UpdateStatus()
+    end
+    LayoutUI()
+end
+
+Tool.Help.MouseButton1Click:Connect(function() pcall(Help.Toggle) end)
+Help.Close.MouseButton1Click:Connect(function() pcall(Help.Toggle) end)
+
+-- 每个功能都挂上悬停说明（列表行里的按钮在 MakeAction 里单独挂）
+for _, section in ipairs(Sections) do AttachTip(SectionButtons[section], "sec") end
+AttachTip(RefreshBtn, "Refresh")
+AttachTip(AutoCheckBtn, "Auto")
+AttachTip(CopyBtn, "CopyAll")
+AttachTip(BlockBtn, "Block")
+AttachTip(FavBtn, "Fav")
+AttachTip(ExportBtn, "ExportLua")
+AttachTip(ClearBtn, "Clear")
+AttachTip(SearchBox, "search")
+AttachTip(Tool.Replace, "replaceBox")
+
 -- ==================== 快捷键 ====================
 -- Ctrl+F 聚焦搜索　Ctrl+R 刷新　Ctrl+E 导出汉化表　Ctrl+S 保存配置　Esc 取消输入焦点
 pcall(function()
@@ -2610,6 +3002,8 @@ pcall(function()
         if input.KeyCode == Enum.KeyCode.Escape then
             pcall(function() SearchBox:ReleaseFocus() end)
             pcall(function() Tool.Replace:ReleaseFocus() end)
+            if Help.Panel.Visible then pcall(Help.Toggle) end
+            pcall(function() Tool.Tip.hide() end)
             return
         end
         local ctrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
@@ -2661,3 +3055,4 @@ pcall(LoadConfig, true)   -- 有上次保存的配置就自动读回来
 
 print(string.format("[UI文本提取器 v25] 已加载 | 单遍扫描 %d ms｜%d 个文本对象｜虚拟化列表 + 实时增量更新",
     St.Perf.scanMs, St.Perf.total))
+print("[UI文本提取器] 新人提示：鼠标停在任意按钮上会弹出该功能的说明；右栏「帮助」可看完整功能表")
