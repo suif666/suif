@@ -1315,11 +1315,11 @@ getgenv().WindUI = WindUI
 
 coordTab:Paragraph({
     Title = "坐标传送",
-    Desc = "首次点这个标签页时自动加载（远程脚本）\n"
+    Desc = "执行脚本时自动加载（远程脚本）\n"
         .. "功能：显示/复制/保存坐标、手动输入数值传送、过滤非当前游戏坐标",
 })
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BC%A0%E9%80%81.lua", "坐标传送", coordTab, true)
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BC%A0%E9%80%81.lua", "坐标传送", coordTab)
 
 
 tyscriptTab:Button({
