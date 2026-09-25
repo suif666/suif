@@ -779,6 +779,7 @@ Tool.Diff       = MakeTool("Diff", "对比", Theme.Yellow)
 Tool.ReplaceBtn = MakeTool("ReplaceBtn", "替换", Theme.Red)
 
 Tool.Replace = New("TextBox", {
+    Size = UDim2.new(0, 120, 0, 24),
     Text = "",
     PlaceholderText = "替换为…",
     ClearTextOnFocus = false,
@@ -803,11 +804,21 @@ Tool.Perf = MakeTool("Perf", "性能", Theme.AccentDark)
 Tool.Help = MakeTool("Help", "帮助", Theme.Accent)
 
 -- 右栏的分组顺序（LayoutUI 按这个顺序往下排）
+-- 「更多」按钮自己永远显示；下面 MoreKeys 里列的默认收起来，点「更多」才出来
+Tool.MoreBtn = MakeTool("More", "更多 ▾", Theme.Card2)
+Tool.MoreKeys = {
+    Json = true, Csv = true, Txt = true,          -- 其余导出格式
+    Diff = true, ReplaceBtn = true,               -- 对比快照 / 批量替换
+    Regex = true, Sort = true,                    -- 正则 / 排序
+    Save = true, Load = true,                     -- 配置存档
+}
+Tool.Expanded = false
+
 Tool.Layout = {
     {header = Tool.HeaderExport, items = {Tool.Trans, Tool.Json, Tool.Csv, Tool.Txt}},
     {header = Tool.HeaderAct,    items = {Tool.Diff, Tool.ReplaceBtn}, after = Tool.Replace},
     {header = Tool.HeaderView,   items = {Tool.Hidden, Tool.Regex, Tool.Sort}},
-    {header = Tool.HeaderStore,  items = {Tool.Save, Tool.Load, Tool.Perf, Tool.Help}},
+    {header = Tool.HeaderStore,  items = {Tool.Save, Tool.Load, Tool.Perf, Tool.Help, Tool.MoreBtn}},
 }
 
 -- ==================== 功能说明（新人友好） ====================
@@ -873,6 +884,8 @@ local HELP_ROWS = {
      "从本地配置文件恢复收藏和屏蔽词。"},
     {"存档 · 其它", "Perf", "性能",
      "显示运行数据：扫描耗时、文本对象数、已挂监听数、列表条数、已实例化的行数。"},
+    {"存档 · 其它", "More", "更多",
+     "展开 / 收起其余功能：JSON、CSV、TXT 导出、正则搜索、排序、对比快照、批量替换、保存读取配置、收藏栏。平时只留常用按钮，界面清爽些。"},
     {"存档 · 其它", "Help", "帮助",
      "打开这份功能说明。再点一次或者按 Esc 关闭。"},
 }
@@ -893,9 +906,31 @@ local Tip = {}
 Tip.show = function() end
 Tip.hide = function() end
 
+-- 手机/平板没有鼠标悬停：说明改走「帮助」面板，不再弹这个浮层
+Tool.TouchOnly = false
+pcall(function()
+    -- 用 not not 逼成布尔：TouchEnabled 取到 nil 时 `nil and x` 会短路成 nil，字段会被清掉
+    Tool.TouchOnly = not not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
+end)
+
+-- 触屏设备上按钮要更好按，所以默认窗口给得高一些（屏幕本身不够高就不动）
+pcall(function()
+    if Tool.TouchOnly then
+        local sh = ScreenGui.AbsoluteSize.Y
+        if sh and sh > 0 then
+            local nh = math.clamp(sh - 80, 370, 520)
+            local nw = Main.Size.X.Offset
+            Main.Size = UDim2.new(0, nw, 0, nh)
+            Main.Position = UDim2.new(0.5, -nw / 2, 0.5, -nh / 2)
+            LastNormalSize = Vector2.new(nw, nh)
+        end
+    end
+end)
+
 local function AttachTip(obj, key)
     local t = TIPS[key]
     if not obj or not t then return end
+    if Tool.TouchOnly then return end
     pcall(function()
         obj.MouseEnter:Connect(function() Tool.Tip.show(obj, t.name, t.desc) end)
     end)
@@ -921,6 +956,9 @@ Corner(Tip.Box, 6)
 Stroke(Tip.Box, Theme.Accent, 1, 0.12)
 
 Tip.Label = New("TextLabel", {
+    -- 这两个必须写：不写的话标签是 0 尺寸，浮层就只剩一个空的黑框（踩过这个坑）
+    Size = UDim2.new(1, -14, 1, -14),
+    Position = UDim2.new(0, 7, 0, 7),
     BackgroundTransparency = 1,
     TextColor3 = Theme.Text,
     Font = Enum.Font.SourceSans,
@@ -945,6 +983,7 @@ Corner(Help.Panel, 10)
 Stroke(Help.Panel, Theme.Accent, 1, 0.28)
 
 Help.Title = New("TextLabel", {
+    Size = UDim2.new(1, -70, 0, 20),
     Text = "功能说明　（鼠标停在任意按钮上也会弹出提示）",
     BackgroundTransparency = 1,
     TextColor3 = Theme.AccentGlow,
@@ -955,6 +994,7 @@ Help.Title = New("TextLabel", {
 }, Help.Panel)
 
 Help.Close = New("TextButton", {
+    Size = UDim2.new(0, 20, 0, 20),
     Text = "✕",
     TextColor3 = Color3.new(1, 1, 1),
     BackgroundColor3 = Theme.Red,
@@ -966,6 +1006,7 @@ Corner(Help.Close, 6)
 StyleButton(Help.Close, Theme.Red)
 
 Help.Scroll = New("ScrollingFrame", {
+    Size = UDim2.new(1, -14, 1, -40),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
     CanvasSize = UDim2.new(0, 0, 0, 0),
@@ -984,6 +1025,7 @@ do
         if r[1] ~= lastGroup then
             lastGroup = r[1]
             local g = New("TextLabel", {
+                Size = UDim2.new(1, -14, 0, 14),
                 Text = "· " .. r[1] .. " ·",
                 BackgroundTransparency = 1,
                 TextColor3 = Theme.Cyan,
@@ -995,6 +1037,7 @@ do
             Help.Items[#Help.Items + 1] = {kind = "group", obj = g}
         end
         local nameObj = New("TextLabel", {
+            Size = UDim2.new(0, 60, 0, 14),
             Text = r[3],
             BackgroundTransparency = 1,
             TextColor3 = Theme.Yellow,
@@ -1005,6 +1048,7 @@ do
             ZIndex = 41,
         }, Help.Scroll)
         local descObj = New("TextLabel", {
+            Size = UDim2.new(1, -80, 0, 14),
             Text = r[4],
             BackgroundTransparency = 1,
             TextColor3 = Theme.Text,
@@ -1050,7 +1094,11 @@ local FavBtn = New("TextButton", {Text = "收藏栏", TextColor3 = Color3.new(1,
 local ExportBtn = New("TextButton", {Text = "导出Lua", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Cyan, TextSize = 11}, BottomBar)
 local ClearBtn = New("TextButton", {Text = "清空", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Red, TextSize = 11}, BottomBar)
 
-for _, b in ipairs({RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}) do
+Tool.LeftAll  = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}
+Tool.LeftCore = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, ExportBtn, ClearBtn}
+Tool.LeftMore = {FavBtn}   -- 收藏栏不常用，收进「更多」
+
+for _, b in ipairs(Tool.LeftAll) do
     StyleButton(b, b.BackgroundColor3)
 end
 
@@ -1427,7 +1475,7 @@ local ROW_ACTIONS = 4
 
 local function ComputeRowMetrics()
     local s = CurrentUIScale or 1
-    local rowH = math.floor(math.clamp(38 * s, 30, 56))
+    local rowH = math.floor(math.clamp(38 * s, Tool.TouchOnly and 38 or 30, 56))
     local actionW = math.floor(math.clamp(26 * s, 22, 44))
     local actionH = math.floor(math.clamp(23 * s, 18, 32))
     local rightPad = math.floor(math.clamp(7 * s, 5, 12))
@@ -1796,7 +1844,17 @@ end
 if Scroll then
     pcall(function()
         Scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-            RenderWindow(false)
+            -- 收走浮层：一开始滚动就说明用户想用列表，别让说明挡着
+            pcall(function() Tool.Tip.hide() end)
+            -- 关键：不能在这里同步重画。手机上拖动一次 CanvasPosition 会连续触发几十次，
+            -- 在输入回调里创建/搬运实例会让滚动卡顿甚至直接把拖动打断（「划不动」）。
+            -- 合并成每帧最多画一次，而且放到输入回调之外。
+            if Win.RenderQueued then return end
+            Win.RenderQueued = true
+            task.defer(function()
+                Win.RenderQueued = false
+                RenderWindow(false)
+            end)
         end)
     end)
 end
@@ -1874,7 +1932,8 @@ function UpdateStatus(msg)
         StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block.."｜"..msg
     else
         -- 平时省掉「自动刷新」「屏蔽」这两项（按钮上本来就写着），腾出位置给新人提示
-        StatusLabel.Text = "状态："..CurrentSection.." "..Count(CurrentSection).."条｜"..block.."　·　鼠标停在按钮上看说明"
+        local hint = Tool.TouchOnly and "点右栏「帮助」看说明" or "鼠标停在按钮上看说明"
+        StatusLabel.Text = "状态："..CurrentSection.." "..Count(CurrentSection).."条｜"..block.."　·　"..hint
     end
 end
 
@@ -2125,8 +2184,9 @@ local function LayoutUI()
     local statusH = math.floor(math.clamp(19 * scale, 15, 28))
     local searchH = math.floor(math.clamp(25 * scale, 19, 36))
     local gap = math.floor(math.clamp(5 * scale, 3, 9))
-    local actionH = math.floor(math.clamp(23 * scale, 17, 34))
-    local sectionH = math.floor(math.clamp(23 * scale, 17, 34))
+    local minPanelH = Tool.TouchOnly and 22 or 17
+    local actionH = math.floor(math.clamp(23 * scale, minPanelH, 34))
+    local sectionH = math.floor(math.clamp(23 * scale, minPanelH, 34))
     local actionCount = 7
 
     local titleTextSize = math.floor(math.clamp(16 * scale, 12, 22))
@@ -2170,6 +2230,15 @@ local function LayoutUI()
         b.TextSize = sectionTextSize
     end
 
+    -- 左栏同样分「常用 / 更多」
+    local leftButtons = {}
+    for i = 1, #Tool.LeftCore do leftButtons[#leftButtons + 1] = Tool.LeftCore[i] end
+    if Tool.Expanded then
+        for i = 1, #Tool.LeftMore do leftButtons[#leftButtons + 1] = Tool.LeftMore[i] end
+    end
+    for i = 1, #Tool.LeftAll do Tool.LeftAll[i].Visible = false end
+    actionCount = #leftButtons
+
     local sideY = gap + sectionPanelH + gap
     local actionPanelH = actionCount * actionH + (actionCount-1) * gap
     BottomBar.Size = UDim2.new(1, -pad, 0, actionPanelH)
@@ -2178,8 +2247,8 @@ local function LayoutUI()
     local leftContentH = sideY + actionPanelH + gap
     LeftPanel.CanvasSize = UDim2.new(0, 0, 0, leftContentH)
 
-    local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}
-    for i, b in ipairs(buttons) do
+    for i, b in ipairs(leftButtons) do
+        b.Visible = true
         b.Size = UDim2.new(1, -pad, 0, actionH)
         b.Position = UDim2.new(0, math.floor(pad/2), 0, (i-1) * (actionH + gap))
         b.TextSize = actionTextSize
@@ -2218,34 +2287,60 @@ local function LayoutUI()
     local toolTop = pad
     local toolH = h - titleH - pad * 2
 
+    -- 简洁模式：MoreKeys 里的按钮默认不显示，点「更多」才展开
+    local visGroups = {}
+    for gi = 1, #Tool.Layout do
+        local g = Tool.Layout[gi]
+        local vis = {}
+        for bi = 1, #g.items do
+            local b = g.items[bi]
+            if Tool.Expanded or not Tool.MoreKeys[b.Name] then vis[#vis + 1] = b end
+        end
+        if #vis > 0 then
+            visGroups[#visGroups + 1] = {header = g.header, items = vis,
+                after = Tool.Expanded and g.after or nil}
+        end
+    end
+    for i = 1, #Tool.Order do Tool.Order[i].Visible = false end
+    for i = 1, #Tool.Headers do Tool.Headers[i].Visible = false end
+
     local toolCols = 2
     local toolRows = 0
-    for _, g in ipairs(Tool.Layout) do
-        toolRows = toolRows + math.max(1, math.ceil(#g.items / toolCols))
+    local hasReplace = false
+    for gi = 1, #visGroups do
+        toolRows = toolRows + math.max(1, math.ceil(#visGroups[gi].items / toolCols))
+        if visGroups[gi].after then hasReplace = true end
     end
+    local slots = toolRows + (hasReplace and 1 or 0)
 
-    local fixedH = #Tool.Layout * (headerH + 2) + (#Tool.Layout - 1) * groupGap
-        + (toolRows + 1) * toolGap + toolPad * 2
-    local unitH = (toolH - fixedH) / math.max(1, toolRows + 1)
-    local toolBtnH = math.floor(math.clamp(unitH - toolGap, 14, 30))
+    local fixedH = #visGroups * (headerH + 2) + math.max(0, #visGroups - 1) * groupGap
+        + slots * toolGap + toolPad * 2
+    local unitH = (toolH - fixedH) / math.max(1, slots)
+    -- 触屏上按钮最小给到 22，手指才点得准；电脑上保持紧凑
+    local minBtnH = Tool.TouchOnly and 22 or 14
+    local maxBtnH = Tool.TouchOnly and 46 or 34
+    local toolBtnH = math.floor(math.clamp(unitH - toolGap, minBtnH, maxBtnH))
     local replaceH = math.floor(math.clamp(unitH - toolGap, 15, searchH))
     local btnW = (toolW - toolPad * 2 - (toolCols - 1) * toolGap) / toolCols
 
-    Tool.Panel.Size = UDim2.new(0, toolW, 0, toolH)
     Tool.Panel.Position = UDim2.new(0, toolX, 0, toolTop)
 
     local cy = toolPad
-    for gi, g in ipairs(Tool.Layout) do
+    for gi = 1, #visGroups do
+        local g = visGroups[gi]
+        g.header.Visible = true
         g.header.Size = UDim2.new(1, -toolPad * 2, 0, headerH)
         g.header.Position = UDim2.new(0, toolPad, 0, cy)
         g.header.TextSize = math.floor(math.clamp(10 * scale, 8, 13))
         cy = cy + headerH + 2
 
         local col = 0
-        for _, b in ipairs(g.items) do
+        for bi = 1, #g.items do
+            local b = g.items[bi]
+            b.Visible = true
             b.Size = UDim2.new(0, btnW, 0, toolBtnH)
             b.Position = UDim2.new(0, toolPad + col * (btnW + toolGap), 0, cy)
-            b.TextSize = math.floor(math.clamp(10 * scale, 8, 13))
+            b.TextSize = math.floor(math.clamp(10 * scale, Tool.TouchOnly and 11 or 8, Tool.TouchOnly and 15 or 13))
             col = col + 1
             if col >= toolCols then
                 col = 0
@@ -2255,13 +2350,21 @@ local function LayoutUI()
         if col > 0 then cy = cy + toolBtnH + toolGap end
 
         if g.after then
+            g.after.Visible = true
             g.after.Size = UDim2.new(1, -toolPad * 2, 0, replaceH)
             g.after.Position = UDim2.new(0, toolPad, 0, cy)
             g.after.TextSize = math.floor(math.clamp(11 * scale, 9, 14))
             cy = cy + replaceH + toolGap
         end
-        if gi < #Tool.Layout then cy = cy + groupGap - toolGap end
+        if gi < #visGroups then cy = cy + groupGap - toolGap end
     end
+    if not hasReplace then Tool.Replace.Visible = false end
+
+    -- 面板高度跟着内容走：收起状态只剩 5 个按钮，不留一大片空白
+    local contentH = cy - toolGap + toolPad
+    if contentH > toolH then contentH = toolH end
+    if contentH < 90 then contentH = 90 end
+    Tool.Panel.Size = UDim2.new(0, toolW, 0, contentH)
 
     -- ---------- 悬停提示浮层 ----------
     Tip.Label.TextSize = math.floor(math.clamp(11 * scale, 9, 14))
@@ -2616,6 +2719,12 @@ Tool.Trans.MouseButton1Click:Connect(function() pcall(ExportTranslations) end)
 Tool.Json.MouseButton1Click:Connect(function() pcall(ExportJson) end)
 Tool.Csv.MouseButton1Click:Connect(function() pcall(ExportCsv) end)
 Tool.Txt.MouseButton1Click:Connect(function() pcall(ExportTxt) end)
+Tool.MoreBtn.MouseButton1Click:Connect(function()
+    Tool.Expanded = not Tool.Expanded
+    Tool.MoreBtn.Text = Tool.Expanded and "收起 ▴" or "更多 ▾"
+    LayoutUI()
+    UpdateStatus(Tool.Expanded and "已展开全部功能" or "已收起，只留常用按钮")
+end)
 Tool.Perf.MouseButton1Click:Connect(function() pcall(ShowPerf) end)
 Tool.ReplaceBtn.MouseButton1Click:Connect(function() pcall(BatchReplace) end)
 Tool.Save.MouseButton1Click:Connect(function() pcall(SaveConfig) end)
@@ -2962,9 +3071,17 @@ Tool.Tip.show = function(obj, name, desc)
     local y = math.clamp(ay + 8, tH + 4, math.max(tH + 4, h - th - 4))
     Tip.Box.Position = UDim2.new(0, x, 0, y)
     Tip.Box.Visible = true
+
+    -- 兜底：万一 MouseLeave 不触发（触屏常见），几秒后自己收起来，免得一直挡着列表
+    Tip.Token = (Tip.Token or 0) + 1
+    local myToken = Tip.Token
+    task.delay(4, function()
+        if Tip.Token == myToken then Tip.Box.Visible = false end
+    end)
 end
 
 Tool.Tip.hide = function()
+    Tip.Token = (Tip.Token or 0) + 1
     Tip.Box.Visible = false
 end
 
