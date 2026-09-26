@@ -1253,7 +1253,7 @@ doorsTab:Button({
 
 doorsTab:Button({
     Title = "[🔑]msdoors", Desc = "据说是msp的巴西粉丝做的 功能方面还算可以", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/Sc-Rhyan57/msdoors/refs/heads/main/download/main.lua", "msdoors脚本") end
+    Callback = function() run("https://rawscripts.net/raw/DOORS-MsDoors-58188", "msdoors脚本") end
 })
 
 
