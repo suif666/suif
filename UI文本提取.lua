@@ -77,29 +77,20 @@ local SystemNames = {
 local SectionData = {}
 local BlockedData = {}
 for _, name in ipairs(Sections) do
-    SectionData[name] = {Texts = {}, Map = {}, Info = {}, AllText = "未检测到 UI 文本"}
+    SectionData[name] = {Texts = {}, Map = {}, AllText = "未检测到 UI 文本"}
     BlockedData[name] = {}
 end
 
 local FavoriteData = {Texts = {}, Map = {}}
 
 local AutoRefreshEnabled = false
-local St = {}
-St.AutoRefresh = 2
-St.Live = true          -- 事件驱动实时更新（文本改动立刻反映）
-St.Hidden = false      -- 是否把不可见（Visible=false）的元素也算进来
-St.Regex = false          -- 搜索按正则匹配
-St.Case = false      -- 搜索区分大小写
-St.SortModes = {"default", "text", "textdesc", "len", "cls", "path"}
-St.SortLabels = {default = "默认", text = "文本↑", textdesc = "文本↓", len = "长度", cls = "类名", path = "路径"}
-St.Sort = "default"       -- 当前排序方式
-St.Dirty = false          -- 数据被增量改动过，等下一拍只重画不重扫
+local AutoRefreshInterval = 1.5
 local AutoScrollToBottom = true
 local BlockMode = false
 local Minimized = false
 local Animating = false -- 最小化/还原动画进行中时，屏蔽重复触发
 local CurrentDisplayText = ""
-local LastNormalSize = Vector2.new(540, 370) -- 与默认UI大小匹配
+local LastNormalSize = Vector2.new(480, 340) -- 与默认UI大小匹配，移动端友好
 local LastNormalPosition = nil
 local LastCirclePosition = nil -- 悬浮圆点最后拖动到的位置
 
@@ -137,77 +128,34 @@ local function IsTextObject(obj)
     return obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox"))
 end
 
--- ==================== 祖先链：一趟走完「可见性 + 系统UI + 路径」 ====================
--- 原版这里是三个独立函数（IsVisible / IsSystemUI / GetObjectPath），每个文本对象要把
--- 祖先链走最多 3 遍；其中 IsVisible 每一级祖先都 pcall(function() return cur.Visible end)
--- —— 每级分配一个闭包；GetObjectPath 用 table.insert(t, 1, ...)，深度 d 就是 O(d²) 搬移。
--- 合并后：单个对象从 ~3×深度 次调用 + 一堆闭包，降到 1×深度 次调用、零闭包。
-local function Analyze(obj)
-    local names, depth = {}, 0
-    local visible, system = true, false
+local function GetObjectPath(obj)
+    local t = {}
     local cur = obj
     while cur and cur ~= game do
-        depth = depth + 1
-        if depth > 96 then break end
-        names[depth] = cur.Name
-        -- 只有 GuiObject 才有 Visible（ScreenGui 是 Enabled，Folder 之类根本没有该属性），
-        -- 用 IsA 判断远比 pcall 便宜
-        if visible and cur:IsA("GuiObject") and cur.Visible == false then
-            visible = false
-        end
-        if not system and SystemNames[cur.Name] then
-            system = true
-        end
+        table.insert(t, 1, cur.Name)
         cur = cur.Parent
     end
-    local parts = table.create(depth)
-    for i = 1, depth do
-        parts[i] = names[depth - i + 1]
-    end
-    return visible, system, table.concat(parts, "/")
+    return table.concat(t, "/")
 end
 
--- ==================== 读取文本字段（按类探测，结果缓存） ====================
--- 原版每个对象都跑 4 次 pcall + 4 个闭包；这里每个「类」只探测一次，之后直接读属性
-local TEXT_PROP_NAMES = {"Text", "ContentText", "LocalizedText", "PlaceholderText"}
-St.ClassProps = {}
-local function TextPropsOf(obj)
-    local cls = obj.ClassName
-    local cached = St.ClassProps[cls]
-    if cached then return cached end
-    local list = {}
-    for i = 1, #TEXT_PROP_NAMES do
-        local name = TEXT_PROP_NAMES[i]
-        if pcall(function() return obj[name] end) then
-            list[#list + 1] = name
-        end
+local function IsSystemUI(obj)
+    local cur = obj
+    while cur and cur ~= game do
+        if SystemNames[cur.Name] then return true end
+        cur = cur.Parent
     end
-    St.ClassProps[cls] = list
-    return list
+    return false
 end
 
--- 复用的读取缓冲（FeedObject 不会重入，安全）
-St.Buf = {}
-local function ReadTextsInto(obj, out)
-    local props = TextPropsOf(obj)
-    local n = 0
-    for i = 1, #props do
-        local v = obj[props[i]]
-        if type(v) == "string" and v ~= "" then
-            n = n + 1
-            out[n] = v
-        end
+local function IsVisible(obj)
+    local cur = obj
+    while cur and cur ~= game do
+        local ok, v = pcall(function() return cur.Visible end)
+        if ok and v == false then return false end
+        cur = cur.Parent
     end
-    return n
+    return true
 end
-
--- ==================== 数据层 ====================
--- data.Texts 保持「字符串数组」，显示/搜索/导出等下游逻辑完全不用改；
--- 另外用 data.Info[文本] 记录来源对象，这是「显示来源 / 定位高亮 / 复制路径 /
--- 带路径导出 / 重复计数」的基础。
---   Info[text] = { obj = 首个对象, path = 路径, cls = 类名,
---                  count = 使用该文本的对象数, objs = { [对象] = 路径 } }
-St.ObjIndex = setmetatable({}, {__mode = "k"})   -- [对象] = { [文本] = true }
 
 local function Rebuild(section)
     local data = SectionData[section]
@@ -220,44 +168,22 @@ local function Count(section)
     return data and #data.Texts or 0
 end
 
-local function AddText(section, text, obj, path, cls)
+local function AddText(section, text)
     text = CleanText(text)
     if text == "" or text == "未检测到 UI 文本" then return false end
     if BlockMode and BlockedData[section] and BlockedData[section][text] then return false end
     local data = SectionData[section]
-    if not data then return false end
-
-    if obj then
-        local idx = St.ObjIndex[obj]
-        if not idx then idx = {}; St.ObjIndex[obj] = idx end
-        idx[text] = true
-    end
-
-    local info = data.Info[text]
-    if info then
-        -- 同一句话被多个对象使用：只登记来源，不重复计入条数
-        if obj and info.objs[obj] == nil then
-            info.objs[obj] = path or ""
-            info.count = info.count + 1
-        end
-        return false
-    end
-
+    if not data or data.Map[text] then return false end
     data.Map[text] = true
     table.insert(data.Texts, text)
-    local objs = {}
-    if obj then objs[obj] = path or "" end
-    data.Info[text] = {
-        obj = obj, path = path or "", cls = cls or "",
-        count = obj and 1 or 0, objs = objs,
-    }
+    -- 不再每次插入都重建 AllText（O(N²) 性能瓶颈），由扫描结束处统一 Rebuild
     return true
 end
 
-local function AddTextWithAll(section, text, obj, path, cls)
-    local added = AddText(section, text, obj, path, cls)
+local function AddTextWithAll(section, text)
+    local added = AddText(section, text)
     if section ~= "全部" then
-        if AddText("全部", text, obj, path, cls) then added = true end
+        if AddText("全部", text) then added = true end
     end
     return added
 end
@@ -267,255 +193,120 @@ local function RemoveText(section, text)
     local data = SectionData[section]
     if not data then return end
     data.Map[text] = nil
-    data.Info[text] = nil
     for i = #data.Texts, 1, -1 do
         if data.Texts[i] == text then table.remove(data.Texts, i) end
     end
     Rebuild(section)
 end
 
--- 按「对象」撤销它贡献的所有文本；若某条文本还有别的对象在用则保留（修掉了原版
--- 去重后无法区分来源、删掉一个对象就误删整条文本的问题）
-local function RemoveObject(obj)
-    local idx = St.ObjIndex[obj]
-    if not idx then return end
-    St.ObjIndex[obj] = nil
-    for _, section in ipairs(Sections) do
-        local data = SectionData[section]
-        if data then
-            for text in pairs(idx) do
-                local info = data.Info[text]
-                if info and info.objs[obj] ~= nil then
-                    info.objs[obj] = nil
-                    info.count = info.count - 1
-                    if info.count <= 0 then
-                        data.Map[text] = nil
-                        data.Info[text] = nil
-                        for i = #data.Texts, 1, -1 do
-                            if data.Texts[i] == text then table.remove(data.Texts, i) end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
 local function RebuildAll()
     SectionData["全部"].Texts = {}
     SectionData["全部"].Map = {}
-    SectionData["全部"].Info = {}
     SectionData["全部"].AllText = "未检测到 UI 文本"
     for _, section in ipairs(Sections) do
         if section ~= "全部" then
             for _, text in ipairs(SectionData[section].Texts) do
-                local info = SectionData[section].Info[text]
-                AddText("全部", text, info and info.obj, info and info.path, info and info.cls)
+                AddText("全部", text)
             end
         end
     end
     Rebuild("全部")
 end
 
--- ==================== 扫描：单遍多桶 ====================
--- 原版：每个分区各扫一遍容器；选「全部」时它会连带把 PlayerGui / CoreGui / 第三方UI
--- 各扫一次，而「第三方UI」内部又扫一次 PlayerGui + CoreGui
--- —— 一次刷新等于对整棵树做 5 遍 GetDescendants。
--- 现在：整棵树只走一遍，同一个文本对象一次性归入它所属的所有分区。
-local huiRootCache = nil
+-- skipContainer：调用方已确认对象所在容器时跳过重复的 IsDescendantOf 判断，
+-- 大幅减少扫描耗时；RobloxGui/PlayerList 仍需要路径匹配
+local function BelongsToSection(obj, section, skipContainer)
+    if not obj or obj:IsDescendantOf(ScreenGui) then return false end
+    if not IsVisible(obj) then return false end
 
-local function RefreshHuiRoot()
-    huiRootCache = getHui()
-    return huiRootCache
+    if section == "PlayerGui" then
+        return skipContainer or obj:IsDescendantOf(PlayerGui)
+    elseif section == "Workspace" then
+        return skipContainer or obj:IsDescendantOf(Workspace)
+    elseif section == "CoreGui" then
+        return skipContainer or obj:IsDescendantOf(CoreGui)
+    elseif section == "RobloxGui" then
+        return (skipContainer or obj:IsDescendantOf(CoreGui)) and string.find(GetObjectPath(obj), "RobloxGui", 1, true) ~= nil
+    elseif section == "PlayerList" then
+        return (skipContainer or obj:IsDescendantOf(CoreGui)) and string.find(GetObjectPath(obj), "PlayerList", 1, true) ~= nil
+    elseif section == "第三方UI" then
+        if not skipContainer then
+            local huiRoot = getHui()
+            local inGui = obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or (huiRoot and obj:IsDescendantOf(huiRoot))
+            if not inGui then return false end
+        end
+        return not IsSystemUI(obj)
+    elseif section == "全部" then
+        local huiRoot = getHui()
+        return skipContainer or obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or obj:IsDescendantOf(Workspace) or (huiRoot and obj:IsDescendantOf(huiRoot))
+    end
+    return false
 end
 
-local function ScanRootsList(huiRoot)
-    local roots, seen = {}, {}
-    local function add(r)
-        if r and not seen[r] then seen[r] = true; roots[#roots + 1] = r end
-    end
-    add(PlayerGui)
-    add(CoreGui)
-    add(Workspace)
-    -- hui 根若已在 CoreGui/PlayerGui 里就不重复扫（否则整棵子树扫两遍）
-    if huiRoot and not huiRoot:IsDescendantOf(CoreGui) and not huiRoot:IsDescendantOf(PlayerGui) then
-        add(huiRoot)
-    end
-    return roots
-end
-
-local function FeedTo(section, texts, n, obj, path, cls)
+local function TryReadText(obj, section, skipContainer)
+    if not BelongsToSection(obj, section, skipContainer) then return 0 end
     local added = 0
-    for i = 1, n do
-        if AddText(section, texts[i], obj, path, cls) then added = added + 1 end
+    local function save(v)
+        if AddTextWithAll(section, v) then added = added + 1 end
     end
+    pcall(function() save(obj.Text) end)
+    pcall(function() save(obj.ContentText) end)
+    pcall(function() save(obj.LocalizedText) end)
+    pcall(function() save(obj.PlaceholderText) end)
     return added
 end
 
--- 把一个文本对象一次性归入它所属的所有分区
-local function FeedObject(obj, huiRoot)
-    if obj == ScreenGui or obj:IsDescendantOf(ScreenGui) then return 0 end
-    local visible, system, path = Analyze(obj)
-    if not visible and not St.Hidden then return 0 end
-    local n = ReadTextsInto(obj, St.Buf)
-    if n == 0 then return 0 end
-    local cls = obj.ClassName
-    local inPG = obj:IsDescendantOf(PlayerGui)
-    local inCG = obj:IsDescendantOf(CoreGui)
-    local inWS = obj:IsDescendantOf(Workspace)
-    local inHUI = huiRoot ~= nil and obj:IsDescendantOf(huiRoot)
-
+local function ScanContainer(root, section, skipContainer)
     local added = 0
-    if inPG then added = added + FeedTo("PlayerGui", St.Buf, n, obj, path, cls) end
-    if inWS then added = added + FeedTo("Workspace", St.Buf, n, obj, path, cls) end
-    if inCG or inHUI then
-        added = added + FeedTo("CoreGui", St.Buf, n, obj, path, cls)
-        if string.find(path, "RobloxGui", 1, true) then
-            added = added + FeedTo("RobloxGui", St.Buf, n, obj, path, cls)
-        end
-        if string.find(path, "PlayerList", 1, true) then
-            added = added + FeedTo("PlayerList", St.Buf, n, obj, path, cls)
-        end
-    end
-    if (inPG or inCG or inHUI) and not system then
-        added = added + FeedTo("第三方UI", St.Buf, n, obj, path, cls)
-    end
-    -- 「全部」沿用原版口径：PlayerGui + CoreGui + hui（不含 Workspace，Workspace 有单独分区）
-    if inPG or inCG or inHUI then
-        added = added + FeedTo("全部", St.Buf, n, obj, path, cls)
-    end
-    return added
-end
-
--- 全量扫描：整棵树只走一遍（原版「全部」走 5 遍）
-local function ScanAll()
-    -- 重扫前必须先清空。原版 ScanSection 就是先清空再扫，我把多个分区合并成
-    -- 一趟之后漏了这一步 —— 后果是「本轮已经消失的文本」会永远留在列表里。
-    for _, section in ipairs(Sections) do
-        local d = SectionData[section]
-        if d then
-            d.Texts, d.Map, d.Info = {}, {}, {}
-            d.AllText = "未检测到 UI 文本"
-        end
-    end
-    St.ObjIndex = setmetatable({}, {__mode = "k"})
-    local huiRoot = RefreshHuiRoot()
-    local roots = ScanRootsList(huiRoot)
-    local total, lastYield = 0, os.clock()
-    for r = 1, #roots do
-        local root = roots[r]
-        local ok, list = pcall(root.GetDescendants, root)
-        if ok and list then
-            for i = 1, #list do
-                local obj = list[i]
-                if IsTextObject(obj) then
-                    local ok2, n = pcall(FeedObject, obj, huiRoot)
-                    if ok2 then
-                        total = total + n
-                    elseif ScanErrorLog < 5 then
-                        ScanErrorLog = ScanErrorLog + 1
-                        warn("[UI提取] 跳过文本对象（扫描出错）")
-                    end
-                end
-                -- 按「耗时」让帧（原版按个数每 400 个让一帧）：对象多也不至于反复空等
-                local now = os.clock()
-                if now - lastYield > 0.006 then
-                    lastYield = now
-                    task.wait()
-                end
+    if not root then return 0 end
+    local descendants = root:GetDescendants()
+    for i, obj in ipairs(descendants) do
+        if IsTextObject(obj) then
+            -- 单个文本对象出错只跳过该对象，绝不能让整批扫描静默失败
+            local okT, errT = pcall(function()
+                added = added + TryReadText(obj, section, skipContainer)
+            end)
+            if not okT and ScanErrorLog < 5 then
+                ScanErrorLog = ScanErrorLog + 1
+                warn("[UI提取] 跳过文本对象:", errT)
             end
         end
+        -- 每处理 400 个元素 yield 一次：既防止阻塞主线程，也避免频繁让帧
+        -- 导致大场景扫描耗时过长
+        if i % 400 == 0 then
+            task.wait()
+        end
     end
-    for i = 1, #Sections do Rebuild(Sections[i]) end
-    return total
+    return added
 end
 
--- 保留原函数名：现在任何一次刷新都是一趟全树，等价于原来「全部」的成本
 local function ScanSection(section)
-    return ScanAll()
-end
-
--- ==================== 增量更新（事件驱动） ====================
--- 原版自动刷新每 1.5 秒全量重扫。这里挂上事件：
---   新出现的文本对象 -> 只处理它自己
---   对象消失         -> 只摘掉它贡献的条目
---   文本被改写       -> 只重算这一个对象
--- 定时轮询退化成兜底（间隔也放宽了）。
-St.Conns = setmetatable({}, {__mode = "k"})   -- [对象] = { 连接... }
-
-local function MarkDirtyUI()
-    St.Dirty = true
-end
-
-local function HookObject(obj) end      -- 前置声明，下面重新赋值
-local function UnhookObject(obj) end
-local function RefreshOneObject(obj) end
-
-local function DoHookObject(obj)
-    if St.Conns[obj] then return end
-    if not St.Live then return end
-    local props = TextPropsOf(obj)
-    local list = {}
-    -- 除了文本属性，还必须监听 Visible：可见性一变，这个对象该不该进列表就变了。
-    -- 回调统一走 task.defer：批量替换会在遍历过程中改这些属性，同步回调会边遍历边改数据。
-    local watch = {"Visible"}
-    for i = 1, #props do watch[#watch + 1] = props[i] end
-    for i = 1, #watch do
-        local ok, conn = pcall(function()
-            return obj:GetPropertyChangedSignal(watch[i]):Connect(function()
-                task.defer(function() pcall(RefreshOneObject, obj) end)
-            end)
-        end)
-        if ok and conn then list[#list + 1] = conn end
+    local added = 0
+    local huiRoot = getHui()
+    if section == "PlayerGui" then
+        added = added + ScanContainer(PlayerGui, section, true)
+    elseif section == "Workspace" then
+        added = added + ScanContainer(Workspace, section, true)
+    elseif section == "CoreGui" then
+        added = added + ScanContainer(CoreGui, section, true)
+        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section, true) end
+    elseif section == "RobloxGui" or section == "PlayerList" then
+        added = added + ScanContainer(CoreGui, section, false)
+        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section, false) end
+    elseif section == "第三方UI" then
+        added = added + ScanContainer(PlayerGui, section, false)
+        added = added + ScanContainer(CoreGui, section, false)
+        if huiRoot and huiRoot ~= CoreGui then added = added + ScanContainer(huiRoot, section, false) end
+    elseif section == "全部" then
+        -- 恢复原逻辑：扫一遍容器、文本同时归入具体分区与"全部"，
+        -- 避免切换分区后显示为空（此前"只扫一遍"的去重会把具体分区漏掉，已回退）
+        added = added + ScanSection("PlayerGui")
+        added = added + ScanSection("CoreGui")
+        added = added + ScanSection("第三方UI")
     end
-    St.Conns[obj] = list
-end
-
-local function DoUnhookObject(obj)
-    local list = St.Conns[obj]
-    if list then
-        St.Conns[obj] = nil
-        for i = 1, #list do pcall(function() list[i]:Disconnect() end) end
-    end
-    RemoveObject(obj)
-end
-
-local function DoRefreshOneObject(obj)
-    if not obj or not obj.Parent then return end
-    if obj == ScreenGui or obj:IsDescendantOf(ScreenGui) then return end
-    RemoveObject(obj)
-    DoHookObject(obj)
-    local ok, n = pcall(FeedObject, obj, huiRootCache)
-    if ok and n and n > 0 then MarkDirtyUI() end
-end
-
-HookObject = DoHookObject
-UnhookObject = DoUnhookObject
-RefreshOneObject = DoRefreshOneObject
-
-local IncrementalAttached = false
-local function AttachIncremental()
-    if IncrementalAttached then return end
-    IncrementalAttached = true
-    local function onAdded(inst)
-        if IsTextObject(inst) then
-            task.defer(function() pcall(RefreshOneObject, inst) end)
-        end
-    end
-    local function onRemoving(inst)
-        if IsTextObject(inst) then
-            pcall(UnhookObject, inst)
-            MarkDirtyUI()
-        end
-    end
-    local roots = {PlayerGui, CoreGui, Workspace}
-    for i = 1, #roots do
-        local r = roots[i]
-        pcall(function()
-            r.DescendantAdded:Connect(onAdded)
-            r.DescendantRemoving:Connect(onRemoving)
-        end)
-    end
+    Rebuild(section)
+    Rebuild("全部")
+    return added
 end
 
 -- ==================== UI 创建 ====================
@@ -535,40 +326,24 @@ local function Stroke(obj, color, t, tr)
 end
 
 local Theme = {
-    -- 主面板：上下渐变，不再是死板的一块纯色
-    Panel      = Color3.fromRGB(18, 21, 30),
-    PanelTop   = Color3.fromRGB(27, 31, 45),
-    PanelBot   = Color3.fromRGB(13, 15, 23),
-    Panel2     = Color3.fromRGB(24, 28, 39),
-    Card       = Color3.fromRGB(31, 36, 50),
-    Card2      = Color3.fromRGB(38, 44, 60),
-    Text       = Color3.fromRGB(236, 240, 250),
-    Muted      = Color3.fromRGB(148, 158, 182),
-    Stroke     = Color3.fromRGB(62, 71, 95),
-    Accent     = Color3.fromRGB(96, 140, 255),
-    AccentDark = Color3.fromRGB(52, 82, 170),
-    AccentGlow = Color3.fromRGB(150, 190, 255),
-    Green      = Color3.fromRGB(74, 160, 118),
-    Red        = Color3.fromRGB(198, 82, 92),
-    Purple     = Color3.fromRGB(128, 102, 190),
-    Yellow     = Color3.fromRGB(180, 142, 68),
-    Cyan       = Color3.fromRGB(78, 158, 178),
-    -- 标题高光条用的渐变两端
-    HeaderA    = Color3.fromRGB(58, 96, 190),
-    HeaderB    = Color3.fromRGB(120, 165, 255),
+    Panel = Color3.fromRGB(15, 18, 25),
+    Panel2 = Color3.fromRGB(21, 25, 34),
+    Card = Color3.fromRGB(27, 32, 43),
+    Card2 = Color3.fromRGB(32, 38, 51),
+    Text = Color3.fromRGB(235, 238, 245),
+    Muted = Color3.fromRGB(155, 165, 185),
+    Stroke = Color3.fromRGB(58, 67, 84),
+    Accent = Color3.fromRGB(82, 145, 245),
+    AccentDark = Color3.fromRGB(48, 94, 168),
+    Green = Color3.fromRGB(70, 150, 105),
+    Red = Color3.fromRGB(180, 72, 78),
+    Purple = Color3.fromRGB(105, 86, 150),
+    Yellow = Color3.fromRGB(135, 105, 56),
+    Cyan = Color3.fromRGB(70, 135, 150),
 }
 
 -- 通用动画辅助函数：轻量、单实例Tween，低配设备也能流畅运行
 -- 支持可选的回调（动画完成后执行）
--- 渐变（纯装饰）：给面板/高光条用，让界面不再是纯色块
-local function Gradient(obj, c1, c2, rot, transparency)
-    return New("UIGradient", {
-        Color = ColorSequence.new(c1, c2),
-        Rotation = rot or 0,
-        Transparency = transparency or NumberSequence.new(0),
-    }, obj)
-end
-
 local function Tween(obj, props, duration, style, dir, callback)
     local info = TweenInfo.new(duration or 0.18, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
     local tw = TweenService:Create(obj, info, props)
@@ -579,47 +354,17 @@ local function Tween(obj, props, duration, style, dir, callback)
     return tw
 end
 
-local BtnBase = {}   -- [按钮] = 静止时的底色（悬停/按下动效要基于它来提亮压暗）
-
-local function TintColor(c, k)
-    return Color3.new(
-        math.clamp(c.R * k, 0, 1),
-        math.clamp(c.G * k, 0, 1),
-        math.clamp(c.B * k, 0, 1))
-end
-
 local function StyleButton(btn, color)
-    local base = color or Theme.Card
-    btn.BackgroundColor3 = base
+    btn.BackgroundColor3 = color or Theme.Card
     btn.BorderSizePixel = 0
-    btn.AutoButtonColor = false   -- 改成自制动效：悬停提亮、按下压暗，比默认的灰蒙蒙明显
-    -- 反复调用（例如工具按钮切换状态）时不要重复添加装饰实例
-    if not btn:FindFirstChildOfClass("UICorner") then Corner(btn, 8) end
-    if not btn:FindFirstChildOfClass("UIStroke") then Stroke(btn, Theme.Stroke, 1, 0.55) end
-    BtnBase[btn] = base
-    if btn:GetAttribute("UIStyled") then return end
-    btn:SetAttribute("UIStyled", true)
-    btn.MouseEnter:Connect(function()
-        local b = BtnBase[btn]
-        if b then Tween(btn, {BackgroundColor3 = TintColor(b, 1.26)}, 0.12) end
-    end)
-    btn.MouseLeave:Connect(function()
-        local b = BtnBase[btn]
-        if b then Tween(btn, {BackgroundColor3 = b}, 0.18) end
-    end)
-    btn.MouseButton1Down:Connect(function()
-        local b = BtnBase[btn]
-        if b then Tween(btn, {BackgroundColor3 = TintColor(b, 0.76)}, 0.07) end
-    end)
-    btn.MouseButton1Up:Connect(function()
-        local b = BtnBase[btn]
-        if b then Tween(btn, {BackgroundColor3 = TintColor(b, 1.26)}, 0.10) end
-    end)
+    btn.AutoButtonColor = true
+    Corner(btn, 8)
+    Stroke(btn, Theme.Stroke, 1, 0.55)
 end
 
 local Main = New("Frame", {
-    Size = UDim2.new(0, 540, 0, 370), -- 默认给得紧凑些；拖动右下角↘手柄可以自由调整
-    Position = UDim2.new(0.5, -270, 0.5, -185),
+    Size = UDim2.new(0, 480, 0, 340), -- 移动端更友好，默认较小；可拖动右下角↘手柄自由调整大小
+    Position = UDim2.new(0.5, -240, 0.5, -170),
     BackgroundColor3 = Theme.Panel,
     BorderSizePixel = 0,
     Active = true,
@@ -627,20 +372,10 @@ local Main = New("Frame", {
 }, ScreenGui)
 Corner(Main, 18)
 Stroke(Main, Theme.Stroke, 1, 0.36)
-Gradient(Main, Theme.PanelTop, Theme.PanelBot, 90)   -- 整块面板从上到下的柔和渐变
-
-local TitleAccent = New("Frame", {
-    Name = "TitleAccent",
-    BackgroundColor3 = Theme.Accent,
-    BorderSizePixel = 0,
-    ZIndex = 2,
-}, Main)
-Corner(TitleAccent, 2)
-Gradient(TitleAccent, Theme.HeaderA, Theme.HeaderB, 0)
 
 local Title = New("TextLabel", {
     BackgroundTransparency = 1,
-    Text = "UI 文本提取器 v25",
+    Text = "UI 文本提取器 v24",
     TextColor3 = Color3.new(1,1,1),
     Font = Enum.Font.SourceSansBold,
     TextXAlignment = Enum.TextXAlignment.Left,
@@ -675,10 +410,10 @@ local LeftPanel = New("ScrollingFrame", {
     ScrollBarThickness = 6,
     ScrollingDirection = Enum.ScrollingDirection.Y,
     VerticalScrollBarInset = Enum.ScrollBarInset.Always,
-    ScrollBarImageColor3 = Color3.fromRGB(120, 132, 160),
+    ScrollBarImageColor3 = Color3.fromRGB(170,170,175),
     ClipsDescendants = true
 }, Content)
-Corner(LeftPanel, 10)
+Corner(LeftPanel, 8)
 Stroke(LeftPanel, Theme.Stroke, 1, 0.38)
 
 local StatusLabel = New("TextLabel", {
@@ -724,348 +459,6 @@ local SearchBtn = New("TextButton", {
 }, Content)
 StyleButton(SearchBtn, Theme.Purple)
 
--- ==================== 功能列表（右栏） ====================
--- 和文本列表分家：中间那栏只负责「看文字」，所有功能都放到右边这一栏，
--- 并且按用途分组、每个按钮鼠标停上去都有说明（完整说明在「帮助」里）。
-local Tool = {}
-Tool.Panel = New("Frame", {
-    BackgroundColor3 = Theme.Panel2,
-    BorderSizePixel = 0,
-    ClipsDescendants = true,
-}, Content)
-Corner(Tool.Panel, 8)
-Stroke(Tool.Panel, Theme.Stroke, 1, 0.38)
-
-Tool.Order = {}
-Tool.ByKey = {}
-Tool.Headers = {}
-
-local function MakeTool(key, text, color)
-    local b = New("TextButton", {
-        Name = key,
-        Text = text,
-        TextColor3 = Color3.new(1, 1, 1),
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 11,
-        BackgroundColor3 = color,
-    }, Tool.Panel)
-    StyleButton(b, color)
-    Tool.Order[#Tool.Order + 1] = b
-    Tool.ByKey[key] = b
-    return b
-end
-
-local function MakeHeader(text)
-    local hdr = New("TextLabel", {
-        Text = text,
-        TextColor3 = Theme.Muted,
-        BackgroundTransparency = 1,
-        Font = Enum.Font.SourceSansBold,
-        TextSize = 10,
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, Tool.Panel)
-    Tool.Headers[#Tool.Headers + 1] = hdr
-    return hdr
-end
-
-Tool.HeaderExport = MakeHeader("导出")
-Tool.Trans  = MakeTool("Trans", "汉化表", Theme.Cyan)
-Tool.Json   = MakeTool("Json", "JSON", Theme.Purple)
-Tool.Csv    = MakeTool("Csv", "CSV", Theme.Purple)
-Tool.Txt    = MakeTool("Txt", "TXT", Theme.Card2)
-
-Tool.HeaderAct = MakeHeader("操作")
-Tool.Diff       = MakeTool("Diff", "对比", Theme.Yellow)
-Tool.ReplaceBtn = MakeTool("ReplaceBtn", "替换", Theme.Red)
-
-Tool.Replace = New("TextBox", {
-    Size = UDim2.new(0, 120, 0, 24),
-    Text = "",
-    PlaceholderText = "替换为…",
-    ClearTextOnFocus = false,
-    BackgroundColor3 = Theme.Card,
-    TextColor3 = Color3.new(1, 1, 1),
-    PlaceholderColor3 = Theme.Muted,
-    Font = Enum.Font.SourceSans,
-    TextSize = 12,
-}, Tool.Panel)
-Corner(Tool.Replace, 8)
-Stroke(Tool.Replace, Theme.Stroke, 1, 0.38)
-
-Tool.HeaderView = MakeHeader("视图")
-Tool.Hidden = MakeTool("Hidden", "含隐藏:关", Theme.Card2)
-Tool.Regex  = MakeTool("Regex", "正则:关", Theme.Card2)
-Tool.Sort   = MakeTool("Sort", "排序:默认", Theme.Card2)
-
-Tool.HeaderStore = MakeHeader("存档 · 其它")
-Tool.Save = MakeTool("Save", "保存", Theme.Green)
-Tool.Load = MakeTool("Load", "读取", Theme.Green)
-Tool.Perf = MakeTool("Perf", "性能", Theme.AccentDark)
-Tool.Help = MakeTool("Help", "帮助", Theme.Accent)
-
--- 右栏的分组顺序（LayoutUI 按这个顺序往下排）
--- 「更多」按钮自己永远显示；下面 MoreKeys 里列的默认收起来，点「更多」才出来
-Tool.MoreBtn = MakeTool("More", "更多 ▾", Theme.Card2)
-Tool.MoreKeys = {
-    Json = true, Csv = true, Txt = true,          -- 其余导出格式
-    Diff = true, ReplaceBtn = true,               -- 对比快照 / 批量替换
-    Regex = true, Sort = true,                    -- 正则 / 排序
-    Save = true, Load = true,                     -- 配置存档
-}
-Tool.Expanded = false
-
-Tool.Layout = {
-    {header = Tool.HeaderExport, items = {Tool.Trans, Tool.Json, Tool.Csv, Tool.Txt}},
-    {header = Tool.HeaderAct,    items = {Tool.Diff, Tool.ReplaceBtn}, after = Tool.Replace},
-    {header = Tool.HeaderView,   items = {Tool.Hidden, Tool.Regex, Tool.Sort}},
-    {header = Tool.HeaderStore,  items = {Tool.Save, Tool.Load, Tool.Perf, Tool.Help, Tool.MoreBtn}},
-}
-
--- ==================== 功能说明（新人友好） ====================
--- 每条 = {分组, 键, 显示名, 说明}。鼠标停在对应按钮上就把说明显示到状态栏；
--- 「帮助」按钮会把这张表整份列出来。键和 Tool.ByKey / 下面 _G 的映射对应。
-local HELP_ROWS = {
-    {"分区", "sec", "分区",
-     "切换只看某个容器里的文字（全部 / PlayerGui / Workspace / CoreGui / RobloxGui / PlayerList / 第三方UI）。方括号里的数字是这个分区当前的文本条数。"},
-    {"分区", "search", "搜索框",
-     "在列表里筛文字。空格＝同时包含几个词；-词＝排除；class:类名 和 path:路径 只匹配对应字段；\"引号\" 可以把带空格的整句包起来。右键搜索框可以切换「区分大小写」。"},
-    {"分区", "rowText", "列表里的文字",
-     "点一下直接复制这句。鼠标停在上面时，状态栏会显示它来自哪个控件、完整路径，以及有几个控件在用同一句话（行首会标 [×N]）。"},
-    {"分区", "rowLocate", "定位",
-     "在屏幕上把那句话所在的控件用发光框圈出来，Studio 里还会同时选中它。同一句话对应多个控件时，反复点会在它们之间轮换。"},
-    {"分区", "rowFav", "收藏",
-     "把这句加进收藏栏。收藏内容会和屏蔽词一起保存，下次执行自动恢复。"},
-    {"分区", "rowDel", "删除",
-     "从列表里删掉这条。「屏蔽」打开时，删掉的同时会把它拉黑，以后扫描不再收录。"},
-    {"分区", "rowCopy", "复制",
-     "复制这条文字（和直接点文字效果一样）。"},
-
-    {"常用", "Refresh", "刷新",
-     "重新扫描整棵 UI 树，把界面上现有的文字全部重新收集一遍。快捷键 Ctrl+R。"},
-    {"常用", "Auto", "自动刷新",
-     "开启后定时自动重扫。关掉也没关系：新增控件、改写文字、删除控件都会实时反映到列表里。"},
-    {"常用", "CopyAll", "复制显示",
-     "把当前列表里的所有文字一次性复制到剪贴板。"},
-    {"常用", "Block", "屏蔽",
-     "开启后，点某一行的「删除」会把那句文字加入黑名单，以后不再收录。屏蔽词随配置一起保存。"},
-    {"常用", "Fav", "收藏栏",
-     "打开 / 收起收藏面板。收藏项会和屏蔽词一起保存，下次执行自动读回。"},
-    {"常用", "ExportLua", "导出Lua",
-     "按原版格式导出当前分区的文字，兼容以前的用法。"},
-    {"常用", "Clear", "清空",
-     "清空当前分区的列表。屏蔽模式开着时，被清掉的内容会同时加入黑名单。"},
-
-    {"导出", "Trans", "汉化表",
-     "导出成 return { [\"原文\"] = \"\", } 的 Lua 表，可以直接贴进汉化模板。快捷键 Ctrl+E。"},
-    {"导出", "Json", "JSON",
-     "导出带 text / class / path / count 字段的 JSON，方便给别的工具或脚本用。"},
-    {"导出", "Csv", "CSV",
-     "导出 CSV，带 UTF-8 BOM，Excel 双击打开不会乱码。"},
-    {"导出", "Txt", "TXT",
-     "导出纯文本，一行一条，最省事。"},
-
-    {"操作", "Diff", "对比",
-     "左键＝和上次快照比较，列出【新增】和【消失】的文字；右键＝把当前状态重新记成快照。"},
-    {"操作", "ReplaceBtn", "替换",
-     "把搜索框里的内容当成查找条件，替换成右边输入框填的内容。改写的是你本机的界面文字，只影响自己。"},
-    {"操作", "replaceBox", "替换输入框",
-     "要替换成的内容。查找条件用上面的搜索框，搜索开了正则就按正则替换。"},
-
-    {"视图", "Hidden", "含隐藏",
-     "是否把 Visible = false（看不见）的控件也算进来。默认只统计看得见的。"},
-    {"视图", "Regex", "正则",
-     "搜索按正则表达式匹配。左键切换开关，右键切换「区分大小写」。"},
-    {"视图", "Sort", "排序",
-     "切换排序方式：默认 / 文本↑ / 文本↓ / 长度 / 类名 / 路径。左键下一个，右键上一个。"},
-
-    {"存档 · 其它", "Save", "保存",
-     "把收藏和屏蔽词写入本地配置文件，下次执行自动读回。快捷键 Ctrl+S。"},
-    {"存档 · 其它", "Load", "读取",
-     "从本地配置文件恢复收藏和屏蔽词。"},
-    {"存档 · 其它", "Perf", "性能",
-     "显示运行数据：扫描耗时、文本对象数、已挂监听数、列表条数、已实例化的行数。"},
-    {"存档 · 其它", "More", "更多",
-     "展开 / 收起其余功能：JSON、CSV、TXT 导出、正则搜索、排序、对比快照、批量替换、保存读取配置、收藏栏。平时只留常用按钮，界面清爽些。"},
-    {"存档 · 其它", "Help", "帮助",
-     "打开这份功能说明。再点一次或者按 Esc 关闭。"},
-}
-
-local TIPS = {}
-for _, r in ipairs(HELP_ROWS) do TIPS[r[2]] = {name = r[3], desc = r[4]} end
-
--- 数 UTF-8 字符个数（中文一个字算一个），用来算说明文字要占几行
-local function Utf8Chars(str)
-    local n = 0
-    for _ in tostring(str):gmatch("[%z\1-\127\194-\244][\128-\191]*") do n = n + 1 end
-    return n
-end
-
--- 悬停提示：鼠标停在按钮上就弹出这个功能的说明。
--- 真正实现在后面（要用到 Main 的尺寸），这里先占位，省得提前声明一堆局部变量。
-local Tip = {}
-Tip.show = function() end
-Tip.hide = function() end
-
--- 手机/平板没有鼠标悬停：说明改走「帮助」面板，不再弹这个浮层
-Tool.TouchOnly = false
-pcall(function()
-    -- 用 not not 逼成布尔：TouchEnabled 取到 nil 时 `nil and x` 会短路成 nil，字段会被清掉
-    Tool.TouchOnly = not not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
-end)
-
--- 触屏设备上按钮要更好按，所以默认窗口给得高一些（屏幕本身不够高就不动）
-pcall(function()
-    if Tool.TouchOnly then
-        local sh = ScreenGui.AbsoluteSize.Y
-        if sh and sh > 0 then
-            local nh = math.clamp(sh - 80, 370, 520)
-            local nw = Main.Size.X.Offset
-            Main.Size = UDim2.new(0, nw, 0, nh)
-            Main.Position = UDim2.new(0.5, -nw / 2, 0.5, -nh / 2)
-            LastNormalSize = Vector2.new(nw, nh)
-        end
-    end
-end)
-
-local function AttachTip(obj, key)
-    local t = TIPS[key]
-    if not obj or not t then return end
-    if Tool.TouchOnly then return end
-    pcall(function()
-        obj.MouseEnter:Connect(function() Tool.Tip.show(obj, t.name, t.desc) end)
-    end)
-    pcall(function()
-        obj.MouseLeave:Connect(function() Tool.Tip.hide() end)
-    end)
-end
-Tool.Tip = Tip
-Tool.AttachTip = AttachTip
--- 列表行里那几个按钮的说明键
-Tool.RowTipKeys = {LocateBtn = "rowLocate", FavBtn = "rowFav", DelBtn = "rowDel", CopyBtn = "rowCopy"}
-
--- 提示浮层本体
-Tip.Box = New("Frame", {
-    Name = "TipBox",
-    BackgroundColor3 = Theme.Panel2,
-    BorderSizePixel = 0,
-    Visible = false,
-    ZIndex = 60,
-    Size = UDim2.new(0, 200, 0, 40),
-}, Content)
-Corner(Tip.Box, 6)
-Stroke(Tip.Box, Theme.Accent, 1, 0.12)
-
-Tip.Label = New("TextLabel", {
-    -- 这两个必须写：不写的话标签是 0 尺寸，浮层就只剩一个空的黑框（踩过这个坑）
-    Size = UDim2.new(1, -14, 1, -14),
-    Position = UDim2.new(0, 7, 0, 7),
-    BackgroundTransparency = 1,
-    TextColor3 = Theme.Text,
-    Font = Enum.Font.SourceSans,
-    TextSize = 11,
-    TextWrapped = true,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Top,
-    ZIndex = 61,
-}, Tip.Box)
-
--- 帮助面板：把上面那张说明表整份列出来，新人不用挨个悬停也能一次看完
-local Help = {}
-Help.Panel = New("Frame", {
-    Name = "Help.Panel",
-    BackgroundColor3 = Theme.Panel,
-    BackgroundTransparency = 0.03,
-    BorderSizePixel = 0,
-    Visible = false,
-    ZIndex = 40,
-}, Content)
-Corner(Help.Panel, 10)
-Stroke(Help.Panel, Theme.Accent, 1, 0.28)
-
-Help.Title = New("TextLabel", {
-    Size = UDim2.new(1, -70, 0, 20),
-    Text = "功能说明　（鼠标停在任意按钮上也会弹出提示）",
-    BackgroundTransparency = 1,
-    TextColor3 = Theme.AccentGlow,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 13,
-    TextXAlignment = Enum.TextXAlignment.Left,
-    ZIndex = 41,
-}, Help.Panel)
-
-Help.Close = New("TextButton", {
-    Size = UDim2.new(0, 20, 0, 20),
-    Text = "✕",
-    TextColor3 = Color3.new(1, 1, 1),
-    BackgroundColor3 = Theme.Red,
-    Font = Enum.Font.SourceSansBold,
-    TextSize = 13,
-    ZIndex = 42,
-}, Help.Panel)
-Corner(Help.Close, 6)
-StyleButton(Help.Close, Theme.Red)
-
-Help.Scroll = New("ScrollingFrame", {
-    Size = UDim2.new(1, -14, 1, -40),
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    ScrollBarThickness = 6,
-    ScrollingDirection = Enum.ScrollingDirection.Y,
-    VerticalScrollBarInset = Enum.ScrollBarInset.Always,
-    ScrollBarImageColor3 = Theme.Muted,
-    ClipsDescendants = true,
-    ZIndex = 41,
-}, Help.Panel)
-
-Help.Items = {}
-do
-    local lastGroup = nil
-    for _, r in ipairs(HELP_ROWS) do
-        if r[1] ~= lastGroup then
-            lastGroup = r[1]
-            local g = New("TextLabel", {
-                Size = UDim2.new(1, -14, 0, 14),
-                Text = "· " .. r[1] .. " ·",
-                BackgroundTransparency = 1,
-                TextColor3 = Theme.Cyan,
-                Font = Enum.Font.SourceSansBold,
-                TextSize = 11,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                ZIndex = 41,
-            }, Help.Scroll)
-            Help.Items[#Help.Items + 1] = {kind = "group", obj = g}
-        end
-        local nameObj = New("TextLabel", {
-            Size = UDim2.new(0, 60, 0, 14),
-            Text = r[3],
-            BackgroundTransparency = 1,
-            TextColor3 = Theme.Yellow,
-            Font = Enum.Font.SourceSansBold,
-            TextSize = 11,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Top,
-            ZIndex = 41,
-        }, Help.Scroll)
-        local descObj = New("TextLabel", {
-            Size = UDim2.new(1, -80, 0, 14),
-            Text = r[4],
-            BackgroundTransparency = 1,
-            TextColor3 = Theme.Text,
-            Font = Enum.Font.SourceSans,
-            TextSize = 11,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Top,
-            TextWrapped = true,
-            ZIndex = 41,
-        }, Help.Scroll)
-        Help.Items[#Help.Items + 1] = {kind = "row", name = nameObj, desc = descObj}
-    end
-end
-
--- 性能数据（「性能」按钮展示）
-St.Perf = {scanMs = 0, total = 0, hooked = 0, roots = 0, at = "尚未扫描"}
-
 local Scroll = New("ScrollingFrame", {
     BackgroundColor3 = Theme.Card,
     BorderSizePixel = 0,
@@ -1094,11 +487,7 @@ local FavBtn = New("TextButton", {Text = "收藏栏", TextColor3 = Color3.new(1,
 local ExportBtn = New("TextButton", {Text = "导出Lua", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Cyan, TextSize = 11}, BottomBar)
 local ClearBtn = New("TextButton", {Text = "清空", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Red, TextSize = 11}, BottomBar)
 
-Tool.LeftAll  = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}
-Tool.LeftCore = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, ExportBtn, ClearBtn}
-Tool.LeftMore = {FavBtn}   -- 收藏栏不常用，收进「更多」
-
-for _, b in ipairs(Tool.LeftAll) do
+for _, b in ipairs({RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}) do
     StyleButton(b, b.BackgroundColor3)
 end
 
@@ -1398,17 +787,6 @@ end
 local DisplayedLines = {}
 local DisplayedRows = {}
 local CurrentUpdateToken = 0
-local Win = {}
-Win.Total = 0        -- 当前分区总条数（虚拟化下 != 已实例化的行数）
-
--- 虚拟化状态：只保留「视口 + 上下缓冲」这么多行实例，滚动时复用
-Win.Pad = 4           -- 行间距（替代原本由 UIListLayout 提供的 Padding）
-Win.Buf = 8
-Win.Rows = {}
-Win.First, Win.Count = -1, -1
-Win.Line, Win.Meta, Win.Index = {}, {}, {}
-local RenderWindow              -- 前置声明（定义在下面的虚拟化渲染里）
-local UpdateStatus              -- 前置声明（定义在 SetDisplay 之后）
 
 local function ClearScroll()
     for _, obj in ipairs(Scroll:GetChildren()) do
@@ -1429,19 +807,12 @@ local function ClearScroll()
     end
     DisplayedRows = {}
     DisplayedLines = {}
-    Win.Total = 0
-    Win.Rows = {}
-    Win.First, Win.Count = -1, -1
 end
 
 local function ResizeCanvas()
     task.defer(function()
         task.wait()
-        if not Scroll then return end
-        if RenderWindow then
-            -- 虚拟化：画布高度由渲染函数按「总条数 × 行距」算，不再依赖 UIListLayout
-            RenderWindow(true)
-        elseif ListLayout then
+        if Scroll and ListLayout then
             Scroll.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
         end
     end)
@@ -1470,21 +841,19 @@ local function GetCurrentLines()
 end
 
 -- ==================== 行尺寸计算（响应式：UI越大越宽松，越小越紧凑） ====================
--- 行内动作按钮：定位 / 收藏 / 删除 / 复制
-local ROW_ACTIONS = 4
-
+-- 根据 CurrentUIScale（由 LayoutUI 依据窗口大小计算）连续缩放，而不是简单的两档切换
 local function ComputeRowMetrics()
     local s = CurrentUIScale or 1
-    local rowH = math.floor(math.clamp(38 * s, Tool.TouchOnly and 38 or 30, 56))
-    local actionW = math.floor(math.clamp(26 * s, 22, 44))
+    local rowH = math.floor(math.clamp(36 * s, 28, 52))
+    local actionW = math.floor(math.clamp(40 * s, 30, 58))
     local actionH = math.floor(math.clamp(23 * s, 18, 32))
     local rightPad = math.floor(math.clamp(7 * s, 5, 12))
     local gap = math.floor(math.clamp(4 * s, 3, 8))
     local labelTextSize = math.floor(math.clamp(12.5 * s, 10, 17))
     local actionTextSize = math.floor(math.clamp(11 * s, 9, 14))
-    local compact = actionW <= 36
-    -- 从右到左：rightPad | 复制 | gap | 删除 | gap | 收藏 | gap | 定位 | gap(与标签的间隔)
-    local actionsWidth = rightPad + actionW * ROW_ACTIONS + gap * (ROW_ACTIONS - 1) + gap
+    local compact = actionW <= 36 -- 窄屏下按钮文字用单字简写
+    -- 从右到左：rightPad | 复制 | gap | 删除 | gap | 添加 | gap(与标签的间隔)
+    local actionsWidth = rightPad + actionW * 3 + gap * 2 + gap
     return {
         rowH = rowH, actionW = actionW, actionH = actionH, rightPad = rightPad, gap = gap,
         labelTextSize = labelTextSize, actionTextSize = actionTextSize,
@@ -1492,237 +861,141 @@ local function ComputeRowMetrics()
     }
 end
 
--- slot: 0 = 最靠右。原版复制按钮错位就是因为公式少减了一个按钮宽度
-local function PlaceAction(btn, m, slot)
-    if not btn then return end
-    btn.Size = UDim2.new(0, m.actionW, 0, m.actionH)
-    btn.Position = UDim2.new(1, -(m.rightPad + m.actionW * (slot + 1) + m.gap * slot), 0.5, -m.actionH / 2)
-    btn.TextSize = m.actionTextSize
-end
-
-local function MakeAction(row, name, slot, color, m, full, short)
-    local btn = New("TextButton", {
-        Name = name,
-        Size = UDim2.new(0, m.actionW, 0, m.actionH),
-        Position = UDim2.new(1, -(m.rightPad + m.actionW * (slot + 1) + m.gap * slot), 0.5, -m.actionH / 2),
-        Text = m.compact and short or full,
-        TextColor3 = Color3.new(1, 1, 1),
-        TextSize = m.actionTextSize,
-        Font = Enum.Font.SourceSansBold,
-        BackgroundColor3 = color,
-    }, row)
-    StyleButton(btn, color)
-    AttachTip(btn, Tool.RowTipKeys[name])
-    return btn
-end
-
--- 把一个已存在的行排到新尺寸上（只改属性、不重建实例，拖动手柄时实时生效）
+-- 将尺寸应用到一个已存在的行（不重建实例，开销极小，可在拖动手柄时实时调用）
 local function ApplyRowMetrics(row, m)
     if not row or not row.Parent then return end
     row.Size = UDim2.new(1, -12, 0, m.rowH)
+
     local label = row:FindFirstChild("Label")
-    local locate = row:FindFirstChild("LocateBtn")
-    local fav = row:FindFirstChild("FavBtn")
+    local add = row:FindFirstChild("AddBtn")
     local del = row:FindFirstChild("DelBtn")
     local copy = row:FindFirstChild("CopyBtn")
-    if label then
-        label.Size = UDim2.new(1, -m.actionsWidth, 1, 0)
-        label.TextSize = m.labelTextSize
-    end
-    PlaceAction(copy, m, 0)
-    PlaceAction(del, m, 1)
-    PlaceAction(fav, m, 2)
-    PlaceAction(locate, m, 3)
-    if copy then copy.Text = m.compact and "复" or "复制" end
-    if del then del.Text = m.compact and "删" or "删除" end
-    if fav then fav.Text = m.compact and "藏" or "收藏" end
-    if locate then locate.Text = m.compact and "位" or "定位" end
+    if not (label and add and del and copy) then return end
+
+    label.Size = UDim2.new(1, -m.actionsWidth, 1, 0)
+    label.TextSize = m.labelTextSize
+
+    -- 从右向左依次排列，修复原版复制按钮公式少减一个按钮宽度导致超出边界的问题
+    copy.Size = UDim2.new(0, m.actionW, 0, m.actionH)
+    copy.Position = UDim2.new(1, -(m.rightPad + m.actionW), 0.5, -m.actionH/2)
+    copy.Text = m.compact and "复" or "复制"
+    copy.TextSize = m.actionTextSize
+
+    del.Size = UDim2.new(0, m.actionW, 0, m.actionH)
+    del.Position = UDim2.new(1, -(m.rightPad + m.actionW * 2 + m.gap), 0.5, -m.actionH/2)
+    del.Text = m.compact and "删" or "删除"
+    del.TextSize = m.actionTextSize
+
+    add.Size = UDim2.new(0, m.actionW, 0, m.actionH)
+    add.Position = UDim2.new(1, -(m.rightPad + m.actionW * 3 + m.gap * 2), 0.5, -m.actionH/2)
+    add.Text = m.compact and "藏" or "添加"
+    add.TextSize = m.actionTextSize
 end
 
--- 拖动手柄/窗口尺寸变化时调用：只更新已显示行的属性，不重建任何实例
+-- 拖动手柄/窗口尺寸变化时调用：只更新已显示行的属性，不重建任何实例，低配设备也流畅
 local function RestyleVisibleRows()
     local m = ComputeRowMetrics()
-    for i = 1, #DisplayedRows do
-        ApplyRowMetrics(DisplayedRows[i], m)
+    for _, row in ipairs(DisplayedRows) do
+        ApplyRowMetrics(row, m)
     end
 end
 
--- ==================== 定位到原对象 ====================
--- Highlight 对 GUI 无效（它只作用于 3D 的 BasePart/Model），所以这里：
---   1) Studio 里顺手 Selection:Set 选中它
---   2) 在屏幕上把该对象的绝对矩形用一层发光描边框出来（对任何 GuiObject 都有效）
---   3) 同一个文本对应多个对象时，反复点「定位」会在它们之间轮换
-local LocateCursor = {}
+-- ==================== 创建单行（支持对象池） ====================
+-- 前置声明：CreateDisplayRow 内的删除回调也会调用 SetDisplay，
+-- 若不提前声明，闭包捕获到的是全局 nil，点删除会报 "attempt to call a nil value"
+local SetDisplay
 
-local function FlashObjectBounds(obj)
-    local ok = pcall(function()
-        local pos, size = obj.AbsolutePosition, obj.AbsoluteSize
-        -- 连点「定位」时先把上一个框收掉，避免残留
-        local old = ScreenGui:FindFirstChild("UITextLocateBox")
-        if old then pcall(function() old:Destroy() end) end
+local function CreateDisplayRow(line, index)
+    -- 多行文本用 ⏎ 占位显示为单行，数据本身（line）保持完整，复制/删除不受影响
+    local displayLine = string.gsub(line, "\n", " ⏎ ")
+    if #displayLine > 500 then displayLine = string.sub(displayLine, 1, 500) .. "..." end
+    local m = ComputeRowMetrics()
 
-        local box = New("Frame", {
-            Name = "UITextLocateBox",
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            ZIndex = 5000,
-            Size = UDim2.new(0, math.max(2, size.X), 0, math.max(2, size.Y)),
-            Position = UDim2.new(0, pos.X, 0, pos.Y),
-        }, ScreenGui)
-
-        -- 清理必须紧跟着创建就登记：后面任何装饰出错也不会把框永久留在屏幕上
-        task.delay(1.4, function()
-            pcall(function()
-                Tween(box, {BackgroundTransparency = 1}, 0.25)
-                task.wait(0.26)
-                if box then box:Destroy() end
-            end)
-        end)
-
-        Corner(box, 4)
-        Stroke(box, Color3.fromRGB(120, 190, 255), 2, 0)   -- 注意：UIStroke 没有 ZIndex 属性
-        local tag = New("TextLabel", {
-            BackgroundTransparency = 0.15,
-            BackgroundColor3 = Color3.fromRGB(40, 90, 160),
-            Text = obj.ClassName,
-            TextColor3 = Color3.new(1, 1, 1),
-            TextSize = 11,
-            Font = Enum.Font.SourceSansBold,
-            ZIndex = 5001,
-            Size = UDim2.new(0, 84, 0, 15),
-            Position = UDim2.new(0, 0, 0, -16),
-        }, box)
-        Corner(tag, 3)
-    end)
-    return ok
-end
-
-local function LocateText(text)
-    local data = SectionData[CurrentSection]
-    local info = data and data.Info[text]
-    if not info then
-        StatusLabel.Text = "来源：已不在当前分区（可能已被清空或屏蔽）"
-        return false
-    end
-    local list, n = {}, 0
-    for obj in pairs(info.objs) do
-        if obj and obj.Parent then n = n + 1; list[n] = obj end
-    end
-    if n == 0 then
-        if info.obj and info.obj.Parent then list, n = {info.obj}, 1
-        else
-            StatusLabel.Text = "来源：原对象已被销毁"
-            return false
+    local row = table.remove(RowPool)
+    if row then
+        row.Visible = true
+        row.Size = UDim2.new(1, -12, 0, m.rowH)
+        row.LayoutOrder = index
+        row.Parent = Scroll  -- 从对象池取出的行 Parent 已被 ClearScroll 设为 nil，必须重新挂回
+        for _, child in ipairs(row:GetChildren()) do
+            -- 保留 UI 装饰（圆角、描边），清理其余所有子对象，防止对象池复用时残留旧数据
+            if not (child:IsA("UICorner") or child:IsA("UIStroke")) then
+                child:Destroy()
+            end
         end
+    else
+        row = New("Frame", {
+            Size = UDim2.new(1, -12, 0, m.rowH),
+            BackgroundColor3 = Theme.Card2,
+            BorderSizePixel = 0,
+            LayoutOrder = index
+        }, Scroll)
+        Corner(row, 7)
+        Stroke(row, Theme.Stroke, 1, 0.50)
     end
-    local idx = ((LocateCursor[text] or 0) % n) + 1
-    LocateCursor[text] = idx
-    local obj = list[idx]
-    pcall(function()
-        local sel = game:GetService("Selection")
-        if sel then sel:Set({obj}) end
-    end)
-    FlashObjectBounds(obj)
-    local same = info.count > 1 and ("　同文本 " .. info.count .. " 处（第 " .. idx .. "/" .. n .. "）") or ""
-    StatusLabel.Text = "定位：" .. (info.cls ~= "" and info.cls or "?") .. " › " ..
-        (info.path ~= "" and info.path or "?") .. same
-    return true
-end
-
--- ==================== 虚拟化列表 ====================
--- 原版给每一条文本都建一个 Frame：1000 条 = 1000 个实例（对象池上限只有 400，超了就开始
--- 反复 Instance.new / Destroy）。现在改成：只保留「视口 + 上下缓冲」这么多行实例，
--- 滚动时复用它们重新绑定数据，实例数恒定在几十个。
-local function RowPitch()
-    return ComputeRowMetrics().rowH + Win.Pad
-end
-
-local function RowDisplayText(row, line)
-    local info = Win.Meta[row]
-    local t = line
-    if info and info.count and info.count > 1 then
-        t = "[×" .. info.count .. "] " .. t
-    end
-    t = string.gsub(t, "\n", " ⏎ ")
-    if #t > 500 then t = string.sub(t, 1, 500) .. "..." end
-    return t
-end
-
-local function BindRow(row, line, index, m)
-    Win.Line[row] = line
-    Win.Index[row] = index
-    local data = SectionData[CurrentSection]
-    Win.Meta[row] = (data and data.Info[line]) or {path = "", cls = "", count = 0}
-    local label = row:FindFirstChild("Label")
-    if label then label.Text = RowDisplayText(row, line) end
-    ApplyRowMetrics(row, m)
-end
-
-local function CreateRowShell(m)
-    local row = New("Frame", {
-        Size = UDim2.new(1, -12, 0, m.rowH),
-        BackgroundColor3 = Theme.Card2,
-        BorderSizePixel = 0,
-    }, Scroll)
-    Corner(row, 7)
-    Stroke(row, Theme.Stroke, 1, 0.50)
 
     local label = New("TextButton", {
         Name = "Label",
         Size = UDim2.new(1, -m.actionsWidth, 1, 0),
         Position = UDim2.new(0, 8, 0, 0),
         BackgroundTransparency = 1,
-        Text = "",
+        Text = displayLine,
         TextColor3 = Theme.Text,
         TextSize = m.labelTextSize,
         Font = Enum.Font.Code,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        AutoButtonColor = false,
+        TextTruncate = Enum.TextTruncate.AtEnd
     }, row)
-    AttachTip(label, "rowText")
+    label:SetAttribute("FullText", displayLine)
 
-    local locate = MakeAction(row, "LocateBtn", 3, Theme.Accent, m, "定位", "位")
-    local fav = MakeAction(row, "FavBtn", 2, Theme.AccentDark, m, "收藏", "藏")
-    local del = MakeAction(row, "DelBtn", 1, Theme.Red, m, "删除", "删")
-    local copy = MakeAction(row, "CopyBtn", 0, Theme.Green, m, "复制", "复")
+    -- 从右向左：复制 -> 删除 -> 添加（修复版定位公式，三个按钮都完整落在行边界内）
+    local copy = New("TextButton", {
+        Name = "CopyBtn",
+        Size = UDim2.new(0, m.actionW, 0, m.actionH),
+        Position = UDim2.new(1, -(m.rightPad + m.actionW), 0.5, -m.actionH/2),
+        Text = m.compact and "复" or "复制",
+        TextColor3 = Color3.new(1,1,1),
+        TextSize = m.actionTextSize,
+        Font = Enum.Font.SourceSansBold,
+        BackgroundColor3 = Theme.Green
+    }, row)
 
-    -- 悬停显示来源（类名 + 完整路径 + 同文本出现次数）
-    label.MouseEnter:Connect(function()
-        local info = Win.Meta[row]
-        if not info then return end
-        local same = (info.count and info.count > 1) and ("　同文本 " .. info.count .. " 处") or ""
-        StatusLabel.Text = "来源：" .. (info.cls ~= "" and info.cls or "?") .. " › " ..
-            (info.path ~= "" and info.path or "?") .. same
-    end)
-    label.MouseLeave:Connect(function()
-        if UpdateStatus then UpdateStatus() end
-    end)
+    local del = New("TextButton", {
+        Name = "DelBtn",
+        Size = UDim2.new(0, m.actionW, 0, m.actionH),
+        Position = UDim2.new(1, -(m.rightPad + m.actionW * 2 + m.gap), 0.5, -m.actionH/2),
+        Text = m.compact and "删" or "删除",
+        TextColor3 = Color3.new(1,1,1),
+        TextSize = m.actionTextSize,
+        Font = Enum.Font.SourceSansBold,
+        BackgroundColor3 = Theme.Red
+    }, row)
+
+    local add = New("TextButton", {
+        Name = "AddBtn",
+        Size = UDim2.new(0, m.actionW, 0, m.actionH),
+        Position = UDim2.new(1, -(m.rightPad + m.actionW * 3 + m.gap * 2), 0.5, -m.actionH/2),
+        Text = m.compact and "藏" or "添加",
+        TextColor3 = Color3.new(1,1,1),
+        TextSize = m.actionTextSize,
+        Font = Enum.Font.SourceSansBold,
+        BackgroundColor3 = Theme.AccentDark
+    }, row)
+
+    StyleButton(add, add.BackgroundColor3)
+    StyleButton(del, del.BackgroundColor3)
+    StyleButton(copy, copy.BackgroundColor3)
 
     label.MouseButton1Click:Connect(function()
-        local line = Win.Line[row]
-        if not line then return end
         if setclipboard then setclipboard(line) elseif toclipboard then toclipboard(line) end
-        StatusLabel.Text = "已复制：" .. string.sub(line, 1, 60)
     end)
     copy.MouseButton1Click:Connect(function()
-        local line = Win.Line[row]
-        if not line then return end
         if setclipboard then setclipboard(line) elseif toclipboard then toclipboard(line) end
-        StatusLabel.Text = "已复制：" .. string.sub(line, 1, 60)
     end)
-    locate.MouseButton1Click:Connect(function()
-        local line = Win.Line[row]
-        if line then LocateText(line) end
-    end)
-    fav.MouseButton1Click:Connect(function()
-        local line = Win.Line[row]
-        if line then AddFavorite(line) end
-    end)
+    add.MouseButton1Click:Connect(function() AddFavorite(line) end)
+
     del.MouseButton1Click:Connect(function()
-        local line = Win.Line[row]
-        if not line then return end
         local oldPos = Scroll.CanvasPosition
         if BlockMode then
             if CurrentSection == "全部" then
@@ -1752,113 +1025,12 @@ local function CreateRowShell(m)
     return row
 end
 
--- 把窗口挪到并绑定 [first, first+count-1] 这些行；复用已有实例，不重复创建
-local function RenderWindow(force)
-    if not Scroll then return end
-    local m = ComputeRowMetrics()
-    local pitch = m.rowH + Win.Pad
-    local total = #DisplayedLines
-    if total == 0 then
-        -- 留一点画布高度，空状态提示「未检测到 UI 文本」才不会被裁掉
-        Scroll.CanvasSize = UDim2.new(0, 0, 0, 44)
-        return
-    end
-    local viewH = Scroll.AbsoluteSize.Y
-    if viewH <= 0 then viewH = 320 end
-    local span = math.ceil(viewH / pitch) + Win.Buf * 2 + 2
-    local first = math.floor(Scroll.CanvasPosition.Y / pitch) - Win.Buf
-    -- 关键：first 必须夹在 [1, total-span+1] 内。滚到底（CanvasPosition 超出内容）时
-    -- first 会算到 total 之外，count 变成负数，下面清理行的循环就会一直减到 0，
-    -- table.remove(t, 0) 直接抛 "position out of bounds"，并且把 Win.Rows 留在半损坏状态。
-    local maxFirst = total - span + 1
-    if maxFirst < 1 then maxFirst = 1 end
-    if first > maxFirst then first = maxFirst end
-    if first < 1 then first = 1 end
-    local last = first + span - 1
-    if last > total then last = total end
-    local count = last - first + 1
-    if count < 1 then count = 1 end
-
-    if not force and first == Win.First and count == Win.Count then
-        return
-    end
-    Win.First, Win.Count = first, count
-
-    while #Win.Rows < count do
-        local row = table.remove(RowPool)
-        if row then
-            row.Visible = true
-            row.Parent = Scroll
-        else
-            row = CreateRowShell(m)
-        end
-        Win.Rows[#Win.Rows + 1] = row
-    end
-    -- 复用不用的行：始终从尾部拿，避免依赖 table.remove 的下标校验
-    while #Win.Rows > count do
-        local row = Win.Rows[#Win.Rows]
-        Win.Rows[#Win.Rows] = nil
-        if row then
-            row.Visible = false
-            row.Parent = nil
-            if #RowPool < MAX_POOL_SIZE then
-                table.insert(RowPool, row)
-            else
-                row:Destroy()
-            end
-        end
-    end
-
-    DisplayedRows = Win.Rows
-    for k = 1, count do
-        local idx = first + k - 1
-        local row = Win.Rows[k]
-        row.Position = UDim2.new(0, 6, 0, (idx - 1) * pitch)
-        row.LayoutOrder = idx
-        BindRow(row, DisplayedLines[idx], idx, m)
-    end
-    Scroll.CanvasSize = UDim2.new(0, 0, 0, total * pitch + 8)
-end
-
-local function CreateDisplayRow(line, index)
-    local m = ComputeRowMetrics()
-    local row = table.remove(RowPool)
-    if row then
-        row.Visible = true
-        row.Parent = Scroll
-    else
-        row = CreateRowShell(m)
-    end
-    BindRow(row, line, index, m)
-    return row
-end
-
--- 虚拟化用绝对定位摆放行，必须让 UIListLayout 让位（它是 LayoutOrder 排序，会覆盖 Position）。
--- 注意：UIListLayout 没有 Enabled 属性（官方文档只有 Padding/SortOrder/FillDirection/Wraps/Flex 等），
--- 关掉它的唯一办法是把它从父级摘掉。
-if ListLayout then
-    pcall(function() ListLayout.Parent = nil end)
-end
-
--- 滚动时把窗口挪过去（复用实例，不新建）
-if Scroll then
-    pcall(function()
-        Scroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-            -- 收走浮层：一开始滚动就说明用户想用列表，别让说明挡着
-            pcall(function() Tool.Tip.hide() end)
-            -- 关键：不能在这里同步重画。手机上拖动一次 CanvasPosition 会连续触发几十次，
-            -- 在输入回调里创建/搬运实例会让滚动卡顿甚至直接把拖动打断（「划不动」）。
-            -- 合并成每帧最多画一次，而且放到输入回调之外。
-            if Win.RenderQueued then return end
-            Win.RenderQueued = true
-            task.defer(function()
-                Win.RenderQueued = false
-                RenderWindow(false)
-            end)
-        end)
-    end)
-end
-
+-- ==================== 修复版 SetDisplay（关键修复） ====================
+-- animate: 是否在重建列表时做一个轻微滑入过渡（仅用于切换分区/搜索等主动操作，
+--          自动刷新不传这个参数，避免每次自动刷新都做动画）
+-- forceRebuild: 强制重建，即使内容和当前显示的一致
+-- 统一把"字符串文本"或"行数组"整理成行数组：直接传数组可以保留含换行的完整
+-- 条目，不再按 \n 拆分，从而保证每个显示行都能精确对应一条数据
 local function PrepareLines(text)
     local lines = {}
     if type(text) == "table" then
@@ -1875,17 +1047,20 @@ local function PrepareLines(text)
     return lines
 end
 
--- ==================== SetDisplay ====================
--- 原版要分批 task.wait() 建行 + 用 token 取消后台渲染协程；虚拟化之后渲染只涉及
--- 几十个实例、完全同步，所以整段 token 竞态逻辑都不需要了
 SetDisplay = function(text, autoBottom, animate, forceRebuild)
     local newLines = PrepareLines(text)
     CurrentDisplayText = table.concat(newLines, "\n")
+
+    -- 关键修复：无论接下来走哪个分支，都先让"旧的渲染协程"失效。
+    -- 旧版本只在非空分支里递增 token，导致空文本分支不会打断后台正在
+    -- 分批插入行的旧协程，二者交错执行就会出现"文本框显示错乱，需要
+    -- 切换分区才能恢复正常"的问题。现在统一在入口处递增，彻底杜绝竞态。
     CurrentUpdateToken = CurrentUpdateToken + 1
+    local token = CurrentUpdateToken
 
     if #newLines == 0 then
         ClearScroll()
-        New("TextButton", {
+        local empty = New("TextButton", {
             Size = UDim2.new(1, -12, 0, 34),
             BackgroundColor3 = Theme.Card2,
             BorderSizePixel = 0,
@@ -1894,230 +1069,124 @@ SetDisplay = function(text, autoBottom, animate, forceRebuild)
             TextSize = 13,
             Font = Enum.Font.SourceSans,
             TextXAlignment = Enum.TextXAlignment.Left,
-            LayoutOrder = 1,
+            LayoutOrder = 1
         }, Scroll)
-        task.defer(function()
-            task.wait()
-            if Scroll then Scroll.CanvasSize = UDim2.new(0, 0, 0, 44) end
-        end)
+        Corner(empty, 6)
+        Stroke(empty, Theme.Stroke, 1, 0.45)
+        DisplayedLines = {}
+        ResizeCanvas()
+        if autoBottom then ScrollBottom() end
         return
     end
 
-    -- 内容与当前显示完全一致时（自动刷新最常见的情况）只重排窗口，不重建任何实例
-    if not forceRebuild and #newLines == #DisplayedLines then
+    -- 性能优化：内容和当前显示的完全一致时（自动刷新常见情况），跳过整表重建，
+    -- 只同步一次尺寸即可，大幅减轻低配设备负担。
+    -- 注意：必须同时检查 DisplayedRows 非空，否则若上次 ClearScroll 已清空行但
+    -- DisplayedLines 尚未更新（不应出现，但防御性编程），会导致跳过重建却无行可渲染。
+    if not forceRebuild and #newLines == #DisplayedLines and #DisplayedRows > 0 then
         local same = true
         for i = 1, #newLines do
-            if newLines[i] ~= DisplayedLines[i] then
-                same = false
-                break
-            end
+            if newLines[i] ~= DisplayedLines[i] then same = false; break end
         end
         if same then
-            RenderWindow(true)
+            RestyleVisibleRows()
             if autoBottom then ScrollBottom() end
             return
         end
     end
 
+    -- 总是全量重建 + token 保护（彻底解决重入bug）
+    ClearScroll()
+
+    if animate then
+        -- 分区切换/搜索时：列表从上方轻微滑入，比简单的位移更自然
+        local origCanvasPos = Scroll.CanvasPosition
+        Scroll.CanvasPosition = Vector2.new(origCanvasPos.X, math.max(0, origCanvasPos.Y - 30))
+        Tween(Scroll, {CanvasPosition = origCanvasPos}, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    end
+
+    for i, line in ipairs(newLines) do
+        if CurrentUpdateToken ~= token then return end
+        local row = CreateDisplayRow(line, i)
+        table.insert(DisplayedRows, row)
+        -- 每 40 行让一帧：行创建很轻量，太频繁让帧反而让大列表渲染耗时数秒
+        if i % 40 == 0 then
+            task.wait()
+            if CurrentUpdateToken ~= token then return end
+        end
+    end
+
     DisplayedLines = newLines
-    Win.First, Win.Count = -1, -1
-    RenderWindow(true)
+    ResizeCanvas()
     if autoBottom then ScrollBottom() end
 end
 
-function UpdateStatus(msg)
+local function UpdateStatus(msg)
     local block = BlockMode and "屏蔽开" or "屏蔽关"
     local auto = AutoRefreshEnabled and "自动刷新开" or "自动刷新关"
     if msg and msg ~= "" then
         StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block.."｜"..msg
     else
-        -- 平时省掉「自动刷新」「屏蔽」这两项（按钮上本来就写着），腾出位置给新人提示
-        local hint = Tool.TouchOnly and "点右栏「帮助」看说明" or "鼠标停在按钮上看说明"
-        StatusLabel.Text = "状态："..CurrentSection.." "..Count(CurrentSection).."条｜"..block.."　·　"..hint
+        StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block
     end
 end
 
 local function UpdateSectionButtons()
     for name, b in pairs(SectionButtons) do
-        local selected = (name == CurrentSection)
-        local color = selected and Theme.Accent or Theme.Card2
-        b.BackgroundColor3 = color
-        BtnBase[b] = color            -- 让悬停动效知道当前静止色
-        b.TextColor3 = selected and Color3.new(1, 1, 1) or Theme.Text
-        b.Font = selected and Enum.Font.SourceSansBold or Enum.Font.SourceSans
-        b.Text = name .. " [" .. Count(name) .. "]"
-        -- 选中时左侧一条发光竖条
-        local bar = b:FindFirstChild("SelBar")
-        if selected then
-            if not bar then
-                bar = New("Frame", {
-                    Name = "SelBar",
-                    Size = UDim2.new(0, 3, 1, -8),
-                    Position = UDim2.new(0, 3, 0, 4),
-                    BackgroundColor3 = Theme.AccentGlow,
-                    BorderSizePixel = 0,
-                    ZIndex = 2,
-                }, b)
-                Corner(bar, 2)
-            end
-            bar.Visible = true
-        elseif bar then
-            bar.Visible = false
-        end
-    end
-end
-
--- ==================== 查询：过滤 + 排序 ====================
--- 原版只有纯子串匹配（string.find plain），且完全没有排序。现在支持：
---   关键词        空格分隔多个词 = AND（全部命中才算）
---   -排除词       以 - 开头 = 排除
---   class:xxx     按类名过滤        path:xxx  按路径过滤
---   "带空格的词"   引号包起来
---   正则开关       打开后每个词按 Lua 正则（string.find pattern）匹配
-local function ParseQuery(q)
-    local terms, i, n = {}, 1, #q
-    while i <= n do
-        local c = string.sub(q, i, i)
-        if c == " " or c == "\t" then
-            i = i + 1
-        elseif c == "\"" then
-            local j = string.find(q, "\"", i + 1, true)
-            if not j then j = n + 1 end
-            local word = string.sub(q, i + 1, j - 1)
-            if word ~= "" then terms[#terms + 1] = {neg = false, kind = "text", value = word} end
-            i = j + 1
+        if name == CurrentSection then
+            b.BackgroundColor3 = Theme.Accent
+            b.TextColor3 = Color3.new(1,1,1)
         else
-            local j = string.find(q, "%s", i)
-            if not j then j = n + 1 end
-            local word = string.sub(q, i, j - 1)
-            i = j
-            if word ~= "" then
-                local neg = false
-                if string.sub(word, 1, 1) == "-" and #word > 1 then
-                    neg = true
-                    word = string.sub(word, 2)
-                end
-                local kind, value = "text", word
-                local pre, rest = string.match(word, "^(%a+):(.*)$")
-                if pre == "class" then kind, value = "class", rest
-                elseif pre == "path" then kind, value = "path", rest
-                end
-                terms[#terms + 1] = {neg = neg, kind = kind, value = value}
-            end
+            b.BackgroundColor3 = Theme.Card2
+            b.TextColor3 = Theme.Text
         end
+        b.Text = name.." ["..Count(name).."]"
     end
-    return terms
-end
-
-local function MatchTerms(line, info, terms)
-    for i = 1, #terms do
-        local t = terms[i]
-        local hay
-        if t.kind == "class" then hay = (info and info.cls) or ""
-        elseif t.kind == "path" then hay = (info and info.path) or ""
-        else hay = line end
-        local hit
-        if St.Regex then
-            local ok, a = pcall(string.find, hay, t.value)
-            hit = ok and a ~= nil
-        elseif St.Case then
-            hit = string.find(hay, t.value, 1, true) ~= nil
-        else
-            hit = string.find(string.lower(hay), string.lower(t.value), 1, true) ~= nil
-        end
-        if t.neg then hit = not hit end
-        if not hit then return false end
-    end
-    return true
-end
-
-local function SortLabel()
-    return St.SortLabels[St.Sort] or "默认"
-end
-
-local function SortResult(list, data)
-    if St.Sort == "default" or #list < 2 then return list end
-    table.sort(list, function(a, b)
-        local ia, ib = data.Info[a], data.Info[b]
-        if St.Sort == "text" then
-            local la, lb = string.lower(a), string.lower(b)
-            if la == lb then return a < b end
-            return la < lb
-        elseif St.Sort == "textdesc" then
-            local la, lb = string.lower(a), string.lower(b)
-            if la == lb then return a > b end
-            return la > lb
-        elseif St.Sort == "len" then
-            if #a == #b then return a < b end
-            return #a < #b
-        elseif St.Sort == "cls" then
-            local ca, cb = (ia and ia.cls) or "", (ib and ib.cls) or ""
-            if ca == cb then return a < b end
-            return ca < cb
-        elseif St.Sort == "path" then
-            local pa, pb = (ia and ia.path) or "", (ib and ib.path) or ""
-            if pa == pb then return a < b end
-            return pa < pb
-        end
-        return false
-    end)
-    return list
-end
-
--- 当前分区 + 当前查询条件 -> 要显示的行（过滤 + 排序都在这里，导出也复用它）
-local function QueryLines()
-    local data = SectionData[CurrentSection]
-    if not data then return {} end
-    local q = CleanText(SearchBox.Text)
-    local out, n = {}, 0
-    if q == "" then
-        for i = 1, #data.Texts do n = n + 1; out[n] = data.Texts[i] end
-    else
-        local terms = ParseQuery(q)
-        for i = 1, #data.Texts do
-            local line = data.Texts[i]
-            if MatchTerms(line, data.Info[line], terms) then
-                n = n + 1
-                out[n] = line
-            end
-        end
-    end
-    return SortResult(out, data)
 end
 
 local function SearchNow()
-    local q = CleanText(SearchBox.Text)
-    LastSearchSection = CurrentSection
-    LastSearchKeyword = q
-    local result = QueryLines()
-    LastSearchResult = result
-    if q == "" then
-        SetDisplay(result, false, true)
-        Scroll.CanvasPosition = Vector2.new(0, 0)
-        if St.Sort ~= "default" then
-            UpdateStatus("已按「" .. SortLabel() .. "」排序，共 " .. #result .. " 条")
-        else
-            UpdateStatus("显示全部文本")
-        end
+    local keyword = CleanText(SearchBox.Text)
+    local data = SectionData[CurrentSection]
+    if not data then return end
+    if keyword == "" then
+        LastSearchKeyword = ""
+        LastSearchResult = nil
+        SetDisplay(GetCurrentLines(), false, true)
+        Scroll.CanvasPosition = Vector2.new(0,0)
+        UpdateStatus("显示全部文本")
         return
     end
+    -- 缓存：关键词和分区都没变，结果也不变则跳过重复搜索
+    if keyword == LastSearchKeyword and CurrentSection == LastSearchSection and LastSearchResult then
+        return
+    end
+    LastSearchKeyword = keyword
+    LastSearchSection = CurrentSection
+    local result = {}
+    local lower = string.lower(keyword)
+    for _, line in ipairs(data.Texts) do
+        if string.find(string.lower(line), lower, 1, true) then
+            table.insert(result, line)
+        end
+    end
+    LastSearchResult = result
     if #result == 0 then
-        SetDisplay("没有匹配【" .. q .. "】的文本", false, true, true)
-        UpdateStatus("匹配 0 条")
+        SetDisplay("没有搜索到包含【"..keyword.."】的文本", false, true, true)
+        UpdateStatus("搜索结果 0 条")
     else
         SetDisplay(result, false, true, true)
-        UpdateStatus("匹配 " .. #result .. " 条")
+        UpdateStatus("搜索结果 "..#result.." 条")
     end
-    Scroll.CanvasPosition = Vector2.new(0, 0)
+    Scroll.CanvasPosition = Vector2.new(0,0)
 end
 
 local function RefreshDisplay(added)
     UpdateSectionButtons()
-    if CleanText(SearchBox.Text) ~= "" or St.Sort ~= "default" then
+    if CleanText(SearchBox.Text) ~= "" then
         SearchNow()
     else
         SetDisplay(GetCurrentLines(), added and added > 0)
-        if added and added > 0 then UpdateStatus("新增 " .. added .. " 条") else UpdateStatus("暂无新增") end
+        if added and added > 0 then UpdateStatus("新增 "..added.." 条") else UpdateStatus("暂无新增") end
     end
 end
 
@@ -2177,45 +1246,39 @@ local function LayoutUI()
     local scale = math.clamp(math.sqrt((w / 480) * (h / 340)), 0.72, 1.7)
     CurrentUIScale = scale
 
-    local pad = math.floor(math.clamp(7 * scale, 5, 12))
-    local titleH = math.floor(math.clamp(30 * scale, 24, 44))
-    local sideW = math.floor(math.clamp(88 * scale, 76, 130))
-    local toolW = math.floor(math.clamp(140 * scale, 124, 190))
-    local statusH = math.floor(math.clamp(19 * scale, 15, 28))
-    local searchH = math.floor(math.clamp(25 * scale, 19, 36))
-    local gap = math.floor(math.clamp(5 * scale, 3, 9))
-    local minPanelH = Tool.TouchOnly and 22 or 17
-    local actionH = math.floor(math.clamp(23 * scale, minPanelH, 34))
-    local sectionH = math.floor(math.clamp(23 * scale, minPanelH, 34))
+    local pad = math.floor(math.clamp(8 * scale, 6, 14))
+    local titleH = math.floor(math.clamp(32 * scale, 26, 48))
+    local sideW = math.floor(math.clamp(155 * scale, 120, 240))
+    local statusH = math.floor(math.clamp(20 * scale, 16, 30))
+    local searchH = math.floor(math.clamp(26 * scale, 20, 38))
+    local gap = math.floor(math.clamp(5 * scale, 3, 10))
+    local actionH = math.floor(math.clamp(24 * scale, 18, 36))
+    local sectionH = math.floor(math.clamp(24 * scale, 18, 36))
     local actionCount = 7
 
-    local titleTextSize = math.floor(math.clamp(16 * scale, 12, 22))
-    local topBtnSize = math.floor(math.clamp(26 * scale, 20, 38))
-    local sectionTextSize = math.floor(math.clamp(11 * scale, 9, 15))
-    local searchTextSize = math.floor(math.clamp(12 * scale, 10, 16))
-    local searchBtnTextSize = math.floor(math.clamp(12 * scale, 10, 17))
-    local actionTextSize = math.floor(math.clamp(11 * scale, 9, 15))
-    local statusTextSize = math.floor(math.clamp(11 * scale, 9, 15))
-    local helpTextSize = math.floor(math.clamp(11 * scale, 9, 14))
+    local titleTextSize = math.floor(math.clamp(17 * scale, 13, 24))
+    local topBtnSize = math.floor(math.clamp(28 * scale, 22, 40))
+    local sectionTextSize = math.floor(math.clamp(11 * scale, 9, 16))
+    local searchTextSize = math.floor(math.clamp(12 * scale, 10, 17))
+    local searchBtnTextSize = math.floor(math.clamp(13 * scale, 10, 18))
+    local actionTextSize = math.floor(math.clamp(11 * scale, 9, 16))
+    local statusTextSize = math.floor(math.clamp(12 * scale, 10, 17))
 
     Title.Size = UDim2.new(1, -math.floor(80*scale), 0, titleH)
     Title.Position = UDim2.new(0, pad, 0, 0)
     Title.TextSize = titleTextSize
-    TitleAccent.Size = UDim2.new(1, -pad * 2, 0, 2)
-    TitleAccent.Position = UDim2.new(0, pad, 0, titleH - 5)
 
     MinBtn.Size = UDim2.new(0, topBtnSize, 0, topBtnSize)
     MinBtn.Position = UDim2.new(1, -(topBtnSize*2 + 4), 0, 2)
-    MinBtn.TextSize = math.floor(math.clamp(17 * scale, 13, 22))
+    MinBtn.TextSize = math.floor(math.clamp(18 * scale, 14, 24))
 
     CloseBtn.Size = UDim2.new(0, topBtnSize, 0, topBtnSize)
     CloseBtn.Position = UDim2.new(1, -(topBtnSize + 2), 0, 2)
-    CloseBtn.TextSize = math.floor(math.clamp(15 * scale, 11, 20))
+    CloseBtn.TextSize = math.floor(math.clamp(16 * scale, 12, 22))
 
     Content.Size = UDim2.new(1, 0, 1, -titleH)
     Content.Position = UDim2.new(0, 0, 0, titleH)
 
-    -- ---------- 左栏：分区 + 常用操作 ----------
     LeftPanel.Size = UDim2.new(0, sideW, 1, -pad*2)
     LeftPanel.Position = UDim2.new(0, pad, 0, pad)
 
@@ -2230,15 +1293,7 @@ local function LayoutUI()
         b.TextSize = sectionTextSize
     end
 
-    -- 左栏同样分「常用 / 更多」
-    local leftButtons = {}
-    for i = 1, #Tool.LeftCore do leftButtons[#leftButtons + 1] = Tool.LeftCore[i] end
-    if Tool.Expanded then
-        for i = 1, #Tool.LeftMore do leftButtons[#leftButtons + 1] = Tool.LeftMore[i] end
-    end
-    for i = 1, #Tool.LeftAll do Tool.LeftAll[i].Visible = false end
-    actionCount = #leftButtons
-
+    -- LeftPanel 只包含分区按钮 + 功能按钮，不再包含搜索框
     local sideY = gap + sectionPanelH + gap
     local actionPanelH = actionCount * actionH + (actionCount-1) * gap
     BottomBar.Size = UDim2.new(1, -pad, 0, actionPanelH)
@@ -2247,174 +1302,34 @@ local function LayoutUI()
     local leftContentH = sideY + actionPanelH + gap
     LeftPanel.CanvasSize = UDim2.new(0, 0, 0, leftContentH)
 
-    for i, b in ipairs(leftButtons) do
-        b.Visible = true
+    local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}
+    for i, b in ipairs(buttons) do
         b.Size = UDim2.new(1, -pad, 0, actionH)
         b.Position = UDim2.new(0, math.floor(pad/2), 0, (i-1) * (actionH + gap))
         b.TextSize = actionTextSize
     end
 
-    -- ---------- 中栏：状态栏 + 搜索 + 文本列表 ----------
     local listX = pad * 2 + sideW
-    local centerW = math.max(150, w - listX - toolW - gap - pad)
-    local toolX = listX + centerW + gap
+    local rightW = math.max(120, w - listX - pad)
 
-    StatusLabel.Size = UDim2.new(0, centerW, 0, statusH)
+    StatusLabel.Size = UDim2.new(0, rightW, 0, statusH)
     StatusLabel.Position = UDim2.new(0, listX, 0, pad)
     StatusLabel.TextSize = statusTextSize
 
+    -- 搜索框放在右侧区域：状态栏下方、文本列表上方，横跨整个右侧宽度
     local searchRowY = pad + statusH + gap
-    local searchBtnW = math.floor(searchH * 1.7)
-    SearchBtn.Size = UDim2.new(0, searchBtnW, 0, searchH)
+    SearchBtn.Size = UDim2.new(0, searchH * 2, 0, searchH)
     SearchBtn.Position = UDim2.new(0, listX, 0, searchRowY)
     SearchBtn.TextSize = searchBtnTextSize
 
     SearchBox.Visible = true
-    SearchBox.Size = UDim2.new(0, math.max(60, centerW - searchBtnW - gap), 0, searchH)
-    SearchBox.Position = UDim2.new(0, listX + searchBtnW + gap, 0, searchRowY)
+    SearchBox.Size = UDim2.new(0, rightW - searchH * 2 - gap, 0, searchH)
+    SearchBox.Position = UDim2.new(0, listX + searchH * 2 + gap, 0, searchRowY)
     SearchBox.TextSize = searchTextSize
 
     local scrollY = searchRowY + searchH + gap
-    Scroll.Size = UDim2.new(0, centerW, 1, -scrollY - pad)
+    Scroll.Size = UDim2.new(0, rightW, 1, -scrollY - pad)
     Scroll.Position = UDim2.new(0, listX, 0, scrollY)
-
-    -- ---------- 右栏：功能列表 ----------
-    -- 按组竖排。按钮高度由「可用高度 / 总行数」反推，所以窗口拉大拉小都不会溢出。
-    local toolPad = math.floor(math.clamp(5 * scale, 3, 8))
-    local headerH = math.floor(math.clamp(11 * scale, 9, 14))
-    local toolGap = math.floor(math.clamp(3 * scale, 2, 5))
-    local groupGap = math.floor(math.clamp(6 * scale, 4, 10))
-    local toolTop = pad
-    local toolH = h - titleH - pad * 2
-
-    -- 简洁模式：MoreKeys 里的按钮默认不显示，点「更多」才展开
-    local visGroups = {}
-    for gi = 1, #Tool.Layout do
-        local g = Tool.Layout[gi]
-        local vis = {}
-        for bi = 1, #g.items do
-            local b = g.items[bi]
-            if Tool.Expanded or not Tool.MoreKeys[b.Name] then vis[#vis + 1] = b end
-        end
-        if #vis > 0 then
-            visGroups[#visGroups + 1] = {header = g.header, items = vis,
-                after = Tool.Expanded and g.after or nil}
-        end
-    end
-    for i = 1, #Tool.Order do Tool.Order[i].Visible = false end
-    for i = 1, #Tool.Headers do Tool.Headers[i].Visible = false end
-
-    local toolCols = 2
-    local toolRows = 0
-    local hasReplace = false
-    for gi = 1, #visGroups do
-        toolRows = toolRows + math.max(1, math.ceil(#visGroups[gi].items / toolCols))
-        if visGroups[gi].after then hasReplace = true end
-    end
-    local slots = toolRows + (hasReplace and 1 or 0)
-
-    local fixedH = #visGroups * (headerH + 2) + math.max(0, #visGroups - 1) * groupGap
-        + slots * toolGap + toolPad * 2
-    local unitH = (toolH - fixedH) / math.max(1, slots)
-    -- 触屏上按钮最小给到 22，手指才点得准；电脑上保持紧凑
-    local minBtnH = Tool.TouchOnly and 22 or 14
-    local maxBtnH = Tool.TouchOnly and 46 or 34
-    local toolBtnH = math.floor(math.clamp(unitH - toolGap, minBtnH, maxBtnH))
-    local replaceH = math.floor(math.clamp(unitH - toolGap, 15, searchH))
-    local btnW = (toolW - toolPad * 2 - (toolCols - 1) * toolGap) / toolCols
-
-    Tool.Panel.Position = UDim2.new(0, toolX, 0, toolTop)
-
-    local cy = toolPad
-    for gi = 1, #visGroups do
-        local g = visGroups[gi]
-        g.header.Visible = true
-        g.header.Size = UDim2.new(1, -toolPad * 2, 0, headerH)
-        g.header.Position = UDim2.new(0, toolPad, 0, cy)
-        g.header.TextSize = math.floor(math.clamp(10 * scale, 8, 13))
-        cy = cy + headerH + 2
-
-        local col = 0
-        for bi = 1, #g.items do
-            local b = g.items[bi]
-            b.Visible = true
-            b.Size = UDim2.new(0, btnW, 0, toolBtnH)
-            b.Position = UDim2.new(0, toolPad + col * (btnW + toolGap), 0, cy)
-            b.TextSize = math.floor(math.clamp(10 * scale, Tool.TouchOnly and 11 or 8, Tool.TouchOnly and 15 or 13))
-            col = col + 1
-            if col >= toolCols then
-                col = 0
-                cy = cy + toolBtnH + toolGap
-            end
-        end
-        if col > 0 then cy = cy + toolBtnH + toolGap end
-
-        if g.after then
-            g.after.Visible = true
-            g.after.Size = UDim2.new(1, -toolPad * 2, 0, replaceH)
-            g.after.Position = UDim2.new(0, toolPad, 0, cy)
-            g.after.TextSize = math.floor(math.clamp(11 * scale, 9, 14))
-            cy = cy + replaceH + toolGap
-        end
-        if gi < #visGroups then cy = cy + groupGap - toolGap end
-    end
-    if not hasReplace then Tool.Replace.Visible = false end
-
-    -- 面板高度跟着内容走：收起状态只剩 5 个按钮，不留一大片空白
-    local contentH = cy - toolGap + toolPad
-    if contentH > toolH then contentH = toolH end
-    if contentH < 90 then contentH = 90 end
-    Tool.Panel.Size = UDim2.new(0, toolW, 0, contentH)
-
-    -- ---------- 悬停提示浮层 ----------
-    Tip.Label.TextSize = math.floor(math.clamp(11 * scale, 9, 14))
-
-    -- ---------- 帮助面板 ----------
-    if Help.Panel.Visible then
-        local hp = pad
-        local hTitleH = math.floor(math.clamp(20 * scale, 16, 26))
-        local closeW = math.floor(math.clamp(20 * scale, 16, 26))
-        Help.Panel.Position = UDim2.new(0, pad, 0, pad)
-        Help.Panel.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
-        local helpW = w - pad * 2
-        Help.Title.Size = UDim2.new(1, -(hp * 2 + closeW + gap), 0, hTitleH)
-        Help.Title.Position = UDim2.new(0, hp, 0, hp)
-        Help.Title.TextSize = helpTextSize
-        Help.Close.Size = UDim2.new(0, closeW, 0, closeW)
-        Help.Close.Position = UDim2.new(1, -(closeW + hp), 0, hp)
-        Help.Close.TextSize = helpTextSize
-
-        local hScrollTop = hp + hTitleH + gap
-        Help.Scroll.Position = UDim2.new(0, hp, 0, hScrollTop)
-        Help.Scroll.Size = UDim2.new(1, -hp * 2, 1, -(hScrollTop + hp))
-
-        local nameW = math.floor(math.clamp(64 * scale, 52, 92))
-        local descX = hp + nameW + gap
-        local descW = math.max(80, helpW - descX - hp - gap)
-        local charsPerLine = math.max(8, math.floor(descW / (helpTextSize * 0.62)))
-        local lineH = helpTextSize + 3
-        local hy = 0
-        for _, item in ipairs(Help.Items) do
-            if item.kind == "group" then
-                hy = hy + gap
-                item.obj.Size = UDim2.new(1, -hp * 2, 0, lineH)
-                item.obj.Position = UDim2.new(0, hp, 0, hy)
-                item.obj.TextSize = helpTextSize
-                hy = hy + lineH
-            else
-                local lines = math.max(1, math.ceil(Utf8Chars(item.desc.Text) / charsPerLine))
-                local rowH = lines * lineH
-                item.name.Size = UDim2.new(0, nameW, 0, lineH)
-                item.name.Position = UDim2.new(0, hp, 0, hy)
-                item.name.TextSize = helpTextSize
-                item.desc.Size = UDim2.new(0, descW, 0, rowH)
-                item.desc.Position = UDim2.new(0, descX, 0, hy)
-                item.desc.TextSize = helpTextSize
-                hy = hy + rowH + 2
-            end
-        end
-        Help.Scroll.CanvasSize = UDim2.new(0, 0, 0, hy + hp)
-    end
 
     ResizeHandle.Visible = true
     ResizeCanvas()
@@ -2423,357 +1338,6 @@ local function LayoutUI()
     -- 只更新属性、不重建实例，所以拖动手柄的过程中也很流畅
     RestyleVisibleRows()
 end
-
--- ==================== 导出与工具函数 ====================
-local function SafeFileName(s)
-    local t = tostring(s or "全部"):gsub("[\\/:*?\"<>|]", "_")
-    if t == "" then t = "全部" end
-    return t
-end
-
-local function WriteOut(name, text)
-    if setclipboard then setclipboard(text) elseif toclipboard then toclipboard(text) end
-    if writefile then
-        local ok, err = pcall(function() writefile(name, text) end)
-        if ok then
-            StatusLabel.Text = "已导出并复制：" .. name .. "（" .. #text .. " 字节）"
-        else
-            StatusLabel.Text = "已复制到剪贴板，但 writefile 失败：" .. tostring(err)
-        end
-    else
-        StatusLabel.Text = "已复制到剪贴板（当前执行器无 writefile）：" .. name
-    end
-end
-
-local function ItemsOfLines(lines)
-    local data = SectionData[CurrentSection]
-    local items = {}
-    for i = 1, #lines do
-        local info = data and data.Info[lines[i]]
-        items[i] = {
-            text = lines[i],
-            cls = (info and info.cls) or "",
-            path = (info and info.path) or "",
-            count = (info and info.count) or 1,
-        }
-    end
-    return items
-end
-
--- 汉化表：直接就是「原文 -> 译文」的空表，能贴进汉化模板
-local function ExportTranslations()
-    local lines = QueryLines()
-    if #lines == 0 then StatusLabel.Text = "没有可导出的文本"; return end
-    local out = {
-        "-- UI文本汉化表（原文 -> 译文）",
-        "-- 分区：" .. CurrentSection .. "　共 " .. #lines .. " 条",
-        "-- 生成时间：" .. os.date("%Y-%m-%d %H:%M:%S"),
-        "",
-        "return {",
-    }
-    for i = 1, #lines do
-        out[#out + 1] = "    [\"" .. EscapeLuaString(lines[i]) .. "\"] = \"\","
-    end
-    out[#out + 1] = "}"
-    WriteOut("UITextExport_" .. SafeFileName(CurrentSection) .. "_汉化.lua", table.concat(out, "\n"))
-end
-
-local function JsonEscape(s)
-    s = tostring(s or "")
-    s = s:gsub("\\", "\\\\"):gsub("\"", "\\\""):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
-    s = s:gsub("[%z\1-\31]", function(c) return string.format("\\u%04x", string.byte(c)) end)
-    return s
-end
-
-local function ExportJson()
-    local lines = QueryLines()
-    if #lines == 0 then StatusLabel.Text = "没有可导出的文本"; return end
-    local items = ItemsOfLines(lines)
-    local out = {"{", "  \"section\": \"" .. JsonEscape(CurrentSection) .. "\",", "  \"count\": " .. #items .. ",", "  \"items\": ["}
-    for i = 1, #items do
-        local it = items[i]
-        out[#out + 1] = string.format(
-            "    {\"text\": \"%s\", \"class\": \"%s\", \"path\": \"%s\", \"count\": %d}%s",
-            JsonEscape(it.text), JsonEscape(it.cls), JsonEscape(it.path), it.count,
-            i < #items and "," or "")
-    end
-    out[#out + 1] = "  ]"
-    out[#out + 1] = "}"
-    WriteOut("UITextExport_" .. SafeFileName(CurrentSection) .. ".json", table.concat(out, "\n"))
-end
-
-local function CsvCell(s)
-    s = tostring(s or "")
-    if string.find(s, "[\",\n\r]") then
-        s = "\"" .. s:gsub("\"", "\"\"") .. "\""
-    end
-    return s
-end
-
-local function ExportCsv()
-    local lines = QueryLines()
-    if #lines == 0 then StatusLabel.Text = "没有可导出的文本"; return end
-    local items = ItemsOfLines(lines)
-    -- 前置 UTF-8 BOM，Excel 打开才不会乱码
-    local out = {"\239\187\191text,class,path,count"}
-    for i = 1, #items do
-        local it = items[i]
-        out[#out + 1] = CsvCell(it.text) .. "," .. CsvCell(it.cls) .. "," .. CsvCell(it.path) .. "," .. it.count
-    end
-    WriteOut("UITextExport_" .. SafeFileName(CurrentSection) .. ".csv", table.concat(out, "\r\n"))
-end
-
-local function ExportTxt()
-    local lines = QueryLines()
-    if #lines == 0 then StatusLabel.Text = "没有可导出的文本"; return end
-    WriteOut("UITextExport_" .. SafeFileName(CurrentSection) .. ".txt", table.concat(lines, "\n"))
-end
-
--- 差异对比：第一次点记录快照，之后每次点都跟这份快照比（右键「对比」重新记录）
-local Snapshot = nil
-local function TakeSnapshot()
-    local lines = QueryLines()
-    local set = {}
-    for i = 1, #lines do set[lines[i]] = true end
-    Snapshot = {section = CurrentSection, set = set, count = #lines, time = os.date("%H:%M:%S")}
-end
-
-local function ShowDiff()
-    if not Snapshot then
-        TakeSnapshot()
-        StatusLabel.Text = "已记录快照：" .. Snapshot.section .. " " .. Snapshot.count .. " 条（" .. Snapshot.time .. "）"
-        return
-    end
-    if Snapshot.section ~= CurrentSection then
-        TakeSnapshot()
-        StatusLabel.Text = "快照分区已切到「" .. CurrentSection .. "」（" .. Snapshot.time .. "），再点一次看差异"
-        return
-    end
-    local lines = QueryLines()
-    local now, added, removed = {}, {}, {}
-    for i = 1, #lines do
-        now[lines[i]] = true
-        if not Snapshot.set[lines[i]] then added[#added + 1] = lines[i] end
-    end
-    for text in pairs(Snapshot.set) do
-        if not now[text] then removed[#removed + 1] = text end
-    end
-    local out = {}
-    for i = 1, #added do out[#out + 1] = "[+ 新增] " .. added[i] end
-    for i = 1, #removed do out[#out + 1] = "[- 消失] " .. removed[i] end
-    if #out == 0 then
-        SetDisplay("与快照（" .. Snapshot.time .. "）完全一致，没有变化", false, true, true)
-        UpdateStatus("差异 0 条")
-    else
-        SetDisplay(out, false, true, true)
-        UpdateStatus("对比快照 " .. Snapshot.time .. "：新增 " .. #added .. " / 消失 " .. #removed)
-    end
-end
-
--- 批量替换：搜索框 = 查找（可开正则），ReplaceBox = 替换为
--- 会直接改写原对象上的文本属性（只影响本机客户端）
-local function BuildReplacePattern(q)
-    if St.Regex then return q end
-    return (q:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1"))
-end
-
-local function BatchReplace()
-    local q = CleanText(SearchBox.Text)
-    if q == "" then StatusLabel.Text = "请先在搜索框填写查找条件"; return end
-    local rep = Tool.Replace.Text or ""
-    local data = SectionData[CurrentSection]
-    if not data then return end
-    local terms = ParseQuery(q)
-    local target = {}
-    for i = 1, #data.Texts do
-        if MatchTerms(data.Texts[i], data.Info[data.Texts[i]], terms) then
-            target[#target + 1] = data.Texts[i]
-        end
-    end
-    if #target == 0 then StatusLabel.Text = "没有匹配到可替换的文本"; return end
-    local pat = BuildReplacePattern(q)
-    local changed, objs = 0, 0
-    for i = 1, #target do
-        local old = target[i]
-        local info = data.Info[old]
-        local ok, new = pcall(string.gsub, old, pat, function() return rep end)
-        if ok and new ~= old and info then
-            for obj in pairs(info.objs) do
-                if obj and obj.Parent then
-                    objs = objs + 1
-                    pcall(function()
-                        for _, prop in ipairs(TextPropsOf(obj)) do
-                            if type(obj[prop]) == "string" and obj[prop] == old then
-                                obj[prop] = new
-                            end
-                        end
-                    end)
-                end
-            end
-            changed = changed + 1
-        end
-    end
-    StatusLabel.Text = "替换完成：命中 " .. #target .. " 条，改写 " .. changed .. " 条 / " .. objs .. " 个对象"
-    ManualRefresh()
-end
-
--- 配置持久化：收藏栏 + 各分区的屏蔽词（原版重执行就全丢）
-local CONFIG_FILE = "UITextExport_配置.lua"
-
-local function SaveConfig()
-    if not writefile then StatusLabel.Text = "当前执行器没有 writefile，无法保存配置"; return end
-    local out = {"-- UI文本提取器 配置（收藏栏 + 屏蔽词）", "return {", "  Favorites = {"}
-    for i = 1, #FavoriteData.Texts do
-        out[#out + 1] = "    \"" .. EscapeLuaString(FavoriteData.Texts[i]) .. "\","
-    end
-    out[#out + 1] = "  },"
-    out[#out + 1] = "  Blocked = {"
-    for _, sec in ipairs(Sections) do
-        out[#out + 1] = "    [\"" .. EscapeLuaString(sec) .. "\"] = {"
-        for text in pairs(BlockedData[sec]) do
-            out[#out + 1] = "      \"" .. EscapeLuaString(text) .. "\","
-        end
-        out[#out + 1] = "    },"
-    end
-    out[#out + 1] = "  },"
-    out[#out + 1] = "}"
-    local ok, err = pcall(function() writefile(CONFIG_FILE, table.concat(out, "\n")) end)
-    StatusLabel.Text = ok and ("收藏/屏蔽已保存到 " .. CONFIG_FILE) or ("保存失败：" .. tostring(err))
-end
-
-local function LoadConfig(silent)
-    if not (readfile and isfile) then
-        if not silent then StatusLabel.Text = "当前执行器不支持 readfile" end
-        return false
-    end
-    local okE, exists = pcall(isfile, CONFIG_FILE)
-    if not okE or not exists then
-        if not silent then StatusLabel.Text = "没有找到 " .. CONFIG_FILE end
-        return false
-    end
-    local okR, src = pcall(readfile, CONFIG_FILE)
-    if not okR or type(src) ~= "string" then
-        if not silent then StatusLabel.Text = "读取失败" end
-        return false
-    end
-    local chunk = loadstring or load
-    local okC, fn = pcall(chunk, src)
-    local cfg = okC and fn and fn()
-    if type(cfg) ~= "table" then
-        if not silent then StatusLabel.Text = "配置文件格式不对" end
-        return false
-    end
-    local nf, nb = 0, 0
-    FavoriteData.Texts = {}
-    FavoriteData.Map = {}
-    for _, t in ipairs(cfg.Favorites or {}) do
-        if type(t) == "string" and not FavoriteData.Map[t] then
-            FavoriteData.Map[t] = true
-            FavoriteData.Texts[#FavoriteData.Texts + 1] = t
-            nf = nf + 1
-        end
-    end
-    for _, sec in ipairs(Sections) do
-        BlockedData[sec] = {}
-        local list = (cfg.Blocked or {})[sec]
-        if type(list) == "table" then
-            for _, t in ipairs(list) do
-                if type(t) == "string" then
-                    BlockedData[sec][t] = true
-                    nb = nb + 1
-                end
-            end
-        end
-    end
-    if FavoriteStatus then FavoriteStatus.Text = "收藏列表｜共 " .. #FavoriteData.Texts .. " 条" end
-    if type(RefreshFavoriteList) == "function" then pcall(RefreshFavoriteList) end
-    StatusLabel.Text = "配置已读取：收藏 " .. nf .. " 条 / 屏蔽 " .. nb .. " 条"
-    return true
-end
-
-local function ShowPerf()
-    local msg = string.format(
-        "性能：扫描 %d ms｜文本对象 %d 个｜已挂监听 %d 个｜根 %d 个｜列表 %d 条｜已实例化行 %d 个｜快照 %s",
-        St.Perf.scanMs, St.Perf.total, St.Perf.hooked, St.Perf.roots,
-        #DisplayedLines, #Win.Rows, St.Perf.at)
-    StatusLabel.Text = msg
-    print("[UI文本提取器] " .. msg)
-end
-
-local function UpdateToolLabels()
-    Tool.Hidden.Text = St.Hidden and "含隐藏:开" or "含隐藏:关"
-    Tool.Hidden.BackgroundColor3 = St.Hidden and Theme.Green or Theme.Card2
-    StyleButton(Tool.Hidden, Tool.Hidden.BackgroundColor3)
-    local rl = St.Regex and "正则:开" or "正则:关"
-    if St.Case then rl = rl .. "·Aa" end
-    Tool.Regex.Text = rl
-    Tool.Regex.BackgroundColor3 = St.Regex and Theme.Accent or Theme.Card2
-    StyleButton(Tool.Regex, Tool.Regex.BackgroundColor3)
-    Tool.Sort.Text = "排序:" .. SortLabel()
-    Tool.Sort.BackgroundColor3 = (St.Sort ~= "default") and Theme.Purple or Theme.Card2
-    StyleButton(Tool.Sort, Tool.Sort.BackgroundColor3)
-end
-
--- ==================== 工具按钮事件 ====================
-Tool.Trans.MouseButton1Click:Connect(function() pcall(ExportTranslations) end)
-Tool.Json.MouseButton1Click:Connect(function() pcall(ExportJson) end)
-Tool.Csv.MouseButton1Click:Connect(function() pcall(ExportCsv) end)
-Tool.Txt.MouseButton1Click:Connect(function() pcall(ExportTxt) end)
-Tool.MoreBtn.MouseButton1Click:Connect(function()
-    Tool.Expanded = not Tool.Expanded
-    Tool.MoreBtn.Text = Tool.Expanded and "收起 ▴" or "更多 ▾"
-    LayoutUI()
-    UpdateStatus(Tool.Expanded and "已展开全部功能" or "已收起，只留常用按钮")
-end)
-Tool.Perf.MouseButton1Click:Connect(function() pcall(ShowPerf) end)
-Tool.ReplaceBtn.MouseButton1Click:Connect(function() pcall(BatchReplace) end)
-Tool.Save.MouseButton1Click:Connect(function() pcall(SaveConfig) end)
-Tool.Load.MouseButton1Click:Connect(function() pcall(LoadConfig) end)
-
-Tool.Diff.MouseButton1Click:Connect(function()
-    pcall(ShowDiff)
-end)
-Tool.Diff.MouseButton2Click:Connect(function()
-    TakeSnapshot()
-    StatusLabel.Text = "已重新记录快照：" .. Snapshot.section .. " " .. Snapshot.count .. " 条（" .. Snapshot.time .. "）"
-end)
-
-Tool.Hidden.MouseButton1Click:Connect(function()
-    St.Hidden = not St.Hidden
-    UpdateToolLabels()
-    ManualRefresh()
-    UpdateStatus(St.Hidden and "已包含不可见元素" or "只统计可见元素")
-end)
-
--- 点一下切正则；右键切「区分大小写」
-Tool.Regex.MouseButton1Click:Connect(function()
-    St.Regex = not St.Regex
-    UpdateToolLabels()
-    if CleanText(SearchBox.Text) ~= "" then SearchNow() end
-    UpdateStatus(St.Regex and "搜索：正则模式" or "搜索：普通模式")
-end)
-Tool.Regex.MouseButton2Click:Connect(function()
-    St.Case = not St.Case
-    UpdateToolLabels()
-    if CleanText(SearchBox.Text) ~= "" then SearchNow() end
-    UpdateStatus(St.Case and "搜索：区分大小写" or "搜索：忽略大小写")
-end)
-
--- 点一下向后切排序；右键向前
-local function CycleSort(step)
-    local idx = 1
-    for i = 1, #St.SortModes do
-        if St.SortModes[i] == St.Sort then idx = i break end
-    end
-    idx = ((idx - 1 + step) % #St.SortModes) + 1
-    St.Sort = St.SortModes[idx]
-    UpdateToolLabels()
-    SearchNow()
-end
-Tool.Sort.MouseButton1Click:Connect(function() pcall(CycleSort, 1) end)
-Tool.Sort.MouseButton2Click:Connect(function() pcall(CycleSort, -1) end)
-
-UpdateToolLabels()
 
 -- ==================== 事件连接 ====================
 for _, section in ipairs(Sections) do
@@ -3017,159 +1581,23 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
--- ==================== 自动刷新（兜底轮询） ====================
--- 平时靠事件驱动：文本对象新增 / 消失 / 文本被改写都会立刻更新数据（见 AttachIncremental）。
--- 这个定时器只做两件事：
---   1) DataDirty 时只重画列表，不重扫（几乎零成本）
---   2) 每 15 拍兜底全量重扫一次，防止漏事件
--- 原版是每 1.5 秒无条件全量重扫（且「全部」要扫 5 遍整棵树）。
-local PollTick = 0
+-- ==================== 自动刷新 ====================
 task.spawn(function()
     while ScreenGui and ScreenGui.Parent do
-        task.wait(St.AutoRefresh)
-        PollTick = PollTick + 1
-        if St.Live and St.Dirty then
-            St.Dirty = false
-            pcall(function() RefreshDisplay(0) end)
-        end
-        if AutoRefreshEnabled and PollTick % 15 == 0 then
-            pcall(ManualRefresh)
-        elseif PollTick % 5 == 0 then
+        if AutoRefreshEnabled then
+            pcall(function() ManualRefresh() end)
+        else
             UpdateSectionButtons()
             UpdateStatus()
         end
+        task.wait(AutoRefreshInterval)
     end
-end)
-
--- ==================== 悬停说明 + 帮助面板 ====================
--- 说明动辄几十个字，塞进状态栏那一行会被截断，所以做成贴在按钮旁边的浮层。
-Tool.Tip.show = function(obj, name, desc)
-    local w, h = Main.AbsoluteSize.X, Main.AbsoluteSize.Y
-    if w <= 0 then w = 540 end
-    if h <= 0 then h = 370 end
-
-    local text = name .. "：" .. desc
-    Tip.Label.Text = text
-    local ts = Tip.Label.TextSize
-    local tw = math.floor(math.clamp(w * 0.46, 150, 330))
-    local perLine = math.max(10, math.floor((tw - 16) / (ts * 0.62)))
-    local lines = math.max(1, math.ceil(Utf8Chars(text) / perLine))
-    local th = lines * (ts + 3) + 12
-    Tip.Box.Size = UDim2.new(0, tw, 0, th)
-
-    -- 贴着按钮放：按钮在左半边就放右边，在右半边就放左边，免得挡住正在看的按钮
-    local ax, ay, aw = 0, 0, 0
-    pcall(function()
-        ax = obj.AbsolutePosition.X - Main.AbsolutePosition.X
-        ay = obj.AbsolutePosition.Y - Main.AbsolutePosition.Y
-        aw = obj.AbsoluteSize.X
-    end)
-    local x
-    if (ax + aw / 2) < w / 2 then x = ax + aw + 6 else x = ax - tw - 6 end
-    local tH = math.floor(math.clamp(30 * (CurrentUIScale or 1), 24, 44))
-    x = math.clamp(x, 4, math.max(4, w - tw - 4))
-    local y = math.clamp(ay + 8, tH + 4, math.max(tH + 4, h - th - 4))
-    Tip.Box.Position = UDim2.new(0, x, 0, y)
-    Tip.Box.Visible = true
-
-    -- 兜底：万一 MouseLeave 不触发（触屏常见），几秒后自己收起来，免得一直挡着列表
-    Tip.Token = (Tip.Token or 0) + 1
-    local myToken = Tip.Token
-    task.delay(4, function()
-        if Tip.Token == myToken then Tip.Box.Visible = false end
-    end)
-end
-
-Tool.Tip.hide = function()
-    Tip.Token = (Tip.Token or 0) + 1
-    Tip.Box.Visible = false
-end
-
-Help.Toggle = function()
-    Help.Panel.Visible = not Help.Panel.Visible
-    Tool.Tip.hide()
-    if Help.Panel.Visible then
-        StatusLabel.Text = "功能说明：滚轮翻页，点右上角 ✕ 或按 Esc 关闭"
-    else
-        UpdateStatus()
-    end
-    LayoutUI()
-end
-
-Tool.Help.MouseButton1Click:Connect(function() pcall(Help.Toggle) end)
-Help.Close.MouseButton1Click:Connect(function() pcall(Help.Toggle) end)
-
--- 每个功能都挂上悬停说明（列表行里的按钮在 MakeAction 里单独挂）
-for _, section in ipairs(Sections) do AttachTip(SectionButtons[section], "sec") end
-AttachTip(RefreshBtn, "Refresh")
-AttachTip(AutoCheckBtn, "Auto")
-AttachTip(CopyBtn, "CopyAll")
-AttachTip(BlockBtn, "Block")
-AttachTip(FavBtn, "Fav")
-AttachTip(ExportBtn, "ExportLua")
-AttachTip(ClearBtn, "Clear")
-AttachTip(SearchBox, "search")
-AttachTip(Tool.Replace, "replaceBox")
-
--- ==================== 快捷键 ====================
--- Ctrl+F 聚焦搜索　Ctrl+R 刷新　Ctrl+E 导出汉化表　Ctrl+S 保存配置　Esc 取消输入焦点
-pcall(function()
-    UserInputService.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
-        if input.KeyCode == Enum.KeyCode.Escape then
-            pcall(function() SearchBox:ReleaseFocus() end)
-            pcall(function() Tool.Replace:ReleaseFocus() end)
-            if Help.Panel.Visible then pcall(Help.Toggle) end
-            pcall(function() Tool.Tip.hide() end)
-            return
-        end
-        local ctrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-            or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-        if not ctrl then return end
-        if input.KeyCode == Enum.KeyCode.F then
-            pcall(function() SearchBox:CaptureFocus() end)
-        elseif input.KeyCode == Enum.KeyCode.R then
-            pcall(ManualRefresh)
-        elseif input.KeyCode == Enum.KeyCode.E then
-            pcall(ExportTranslations)
-        elseif input.KeyCode == Enum.KeyCode.S then
-            pcall(SaveConfig)
-        end
-    end)
 end)
 
 -- ==================== 初始化 ====================
 LayoutUI()
 UpdateSectionButtons()
 CurrentSection = "全部"
-UpdateToolLabels()
+ManualRefresh()
 
-do
-    local t0 = os.clock()
-    ManualRefresh()
-    St.Perf.scanMs = math.floor((os.clock() - t0) * 1000)
-    St.Perf.at = os.date("%H:%M:%S")
-    St.Perf.total = 0
-    for _ in pairs(St.ObjIndex) do St.Perf.total = St.Perf.total + 1 end
-    St.Perf.roots = #ScanRootsList(huiRootCache)
-end
-
--- 给已发现的文本对象挂上属性监听：之后游戏里文本被改写会实时反映进来
-task.spawn(function()
-    local n = 0
-    for obj in pairs(St.ObjIndex) do
-        if obj.Parent then
-            HookObject(obj)
-            n = n + 1
-        end
-    end
-    St.Perf.hooked = n
-    if n > 0 then print("[UI文本提取器] 已为 " .. n .. " 个文本对象挂上实时监听") end
-end)
-
-AttachIncremental()
-pcall(LoadConfig, true)   -- 有上次保存的配置就自动读回来
-
-print(string.format("[UI文本提取器 v25] 已加载 | 单遍扫描 %d ms｜%d 个文本对象｜虚拟化列表 + 实时增量更新",
-    St.Perf.scanMs, St.Perf.total))
-print("[UI文本提取器] 新人提示：鼠标停在任意按钮上会弹出该功能的说明；右栏「帮助」可看完整功能表")
+print("[UI文本提取器 v24] 已加载 | 响应式布局 + 圆形最小化 + 动画")
