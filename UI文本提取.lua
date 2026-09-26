@@ -351,29 +351,38 @@ end
 local function WalkUpFlags(obj)
     local cached = VisCache[obj]
     if cached then return cached end
+    -- 先把 obj 到根的整条链收集起来，再从最上面往下算：
+    --   某个节点的 flags = 它自己的属性 + 它父节点的 flags
+    -- 每个节点只缓存「属于它自己的」结果。
+    --
+    -- 之前这里是把叶子的结果回填给整条链上的所有祖先，那个是错的：
+    -- 叶子的 flags 包含了"叶子下面这几层"的信息，拿它当祖先的结论，
+    -- 等于把「某个后代是系统UI」当成「祖先也是系统UI」。只要树里有一个文本
+    -- 落在 TopBar / Chat 这类系统节点下，这条链一路上溯到 PlayerGui 都会被
+    -- 标记成系统UI；后面任何对象撞到这个缓存祖先就跟着被误判 → 第三方UI
+    -- 分区一条都收不到。方向也是反的：visible 会被过度判否，system/ours 会被过度判是。
     local chain = {}
     local cur = obj
-    local visible, ours, system = true, false, false
-    while cur and cur ~= game do
-        local hit = VisCache[cur]
-        if hit then
-            visible = visible and hit[1]
-            ours = ours or hit[2]
-            system = system or hit[3]
-            break
-        end
+    while cur and cur ~= game and not VisCache[cur] do
         chain[#chain + 1] = cur
-        if cur == ScreenGui then ours = true end
-        if SystemNames[cur.Name] then system = true end
-        local ok, v = pcall(function() return cur.Visible end)
-        if ok and v == false then visible = false end
         cur = cur.Parent
     end
-    local result = { visible, ours, system }
-    for i = 1, #chain do
-        VisCache[chain[i]] = result
+    local visible, ours, system = true, false, false
+    if cur and cur ~= game then
+        local base = VisCache[cur]
+        if base then
+            visible, ours, system = base[1], base[2], base[3]
+        end
     end
-    return result
+    -- 从链尾（最上层）往链头（obj 自己）累加，保证父节点先算好
+    for i = #chain, 1, -1 do
+        local node = chain[i]
+        if node:IsA("GuiObject") and node.Visible == false then visible = false end
+        if node == ScreenGui then ours = true end
+        if SystemNames[node.Name] then system = true end
+        VisCache[node] = {visible, ours, system}
+    end
+    return VisCache[obj]
 end
 
 -- 用「往上找有没有叫这个名字的祖先」代替拼完整路径字符串再 find，
