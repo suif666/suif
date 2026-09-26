@@ -1902,7 +1902,7 @@ tykdTab:Button({
 tykdTab:Button({
     Title = "[未汉化]伪装脚本", Desc = "由rblxscripts脚本网站制作 可以伪装你的蛋 宠物等", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/bugxiefun/roblox-scripts/refs/heads/main/rblxscripts-stealanegg-spawner"))()", "偷一颗蛋")
+        run("https://raw.githubusercontent.com/bugxiefun/roblox-scripts/refs/heads/main/rblxscripts-stealanegg-spawner", "偷一颗蛋")
     end
 })
 
