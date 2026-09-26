@@ -1336,7 +1336,7 @@ lazyLoad("https://pastebin.com/raw/wV07BGnS", "无限旅馆", wxlgTab, true)
 fescriptTab:Button({
     Title = "fe无敌少侠", Desc = "他人可见", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/giobolqvi1/universal-conquest-fly-by-GioBolqv1/refs/heads/main/lonely.lua", "无敌少侠")
+        run("ttps://raw.githubusercontent.com/giobolqv1/invincible-characters-animations-by-GioBolqv1-/refs/heads/main/universal.lua", "无敌少侠")
     end
 })
 
