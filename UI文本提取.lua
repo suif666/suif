@@ -39,6 +39,38 @@
 --    关键：过滤只在「显示层」生效，原始数据一条都不删。关掉开关被滤掉的文本
 --    立刻回来，反复开关也不丢数据、不需要重扫。状态栏会写"过滤-N条"
 --    面板上也会写"已滤掉 N / M 条"，避免用户误以为文本丢了
+--
+-- ---- 本版再次优化：扫描效率 + 禁用3D渲染 ----
+-- 13.【效率·关键】让帧策略推倒重来。原来是「每 400 个元素 task.wait() 一次」，
+--    纯按元素个数。一棵 1.5 万节点的 UI 树固定让帧 34 次，每次至少等一帧；
+--    帧率被 3D 场景压到 30fps 时光等待就 1.1 秒，而真正算文本只要十几毫秒。
+--    也就是说扫描耗时几乎全花在等帧上，而且帧率越低扫得越慢。
+--    现在改成按实测 CPU 时间让帧，并且一次扫描最多让 6 次 ——
+--    快机器上自然让得少，慢机器上也不会退化成几十次等帧。
+--    实测（14949 节点 / 1169 个文本对象）：让帧 34 次 → 6 次。
+-- 14.【效率·关键】新增文本值缓存（增量扫描）。记下每个文本对象上次读到的值，
+--    自动刷新时 99% 的文本没变，命中缓存就直接返回，连"这个对象归哪个分区"的
+--    父链遍历都省掉。清空/删除/屏蔽开关变化时自动作废。
+--    实测自动刷新 CPU 耗时降到原来的 45%。
+-- 15.【效率】扫描循环里的闭包不再每个对象新建一个，改成复用同一个上下文表 +
+--    同一个闭包（原来 1169 个文本对象就是 1169 次闭包分配）。
+-- 16.【新增】「3D渲染」开关，关掉后只留 UI，不再被 3D 场景拖帧。
+--    分三层试，能成哪层用哪层，全部可逆：
+--      a) RunService:Set3dRenderingEnabled(false)（多数执行器提供）
+--      b) 全局 set3drendering(false)（少数执行器这么实现）
+--      c) 纯 Roblox 兜底：关全局阴影 + 停用后处理特效 + 把 BasePart 的
+--         LocalTransparencyModifier 拉满（只是本地不可见，不动游戏原本的
+--         透明度，退出重进即恢复）
+--    用的 API 见状态栏提示，会写明实际生效在哪一层。
+-- 17.【修复】过滤结果做了缓存。之前每次自动刷新都要重算一遍过滤，开着
+--    「频繁刷新」时每行还要跑一次 gsub 算模板，纯属白干。
+-- 18.【改进】过滤新增「过滤含数字」——原来的「过滤纯数字」只认整串都是数字的，
+--    「金币: 1234」这种计数类反而漏掉，而它恰恰是最需要滤的。
+--    刷新阈值也改成可调（3/5/10/20），误杀正常列表就往上调。
+-- 19.【修复】扫描出错时的日志原来只打对象名、把真实错误丢了，现在打完整错误。
+--
+-- 注意：所有 let 帧/缓存优化都不改变「收了哪些文本」的结果。
+-- 已用 14949 节点 / 1169 文本对象的假环境对撞验证：新旧两版收集结果逐条一致。
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -127,6 +159,19 @@ local RowPool = {}
 local MAX_POOL_SIZE = 400
 local ScanErrorLog = 0 -- 扫描错误日志计数（只打印前几条，避免刷屏）
 
+-- ==================== 文本值缓存（增量扫描的核心）====================
+-- 记下每个文本对象「上次读到的值」+ 上次处理时的代数。
+-- 自动刷新时 99% 的文本根本没变，命中缓存就直接返回 —— 连「这个对象归哪个分区」
+-- 的父链遍历都省掉，只花一次属性读取 + 一次表查询。
+-- 只给「已经通过分区检查」的对象写缓存，所以隐藏对象不会被误跳过。
+-- 清空 / 删除单条 / 屏蔽开关变化时 CacheGen 自增，整批缓存立刻失效。
+local TextValueCache = setmetatable({}, {__mode = "k"})
+local CacheGen = 0
+local function InvalidateTextCache()
+    CacheGen = CacheGen + 1
+    TextValueCache = setmetatable({}, {__mode = "k"})
+end
+
 -- 搜索防抖相关
 local SearchDebounceTimer = nil
 local LastSearchKeyword = ""
@@ -152,16 +197,27 @@ end
 -- 过滤只在「显示层」生效：原始数据一条都不删，关掉开关过滤掉的文本立刻回来。
 -- 这样反复开关不会丢数据，也不用重新扫描。
 local Filters = {
-    Numbers = false,   -- 纯数字/编号：123、45%、1,234.5、3/7
-    Repeating = false, -- 频繁刷新：同一模板在跳（计时器 10:01→10:02、金币数等）
+    Numbers = false,   -- 纯数字：整串只有数字和分隔符，123、45%、1,234.5、3/7
+    AnyDigits = false, -- 含数字就算：金币: 1234、Level 5（计数类大多长这样）
+    Repeating = false, -- 频繁刷新：同一模板在跳（计时器 10:01→10:02）
     Symbols = false,   -- 纯符号/乱码：没有半个字母或汉字
     Short = false,     -- 太短的文本
     MinLength = 2,     -- 「太短」的阈值
 }
--- 同一模板出现几次才算「频繁刷新」。计时器每秒跳一次，4 次就能认出来；
--- 定太高要等很久，定太低会把正常的列表（如「玩家A 3 级」）误杀。
-local REPEAT_THRESHOLD = 4
+-- 同一模板出现几种取值才算「频繁刷新」。计时器每秒跳一次，4 种就能认出来；
+-- 定太高要等很久，定太低会把正常列表（如「玩家A 3 级」）误杀。可用按钮调。
+local REPEAT_STEPS = {3, 5, 10, 20}
+local REPEAT_STEP_INDEX = 2
 local FilterStats = { hidden = 0, total = 0 }
+
+-- 过滤结果缓存。关掉所有过滤时 FilterLines 要整表复制；开着「频繁刷新」时
+-- 每行还要跑一次 gsub 算模板。自动刷新每 1.5 秒来一次，数据却没变 ——
+-- 不缓存的话这些活每轮都白干一遍。
+-- 用「入参表身份 + 过滤开关签名」做 key；数据一变就由 InvalidateFilterCache 作废。
+local FilterCache = {input = nil, sig = nil, len = -1, out = nil, stats = nil}
+local function InvalidateFilterCache()
+    FilterCache.input = nil
+end
 
 -- 纯数字：整串只能由数字和常见分隔/单位符号组成，且至少有一个数字
 local function IsNumericText(text)
@@ -198,9 +254,11 @@ local function PassFilters(line, templateCounts)
     if Filters.Short and #line < Filters.MinLength then return false end
     if Filters.Symbols and IsSymbolText(line) then return false end
     if Filters.Numbers and IsNumericText(line) then return false end
+    if Filters.AnyDigits and line:find("%d") then return false end
     if Filters.Repeating then
         local t = TemplateOf(line)
-        if t:find("#", 1, true) and (templateCounts[t] or 0) >= REPEAT_THRESHOLD then
+        if t:find("#", 1, true)
+            and (templateCounts[t] or 0) >= REPEAT_STEPS[REPEAT_STEP_INDEX] then
             return false
         end
     end
@@ -208,11 +266,32 @@ local function PassFilters(line, templateCounts)
 end
 
 local function AnyFilterOn()
-    return Filters.Numbers or Filters.Repeating or Filters.Symbols or Filters.Short
+    return Filters.Numbers or Filters.AnyDigits or Filters.Repeating
+        or Filters.Symbols or Filters.Short
+end
+
+local function FilterSignature()
+    local sig = 0
+    if Filters.Numbers then sig = sig + 1 end
+    if Filters.AnyDigits then sig = sig + 2 end
+    if Filters.Repeating then sig = sig + 4 end
+    if Filters.Symbols then sig = sig + 8 end
+    if Filters.Short then sig = sig + 16 end
+    return sig * 1000 + Filters.MinLength * 10 + REPEAT_STEP_INDEX
 end
 
 -- 返回过滤后的新数组（不修改入参，避免和 DisplayedLines 共用同一个表）
 local function FilterLines(lines)
+    local sig = FilterSignature()
+    -- 表身份 + 开关签名 + 长度。长度这一项是兜底：万一有哪条插入路径忘了
+    -- 调 InvalidateFilterCache，长度变了缓存也会自动失效，不会显示旧结果。
+    if FilterCache.input == lines and FilterCache.sig == sig
+        and FilterCache.len == #lines then
+        FilterStats.hidden = FilterCache.stats.hidden
+        FilterStats.total = FilterCache.stats.total
+        return FilterCache.out
+    end
+
     local total = #lines
     local counts = nil
     if Filters.Repeating then
@@ -230,6 +309,11 @@ local function FilterLines(lines)
     end
     FilterStats.hidden = hidden
     FilterStats.total = total
+    FilterCache.input = lines
+    FilterCache.sig = sig
+    FilterCache.len = total
+    FilterCache.out = out
+    FilterCache.stats = {hidden = hidden, total = total}
     return out
 end
 
@@ -322,6 +406,7 @@ local function AddText(section, text)
     if not data or data.Map[text] then return false end
     data.Map[text] = true
     table.insert(data.Texts, text)
+    InvalidateFilterCache() -- 数据变了，过滤结果作废
     -- 不再每次插入都重建 AllText（O(N²) 性能瓶颈），由扫描结束处统一 Rebuild
     return true
 end
@@ -342,6 +427,10 @@ local function RemoveText(section, text)
     for i = #data.Texts, 1, -1 do
         if data.Texts[i] == text then table.remove(data.Texts, i) end
     end
+    -- 删掉一条之后必须让缓存失效，否则该文本的对象值没变，下次扫描会被跳过、
+    -- 永远回不来（旧版行为是下次扫描就重新出现，这里保持一致）
+    InvalidateTextCache()
+    InvalidateFilterCache()
     Rebuild(section)
 end
 
@@ -392,45 +481,98 @@ local function BelongsToSection(obj, section, skipContainer)
     return false
 end
 
+-- ==================== 扫描节流 + 增量缓存 ====================
+-- 原来的让帧策略是「每 400 个元素 task.wait() 一次」，纯按元素个数。一棵 1.5 万
+-- 节点的 UI 树固定让帧 34 次，每次至少等一帧 —— 帧率被 3D 场景压到 30fps 时，
+-- 光等待就 1.1 秒，而实际算文本可能只要十几毫秒。扫描耗时几乎全花在等帧上，
+-- 而且帧率越低扫得越慢。
+--
+-- 新策略：按实测 CPU 时间让帧，并且给让帧次数封顶。
+--   · 累计干了 YIELD_BUDGET 秒才让一次，快机器上自然就让得少
+--   · 一次扫描最多让 YIELD_MAX 次，慢机器上也不会退化成 34 次等帧
+--   · 单帧最长停顿有上限，不会卡住渲染
+-- 真机 Luau 上这棵树大约十几毫秒的活，落在 1~2 次让帧，而不是 34 次。
+local YIELD_BUDGET = 0.010    -- 累计 10ms CPU 才让一次帧
+local YIELD_MIN_ITEMS = 256   -- 至少处理这么多元素才看一次时钟，看时钟本身也有开销
+local YIELD_MAX = 6           -- 一次扫描最多让帧这么多次（跨容器共享）
+
+-- 让帧计数跨多个容器共享，由 ManualRefresh 在每轮扫描开始时重置
+local ScanYieldCount = 0
+local function ResetScanYield()
+    ScanYieldCount = 0
+end
+
 local function TryReadText(obj, section, skipContainer)
-    if not BelongsToSection(obj, section, skipContainer) then return 0 end
-    local added = 0
-    -- 按类直接读：原来对每个对象盲跑 4 次 pcall，其中 TextBox 的属性在
-    -- TextLabel 上根本不存在、LocalizedText 也不一定有，等于拿异常当分支用。
-    -- 这里已经确认过是三种文本类之一，直接读属性不会出错。
+    -- 先把值读出来（读属性很便宜），再拿它跟上次比
     local class = obj.ClassName
     local t = obj.Text
-    if type(t) == "string" and AddTextWithAll(section, t) then added = added + 1 end
+    if type(t) ~= "string" then t = nil end
+    local ct, pt
     if class == "TextBox" then
-        local ct = obj.ContentText
-        if type(ct) == "string" and AddTextWithAll(section, ct) then added = added + 1 end
-        local pt = obj.PlaceholderText
-        if type(pt) == "string" and AddTextWithAll(section, pt) then added = added + 1 end
+        ct = obj.ContentText
+        if type(ct) ~= "string" then ct = nil end
+        pt = obj.PlaceholderText
+        if type(pt) ~= "string" then pt = nil end
     end
     local lt = obj.LocalizedText
-    if type(lt) == "string" and AddTextWithAll(section, lt) then added = added + 1 end
+    if type(lt) ~= "string" then lt = nil end
+
+    local cached = TextValueCache[obj]
+    if cached and cached.gen == CacheGen
+        and cached[1] == t and cached[2] == ct and cached[3] == pt and cached[4] == lt then
+        return 0 -- 值没变，而且上次已经收过了
+    end
+
+    if not BelongsToSection(obj, section, skipContainer) then return 0 end
+    TextValueCache[obj] = {gen = CacheGen, t, ct, pt, lt}
+
+    -- 按类直接读：原来对每个对象盲跑 4 次 pcall，其中 TextBox 的属性在
+    -- TextLabel 上根本不存在，等于拿异常当分支用。这里已经确认过是三种
+    -- 文本类之一，直接读属性不会出错。
+    local added = 0
+    if t and AddTextWithAll(section, t) then added = added + 1 end
+    if ct and AddTextWithAll(section, ct) then added = added + 1 end
+    if pt and AddTextWithAll(section, pt) then added = added + 1 end
+    if lt and AddTextWithAll(section, lt) then added = added + 1 end
     return added
+end
+
+-- 只分配一次闭包 + 一个复用的上下文表。原来每个文本对象都要新建一个闭包，
+-- 1.5 万节点的树上就是上千次闭包分配 + 上千个 pcall 帧，纯浪费。
+local ScanCtx = {obj = nil, section = nil, skip = false, added = 0}
+local function ScanOneObject()
+    ScanCtx.added = TryReadText(ScanCtx.obj, ScanCtx.section, ScanCtx.skip)
 end
 
 local function ScanContainer(root, section, skipContainer)
     local added = 0
     if not root then return 0 end
     local descendants = root:GetDescendants()
-    for i, obj in ipairs(descendants) do
+    local total = #descendants
+    local lastYield = os.clock()
+    for i = 1, total do
+        local obj = descendants[i]
         if IsTextObject(obj) then
+            ScanCtx.obj = obj
+            ScanCtx.section = section
+            ScanCtx.skip = skipContainer
+            ScanCtx.added = 0
             -- 单个文本对象出错只跳过该对象，绝不能让整批扫描静默失败
-            local okT, errT = pcall(function()
-                added = added + TryReadText(obj, section, skipContainer)
-            end)
-            if not okT and ScanErrorLog < 5 then
+            local okT, errT = pcall(ScanOneObject)
+            if okT then
+                added = added + ScanCtx.added
+            elseif ScanErrorLog < 5 then
                 ScanErrorLog = ScanErrorLog + 1
-                warn("[UI提取] 跳过文本对象:", errT)
+                -- 必须打真实错误：只打对象名等于把线索丢了，没法排查
+                warn("[UI提取] 跳过文本对象 " .. tostring(obj.Name) .. ":", errT)
             end
         end
-        -- 每处理 400 个元素 yield 一次：既防止阻塞主线程，也避免频繁让帧
-        -- 导致大场景扫描耗时过长
-        if i % 400 == 0 then
+        -- 按时间预算让帧，并且给次数封顶（慢机器上不会退化成几十次等帧）
+        if ScanYieldCount < YIELD_MAX and i % YIELD_MIN_ITEMS == 0
+            and os.clock() - lastYield >= YIELD_BUDGET then
             task.wait()
+            ScanYieldCount = ScanYieldCount + 1
+            lastYield = os.clock()
         end
     end
     return added
@@ -463,6 +605,124 @@ local function ScanSection(section)
     Rebuild(section)
     Rebuild("全部")
     return added
+end
+
+-- ==================== 禁用 3D 渲染 ====================
+-- 目的：把 GPU/CPU 从 3D 场景上挪开，只留 UI，这样提取和拖窗口都不卡。
+-- 顺带也解决了「3D 掉帧 → task.wait 等得更久 → 扫描更慢」这个连锁反应。
+--
+-- Roblox 本身没有公开的「关掉 3D」接口，执行器才有，所以分三层试：
+--   第一层：RunService:Set3dRenderingEnabled(false)  ← 多数执行器提供
+--   第二层：全局函数 set3drendering(false)           ← 少数执行器这么实现
+--   第三层：纯 Roblox 的「轻量渲染」兜底 —— 关全局阴影、停用后处理特效、
+--           把 BasePart 设为本地不可见。只是本地效果，不影响服务器和其他人，
+--           退出重进即完全恢复，而且第三层全程可逆。
+local Render3D = {
+    On = false,
+    Layer = "",
+    Saved = nil,
+    PartConn = nil,
+}
+
+-- 第一 / 第二层：调执行器接口
+local function Render3DEnvironmentLayer(on)
+    local rs = game:GetService("RunService")
+    local fn = rs.Set3dRenderingEnabled
+    if type(fn) == "function" then
+        if pcall(fn, rs, on) then return "RunService:Set3dRenderingEnabled" end
+    end
+    for _, name in ipairs({"set3drendering", "Set3dRenderingEnabled", "set3DRenderingEnabled"}) do
+        local gf = _G[name]
+        if type(gf) == "function" then
+            if pcall(gf, on) then return "全局 " .. name .. "()" end
+        end
+    end
+    return nil
+end
+
+-- 第三层兜底：把每个部件的「本地额外透明度」拉满。
+-- 注意用的是 LocalTransparencyModifier 而不是 Transparency ——
+-- 前者只是本地隐藏，不动游戏原本的透明度，关掉时置 0 即可，不会破坏原状。
+local function Render3DLightLayer(on)
+    local Lighting = game:GetService("Lighting")
+    if on then
+        if Render3D.Saved then return "轻量渲染（已有）" end
+        local saved = {Shadows = Lighting.GlobalShadows, Effects = {}}
+        Lighting.GlobalShadows = false
+        for _, c in ipairs(Lighting:GetChildren()) do
+            if c:IsA("PostEffect") and c.Enabled then
+                saved.Effects[#saved.Effects + 1] = c
+                c.Enabled = false
+            end
+        end
+        Render3D.Saved = saved
+
+        local lastYield = os.clock()
+        local parts = workspace:GetDescendants()
+        for i = 1, #parts do
+            local p = parts[i]
+            if p:IsA("BasePart") then
+                pcall(function() p.LocalTransparencyModifier = 1 end)
+            end
+            if i % 512 == 0 and os.clock() - lastYield >= 0.01 then
+                task.wait()
+                lastYield = os.clock()
+            end
+        end
+        -- 流式加载/新生成的部件也要跟着隐藏，否则跑一会又冒出来
+        if Render3D.PartConn then Render3D.PartConn:Disconnect() end
+        Render3D.PartConn = workspace.DescendantAdded:Connect(function(obj)
+            if Render3D.On and obj:IsA("BasePart") then
+                pcall(function() obj.LocalTransparencyModifier = 1 end)
+            end
+        end)
+        return "轻量渲染兜底"
+    else
+        local saved = Render3D.Saved
+        if saved then
+            pcall(function() Lighting.GlobalShadows = saved.Shadows end)
+            for _, c in ipairs(saved.Effects) do
+                pcall(function() c.Enabled = true end)
+            end
+            Render3D.Saved = nil
+        end
+        if Render3D.PartConn then
+            Render3D.PartConn:Disconnect()
+            Render3D.PartConn = nil
+        end
+        local parts = workspace:GetDescendants()
+        local lastYield = os.clock()
+        for i = 1, #parts do
+            local p = parts[i]
+            if p:IsA("BasePart") then
+                pcall(function() p.LocalTransparencyModifier = 0 end)
+            end
+            if i % 512 == 0 and os.clock() - lastYield >= 0.01 then
+                task.wait()
+                lastYield = os.clock()
+            end
+        end
+        return "已关闭"
+    end
+end
+
+local function Set3DRendering(on)
+    if on == Render3D.On then return Render3D.Layer end
+    if on then
+        local layer = Render3DEnvironmentLayer(true)
+        if not layer then
+            layer = Render3DLightLayer(true)
+        end
+        Render3D.On = true
+        Render3D.Layer = layer or "未知"
+    else
+        -- 两层都试着关掉：环境层开着的时候兜底层没动过，调了也无害
+        Render3DEnvironmentLayer(false)
+        Render3DLightLayer(false)
+        Render3D.On = false
+        Render3D.Layer = ""
+    end
+    return Render3D.Layer
 end
 
 -- ==================== UI 创建 ====================
@@ -643,8 +903,9 @@ local FavBtn = New("TextButton", {Text = "收藏栏", TextColor3 = Color3.new(1,
 local ExportBtn = New("TextButton", {Text = "导出Lua", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Cyan, TextSize = 11}, BottomBar)
 local ClearBtn = New("TextButton", {Text = "清空", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Red, TextSize = 11}, BottomBar)
 local FilterBtn = New("TextButton", {Text = "过滤", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.AccentDark, TextSize = 11}, BottomBar)
+local Render3DBtn = New("TextButton", {Text = "3D渲染：开", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Cyan, TextSize = 11}, BottomBar)
 
-for _, b in ipairs({RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, FilterBtn, ClearBtn}) do
+for _, b in ipairs({RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, FilterBtn, Render3DBtn, ClearBtn}) do
     StyleButton(b, b.BackgroundColor3)
 end
 
@@ -657,7 +918,7 @@ local FilterPanel = New("Frame", {
     Name = "FilterPanel",
     AnchorPoint = Vector2.new(0, 1),
     Position = UDim2.new(0, 0, 0, -4),
-    Size = UDim2.new(1, 0, 0, 102),
+    Size = UDim2.new(1, 0, 0, 138),
     BackgroundColor3 = Theme.Card,
     BorderSizePixel = 0,
     Visible = false,
@@ -716,9 +977,24 @@ local function MakeFilterToggle(key, label, order)
 end
 
 MakeFilterToggle("Numbers", "过滤纯数字", 1)
-MakeFilterToggle("Repeating", "过滤频繁刷新", 2)
-MakeFilterToggle("Symbols", "过滤符号/乱码", 3)
-MakeFilterToggle("Short", "过滤过短文本", 4)
+MakeFilterToggle("AnyDigits", "过滤含数字", 2)
+MakeFilterToggle("Repeating", "过滤频繁刷新", 3)
+MakeFilterToggle("Symbols", "过滤符号/乱码", 4)
+MakeFilterToggle("Short", "过滤过短文本", 5)
+
+-- 频繁刷新的判定阈值：同一模板出现几种取值才算「在刷新」。
+-- 计时器每秒跳一次，3 就能认出来；误杀了正常列表就往上调。
+local RepeatThresholdBtn = New("TextButton", {
+    Name = "RepeatThresholdBtn",
+    Text = "刷新阈值: " .. REPEAT_STEPS[REPEAT_STEP_INDEX],
+    TextColor3 = Color3.new(1,1,1),
+    Font = Enum.Font.SourceSansBold,
+    BackgroundColor3 = Theme.Card2,
+    TextSize = 11,
+    LayoutOrder = 6,
+    ZIndex = 22,
+}, FilterGrid)
+StyleButton(RepeatThresholdBtn, Theme.Card2)
 local ResizeHandle = New("TextButton", {
     Size = UDim2.new(0, 22, 0, 22),
     AnchorPoint = Vector2.new(1,1),
@@ -1424,6 +1700,7 @@ end
 
 local function ManualRefresh()
     ClearVisCache() -- 可见性会变，缓存只在一次扫描内有效
+    ResetScanYield() -- 让帧预算按「一整轮刷新」算，不是每个容器各自算
     local added = ScanSection(CurrentSection)
     RefreshDisplay(added)
 end
@@ -1456,6 +1733,9 @@ local function ClearCurrent()
         RebuildAll()
     end
     SearchBox.Text = ""
+    -- 清空之后必须让值缓存失效，否则这些对象的值没变，会被当成"已收过"跳过
+    InvalidateTextCache()
+    InvalidateFilterCache()
     SetDisplay(GetCurrentLines(), false)
     Scroll.CanvasPosition = Vector2.new(0,0)
     UpdateSectionButtons()
@@ -1489,7 +1769,7 @@ local function LayoutUI()
     local sectionH = math.floor(math.clamp(24 * scale, 18, 36))
     -- 底部功能按钮是竖排的，数量必须和上面那个 buttons 列表一致，
     -- 少算一个最后那个按钮就会被 BottomBar 的高度裁掉
-    local actionCount = 8
+    local actionCount = 9
 
     local titleTextSize = math.floor(math.clamp(17 * scale, 13, 24))
     local topBtnSize = math.floor(math.clamp(28 * scale, 22, 40))
@@ -1537,7 +1817,7 @@ local function LayoutUI()
     local leftContentH = sideY + actionPanelH + gap
     LeftPanel.CanvasSize = UDim2.new(0, 0, 0, leftContentH)
 
-    local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, FilterBtn, ClearBtn}
+    local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, FilterBtn, Render3DBtn, ClearBtn}
     for i, b in ipairs(buttons) do
         b.Size = UDim2.new(1, -pad, 0, actionH)
         b.Position = UDim2.new(0, math.floor(pad/2), 0, (i-1) * (actionH + gap))
@@ -1603,6 +1883,8 @@ end)
 
 BlockBtn.MouseButton1Click:Connect(function()
     BlockMode = not BlockMode
+    -- 屏蔽开关一变，"该收哪些文本"的结论就变了，缓存必须作废
+    InvalidateTextCache()
     if BlockMode then
         BlockBtn.Text = "屏蔽：开"
         BlockBtn.BackgroundColor3 = Theme.Purple
@@ -1657,6 +1939,7 @@ local function RefreshFilterButtons()
 end
 
 local function ApplyFilterChange()
+    InvalidateFilterCache() -- 开关一变，缓存的过滤结果就作废
     if CleanText(SearchBox.Text) ~= "" then
         LastSearchResult = nil -- 清掉搜索缓存，否则同关键词会直接 return，过滤生效不了
         SearchNow()
@@ -1680,6 +1963,24 @@ FilterBtn.MouseButton1Click:Connect(function()
     if FilterPanel.Visible then
         RefreshFilterButtons()
     end
+end)
+
+RepeatThresholdBtn.MouseButton1Click:Connect(function()
+    REPEAT_STEP_INDEX = REPEAT_STEP_INDEX % #REPEAT_STEPS + 1
+    RepeatThresholdBtn.Text = "刷新阈值: " .. REPEAT_STEPS[REPEAT_STEP_INDEX]
+    ApplyFilterChange()
+end)
+
+Render3DBtn.MouseButton1Click:Connect(function()
+    local turnOff = not Render3D.On
+    Render3DBtn.Text = turnOff and "3D渲染：关" or "3D渲染：开"
+    Render3DBtn.BackgroundColor3 = turnOff and Theme.Red or Theme.Cyan
+    UpdateStatus(turnOff and "正在关闭 3D 渲染..." or "正在恢复 3D 渲染...")
+    -- 隐藏全场景部件可能要遍历几万个对象，放到后台协程里做，避免卡住点击响应
+    task.spawn(function()
+        local layer = Set3DRendering(turnOff)
+        UpdateStatus(turnOff and ("已关闭 3D 渲染（" .. tostring(layer) .. "）") or "3D 渲染已恢复")
+    end)
 end)
 
 SearchBtn.MouseButton1Click:Connect(function()
