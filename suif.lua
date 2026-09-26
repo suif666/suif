@@ -1893,16 +1893,16 @@ msjdTab:Button({
 })
 
 tykdTab:Button({
-    Title = "[未汉化]CyrusOffc", Desc = "纯粹看着顺眼 功能什么的还可以", Icon = "shell",
+    Title = "Cyrus", Desc = "纯粹看着顺眼 功能什么的还可以", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/CyrusOffc/scriptcyrus/refs/heads/main/loader", "偷一颗蛋")
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/Cyrus%E5%81%B7%E8%9B%8B.lua", "偷一颗蛋")
     end
 })
 
 tykdTab:Button({
-    Title = "[未汉化]伪装脚本", Desc = "由rblxscripts脚本网站制作 可以伪装你的蛋 宠物等", Icon = "shell",
+    Title = "伪装脚本", Desc = "由rblxscripts脚本网站制作 可以伪装你的蛋 宠物等", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/bugxiefun/roblox-scripts/refs/heads/main/rblxscripts-stealanegg-spawner", "偷一颗蛋")
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%81%B7%E8%9B%8B%E4%BC%AA%E8%A3%85.lua", "偷一颗蛋")
     end
 })
 
