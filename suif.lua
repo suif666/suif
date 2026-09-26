@@ -693,6 +693,325 @@ do
     })
 end
 
+-- ==================== 透视皮脚本成员（群 35063401「皮脚本」）====================
+-- 名单由 工具/爬群组成员.mjs 爬好推到 GitHub，进游戏时下载一次（253KB），之后只在本地比对。
+-- 群成员有变动时，本机重跑一次爬取再上传，这里点「刷新皮脚本名单」即可。
+do
+    local PJS = {
+        on = false,          -- 总开关
+        self = false,        -- 连自己一起高亮
+        tag = true,          -- 头顶名牌
+        fillT = 0.45,        -- 高亮填充透明度
+        color = Color3.fromRGB(255, 80, 80),
+        colorName = "红",
+        ids = nil,           -- { [userId] = true }
+        count = 0,
+        loadedAt = nil,
+        hits = 0,
+        busy = false,
+        marks = {},          -- [player] = { hl = Highlight, gui = BillboardGui, lbl = TextLabel }
+        url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/groupdata/group_35063401_ids.txt",
+    }
+    local PJS_COLORS = {
+        ["红"] = Color3.fromRGB(255, 80, 80),
+        ["绿"] = Color3.fromRGB(90, 255, 130),
+        ["蓝"] = Color3.fromRGB(90, 165, 255),
+        ["黄"] = Color3.fromRGB(255, 220, 60),
+        ["紫"] = Color3.fromRGB(195, 115, 255),
+        ["青"] = Color3.fromRGB(70, 240, 240),
+        ["白"] = Color3.fromRGB(255, 255, 255),
+    }
+    local PJSPlayers = game:GetService("Players")
+    local pjsMe = PJSPlayers.LocalPlayer
+
+    local function pjsSay(msg, kind, dur)
+        notify("皮脚本透视", msg, kind or "check", dur or 4)
+    end
+
+    local function pjsClearOne(plr)
+        local m = PJS.marks[plr]
+        if not m then return end
+        if m.hl then pcall(function() m.hl:Destroy() end) end
+        if m.gui then pcall(function() m.gui:Destroy() end) end
+        PJS.marks[plr] = nil
+    end
+
+    local function pjsClearAll()
+        for plr in pairs(PJS.marks) do
+            pjsClearOne(plr)
+        end
+    end
+
+    -- 给一个人在角色上挂高亮 + 名牌；不是成员就清掉
+    local function pjsMark(plr)
+        if not PJS.on or not PJS.ids then
+            pjsClearOne(plr)
+            return
+        end
+        if plr == pjsMe and not PJS.self then
+            pjsClearOne(plr)
+            return
+        end
+        if not PJS.ids[plr.UserId] then
+            pjsClearOne(plr)
+            return
+        end
+
+        local char = plr.Character
+        if not char or not char.Parent then
+            pjsClearOne(plr)
+            return
+        end
+
+        local m = PJS.marks[plr]
+        -- 已经挂好且角色没换，就别每 3 秒重建一遍实例
+        if m and m.hl and m.hl.Parent and m.hl.Adornee == char then
+            return
+        end
+        pjsClearOne(plr)
+
+        local hl = Instance.new("Highlight")
+        hl.Name = "PJS_Highlight"
+        hl.Adornee = char
+        hl.FillColor = PJS.color
+        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+        hl.FillTransparency = PJS.fillT
+        hl.OutlineTransparency = 0
+        -- 关键：AlwaysOnTop = 墙后面也能看见，这才是「透视」
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.Parent = char
+
+        -- 先登记再建名牌：名牌那几行万一出错，高亮也不会变成清不掉的野实例
+        m = { hl = hl }
+        PJS.marks[plr] = m
+
+        if PJS.tag then
+            pcall(function()
+                local gui = Instance.new("BillboardGui")
+                m.gui = gui                     -- 同样先登记，出错也能被清掉
+                gui.Name = "PJS_Tag"
+                gui.Size = UDim2.new(0, 150, 0, 26)
+                gui.StudsOffsetWorldSpace = Vector3.new(0, 3.6, 0)
+                gui.AlwaysOnTop = true
+                gui.MaxDistance = 400
+                local lbl = Instance.new("TextLabel")
+                m.lbl = lbl
+                lbl.Size = UDim2.fromScale(1, 1)
+                lbl.BackgroundTransparency = 1
+                lbl.Font = Enum.Font.SourceSansBold
+                lbl.TextSize = 16
+                lbl.TextColor3 = PJS.color
+                lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                lbl.TextStrokeTransparency = 0.25
+                lbl.Text = "皮脚本 | " .. plr.Name
+                lbl.Parent = gui
+                gui.Adornee = char
+                gui.Parent = char
+            end)
+        end
+    end
+
+    -- 扫一遍当前服务器的所有人
+    local function pjsRescan()
+        local hits = 0
+        for _, plr in ipairs(PJSPlayers:GetPlayers()) do
+            if PJS.ids and PJS.ids[plr.UserId] and (plr ~= pjsMe or PJS.self) then
+                hits = hits + 1
+                pjsMark(plr)
+            else
+                pjsClearOne(plr)
+            end
+        end
+        PJS.hits = hits
+        return hits
+    end
+
+    -- 下载名单（253KB，约 1 秒）
+    local function pjsLoad(silent)
+        if PJS.busy then return false, "正在下载中" end
+        PJS.busy = true
+        local ok, text = pcall(function() return game:HttpGet(PJS.url, true) end)
+        PJS.busy = false
+        if not ok or type(text) ~= "string" or #text < 100 then
+            local why = tostring(text):sub(1, 60)
+            if not silent then pjsSay("名单下载失败：" .. why, "x", 6) end
+            return false, why
+        end
+        local set, n = {}, 0
+        for id in tostring(text):gmatch("%d+") do
+            local v = tonumber(id)
+            if v then
+                set[v] = true
+                n = n + 1
+            end
+        end
+        if n < 100 then
+            if not silent then pjsSay("只解析出 " .. n .. " 个 ID，文件内容可能不对", "x", 6) end
+            return false, "解析出的 ID 太少"
+        end
+        PJS.ids, PJS.count, PJS.loadedAt = set, n, os.time()
+        if not silent then
+            pjsSay("已加载 " .. n .. " 名成员", "check", 4)
+        end
+        return true
+    end
+
+    local function pjsStart()
+        if PJS.ids then
+            local hits = pjsRescan()
+            pjsSay("开始透视 ｜ 本服命中 " .. hits .. " 人", "check", 4)
+            return
+        end
+        task.spawn(function()
+            if pjsLoad(true) then
+                local hits = pjsRescan()
+                pjsSay("名单 " .. PJS.count .. " 人 ｜ 本服命中 " .. hits .. " 人", "check", 5)
+            else
+                PJS.on = false
+                pjsClearAll()
+                pjsSay("名单没加载成功，已自动关掉。检查一下网络/加速器", "x", 8)
+            end
+        end)
+    end
+
+    local function pjsStop()
+        pjsClearAll()
+        pjsSay("已关闭并清除高亮", "info", 3)
+    end
+
+    -- 事件挂钩只建一次，重复执行脚本不会越挂越多
+    if getgenv().PJSConns then
+        for _, c in ipairs(getgenv().PJSConns) do
+            pcall(function() c:Disconnect() end)
+        end
+    end
+    getgenv().PJSConns = {}
+    getgenv().PJSGen = (getgenv().PJSGen or 0) + 1
+    local pjsGen = getgenv().PJSGen
+
+    local function pjsHook(sig, fn)
+        local c = sig:Connect(fn)
+        getgenv().PJSConns[#getgenv().PJSConns + 1] = c
+        return c
+    end
+
+    local function pjsWatch(plr)
+        pjsHook(plr.CharacterAdded, function()
+            task.wait(0.4)          -- 等角色装好再挂，不然 Adornee 会指到旧模型
+            if PJS.on then pjsMark(plr) end
+        end)
+    end
+
+    pjsHook(PJSPlayers.PlayerAdded, pjsWatch)
+    pjsHook(PJSPlayers.PlayerRemoving, function(plr) pjsClearOne(plr) end)
+    for _, plr in ipairs(PJSPlayers:GetPlayers()) do
+        pjsWatch(plr)
+    end
+
+    -- 兜底轮询：角色重生、名单刚加载完、有人换号，3 秒对一次
+    task.spawn(function()
+        while true do
+            task.wait(3)
+            if getgenv().PJSGen ~= pjsGen then return end   -- 脚本被重跑了，老循环退出
+            if PJS.on then pjsRescan() end
+        end
+    end)
+
+    espTab:Toggle({
+        Title = "透视皮脚本成员",
+        Expand = {
+            BallTitle = "皮脚本透视",
+            Elements = function(h)
+                h:Slider({
+                    Title = "高亮透明度",
+                    Desc = "越小越显眼；0.45 是默认",
+                    Step = 0.05,
+                    Value = { Min = 0, Max = 0.9, Default = 0.45 },
+                    Callback = function(v)
+                        PJS.fillT = tonumber(v) or 0.45
+                        for _, m in pairs(PJS.marks) do
+                            if m.hl then pcall(function() m.hl.FillTransparency = PJS.fillT end) end
+                        end
+                    end
+                })
+            end
+        },
+        Desc = "群「皮脚本」成员进服时，给角色加穿墙高亮（纯本地，别人看不到）；不是成员不会高亮",
+        Icon = "users",
+        Type = "Toggle",
+        Value = false,
+        Callback = function(s)
+            PJS.on = s
+            if s then pjsStart() else pjsStop() end
+        end
+    })
+
+    espTab:Toggle({
+        Title = "皮脚本透视 · 头顶名牌",
+        Expand = { BallTitle = "头顶名牌" },
+        Desc = "开：成员头顶显示「皮脚本 | 用户名」（默认）；关：只高亮不显示字",
+        Icon = "tag",
+        Type = "Toggle",
+        Value = true,
+        Callback = function(s)
+            PJS.tag = s
+            if PJS.on then pjsClearAll(); pjsRescan() end
+        end
+    })
+
+    espTab:Toggle({
+        Title = "皮脚本透视 · 连自己一起",
+        Expand = { BallTitle = "连自己一起" },
+        Desc = "开：你自己在这个群里的话也高亮（默认关，省得挡自己视野）",
+        Icon = "user-check",
+        Type = "Toggle",
+        Value = false,
+        Callback = function(s)
+            PJS.self = s
+            if PJS.on then pjsRescan() end
+        end
+    })
+
+    espTab:Dropdown({
+        Title = "皮脚本透视 · 高亮颜色",
+        Desc = "换颜色不用重开，立即生效",
+        Values = { "红", "绿", "蓝", "黄", "紫", "青", "白" },
+        Value = "红",
+        Callback = function(name)
+            local c = PJS_COLORS[name]
+            if not c then return end
+            PJS.color, PJS.colorName = c, name
+            for _, m in pairs(PJS.marks) do
+                if m.hl then pcall(function() m.hl.FillColor = c end) end
+                if m.lbl then pcall(function() m.lbl.TextColor3 = c end) end
+            end
+        end
+    })
+
+    espTab:Button({
+        Title = "刷新皮脚本名单",
+        Desc = "重新下载最新名单（群成员变动后，本机爬完上传了再点这个）",
+        Icon = "refresh-cw",
+        Callback = function()
+            task.spawn(function()
+                if pjsLoad(true) then
+                    local hits = PJS.on and pjsRescan() or 0
+                    pjsSay("名单已刷新 ｜ " .. PJS.count .. " 人" .. (PJS.on and (" ｜ 本服命中 " .. hits .. " 人") or ""), "check", 5)
+                else
+                    pjsSay("刷新失败，网络或地址有问题（原来的名单还在用）", "x", 6)
+                end
+            end)
+        end
+    })
+
+    espTab:Paragraph({
+        Title = "皮脚本透视 说明",
+        Desc = "名单：皮脚本（群 35063401），共 23421 人，来自 GitHub。\n" ..
+               "只在本地比对，全程不发任何数据出去；别人看不到你的高亮，也看不到你的名牌。\n" ..
+               "群成员变动后：本机跑一次爬取 → 上传 → 回来点「刷新皮脚本名单」。"
+    })
+end
+
 -- 即时互动（极简版，几乎不掉帧）
 getgenv().SutureHubPromptHoldCache = getgenv().SutureHubPromptHoldCache or setmetatable({}, { __mode = "k" })
 local PromptHoldCache = getgenv().SutureHubPromptHoldCache
