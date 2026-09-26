@@ -14,6 +14,31 @@
 --    动画时长很短（≤0.22秒）且只对单个Frame做Tween（不逐行Tween），保证低配设备流畅。
 -- 7. 【优化】自动刷新时如果内容与上次显示完全一致，不再重建整个列表（避免每1.5秒重复重建UI）。
 -- 8. 保留全部核心功能：多分区、对象池、批量yield防卡顿、搜索、收藏栏、导出Lua、屏蔽、自动刷新、复制、删除、缩放
+--
+-- ---- 本版新增：效率优化 + 文本过滤 ----
+-- 9. 【效率】扫描热路径重写（原实现里最费的三处）：
+--    a) IsTextObject 原来调用 3 次 IsA 跨 C 边界查继承链，改成 ClassName 查表
+--       （TextLabel/TextButton/TextBox 都没有子类，两者等价）
+--    b) 原来每个文本对象都要走三趟父链：IsDescendantOf 判断是不是自己的UI、
+--       IsVisible 判断可见、IsSystemUI 判断系统UI。现在合成一次向上遍历，
+--       并按节点缓存累积结果（同一批兄弟节点共享父链，第二次起直接命中缓存）
+--    c) TryReadText 原来对每个对象盲跑 4 次 pcall，其中大部分属性在该类上
+--       根本不存在，等于拿异常当分支用。改成按 ClassName 直接读
+-- 10.【效率】CleanText 加干净文本快路径：绝大多数文本没有富文本标签、控制字符
+--    和首尾空格，原来无条件跑 5 次 gsub（每次都是一次全串扫描 + 一个新字符串），
+--    现在先 find 一次，干净就直接返回
+-- 11.【效率】显示层不再二次清洗。文本进库时已经 CleanText 过一遍，PrepareLines
+--    原来又整表清洗了一遍，等于每条文本清洗两遍
+-- 12.【新增】四种文本过滤，开关在底部栏「过滤」按钮里：
+--    · 过滤纯数字 —— 123、45%、1,234.5、3/7 这类编号/数值
+--    · 过滤频繁刷新 —— 计时器/金币数这种同一模板不停跳的文本。做法是把数字
+--      统一换成 # 得到"模板"（10:01 和 10:02 都是 ##:##），同一模板出现
+--      REPEAT_THRESHOLD 种以上取值就整批判为刷新型
+--    · 过滤符号/乱码 —— 整串没有半个字母、数字或中日韩字符
+--    · 过滤过短文本 —— 长度小于 Filters.MinLength
+--    关键：过滤只在「显示层」生效，原始数据一条都不删。关掉开关被滤掉的文本
+--    立刻回来，反复开关也不丢数据、不需要重扫。状态栏会写"过滤-N条"
+--    面板上也会写"已滤掉 N / M 条"，避免用户误以为文本丢了
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -110,11 +135,102 @@ local LastSearchResult = nil
 
 local function CleanText(text)
     text = tostring(text or "")
+    -- 快路径：绝大多数文本本来就是干净的（没有富文本标签、没有控制字符、
+    -- 首尾无空格）。原来无条件跑 5 次 gsub，每行都要产生 5 个临时字符串，
+    -- 大列表下这是纯浪费。先花一次 find 判断，干净就直接返回。
+    if not text:find("[<>%c]") and not text:find("^%s") and not text:find("%s$") then
+        return text
+    end
     text = text:gsub("<[^>]->", "")
     text = text:gsub("\r", "")
     text = text:gsub("^%s+", "")
     text = text:gsub("%s+$", "")
     return text
+end
+
+-- ==================== 文本过滤 ====================
+-- 过滤只在「显示层」生效：原始数据一条都不删，关掉开关过滤掉的文本立刻回来。
+-- 这样反复开关不会丢数据，也不用重新扫描。
+local Filters = {
+    Numbers = false,   -- 纯数字/编号：123、45%、1,234.5、3/7
+    Repeating = false, -- 频繁刷新：同一模板在跳（计时器 10:01→10:02、金币数等）
+    Symbols = false,   -- 纯符号/乱码：没有半个字母或汉字
+    Short = false,     -- 太短的文本
+    MinLength = 2,     -- 「太短」的阈值
+}
+-- 同一模板出现几次才算「频繁刷新」。计时器每秒跳一次，4 次就能认出来；
+-- 定太高要等很久，定太低会把正常的列表（如「玩家A 3 级」）误杀。
+local REPEAT_THRESHOLD = 4
+local FilterStats = { hidden = 0, total = 0 }
+
+-- 纯数字：整串只能由数字和常见分隔/单位符号组成，且至少有一个数字
+local function IsNumericText(text)
+    if not text:find("%d") then return false end
+    return text:find("^[%s%-+%d%.,%%:/xX*#|]+$") ~= nil
+end
+
+-- 纯符号/乱码：没有任何字母、数字、中日韩字符
+-- （\227-\237 是 UTF-8 里 CJK 的首字节范围，中文/日文/韩文都算「有内容」）
+local function IsSymbolText(text)
+    if text:find("%w") then return false end
+    if text:find("[\227-\237]") then return false end
+    return true
+end
+
+-- 把数字统一换成 #，得到「模板」。10:01 和 10:02 的模板都是 ##:##
+local function TemplateOf(text)
+    return (text:gsub("%d+", "#"))
+end
+
+-- 统计每个模板出现了多少种不同取值。同一模板变体越多，越说明这个控件在不停刷新
+local function CountTemplates(lines)
+    local counts = {}
+    for i = 1, #lines do
+        local t = TemplateOf(lines[i])
+        if t:find("#", 1, true) then
+            counts[t] = (counts[t] or 0) + 1
+        end
+    end
+    return counts
+end
+
+local function PassFilters(line, templateCounts)
+    if Filters.Short and #line < Filters.MinLength then return false end
+    if Filters.Symbols and IsSymbolText(line) then return false end
+    if Filters.Numbers and IsNumericText(line) then return false end
+    if Filters.Repeating then
+        local t = TemplateOf(line)
+        if t:find("#", 1, true) and (templateCounts[t] or 0) >= REPEAT_THRESHOLD then
+            return false
+        end
+    end
+    return true
+end
+
+local function AnyFilterOn()
+    return Filters.Numbers or Filters.Repeating or Filters.Symbols or Filters.Short
+end
+
+-- 返回过滤后的新数组（不修改入参，避免和 DisplayedLines 共用同一个表）
+local function FilterLines(lines)
+    local total = #lines
+    local counts = nil
+    if Filters.Repeating then
+        counts = CountTemplates(lines)
+    end
+    local out = {}
+    local hidden = 0
+    for i = 1, total do
+        local line = lines[i]
+        if PassFilters(line, counts) then
+            out[#out + 1] = line
+        else
+            hidden = hidden + 1
+        end
+    end
+    FilterStats.hidden = hidden
+    FilterStats.total = total
+    return out
 end
 
 local function EscapeLuaString(str)
@@ -124,37 +240,67 @@ local function EscapeLuaString(str)
     return str
 end
 
+-- 用 ClassName 查表代替 3 次 IsA 调用。TextLabel/TextButton/TextBox 都没有子类，
+-- 所以 ClassName 判断和 IsA 等价，但快很多（IsA 每次都要跨 C 边界查继承链）。
+local TEXT_CLASSES = { TextLabel = true, TextButton = true, TextBox = true }
 local function IsTextObject(obj)
-    return obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox"))
+    return obj ~= nil and TEXT_CLASSES[obj.ClassName] == true
 end
 
-local function GetObjectPath(obj)
-    local t = {}
+-- 下面原本还有三个各自走一趟父链的老函数：
+--   GetObjectPath  —— 拼完整路径字符串，只为给 RobloxGui/PlayerList 做 find
+--   IsSystemUI     —— 往上找系统 UI 名字
+--   IsVisible      —— 往上找有没有 Visible == false
+-- 它们的活现在都由 WalkUpFlags 一次遍历做完，加上 HasAncestorNamed 替掉路径
+-- 字符串匹配，所以删掉了，别再加回来。
+
+-- 向上遍历一次，同时拿到三个信息：是否可见 / 是不是我们自己的 UI / 是不是系统 UI。
+-- 原来这三件事分别由 IsDescendantOf、IsVisible、IsSystemUI 各走一遍父链，
+-- 一棵 UI 树上每个文本对象都要重复走三趟，是扫描最热的地方。
+--
+-- VisCache 按节点缓存「从该节点往上」的累积结果：同一批兄弟节点共享父链，
+-- 第二次以后直接命中缓存。可见性会随时间变化，所以每次扫描开始要清空。
+local VisCache = {}
+local function ClearVisCache()
+    VisCache = {}
+end
+local function WalkUpFlags(obj)
+    local cached = VisCache[obj]
+    if cached then return cached end
+    local chain = {}
     local cur = obj
+    local visible, ours, system = true, false, false
     while cur and cur ~= game do
-        table.insert(t, 1, cur.Name)
+        local hit = VisCache[cur]
+        if hit then
+            visible = visible and hit[1]
+            ours = ours or hit[2]
+            system = system or hit[3]
+            break
+        end
+        chain[#chain + 1] = cur
+        if cur == ScreenGui then ours = true end
+        if SystemNames[cur.Name] then system = true end
+        local ok, v = pcall(function() return cur.Visible end)
+        if ok and v == false then visible = false end
         cur = cur.Parent
     end
-    return table.concat(t, "/")
+    local result = { visible, ours, system }
+    for i = 1, #chain do
+        VisCache[chain[i]] = result
+    end
+    return result
 end
 
-local function IsSystemUI(obj)
+-- 用「往上找有没有叫这个名字的祖先」代替拼完整路径字符串再 find，
+-- 省掉每个对象的字符串拼接和一次搜索
+local function HasAncestorNamed(obj, name)
     local cur = obj
     while cur and cur ~= game do
-        if SystemNames[cur.Name] then return true end
+        if cur.Name == name then return true end
         cur = cur.Parent
     end
     return false
-end
-
-local function IsVisible(obj)
-    local cur = obj
-    while cur and cur ~= game do
-        local ok, v = pcall(function() return cur.Visible end)
-        if ok and v == false then return false end
-        cur = cur.Parent
-    end
-    return true
 end
 
 local function Rebuild(section)
@@ -216,8 +362,11 @@ end
 -- skipContainer：调用方已确认对象所在容器时跳过重复的 IsDescendantOf 判断，
 -- 大幅减少扫描耗时；RobloxGui/PlayerList 仍需要路径匹配
 local function BelongsToSection(obj, section, skipContainer)
-    if not obj or obj:IsDescendantOf(ScreenGui) then return false end
-    if not IsVisible(obj) then return false end
+    if not obj then return false end
+    -- 一次遍历拿全：可见 / 是不是自己的 UI / 是不是系统 UI
+    local flags = WalkUpFlags(obj)
+    if flags[2] then return false end   -- 是我们自己的窗口，跳过
+    if not flags[1] then return false end
 
     if section == "PlayerGui" then
         return skipContainer or obj:IsDescendantOf(PlayerGui)
@@ -226,16 +375,16 @@ local function BelongsToSection(obj, section, skipContainer)
     elseif section == "CoreGui" then
         return skipContainer or obj:IsDescendantOf(CoreGui)
     elseif section == "RobloxGui" then
-        return (skipContainer or obj:IsDescendantOf(CoreGui)) and string.find(GetObjectPath(obj), "RobloxGui", 1, true) ~= nil
+        return (skipContainer or obj:IsDescendantOf(CoreGui)) and HasAncestorNamed(obj, "RobloxGui")
     elseif section == "PlayerList" then
-        return (skipContainer or obj:IsDescendantOf(CoreGui)) and string.find(GetObjectPath(obj), "PlayerList", 1, true) ~= nil
+        return (skipContainer or obj:IsDescendantOf(CoreGui)) and HasAncestorNamed(obj, "PlayerList")
     elseif section == "第三方UI" then
         if not skipContainer then
             local huiRoot = getHui()
             local inGui = obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or (huiRoot and obj:IsDescendantOf(huiRoot))
             if not inGui then return false end
         end
-        return not IsSystemUI(obj)
+        return not flags[3]
     elseif section == "全部" then
         local huiRoot = getHui()
         return skipContainer or obj:IsDescendantOf(PlayerGui) or obj:IsDescendantOf(CoreGui) or obj:IsDescendantOf(Workspace) or (huiRoot and obj:IsDescendantOf(huiRoot))
@@ -246,13 +395,20 @@ end
 local function TryReadText(obj, section, skipContainer)
     if not BelongsToSection(obj, section, skipContainer) then return 0 end
     local added = 0
-    local function save(v)
-        if AddTextWithAll(section, v) then added = added + 1 end
+    -- 按类直接读：原来对每个对象盲跑 4 次 pcall，其中 TextBox 的属性在
+    -- TextLabel 上根本不存在、LocalizedText 也不一定有，等于拿异常当分支用。
+    -- 这里已经确认过是三种文本类之一，直接读属性不会出错。
+    local class = obj.ClassName
+    local t = obj.Text
+    if type(t) == "string" and AddTextWithAll(section, t) then added = added + 1 end
+    if class == "TextBox" then
+        local ct = obj.ContentText
+        if type(ct) == "string" and AddTextWithAll(section, ct) then added = added + 1 end
+        local pt = obj.PlaceholderText
+        if type(pt) == "string" and AddTextWithAll(section, pt) then added = added + 1 end
     end
-    pcall(function() save(obj.Text) end)
-    pcall(function() save(obj.ContentText) end)
-    pcall(function() save(obj.LocalizedText) end)
-    pcall(function() save(obj.PlaceholderText) end)
+    local lt = obj.LocalizedText
+    if type(lt) == "string" and AddTextWithAll(section, lt) then added = added + 1 end
     return added
 end
 
@@ -477,7 +633,7 @@ local ListLayout = New("UIListLayout", {
     SortOrder = Enum.SortOrder.LayoutOrder
 }, Scroll)
 
-local BottomBar = New("Frame", {BackgroundTransparency = 1, ClipsDescendants = true}, LeftPanel)
+local BottomBar = New("Frame", {BackgroundTransparency = 1, ClipsDescendants = false}, LeftPanel)
 
 local RefreshBtn = New("TextButton", {Text = "刷新", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.AccentDark, TextSize = 11}, BottomBar)
 local AutoCheckBtn = New("TextButton", {Text = "☐ 自动刷新", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Yellow, TextSize = 11}, BottomBar)
@@ -486,11 +642,83 @@ local BlockBtn = New("TextButton", {Text = "屏蔽：关", TextColor3 = Color3.n
 local FavBtn = New("TextButton", {Text = "收藏栏", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.AccentDark, TextSize = 11}, BottomBar)
 local ExportBtn = New("TextButton", {Text = "导出Lua", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Cyan, TextSize = 11}, BottomBar)
 local ClearBtn = New("TextButton", {Text = "清空", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.Red, TextSize = 11}, BottomBar)
+local FilterBtn = New("TextButton", {Text = "过滤", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.SourceSansBold, BackgroundColor3 = Theme.AccentDark, TextSize = 11}, BottomBar)
 
-for _, b in ipairs({RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}) do
+for _, b in ipairs({RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, FilterBtn, ClearBtn}) do
     StyleButton(b, b.BackgroundColor3)
 end
 
+-- ==================== 过滤面板 ====================
+-- 挂在 BottomBar 上、锚点朝上浮在它上方，这样不用改 LayoutUI 的位置计算，
+-- 底部栏怎么缩放它都跟着走。
+-- 注意：说明行不能和按钮放在同一个 UIGridLayout 下（网格会把它也当格子排），
+-- 所以里面再套一层 FilterGrid。
+local FilterPanel = New("Frame", {
+    Name = "FilterPanel",
+    AnchorPoint = Vector2.new(0, 1),
+    Position = UDim2.new(0, 0, 0, -4),
+    Size = UDim2.new(1, 0, 0, 102),
+    BackgroundColor3 = Theme.Card,
+    BorderSizePixel = 0,
+    Visible = false,
+    ZIndex = 20,
+}, BottomBar)
+Corner(FilterPanel, 8)
+Stroke(FilterPanel, Theme.Stroke, 1, 0.15)
+
+local FilterInfo = New("TextLabel", {
+    Name = "FilterInfo",
+    Position = UDim2.new(0, 8, 0, 5),
+    Size = UDim2.new(1, -16, 0, 14),
+    BackgroundTransparency = 1,
+    Text = "过滤只影响显示，原始数据不删",
+    TextColor3 = Theme.Muted,
+    Font = Enum.Font.SourceSans,
+    TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    ZIndex = 21,
+}, FilterPanel)
+
+local FilterGrid = New("Frame", {
+    Name = "FilterGrid",
+    Position = UDim2.new(0, 6, 0, 24),
+    Size = UDim2.new(1, -12, 1, -30),
+    BackgroundTransparency = 1,
+    ZIndex = 21,
+}, FilterPanel)
+
+New("UIGridLayout", {
+    CellSize = UDim2.new(0.5, -4, 0, 28),
+    CellPadding = UDim2.new(0, 8, 0, 6),
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    FillDirection = Enum.FillDirection.Horizontal,
+    FillDirectionMaxCells = 2,
+}, FilterGrid)
+
+local FilterButtons = {}
+-- 按钮文字前面那个 ☐/☑ 是 3 字节的 UTF-8 字符，不能靠 string.sub 去砍，
+-- 所以原样存一份标签，重设文字时用 "☑ " .. 标签 拼回来
+local FilterLabels = {}
+local function MakeFilterToggle(key, label, order)
+    FilterLabels[key] = label
+    local b = New("TextButton", {
+        Text = "☐ " .. label,
+        TextColor3 = Color3.new(1,1,1),
+        Font = Enum.Font.SourceSansBold,
+        BackgroundColor3 = Theme.Card2,
+        TextSize = 11,
+        LayoutOrder = order,
+        ZIndex = 22,
+    }, FilterGrid)
+    StyleButton(b, Theme.Card2)
+    FilterButtons[key] = b
+    return b
+end
+
+MakeFilterToggle("Numbers", "过滤纯数字", 1)
+MakeFilterToggle("Repeating", "过滤频繁刷新", 2)
+MakeFilterToggle("Symbols", "过滤符号/乱码", 3)
+MakeFilterToggle("Short", "过滤过短文本", 4)
 local ResizeHandle = New("TextButton", {
     Size = UDim2.new(0, 22, 0, 22),
     AnchorPoint = Vector2.new(1,1),
@@ -1032,19 +1260,18 @@ end
 -- 统一把"字符串文本"或"行数组"整理成行数组：直接传数组可以保留含换行的完整
 -- 条目，不再按 \n 拆分，从而保证每个显示行都能精确对应一条数据
 local function PrepareLines(text)
-    local lines = {}
     if type(text) == "table" then
-        for _, line in ipairs(text) do
-            line = CleanText(line)
-            if line ~= "" then table.insert(lines, line) end
-        end
-    else
-        for line in string.gmatch(tostring(text or "") .. "\n", "(.-)\n") do
-            line = CleanText(line)
-            if line ~= "" then table.insert(lines, line) end
-        end
+        -- 数据进库时已经 CleanText 过一遍了，这里直接过滤即可。
+        -- 原实现在这里又整表清洗了一次，等于每条文本清洗两遍。
+        return FilterLines(text)
     end
-    return lines
+    local lines = {}
+    for line in string.gmatch(tostring(text or "") .. "\n", "(.-)\n") do
+        line = CleanText(line)
+        if line ~= "" then table.insert(lines, line) end
+    end
+    -- 过滤只在显示层做，原始数据一条不删
+    return FilterLines(lines)
 end
 
 SetDisplay = function(text, autoBottom, animate, forceRebuild)
@@ -1124,10 +1351,15 @@ end
 local function UpdateStatus(msg)
     local block = BlockMode and "屏蔽开" or "屏蔽关"
     local auto = AutoRefreshEnabled and "自动刷新开" or "自动刷新关"
+    -- 过滤开着的时候把「滤掉几条」直接写在状态栏上，否则用户会以为文本丢了
+    local filt = ""
+    if AnyFilterOn() then
+        filt = "｜过滤-"..FilterStats.hidden.."条"
+    end
     if msg and msg ~= "" then
-        StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block.."｜"..msg
+        StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条"..filt.."｜"..block.."｜"..msg
     else
-        StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条｜"..block
+        StatusLabel.Text = "状态："..auto.."｜"..CurrentSection.."｜"..Count(CurrentSection).."条"..filt.."｜"..block
     end
 end
 
@@ -1191,6 +1423,7 @@ local function RefreshDisplay(added)
 end
 
 local function ManualRefresh()
+    ClearVisCache() -- 可见性会变，缓存只在一次扫描内有效
     local added = ScanSection(CurrentSection)
     RefreshDisplay(added)
 end
@@ -1254,7 +1487,9 @@ local function LayoutUI()
     local gap = math.floor(math.clamp(5 * scale, 3, 10))
     local actionH = math.floor(math.clamp(24 * scale, 18, 36))
     local sectionH = math.floor(math.clamp(24 * scale, 18, 36))
-    local actionCount = 7
+    -- 底部功能按钮是竖排的，数量必须和上面那个 buttons 列表一致，
+    -- 少算一个最后那个按钮就会被 BottomBar 的高度裁掉
+    local actionCount = 8
 
     local titleTextSize = math.floor(math.clamp(17 * scale, 13, 24))
     local topBtnSize = math.floor(math.clamp(28 * scale, 22, 40))
@@ -1302,7 +1537,7 @@ local function LayoutUI()
     local leftContentH = sideY + actionPanelH + gap
     LeftPanel.CanvasSize = UDim2.new(0, 0, 0, leftContentH)
 
-    local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, ClearBtn}
+    local buttons = {RefreshBtn, AutoCheckBtn, CopyBtn, BlockBtn, FavBtn, ExportBtn, FilterBtn, ClearBtn}
     for i, b in ipairs(buttons) do
         b.Size = UDim2.new(1, -pad, 0, actionH)
         b.Position = UDim2.new(0, math.floor(pad/2), 0, (i-1) * (actionH + gap))
@@ -1405,6 +1640,46 @@ ExportBtn.MouseButton1Click:Connect(function()
         end
     end
     UpdateStatus("已导出Lua")
+end)
+
+-- ==================== 过滤开关 ====================
+-- 过滤是显示层的事，切换开关只要按当前数据重渲染一遍，不需要重新扫描整个游戏
+local function RefreshFilterButtons()
+    for key, btn in pairs(FilterButtons) do
+        btn.Text = (Filters[key] and "☑ " or "☐ ") .. FilterLabels[key]
+        btn.BackgroundColor3 = Filters[key] and Theme.Green or Theme.Card2
+    end
+    if AnyFilterOn() then
+        FilterInfo.Text = "已滤掉 "..FilterStats.hidden.." / "..FilterStats.total.." 条（只是不显示，数据还在）"
+    else
+        FilterInfo.Text = "过滤只影响显示，原始数据不删"
+    end
+end
+
+local function ApplyFilterChange()
+    if CleanText(SearchBox.Text) ~= "" then
+        LastSearchResult = nil -- 清掉搜索缓存，否则同关键词会直接 return，过滤生效不了
+        SearchNow()
+    else
+        -- forceRebuild：条数一样但内容不同（比如滤掉的和新进来的正好抵消），必须重建
+        SetDisplay(GetCurrentLines(), false, false, true)
+    end
+    RefreshFilterButtons()
+    UpdateStatus()
+end
+
+for key, btn in pairs(FilterButtons) do
+    btn.MouseButton1Click:Connect(function()
+        Filters[key] = not Filters[key]
+        ApplyFilterChange()
+    end)
+end
+
+FilterBtn.MouseButton1Click:Connect(function()
+    FilterPanel.Visible = not FilterPanel.Visible
+    if FilterPanel.Visible then
+        RefreshFilterButtons()
+    end
 end)
 
 SearchBtn.MouseButton1Click:Connect(function()
@@ -1596,8 +1871,9 @@ end)
 
 -- ==================== 初始化 ====================
 LayoutUI()
+RefreshFilterButtons()
 UpdateSectionButtons()
 CurrentSection = "全部"
 ManualRefresh()
 
-print("[UI文本提取器 v24] 已加载 | 响应式布局 + 圆形最小化 + 动画")
+print("[UI文本提取器 v24] 已加载 | 响应式布局 + 圆形最小化 + 动画 + 文本过滤")
