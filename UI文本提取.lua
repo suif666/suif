@@ -517,14 +517,24 @@ local function TryReadText(obj, section, skipContainer)
     local lt = obj.LocalizedText
     if type(lt) ~= "string" then lt = nil end
 
-    local cached = TextValueCache[obj]
-    if cached and cached.gen == CacheGen
-        and cached[1] == t and cached[2] == ct and cached[3] == pt and cached[4] == lt then
-        return 0 -- 值没变，而且上次已经收过了
+    -- 缓存必须按分区分别记！文本进哪个分区是由 section 参数决定的
+    -- （AddTextWithAll(section, text)），而"全部"是靠依次调 ScanSection("PlayerGui")
+    -- → ScanSection("CoreGui") → ScanSection("第三方UI") 拼出来的 —— 同一批对象
+    -- 会被按不同分区反复扫。只记值不记分区的话，第二次扫同一个对象就全命中缓存，
+    -- 第三方UI 分区一条都收不到（只有中途变过的文本漏进来，看起来就是"只获取一部分"）。
+    local slot = TextValueCache[obj]
+    local rec = slot and slot[section]
+    if rec and rec.gen == CacheGen
+        and rec[1] == t and rec[2] == ct and rec[3] == pt and rec[4] == lt then
+        return 0 -- 这个分区上、值也没变，上次已经收过了
     end
 
     if not BelongsToSection(obj, section, skipContainer) then return 0 end
-    TextValueCache[obj] = {gen = CacheGen, t, ct, pt, lt}
+    if not slot then
+        slot = {}
+        TextValueCache[obj] = slot
+    end
+    slot[section] = {gen = CacheGen, t, ct, pt, lt}
 
     -- 按类直接读：原来对每个对象盲跑 4 次 pcall，其中 TextBox 的属性在
     -- TextLabel 上根本不存在，等于拿异常当分支用。这里已经确认过是三种
@@ -1859,10 +1869,12 @@ for _, section in ipairs(Sections) do
     SectionButtons[section].MouseButton1Click:Connect(function()
         CurrentSection = section
         SearchBox.Text = ""
-        SetDisplay(GetCurrentLines(), false, true, true)
         Scroll.CanvasPosition = Vector2.new(0,0)
-        UpdateSectionButtons()
-        UpdateStatus("已切换分区")
+        -- 切过去顺手扫一次。原来这里只 SetDisplay 显示已收集的数据、不扫描：
+        -- 某个分区在上一次扫描之后新增的文本要等下一轮扫描才看得到，
+        -- 空分区更是一直空着 —— 看起来就像"拿不到这个分区的文本"。
+        -- 扫描本身有文本值缓存，重复点同一个分区几乎不花时间。
+        ManualRefresh()
     end)
 end
 
