@@ -337,6 +337,7 @@ local hbbTab = scriptSec:Tab({ Title = "汉堡包", Icon = "shell", Locked = fal
 local zslzd99yTab = scriptSec:Tab({ Title = "在森林中的99夜", Icon = "shell", Locked = false })
 local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked = false })
 local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
+local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1892,9 +1893,23 @@ msjdTab:Button({
 })
 
 tykdTab:Button({
-    Title = "[未汉化]Ouroboros", Desc = "脚本网站 youtube最火爆 功能较多", Icon = "shell",
+    Title = "[未汉化]CyrusOffc", Desc = "纯粹看着顺眼 功能什么的还可以", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/joustingmatch/Ouroboros/main/loader.lua", "偷一颗蛋")
+        run("https://raw.githubusercontent.com/CyrusOffc/scriptcyrus/refs/heads/main/loader", "偷一颗蛋")
+    end
+})
+
+tykdTab:Button({
+    Title = "[未汉化]伪装脚本", Desc = "由rblxscripts脚本网站制作 可以伪装你的蛋 宠物等", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/bugxiefun/roblox-scripts/refs/heads/main/rblxscripts-stealanegg-spawner"))()", "偷一颗蛋")
+    end
+})
+
+xzTab:Button({
+    Title = "[🔑]小猪", Desc = "只找到这一个 功能很多 很齐全", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%B0%8F%E7%8C%AA.lua", "小猪")
     end
 })
 
