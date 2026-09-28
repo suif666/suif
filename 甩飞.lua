@@ -42,7 +42,31 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 核心甩飞 v7 =====
+-- ===== 核心甩飞 v8 =====
+-- 判据：瞬时速度（VelGoal 500）。
+--
+-- v8 改的是【调度】，不是甩飞函数本身 —— 借鉴 SkidFling 原始版（pastebin zqyDSUWX）：
+--
+--   参考版：
+--       for _,x in next, Players:GetPlayers() do
+--           SkidFling(x)
+--       end
+--   一口气，中间【没有任何等待】，而且【不检查自己血量】。
+--
+--   本站原来：
+--       SkidFling(p)
+--       repeat task.wait() until not Flinging    -- 等上一个人甩完
+--       task.wait(0.1)                           -- 再等 0.1 秒
+--   每个目标之间等 0.1~0.3 秒；循环模式下一旦自己血量 <= 0 就整轮跳过。
+--   结果就是「只甩到第一个人」。
+--
+-- 关键点：SkidFling 本身就是【同步】的（内部 task.wait() 会让出，跑完才返回），
+-- 所以直接顺序调用就已经是「一个接一个」，多余的等待只会让你更早被打断。
+--
+-- 关于死亡：参考版和叶脚本在这类游戏里同样会死（用户实测），
+-- 所以死亡不是本脚本独有的问题。参考版的优势是【先把所有人甩完再死】，
+-- v8 就是把这个结构搬过来。
+
 -- 判据：瞬时速度（VelGoal 500）。目标是把对面甩出去。
 --
 -- v7 是把两处【我自己加的、反而害人的东西】退回去：
@@ -486,7 +510,9 @@ local function StartFlingLoop()
         while FlingLoop do
             local selfChar = LocalPlayer.Character
             local selfHum = selfChar and selfChar:FindFirstChildOfClass("Humanoid")
-            if not selfChar or not selfHum or selfHum.Health <= 0 then
+            -- 只在角色确实不存在时等一等。
+            -- 原来还带 selfHum.Health <= 0 —— 那会让人刚断气就整轮空转，后面的目标都甩不到。
+            if not selfChar or not selfHum then
                 task.wait(0.5)
             else
                 local list = {}
@@ -498,16 +524,13 @@ local function StartFlingLoop()
                     list = SelectedTargets
                 end
 
+                -- 同样一口气甩完（借鉴 SkidFling 原始版）。
+                -- 【不再】检查自己的血量来决定跳不跳过 —— 参考版也不检查。
+                -- 检查了反而会让人刚断气就整轮什么都不做，后面的目标一个都甩不到。
                 for _, target in ipairs(list) do
                     if not FlingLoop then break end
                     if typeof(target) == "Instance" and target:IsA("Player") and target.Parent then
-                        local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then
-                            local t = tick()
-                            repeat task.wait() until not Flinging or tick() - t > 4
-                            if FlingLoop then SkidFling(target) end
-                            task.wait(0.15)
-                        end
+                        SkidFling(target)
                     end
                 end
                 task.wait(0.3)
@@ -643,11 +666,16 @@ Tab:Button({
         AlreadyNotified = {}   -- 单选模式每次点击都重新报结果，不做去重
         task.spawn(function()
             local list = SelectedTargets[1] == "ALL" and Players:GetPlayers() or SelectedTargets
+            -- 一口气甩完：中间不等待、不检查自己血量。
+            -- 借鉴 SkidFling 原始版的写法：
+            --     for _,x in next, Players:GetPlayers() do SkidFling(x) end
+            -- SkidFling 本身是同步的（内部 task.wait() 会让出，跑完才返回），
+            -- 所以这里直接顺序调用就已经是「一个接一个」，
+            -- 不需要 repeat task.wait() until not Flinging，也不需要 task.wait(0.1)。
+            -- 那些等待只会让你更早被打断，甩不到后面的人。
             for _, p in ipairs(list) do
                 if p ~= LocalPlayer and typeof(p) == "Instance" then
                     SkidFling(p)
-                    repeat task.wait() until not Flinging
-                    task.wait(0.1)
                 end
             end
         end)
