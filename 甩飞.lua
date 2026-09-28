@@ -42,7 +42,47 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 核心甩飞（完整保留原逻辑）=====
+-- ===== 核心甩飞 v2 =====
+-- 原版的两个毛病：
+--   A. 退出条件是 until BasePart.Velocity.Magnitude > 500（BasePart 是【对方】的 RootPart），
+--      而 500 正是本脚本「防甩飞」里判定"正在被甩飞"的阈值 —— 等于一甩成功就立刻收手，
+--      只给一个瞬时冲量，对方弹一下就落回来。而且穿模本身会让速度瞬间飙高（假信号），
+--      经常还没真推开就已经满足退出条件了。
+--   B. 全程没有任何反馈，SkidFling 不返回任何东西，所以不知道到底甩没甩动。
+--
+-- v2 的改动：
+--   1. 不再用瞬时速度当成功判据，改成看【实际位移】—— 位置真的被推开了才算数
+--   2. 最短持续时间 + 位移达标才收工，保证冲量够（物理权限转移也需要时间）
+--   3. 冲量双向下发：自己和对方的 RootPart 都设速度（没权限时服务器忽略，包 pcall 无害）
+--   4. 结束后测量位移 / 速度峰值 / 最高点 / 物理权限，并弹提示告诉你结果
+local FLING = {
+    MinTime     = 0.5,    -- 最短持续时间（物理权限转移需要时间，太短等于白甩）
+    MaxTime     = 4.0,    -- 硬上限，防止卡太久
+    SuccessDist = 30,     -- 位移超过这么多米就算甩动了
+    Report      = true,   -- 是否弹结果提示
+}
+
+-- 查对方部件现在归谁做物理模拟。甩飞能不能生效，根本原因就在这一条：
+-- 客户端只有拿到对方部件的物理权限，"推开"才会被服务器接受；
+-- 拿不到的话，你在对方部件上写的速度会被服务器直接丢掉，位置也会被拉回去。
+local function hasOwnership(part)
+    if not part or not part.Parent then return false end
+    local ok, owner = pcall(function() return part:GetNetworkOwner() end)
+    if not ok then return false end
+    return owner == LocalPlayer
+end
+
+-- 查一个部件现在归谁做物理模拟。这是甩飞能不能生效的根本原因：
+-- 客户端只有拿到对方部件的物理权限，"推开"才会被服务器接受。
+local function ownerNameOf(part)
+    if not part or not part.Parent then return "部件已消失" end
+    local ok, owner = pcall(function() return part:GetNetworkOwner() end)
+    if not ok then return "未知" end
+    if owner == nil then return "服务器(无权限)" end
+    if owner == LocalPlayer then return "自己(有权限)" end
+    return owner.Name .. "(无权限)"
+end
+
 local function SkidFling(TargetPlayer)
     if not TargetPlayer or TargetPlayer == LocalPlayer then return end
     if Flinging then return end
@@ -65,6 +105,15 @@ local function SkidFling(TargetPlayer)
     local Handle = Accessory and Accessory:FindFirstChild("Handle")
     local Camera = workspace.CurrentCamera
 
+    local victimPart = TRootPart or THead or Handle
+    if not victimPart then
+        Flinging = false
+        if FLING.Report then
+            Notify("甩飞 " .. TargetPlayer.Name, "对方身上没有可用部件，跳过", 2)
+        end
+        return
+    end
+
     local Dead = false
     local DeadConn
     DeadConn = LocalPlayer.CharacterAdded:Connect(function()
@@ -72,12 +121,31 @@ local function SkidFling(TargetPlayer)
         if DeadConn then DeadConn:Disconnect() DeadConn = nil end
     end)
 
-    if RootPart.Velocity.Magnitude < 50 then
-        OldPos = RootPart.CFrame
-    end
+    -- 原版 bug：只在自身速度 < 50 时才记 OldPos，连续甩飞时用的是上一轮的旧坐标，
+    -- 善后逻辑会把你自己传回错误的位置。改成每次甩飞开始都重新记。
+    OldPos = RootPart.CFrame
 
     if Camera then
         Camera.CameraSubject = THead or Handle or THumanoid
+    end
+
+    -- 测量基线
+    local startPos = victimPart.Position
+    local startTick = tick()
+    local peakSpeed = 0
+    local highest = startPos.Y
+
+    local function track()
+        if not victimPart or not victimPart.Parent then return end
+        local p = victimPart.Position
+        if p.Y > highest then highest = p.Y end
+        local ok, v = pcall(function() return victimPart.AssemblyLinearVelocity.Magnitude end)
+        if ok and v and v > peakSpeed then peakSpeed = v end
+    end
+
+    local function moved()
+        if not victimPart or not victimPart.Parent then return 0 end
+        return (victimPart.Position - startPos).Magnitude
     end
 
     local function FPos(BasePart, Pos, Ang)
@@ -89,47 +157,63 @@ local function SkidFling(TargetPlayer)
         end
         RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
         RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+
+        -- v2：把冲量也下发给对方。客户端只有拿到该部件的物理权限时才生效，
+        -- 没权限时服务器直接忽略，所以包 pcall 保证不会出错。
+        if not Dead and TRootPart and TRootPart.Parent then
+            pcall(function()
+                TRootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                TRootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+            end)
+        end
     end
 
     local function SFBasePart(BasePart)
-        local Time = tick()
         local Angle = 0
-        repeat
+        while true do
             if Dead or not BasePart or not BasePart.Parent or not RootPart or not RootPart.Parent then break end
             if not TRootPart or not TRootPart.Parent or not THumanoid or THumanoid.Health <= 0 then break end
+
+            local elapsed = tick() - startTick
+            local dist = moved()
+            -- 最优收工：已经抢到物理权限，并且对方真的被推开了 → 立刻停手，少折腾自己
+            if dist >= FLING.SuccessDist and hasOwnership(victimPart) then break end
+            -- 次优收工：甩够 MinTime 且位移达标（有些游戏查不到权限，走这条兜底）
+            if elapsed >= FLING.MinTime and dist >= FLING.SuccessDist then break end
+            if elapsed >= FLING.MaxTime then break end
 
             if BasePart.Velocity.Magnitude > 1 then
                 Angle = Angle + 100
                 local move = THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25
                 FPos(BasePart, CFrame.new(0, 1.5, 0) + move, CFrame.Angles(math.rad(Angle), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, -1.5, 0) + move, CFrame.Angles(math.rad(Angle), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + move, CFrame.Angles(math.rad(Angle), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + move, CFrame.Angles(math.rad(Angle), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-                task.wait()
+                task.wait() track()
             else
                 local walk = THumanoid.WalkSpeed
                 local vel = TRootPart.Velocity.Magnitude / 1.25
                 FPos(BasePart, CFrame.new(0, 1.5, walk), CFrame.Angles(math.rad(90), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, -1.5, -walk), CFrame.Angles(0, 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, 1.5, vel), CFrame.Angles(math.rad(90), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, -1.5, -vel), CFrame.Angles(0, 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
-                task.wait()
+                task.wait() track()
                 FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                task.wait()
+                task.wait() track()
             end
-        until BasePart.Velocity.Magnitude > 500 or not BasePart.Parent or Dead or tick() > Time + 2
+        end
     end
 
     local BV = Instance.new("BodyVelocity")
@@ -146,6 +230,12 @@ local function SkidFling(TargetPlayer)
 
     BV:Destroy()
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+
+    -- 结算测量（必须在善后把一切都归零之前读）
+    local dist = moved()
+    local owner = ownerNameOf(victimPart)
+    local rise = highest - startPos.Y
+    local stillThere = victimPart.Parent ~= nil
 
     if Camera then
         local newHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -175,8 +265,35 @@ local function SkidFling(TargetPlayer)
         end
     end
 
-    if DeadConn then DeadConn:Disconnect() end
+    if DeadConn then DeadConn:Disconnect() DeadConn = nil end
     Flinging = false
+
+    -- ===== 结果反馈：这就是原版完全缺失的部分 =====
+    if FLING.Report then
+        local verdict, detail
+        if not stillThere then
+            verdict = "甩出地图了"
+            detail = "对方部件已消失"
+        elseif dist >= FLING.SuccessDist then
+            verdict = "甩飞成功"
+            detail = string.format("位移 %.0f 米 / 峰值 %.0f / 升高 %.0f 米 / 权限 %s",
+                dist, peakSpeed, rise, owner)
+        elseif dist >= 5 then
+            verdict = "只弹了一下就回来"
+            detail = string.format("位移仅 %.0f 米 / 峰值 %.0f / 权限 %s（服务器把冲量压回去了）",
+                dist, peakSpeed, owner)
+        else
+            verdict = "完全没甩动"
+            detail = string.format("位移 %.0f 米 / 权限 %s（没拿到物理权限，甩不动）",
+                dist, owner)
+        end
+        -- 循环模式下同一个结果只提示一次，避免刷屏
+        local key = TargetPlayer.Name .. "|" .. verdict
+        if not AlreadyNotified[key] then
+            AlreadyNotified[key] = true
+            Notify("甩飞 " .. TargetPlayer.Name, verdict .. "：" .. detail, 3)
+        end
+    end
 end
 
 -- ===== 防甩飞（参考 BS 的 AntiFling） =====
@@ -460,6 +577,7 @@ Tab:Button({
             Notify("错误", "请先选择目标", 2)
             return
         end
+        AlreadyNotified = {}   -- 单选模式每次点击都重新报结果，不做去重
         task.spawn(function()
             local list = SelectedTargets[1] == "ALL" and Players:GetPlayers() or SelectedTargets
             for _, p in ipairs(list) do
