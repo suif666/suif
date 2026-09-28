@@ -42,7 +42,31 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 核心甩飞 v6 =====
+-- ===== 核心甩飞 v7 =====
+-- 判据：瞬时速度（VelGoal 500）。目标是把对面甩出去。
+--
+-- v7 是把两处【我自己加的、反而害人的东西】退回去：
+--
+-- 【1】FallenPartsDestroyHeight 不再还原 —— 这是"甩完第一个人之后就死"的真正原因
+--     参考版那行 workspace.FallenPartsDestroyHeight = getgenv().FPDH 里的
+--     getgenv().FPDH 从没被赋过值，也就是它其实执行失败了 ——
+--     于是参考版的销毁高度永远停在 NaN，全程受保护。
+--     v6 把这个"bug"修正成正确还原，等于每次甩完就撤掉保护，
+--     而人当时还带着余速在飞，掉下去就被销毁 = 死。
+--     现在跟参考版一致：改成 NaN 之后不再还原（纯本地属性，不影响别人）。
+--
+-- 【2】善后落点退回"直接记你站的这一格"
+--     v6 改成了往下打 500 格射线的命中点。在平台/屋顶/树上时，
+--     射线打到的是脚下很远的地面，善后会把你传到那里去，比原来更危险。
+--     v1 和参考版都是直接记 RootPart.CFrame。
+--
+-- 保留的（这些经测试确认有效）：
+--   不写对方的速度（v5 起；参考版和落叶 Pro 也都不写）
+--   头/根距离检测 —— 布娃娃目标改用 Head 当支点
+--   分支条件 < 50、else 分支 10 次 FPos —— 对齐参考版
+--   退出条件含 THumanoid.Sit
+--   一行结果提示 + pcall 防 Flinging 卡死
+
 -- 判据：瞬时速度（与原版一致，VelGoal 500）。目标是把对面甩出去，不观察过程。
 --
 -- v6 相对 v5 的改动，全部来自对照 SkidFling 原始版（AnthonyIsntHere，pastebin zqyDSUWX）：
@@ -136,12 +160,21 @@ local function SkidFlingInner(TargetPlayer)
     -- 参考版的做法是把它设成 NaN —— NaN 参与的比较永远为 false，销毁判定就永不成立。
     -- 注意参考版这里有个 bug：它结束时恢复到 getgenv().FPDH，但那个值从没被赋值过。
     -- 这里改成在开头存下真实值，结束时还原。
-    local FPDH = nil
-    local okFPDH, curFPDH = pcall(function() return workspace.FallenPartsDestroyHeight end)
-    if okFPDH and curFPDH ~= nil then
-        FPDH = curFPDH
-        pcall(function() workspace.FallenPartsDestroyHeight = 0 / 0 end)
-    end
+    -- 掉出地图销毁保护。设成 NaN 后 y < NaN 永远为 false，
+    -- "掉到销毁高度以下就销毁部件"这条判定永不成立，人和目标不会因为掉出地图而死。
+    --
+    -- 【关键】这里【不还原】。参考版写的是 workspace.FallenPartsDestroyHeight = getgenv().FPDH，
+    -- 而 getgenv().FPDH 从没被赋过值 —— 那一行其实是执行失败的，
+    -- 所以参考版的销毁高度永远停在 NaN，全程受保护。
+    -- v6 曾经把它"修正"成正确还原原值，结果就是：【每次甩完保护就失效】，
+    -- 而人这时还带着甩飞的余速在飞 → 掉下去 → 部件被销毁 → 死。
+    -- 症状就是"甩完第一个人之后就死"。所以这里跟参考版保持一致，改了就不还原。
+    -- FallenPartsDestroyHeight 是纯本地属性，不影响服务器和其它玩家。
+    pcall(function()
+        if workspace.FallenPartsDestroyHeight == workspace.FallenPartsDestroyHeight then
+            workspace.FallenPartsDestroyHeight = 0 / 0
+        end
+    end)
 
     local Dead = false
     local DeadConn
@@ -150,39 +183,14 @@ local function SkidFlingInner(TargetPlayer)
         if DeadConn then DeadConn:Disconnect() DeadConn = nil end
     end)
 
-    -- 安全落点：往下打一条射线找到真正的地面，而不是直接用你脚下的坐标。
-    -- 取自落叶 Pro 的甩飞写法 —— 它在循环开始前就算好 safePos：
-    --     local ray = Ray.new(oldPos + Vector3.new(0, 3, 0), Vector3.new(0, -200, 0))
-    --     local hit, pos = workspace:FindPartOnRay(ray, lc)
-    --     local safePos = hit and pos or oldPos
-    -- 只记"脚下坐标"有个坑：你在跳跃最高点时速度接近 0，会被判定为"站定"，
-    -- 于是半空那个点就成了要回去的地方。射线打地面能避免这一点。
-    local function groundCFrame()
-        local origin = RootPart.Position + Vector3.new(0, 3, 0)
-        local dir = Vector3.new(0, -500, 0)
-        local ok, result = pcall(function()
-            if workspace.Raycast then
-                local params = RaycastParams.new()
-                params.FilterType = Enum.RaycastFilterType.Exclude
-                params.FilterDescendantsInstances = { Character }
-                local res = workspace:Raycast(origin, dir, params)
-                return res and res.Position
-            elseif workspace.FindPartOnRay then
-                local hit, pos = workspace:FindPartOnRay(Ray.new(origin, dir), Character)
-                return hit and pos
-            end
-            return nil
-        end)
-        if ok and result then return CFrame.new(result) end
-        return nil
-    end
-
     -- 只在站定（速度很小）时更新安全落点 —— 这是原版的行为，别改。
     -- 否则连续甩飞时会把你半空中的位置记成"要回去的地方"，善后等于把你摔死。
+    -- 直接记你站的这一格 —— v1 和参考版都是这么做的，别改。
+    -- 试过改成"往下打射线找地面"，结果是在平台上/屋顶上会被传到地面去，反而更危险。
     if RootPart.Velocity.Magnitude < 50 then
-        OldPos = groundCFrame() or RootPart.CFrame
+        OldPos = RootPart.CFrame
     elseif not OldPos then
-        OldPos = groundCFrame() or RootPart.CFrame   -- 兜底
+        OldPos = RootPart.CFrame   -- 兜底：第一次甩飞时若已在移动，至少有个记录
     end
 
     if Camera then
@@ -313,11 +321,6 @@ local function SkidFlingInner(TargetPlayer)
                 task.wait()
             until (newRoot.Position - OldPos.Position).Magnitude < 25 or tick() - start > 3
         end
-    end
-
-    -- 只在确实改过时才还原（读不到原值的情况下根本没改，别乱写）
-    if FPDH ~= nil then
-        pcall(function() workspace.FallenPartsDestroyHeight = FPDH end)
     end
 
     if DeadConn then pcall(function() DeadConn:Disconnect() end) DeadConn = nil end
