@@ -42,32 +42,34 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 核心甩飞 v3 =====
--- 判据回到【瞬时速度】：对方速度一超过阈值就收手，立刻去处理下一个。
--- 不做位移统计、不等物理权限、不拖着观察 —— 目标是尽快把对面甩出去。
+-- ===== 核心甩飞 v4 =====
+-- 判据仍是【瞬时速度】：对方速度一超过 VelGoal 就收手。
 --
--- 相比最早那版保留了两处不影响速度的修正：
---   1. 冲量也下发给对方（原版只动自己，对方完全靠穿模解算，力度不可控）
---   2. OldPos 修复：原版只在自身速度 < 50 时才记录位置，
---      连续甩飞时会用上一轮的旧坐标，善后会把你自己传回错误的地方
+-- v4 修的是 v3 引入的一个 bug（同时也是"人很容易死"的元凶）：
+--   v3 把 OldPos 改成了"每次甩飞都记录当前位置"。但原版那个
+--       if RootPart.Velocity.Magnitude < 50 then OldPos = RootPart.CFrame end
+--   是有意为之 —— 只在你【站定】时记一个安全落点。
+--   改成每次都记之后，第二次甩飞时你人还在半空高速飞，OldPos 就成了半空中的点，
+--   善后逻辑直接把你传过去 → 摔死。摔死后角色反复重建，后面的甩飞自然就"没甩动"了。
+--
+-- v4 的两处改动：
+--   1. OldPos 恢复原版条件（只在自身速度 < 50 时记录），并补首次为空时的兜底
+--   2. 整个甩飞过程包 pcall。以前中途一旦报错，Flinging 会永久卡在 true，
+--      之后每次甩飞都会被最前面那句 if Flinging then return end 直接挡掉
+--      —— 这正是"只有前几个有效、后面全没反应"的另一个成因
 local FLING = {
     VelGoal = 500,    -- 对方速度超过这个值就算甩动，收手（与原版一致）
     MaxTime = 2.0,    -- 硬上限（与原版一致）
-    Report  = true,   -- 甩完弹一行结果，方便判断有没有甩动
+    Report  = true,   -- 甩完弹一行结果
 }
 
-local function SkidFling(TargetPlayer)
-    if not TargetPlayer or TargetPlayer == LocalPlayer then return end
-    if Flinging then return end
-    Flinging = true
-
+local function SkidFlingInner(TargetPlayer)
     local Character = LocalPlayer.Character
     local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
     local RootPart = Humanoid and Humanoid.RootPart
     local TCharacter = TargetPlayer.Character
 
     if not (Character and Humanoid and RootPart and TCharacter) then
-        Flinging = false
         return
     end
 
@@ -80,7 +82,6 @@ local function SkidFling(TargetPlayer)
 
     local victimPart = TRootPart or THead or Handle
     if not victimPart then
-        Flinging = false
         return
     end
 
@@ -91,7 +92,13 @@ local function SkidFling(TargetPlayer)
         if DeadConn then DeadConn:Disconnect() DeadConn = nil end
     end)
 
-    OldPos = RootPart.CFrame
+    -- 只在站定（速度很小）时记录安全落点 —— 这是原版的行为，别改。
+    -- 否则连续甩飞时会把你半空中的位置记成"要回去的地方"，善后等于把你摔死。
+    if RootPart.Velocity.Magnitude < 50 then
+        OldPos = RootPart.CFrame
+    elseif not OldPos then
+        OldPos = RootPart.CFrame   -- 兜底：第一次甩飞时若已经在移动，至少有个记录
+    end
 
     if Camera then
         Camera.CameraSubject = THead or Handle or THumanoid
@@ -171,14 +178,14 @@ local function SkidFling(TargetPlayer)
     BV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
 
-    if not Dead then
+    pcall(function()
         if TRootPart then SFBasePart(TRootPart)
         elseif THead then SFBasePart(THead)
         elseif Handle then SFBasePart(Handle) end
-    end
+    end)
 
-    BV:Destroy()
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+    pcall(function() BV:Destroy() end)
+    pcall(function() Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true) end)
 
     local dist = moved()
     local stillThere = victimPart.Parent ~= nil
@@ -188,6 +195,7 @@ local function SkidFling(TargetPlayer)
         if newHum then Camera.CameraSubject = newHum end
     end
 
+    -- 善后：回到那个"站定时记下的"安全落点
     if not Dead and OldPos then
         local newChar = LocalPlayer.Character
         local newRoot = newChar and newChar:FindFirstChild("HumanoidRootPart")
@@ -211,10 +219,8 @@ local function SkidFling(TargetPlayer)
         end
     end
 
-    if DeadConn then DeadConn:Disconnect() DeadConn = nil end
-    Flinging = false
+    if DeadConn then pcall(function() DeadConn:Disconnect() end) DeadConn = nil end
 
-    -- 一行结果，方便判断有没有甩动
     if FLING.Report then
         local msg
         if not stillThere then
@@ -231,6 +237,21 @@ local function SkidFling(TargetPlayer)
             AlreadyNotified[key] = true
             Notify("甩飞 " .. TargetPlayer.Name, msg, 2)
         end
+    end
+end
+
+-- 外层包一层 pcall：以前中途一旦报错，Flinging 会永久卡在 true，
+-- 之后每次甩飞都会被最前面的判断挡掉（表现就是"只有前几个有效"）。
+-- 这里保证无论成功失败，Flinging 一定被复位。
+local function SkidFling(TargetPlayer)
+    if not TargetPlayer or TargetPlayer == LocalPlayer then return end
+    if Flinging then return end
+    Flinging = true
+    local ok, err = pcall(SkidFlingInner, TargetPlayer)
+    Flinging = false
+    if not ok then
+        pcall(function() Notify("甩飞", "本次出错已跳过", 2) end)
+        pcall(function() warn("[甩飞] " .. tostring(err)) end)
     end
 end
 
