@@ -42,7 +42,33 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 核心甩飞 v5 =====
+-- ===== 核心甩飞 v6 =====
+-- 判据：瞬时速度（与原版一致，VelGoal 500）。目标是把对面甩出去，不观察过程。
+--
+-- v6 相对 v5 的改动，全部来自对照 SkidFling 原始版（AnthonyIsntHere，pastebin zqyDSUWX）：
+--
+-- 【1】掉出地图销毁保护 —— 直接针对"还是会死"
+--     workspace.FallenPartsDestroyHeight = 0/0   (NaN)
+--     甩飞把人以极高速度甩出地图，落到销毁高度以下部件就被销毁 = 死亡。
+--     NaN 参与的比较永远为 false，销毁判定就永不成立。
+--     参考版结束时恢复到 getgenv().FPDH，但那个值从没被赋过 —— 它的 bug，这里修正：
+--     开头存下真实值，结束时还原。
+--
+-- 【2】头/根距离检测
+--     角色被布娃娃化后 RootPart 会掉在原地，真正在动的是 Head，
+--     这时必须用 Head 当支点才甩得动。参考版：两件都有的情况下比较两者距离。
+--
+-- 【3】分支条件对齐参考版
+--     参考版是 if BasePart.Velocity.Magnitude < 50 then（静止/慢速走旋转分支）
+--     之前这份脚本写的是 > 1，语义反了。
+--
+-- 【4】else 分支从 6 次 FPos 补成参考版的 10 次
+--
+-- 【5】退出条件补上目标坐下（THumanoid.Sit）
+--
+-- 仍然保留：不写对方的速度（v5 已删，这是"还会死"的另一半原因）、
+--          善后落点用射线打地面、OldPos 只在站定时更新、一行结果提示、pcall 防卡死。
+
 -- 判据：瞬时速度（与原版一致，VelGoal 500）。目标就是把对面甩出去，不观察过程。
 --
 -- v5 相对 v4 的两处改动，都来自对照其它脚本源码：
@@ -103,6 +129,18 @@ local function SkidFlingInner(TargetPlayer)
     local victimPart = TRootPart or THead or Handle
     if not victimPart then
         return
+    end
+
+    -- 掉出地图销毁保护：甩飞会把人（和贴在一起的你）以极高速度甩出地图，
+    -- 一旦落到 workspace.FallenPartsDestroyHeight 以下，部件会被销毁 = 死亡。
+    -- 参考版的做法是把它设成 NaN —— NaN 参与的比较永远为 false，销毁判定就永不成立。
+    -- 注意参考版这里有个 bug：它结束时恢复到 getgenv().FPDH，但那个值从没被赋值过。
+    -- 这里改成在开头存下真实值，结束时还原。
+    local FPDH = nil
+    local okFPDH, curFPDH = pcall(function() return workspace.FallenPartsDestroyHeight end)
+    if okFPDH and curFPDH ~= nil then
+        FPDH = curFPDH
+        pcall(function() workspace.FallenPartsDestroyHeight = 0 / 0 end)
     end
 
     local Dead = false
@@ -177,7 +215,7 @@ local function SkidFlingInner(TargetPlayer)
             if Dead or not BasePart or not BasePart.Parent or not RootPart or not RootPart.Parent then break end
             if not TRootPart or not TRootPart.Parent or not THumanoid or THumanoid.Health <= 0 then break end
 
-            if BasePart.Velocity.Magnitude > 1 then
+            if BasePart.Velocity.Magnitude < 50 then
                 Angle = Angle + 100
                 local move = THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25
                 FPos(BasePart, CFrame.new(0, 1.5, 0) + move, CFrame.Angles(math.rad(Angle), 0, 0))
@@ -193,23 +231,29 @@ local function SkidFlingInner(TargetPlayer)
                 FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
                 task.wait()
             else
-                local walk = THumanoid.WalkSpeed
-                local vel = TRootPart.Velocity.Magnitude / 1.25
-                FPos(BasePart, CFrame.new(0, 1.5, walk), CFrame.Angles(math.rad(90), 0, 0))
+                FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
                 task.wait()
-                FPos(BasePart, CFrame.new(0, -1.5, -walk), CFrame.Angles(0, 0, 0))
+                FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
                 task.wait()
-                FPos(BasePart, CFrame.new(0, 1.5, vel), CFrame.Angles(math.rad(90), 0, 0))
+                FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
                 task.wait()
-                FPos(BasePart, CFrame.new(0, -1.5, -vel), CFrame.Angles(0, 0, 0))
+                FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
+                task.wait()
+                FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
+                task.wait()
+                FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
                 task.wait()
                 FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
                 task.wait()
                 FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
                 task.wait()
+                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0))
+                task.wait()
+                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
+                task.wait()
             end
         until BasePart.Velocity.Magnitude > FLING.VelGoal
-            or not BasePart.Parent or Dead or tick() > Time + FLING.MaxTime
+            or not BasePart.Parent or Dead or THumanoid.Sit or tick() > Time + FLING.MaxTime
     end
 
     local BV = Instance.new("BodyVelocity")
@@ -219,9 +263,21 @@ local function SkidFlingInner(TargetPlayer)
     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
 
     pcall(function()
-        if TRootPart then SFBasePart(TRootPart)
-        elseif THead then SFBasePart(THead)
-        elseif Handle then SFBasePart(Handle) end
+        -- 头/根距离检测（学自参考版）：角色被布娃娃化后 RootPart 会掉在原地，
+        -- 真正在动的是 Head。这时必须用 Head 当支点，否则甩不动。
+        if TRootPart and THead then
+            if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
+                SFBasePart(THead)
+            else
+                SFBasePart(TRootPart)
+            end
+        elseif TRootPart then
+            SFBasePart(TRootPart)
+        elseif THead then
+            SFBasePart(THead)
+        elseif Handle then
+            SFBasePart(Handle)
+        end
     end)
 
     pcall(function() BV:Destroy() end)
@@ -257,6 +313,11 @@ local function SkidFlingInner(TargetPlayer)
                 task.wait()
             until (newRoot.Position - OldPos.Position).Magnitude < 25 or tick() - start > 3
         end
+    end
+
+    -- 只在确实改过时才还原（读不到原值的情况下根本没改，别乱写）
+    if FPDH ~= nil then
+        pcall(function() workspace.FallenPartsDestroyHeight = FPDH end)
     end
 
     if DeadConn then pcall(function() DeadConn:Disconnect() end) DeadConn = nil end
