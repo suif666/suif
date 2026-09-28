@@ -42,7 +42,27 @@ local function rebuildPlayerList()
 end
 rebuildPlayerList()
 
--- ===== 核心甩飞 v4 =====
+-- ===== 核心甩飞 v5 =====
+-- 判据：瞬时速度（与原版一致，VelGoal 500）。目标就是把对面甩出去，不观察过程。
+--
+-- v5 相对 v4 的两处改动，都来自对照其它脚本源码：
+--
+-- 【1】删掉"双向冲量"（向对方写 Velocity/RotVelocity）—— 这是死亡的原因。
+--     对照落叶 Pro（通用.lua 的「甩飞所有人」）和原版甩飞：
+--       落叶 Pro：bv.Velocity = Vector3.new(9e7, 9e7*10, 9e7)
+--                 lr.CFrame = CFrame.new(bp.Position) * ...
+--                 —— 从头到尾【只动自己】，一次都没碰对方的速度
+--       原版甩飞：也是只在自己的 RootPart 上写速度
+--     只有我 v3 加的"双向冲量"会去写对方的 Velocity/RotVelocity，
+--     而一旦你拿到了对方的物理权限，那个 9e7/9e8 就是真的生效的 ——
+--     对方连同贴身在一起的你被一起弹飞，人就死了。
+--     注：mock 测试里这条冲量因为"没拿到物理权限"一直被服务器丢弃，
+--     所以模拟里量不出它的危害，只有真机上会炸。
+--
+-- 【2】善后落点改成"射线打到地面"（落叶 Pro 的做法）。
+--     只记脚下坐标有个坑：跳跃最高点时速度接近 0，会被判成"站定"，
+--     半空那个点就成了要回去的地方。射线打地面能避免。
+
 -- 判据仍是【瞬时速度】：对方速度一超过 VelGoal 就收手。
 --
 -- v4 修的是 v3 引入的一个 bug（同时也是"人很容易死"的元凶）：
@@ -92,12 +112,39 @@ local function SkidFlingInner(TargetPlayer)
         if DeadConn then DeadConn:Disconnect() DeadConn = nil end
     end)
 
-    -- 只在站定（速度很小）时记录安全落点 —— 这是原版的行为，别改。
+    -- 安全落点：往下打一条射线找到真正的地面，而不是直接用你脚下的坐标。
+    -- 取自落叶 Pro 的甩飞写法 —— 它在循环开始前就算好 safePos：
+    --     local ray = Ray.new(oldPos + Vector3.new(0, 3, 0), Vector3.new(0, -200, 0))
+    --     local hit, pos = workspace:FindPartOnRay(ray, lc)
+    --     local safePos = hit and pos or oldPos
+    -- 只记"脚下坐标"有个坑：你在跳跃最高点时速度接近 0，会被判定为"站定"，
+    -- 于是半空那个点就成了要回去的地方。射线打地面能避免这一点。
+    local function groundCFrame()
+        local origin = RootPart.Position + Vector3.new(0, 3, 0)
+        local dir = Vector3.new(0, -500, 0)
+        local ok, result = pcall(function()
+            if workspace.Raycast then
+                local params = RaycastParams.new()
+                params.FilterType = Enum.RaycastFilterType.Exclude
+                params.FilterDescendantsInstances = { Character }
+                local res = workspace:Raycast(origin, dir, params)
+                return res and res.Position
+            elseif workspace.FindPartOnRay then
+                local hit, pos = workspace:FindPartOnRay(Ray.new(origin, dir), Character)
+                return hit and pos
+            end
+            return nil
+        end)
+        if ok and result then return CFrame.new(result) end
+        return nil
+    end
+
+    -- 只在站定（速度很小）时更新安全落点 —— 这是原版的行为，别改。
     -- 否则连续甩飞时会把你半空中的位置记成"要回去的地方"，善后等于把你摔死。
     if RootPart.Velocity.Magnitude < 50 then
-        OldPos = RootPart.CFrame
+        OldPos = groundCFrame() or RootPart.CFrame
     elseif not OldPos then
-        OldPos = RootPart.CFrame   -- 兜底：第一次甩飞时若已经在移动，至少有个记录
+        OldPos = groundCFrame() or RootPart.CFrame   -- 兜底
     end
 
     if Camera then
@@ -121,13 +168,6 @@ local function SkidFlingInner(TargetPlayer)
         RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
         RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
 
-        -- 冲量也下发给对方：有物理权限时生效，没权限时服务器忽略，包 pcall 保证无害
-        if not Dead and TRootPart and TRootPart.Parent then
-            pcall(function()
-                TRootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-                TRootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-            end)
-        end
     end
 
     local function SFBasePart(BasePart)
