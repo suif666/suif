@@ -291,6 +291,7 @@ local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = 
 local hbNpcTab     = funcSec:Tab({ Title = "NPC交互",  Icon = "server", Locked = false })
 local hbTriggerTab = funcSec:Tab({ Title = "触发类",   Icon = "zap",    Locked = false })
 local hbObjectTab  = funcSec:Tab({ Title = "控制物体", Icon = "box",    Locked = false })
+local hbDisasterTab = funcSec:Tab({ Title = "灾害预警", Icon = "alert-triangle", Locked = false })
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
@@ -1976,7 +1977,7 @@ WindUI:Notify({
 -- 重跑清场：远程脚本用 __HB_XXX_LOADED 防重复加载，不清掉的话
 -- 第二次执行本脚本时远程脚本会直接 return，页签会是空的。
 for _, k in ipairs({ "ANIMATION", "ACTIONPACK", "ANIMPACK", "DISGUISE",
-                     "SLOWRUN", "CLICKER", "NPC", "TRIGGER", "OBJECT" }) do
+                     "SLOWRUN", "CLICKER", "NPC", "TRIGGER", "OBJECT", "DISASTER" }) do
 	getgenv()["__HB_" .. k .. "_LOADED"] = nil
 end
 
@@ -2017,6 +2018,10 @@ lazyLoad(HB_REMOTE_BASE .. "trigger.lua", "触发类", hbTriggerTab)
 getgenv().Tabs.HBObjectTab   = hbObjectTab
 getgenv().SutureHBObjectTab  = hbObjectTab
 lazyLoad(HB_REMOTE_BASE .. "object.lua", "控制物体", hbObjectTab)
+
+getgenv().Tabs.HBDisasterTab  = hbDisasterTab
+getgenv().SutureHBDisasterTab = hbDisasterTab
+lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", hbDisasterTab)
 
 -- ============ 全量自动加载全部远程脚本 ============
 -- 位置放在所有 lazyLoad 登记点之后，确保 lazyOrder 已全部登记
