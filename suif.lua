@@ -291,7 +291,6 @@ local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = 
 local hbNpcTab     = funcSec:Tab({ Title = "NPC交互",  Icon = "server", Locked = false })
 local hbTriggerTab = funcSec:Tab({ Title = "触发类",   Icon = "zap",    Locked = false })
 local hbObjectTab  = funcSec:Tab({ Title = "控制物体", Icon = "box",    Locked = false })
-local hbDisasterTab = funcSec:Tab({ Title = "灾害预警", Icon = "alert-triangle", Locked = false })
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
@@ -2019,9 +2018,9 @@ getgenv().Tabs.HBObjectTab   = hbObjectTab
 getgenv().SutureHBObjectTab  = hbObjectTab
 lazyLoad(HB_REMOTE_BASE .. "object.lua", "控制物体", hbObjectTab)
 
-getgenv().Tabs.HBDisasterTab  = hbDisasterTab
-getgenv().SutureHBDisasterTab = hbDisasterTab
-lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", hbDisasterTab)
+-- 脚本类 → 自然灾害（复用 suif.lua 已有的 zrzhTab；该页签已挂两个远程脚本，
+-- 这里跟着用 onDemand=true，点开页签时才加载）
+lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
 
 -- ============ 全量自动加载全部远程脚本 ============
 -- 位置放在所有 lazyLoad 登记点之后，确保 lazyOrder 已全部登记
