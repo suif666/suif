@@ -718,7 +718,19 @@ do
         hits = 0,
         busy = false,
         marks = {},          -- [player] = { hl = Highlight, gui = BillboardGui, lbl = TextLabel }
-        url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/groupdata/group_35063401_ids.txt",
+        -- 名单源：按顺序试，第一个能用的就用。
+        -- raw.githubusercontent.com 在很多网络下直接连不通（实测 HTTP 000），
+        -- 所以备多个镜像；几份内容完全一致（已核对 sha256）。
+        -- 直连能用时它排第一（最新）；镜像作为回退。
+        urls = {
+            "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/groupdata/group_35063401_ids.txt",
+            "https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/groupdata/group_35063401_ids.txt",
+            "https://ghproxy.net/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/groupdata/group_35063401_ids.txt",
+            "https://cdn.jsdelivr.net/gh/suif666/suif@main/groupdata/group_35063401_ids.txt",
+            "https://gcore.jsdelivr.net/gh/suif666/suif@main/groupdata/group_35063401_ids.txt",
+            "https://fastly.jsdelivr.net/gh/suif666/suif@main/groupdata/group_35063401_ids.txt",
+        },
+        source = nil,        -- 这次实际用上的源
     }
     local PJS_COLORS = {
         ["红"] = Color3.fromRGB(255, 80, 80),
@@ -835,31 +847,56 @@ do
     end
 
     -- 下载名单（253KB，约 1 秒）
+    -- 域名，用于提示里显示是哪个源生效了
+    local function pjsHost(u)
+        return (tostring(u):match("^https?://([^/]+)") or "?")
+    end
+
+    -- 依次试各个源，返回第一个能解析出足够多 ID 的
+    local function pjsFetch()
+        local report = {}
+        for _, u in ipairs(PJS.urls) do
+            local host = pjsHost(u)
+            local ok, text = pcall(function() return game:HttpGet(u, true) end)
+            if ok and type(text) == "string" and #text > 1000 then
+                local set, n = {}, 0
+                for id in text:gmatch("%d+") do
+                    local v = tonumber(id)
+                    if v then
+                        set[v] = true
+                        n = n + 1
+                    end
+                end
+                -- 真名单有 2 万多个 ID。数量太少说明拿到的多半是错误页，
+                -- 不能当成名单用（否则会静默地一个人都匹配不上）。
+                if n >= 5000 then
+                    return set, n, u
+                end
+                report[#report + 1] = host .. " 只有 " .. n .. " 个"
+            else
+                report[#report + 1] = host .. " 连不上"
+            end
+        end
+        return nil, 0, nil, report
+    end
+
     local function pjsLoad(silent)
         if PJS.busy then return false, "正在下载中" end
         PJS.busy = true
-        local ok, text = pcall(function() return game:HttpGet(PJS.url, true) end)
+        local set, n, used, report = pjsFetch()
         PJS.busy = false
-        if not ok or type(text) ~= "string" or #text < 100 then
-            local why = tostring(text):sub(1, 60)
-            if not silent then pjsSay("名单下载失败：" .. why, "x", 6) end
+
+        if not set then
+            local why = (report and #report > 0) and table.concat(report, "；") or "未知"
+            if not silent then
+                pjsSay("名单下载失败，试了 " .. #PJS.urls .. " 个源：" .. why:sub(1, 130), "x", 12)
+            end
             return false, why
         end
-        local set, n = {}, 0
-        for id in tostring(text):gmatch("%d+") do
-            local v = tonumber(id)
-            if v then
-                set[v] = true
-                n = n + 1
-            end
-        end
-        if n < 100 then
-            if not silent then pjsSay("只解析出 " .. n .. " 个 ID，文件内容可能不对", "x", 6) end
-            return false, "解析出的 ID 太少"
-        end
-        PJS.ids, PJS.count, PJS.loadedAt = set, n, os.time()
+
+        PJS.ids, PJS.count, PJS.loadedAt, PJS.source = set, n, os.time(), used
         if not silent then
-            pjsSay("已加载 " .. n .. " 名成员", "check", 4)
+            pjsSay("已加载 " .. n .. " 名成员（源：" .. pjsHost(used) .. "）", "check", 5)
         end
         return true
     end
@@ -1015,6 +1052,7 @@ do
     espTab:Paragraph({
         Title = "皮脚本透视 说明",
         Desc = "名单：皮脚本（群 35063401），共 23421 人，来自 GitHub。\n" ..
+               "GitHub 直连不通时会自动换镜像（jsDelivr / gh-proxy），无需手动设置。\n" ..
                "只在本地比对，全程不发任何数据出去；别人看不到你的高亮，也看不到你的名牌。\n" ..
                "群成员变动后：本机跑一次爬取 → 上传 → 回来点「刷新皮脚本名单」。"
     })
