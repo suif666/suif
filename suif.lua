@@ -287,6 +287,10 @@ local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = fa
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
 local coordTab = funcSec:Tab({ Title = "坐标传送", Icon = "map-pin", Locked = false })
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
+-- ── 黑白提取：功能类新增三个页签 ──
+local hbNpcTab     = funcSec:Tab({ Title = "NPC交互",  Icon = "server", Locked = false })
+local hbTriggerTab = funcSec:Tab({ Title = "触发类",   Icon = "zap",    Locked = false })
+local hbObjectTab  = funcSec:Tab({ Title = "控制物体", Icon = "box",    Locked = false })
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
@@ -294,6 +298,9 @@ local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = fals
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
+-- ── 黑白提取：视觉类新增两个页签 ──
+local hbAnimTab     = shijueSec:Tab({ Title = "动作/动画", Icon = "music", Locked = false })
+local hbDisguiseTab = shijueSec:Tab({ Title = "伪装玩家",  Icon = "user",  Locked = false })
 
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
@@ -1960,6 +1967,56 @@ WindUI:Notify({
     Icon = "message-square-warning",
     Duration = 10
 })
+
+-- ============================================================
+-- 黑白提取（远程脚本）——主脚本只建页签，功能全在远程脚本里
+-- 远程文件托管在 suif666/tu 的 hb/ 目录
+-- ============================================================
+
+-- 重跑清场：远程脚本用 __HB_XXX_LOADED 防重复加载，不清掉的话
+-- 第二次执行本脚本时远程脚本会直接 return，页签会是空的。
+for _, k in ipairs({ "ANIMATION", "ACTIONPACK", "ANIMPACK", "DISGUISE",
+                     "SLOWRUN", "CLICKER", "NPC", "TRIGGER", "OBJECT" }) do
+	getgenv()["__HB_" .. k .. "_LOADED"] = nil
+end
+
+-- 远程脚本要用的共享环境（它们拿不到这里的局部变量）
+getgenv().HB_WindUI = WindUI
+getgenv().HB_win    = win
+getgenv().HB_notify = notify
+
+local HB_REMOTE_BASE = "https://raw.githubusercontent.com/suif666/tu/main/hb/"
+
+-- 视觉类 → 动作/动画（三个远程脚本塞进同一个页签）
+getgenv().Tabs.HBAnimTab     = hbAnimTab
+getgenv().SutureHBAnimTab    = hbAnimTab
+lazyLoad(HB_REMOTE_BASE .. "animation.lua",  "动作动画", hbAnimTab)
+lazyLoad(HB_REMOTE_BASE .. "actionpack.lua", "动作包",   hbAnimTab)
+lazyLoad(HB_REMOTE_BASE .. "animpack.lua",   "动画包",   hbAnimTab)
+
+-- 视觉类 → 伪装玩家
+getgenv().Tabs.HBDisguiseTab  = hbDisguiseTab
+getgenv().SutureHBDisguiseTab = hbDisguiseTab
+lazyLoad(HB_REMOTE_BASE .. "disguise.lua", "伪装玩家", hbDisguiseTab)
+
+-- 玩家类（复用 suif.lua 已有的 playerTab）
+lazyLoad(HB_REMOTE_BASE .. "slowrun.lua", "缓慢的快速跑", playerTab)
+
+-- 工具类（复用 suif.lua 已有的 toolTab）
+lazyLoad(HB_REMOTE_BASE .. "clicker.lua", "自动连点器", toolTab)
+
+-- 功能类 → 三个独立页签
+getgenv().Tabs.HBNPCTab      = hbNpcTab
+getgenv().SutureHBNPCTab     = hbNpcTab
+lazyLoad(HB_REMOTE_BASE .. "npc.lua", "NPC交互", hbNpcTab)
+
+getgenv().Tabs.HBTriggerTab  = hbTriggerTab
+getgenv().SutureHBTriggerTab = hbTriggerTab
+lazyLoad(HB_REMOTE_BASE .. "trigger.lua", "触发类", hbTriggerTab)
+
+getgenv().Tabs.HBObjectTab   = hbObjectTab
+getgenv().SutureHBObjectTab  = hbObjectTab
+lazyLoad(HB_REMOTE_BASE .. "object.lua", "控制物体", hbObjectTab)
 
 -- ============ 全量自动加载全部远程脚本 ============
 -- 位置放在所有 lazyLoad 登记点之后，确保 lazyOrder 已全部登记
