@@ -469,6 +469,222 @@ mainTab:Button({
     end
 })
 
+-- ═══════════════════════════════════════════════════════════════════════
+-- rscripts 脚本库
+--
+-- 数据来自我们自己的 Worker（/rscripts），密钥存在 Worker 里，客户端看不到。
+-- 执行方式和现有的 run(url) 完全一样：API 给的 rawScript 是一个公开的
+-- 裸源码 URL，直接 game:HttpGet 就行，源码不经过 Worker。
+--
+-- 最值钱的一点：placeId 用当前游戏的，所以玩家在任意游戏里打开这个分区，
+-- 看到的都是【那个游戏可用】的脚本，全自动，不用人工整理。
+-- ═══════════════════════════════════════════════════════════════════════
+do
+    local RS_API = "https://suture-hub-counter.sfbdsl666.workers.dev/rscripts"
+    local rsState = { list = {}, labels = {}, pick = nil, mode = "place", q = "", page = 1, busy = false }
+
+    local rsSec = win:Section({ Title = "脚本库" })
+    local rsTab = rsSec:Tab({ Title = "rscripts 脚本库", Icon = "library", Locked = false })
+
+    local rsStatus = rsTab:Paragraph({
+        Title = "状态",
+        Desc = "打开游戏后点「本游戏脚本」，会列出这个游戏能用的脚本"
+    })
+
+    local rsDrop
+    rsDrop = rsTab:Dropdown({
+        Title = "脚本列表",
+        Desc = "选中一个，然后点最下面的「执行选中的脚本」",
+        Values = { "（还没加载）" },
+        Value = "（还没加载）",
+        Callback = function(v)
+            local item = rsState.labels[v]
+            if not item then return end
+            rsState.pick = item
+            local bits = { "作者：" .. (item.author ~= "" and item.author or "未知") }
+            if item.likes and item.likes > 0 then table.insert(bits, "👍 " .. item.likes) end
+            if item.views and item.views > 0 then table.insert(bits, "👁 " .. item.views) end
+            if item.risk and item.risk ~= "" then table.insert(bits, "风险：" .. item.risk) end
+            if item.patched then table.insert(bits, "⚠ 已被游戏方修复，大概率不能用") end
+            if item.paid then table.insert(bits, "💰 付费脚本") end
+            if item.key then
+                table.insert(bits, "🔑 需要卡密")
+                if item.keyUrl and item.keyUrl ~= "" then
+                    table.insert(bits, "卡密地址：" .. item.keyUrl)
+                end
+            end
+            rsStatus:SetDesc(table.concat(bits, "\n"))
+        end
+    })
+
+    local function rsLoad(mode, q)
+        if rsState.busy then
+            notify("脚本库", "上一次还在加载中", "info", 2)
+            return
+        end
+        rsState.busy = true
+        rsState.mode = mode or rsState.mode
+        if q ~= nil then rsState.q = q end
+
+        task.spawn(function()
+            local http = game:GetService("HttpService")
+            local url
+            if rsState.mode == "search" and rsState.q ~= "" then
+                -- 注意：搜索端点的 limit 上限是 20（列表端点是 48），填 30 会报错
+                url = RS_API .. "?q=" .. http:UrlEncode(rsState.q) .. "&limit=20"
+            elseif rsState.mode == "trending" then
+                url = RS_API .. "?trending=1"
+            elseif rsState.mode == "newest" then
+                url = RS_API .. "?sort=newest&limit=30"
+            else
+                url = RS_API .. "?placeid=" .. http:UrlEncode(tostring(game.PlaceId)) .. "&limit=30"
+            end
+
+            local ok, res = pcall(function() return game:HttpGet(url, true) end)
+            if not ok then
+                rsState.busy = false
+                rsStatus:SetDesc("加载失败：网络请求异常")
+                notify("脚本库", "加载失败，检查网络", "warning", 3)
+                return
+            end
+
+            local okDec, data = pcall(function() return http:JSONDecode(tostring(res)) end)
+            if not okDec or type(data) ~= "table" then
+                rsState.busy = false
+                rsStatus:SetDesc("加载失败：返回内容无法解析")
+                return
+            end
+            if not data.ok then
+                rsState.busy = false
+                rsStatus:SetDesc("加载失败：" .. tostring(data.error or "未知错误"))
+                return
+            end
+
+            -- 热门模式返回两组，合并成一个列表
+            local list = {}
+            if data.trending then
+                for _, x in ipairs(data.rising or {}) do
+                    x.__tag = "上升"
+                    table.insert(list, x)
+                end
+                for _, x in ipairs(data.trending or {}) do
+                    x.__tag = "热门"
+                    table.insert(list, x)
+                end
+            else
+                list = data.scripts or {}
+            end
+
+            rsState.list = list
+            rsState.labels = {}
+            local values = {}
+            for i, x in ipairs(list) do
+                local name = x.title or ("脚本 " .. i)
+                if #name > 34 then name = string.sub(name, 1, 34) .. "…" end
+                local mark = ""
+                if x.patched then mark = mark .. " ⚠" end
+                if x.key then mark = mark .. " 🔑" end
+                if x.__tag then mark = "[" .. x.__tag .. "] " .. mark end
+                local label = ("%d. %s%s"):format(i, mark, name)
+                values[i] = label
+                rsState.labels[label] = x
+            end
+
+            if #values == 0 then
+                values = { "（没有找到脚本）" }
+            end
+            pcall(function() rsDrop:Refresh(values) end)
+
+            local total = (data.meta and data.meta.total) or #list
+            local head
+            if rsState.mode == "place" then
+                head = ("本游戏（%s）：找到 %s 个脚本，已列出 %d 个"):format(game.Name, tostring(total), #list)
+            elseif rsState.mode == "search" then
+                head = ("搜索「%s」：共 %s 个，已列出 %d 个"):format(rsState.q, tostring(total), #list)
+            elseif rsState.mode == "trending" then
+                head = ("热门 + 上升：共 %d 个"):format(#list)
+            else
+                head = ("最新：共 %s 个，已列出 %d 个"):format(tostring(total), #list)
+            end
+            rsStatus:SetDesc(head .. "\n选中后拉到最下面点「执行选中的脚本」")
+            rsState.busy = false
+        end)
+    end
+
+    rsTab:Button({
+        Title = "本游戏脚本",
+        Desc = "列出当前这个游戏里别人上传的脚本（推荐）",
+        Icon = "gamepad-2",
+        Callback = function() rsLoad("place") end
+    })
+
+    rsTab:Button({
+        Title = "最新上传",
+        Desc = "全站最新上传的脚本",
+        Icon = "clock",
+        Callback = function() rsLoad("newest") end
+    })
+
+    rsTab:Button({
+        Title = "热门 / 上升中",
+        Desc = "全站热门和最近上升快的脚本",
+        Icon = "flame",
+        Callback = function() rsLoad("trending") end
+    })
+
+    -- 搜索框：WindUI 的 Input 参数名没有现成调用可参照，套 pcall 兜底，
+    -- 万一这个版本的签名不一样，也只是少一个搜索框，不会影响整个 hub。
+    pcall(function()
+        local rsSearch = rsTab:Input({
+            Title = "搜索脚本",
+            Desc = "输入关键词后按回车（例如 aimbot / auto farm），然后点「执行搜索」",
+            Placeholder = "关键词",
+            Value = "",
+            Callback = function(text) rsState.q = tostring(text or "") end
+        })
+        rsTab:Button({
+            Title = "执行搜索",
+            Desc = "用上面输入的关键词搜索全站脚本",
+            Icon = "search",
+            Callback = function()
+                if rsState.q == "" then
+                    notify("脚本库", "先在上面输入关键词", "info", 2)
+                    return
+                end
+                rsLoad("search")
+            end
+        })
+    end)
+
+    rsTab:Button({
+        Title = "执行选中的脚本",
+        Desc = "运行上面列表里选中的那个脚本",
+        Icon = "play",
+        Callback = function()
+            local x = rsState.pick
+            if not x then
+                notify("脚本库", "先在列表里选一个脚本", "info", 2)
+                return
+            end
+            if x.patched then
+                notify("脚本库", "这个脚本已被游戏方修复，可能无效", "warning", 3)
+            end
+            if x.key and x.keyUrl and x.keyUrl ~= "" then
+                notify("脚本库", "需要卡密，先去：" .. x.keyUrl, "warning", 4)
+            end
+            if x.raw == nil or x.raw == "" then
+                notify("脚本库", "这个脚本没有可执行地址", "warning", 3)
+                return
+            end
+            run(x.raw, x.title or "rscripts 脚本")
+        end
+    })
+
+    getgenv().Tabs = getgenv().Tabs or {}
+    getgenv().Tabs.RscriptsTab = rsTab
+    getgenv().SutureRscriptsTab = rsTab
+end
+
 local function updateCount()
     local ok, res = pcall(function()
         local player = game.Players.LocalPlayer
