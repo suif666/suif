@@ -177,21 +177,36 @@ local Theme = {
 -- 1. WindUI-Boreal 引导
 --    UI 库换成你 GitHub 上那份（和 suif.lua 用的同一个地址、同一个版本号）
 --=====================================================================
-local WINDUI_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8"
+-- 多个源轮着试：raw.githubusercontent 在有些执行器/网络环境下拉不动，
+-- 拉不动就换 jsDelivr（几个镜像），全都失败才放弃。
+local WINDUI_SOURCES = {
+    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
+    "https://cdn.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
+    "https://gcore.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
+    "https://testingcf.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
+    "https://fastly.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
+}
 
 local WindUI
 do
-    local ok, res = pcall(function()
-        return loadstring(game:HttpGet(WINDUI_URL))()
-    end)
-    if not ok or type(res) ~= "table" then
-        warn("[DoorsESP] WindUI-Boreal 加载失败：" .. tostring(res))
-        if setclipboard then
-            pcall(setclipboard, "WindUI-Boreal 加载失败：" .. tostring(res))
+    local Tried = {}
+    for _, url in ipairs(WINDUI_SOURCES) do
+        local ok, res = pcall(function()
+            return loadstring(game:HttpGet(url))()
+        end)
+        if ok and type(res) == "table" and res.CreateWindow then
+            WindUI = res
+            break
         end
+        Tried[#Tried + 1] = tostring(url:match("^https?://([^/]+)")) .. " → " .. tostring(res)
+    end
+
+    if not WindUI then
+        local msg = "WindUI-Boreal 全部源都拉不到：\n" .. table.concat(Tried, "\n")
+        warn("[DoorsESP] " .. msg)
+        if setclipboard then pcall(setclipboard, msg) end
         return
     end
-    WindUI = res
 end
 
 print("[DoorsESP] WindUI-Boreal " .. tostring(WindUI.ExpandFeatureVersion) .. " 已加载")
