@@ -1792,7 +1792,7 @@ local Objects = {
     SeekObstructions = {}, Items = {}, Chests = {}, Currency = {}, Ladders = {},
     Misc = {}, Obstructions = {}, EventTriggers = {}, JumpscareModules = {},
     SeekHighlights = {}, EyestalkHighlights = {}, SeekNodes = {}, SeekDuckBoards = {},
-    SeekBridges = {}, PathLights = {}
+    SeekBridges = {}, PathLights = {}, Tasks = {}
 }
 
 local GameData = ReplicatedStorage:FindFirstChild("GameData")
@@ -1938,11 +1938,12 @@ Functions.HandleObject = function(Object)
             end
         end)
     elseif Name == "StairwellLockpickDoor" then
-        if Toggles.MiscESPToggle.Value then
+        -- 闸门（原版挂在 Misc 里，和购物车同一条分支）→ 现在单独归到「任务」分类
+        if Toggles.TaskESPToggle.Value then
             Functions.AddESP({ Object = Object, Text = "Garage Door",
-                Color = Options.MiscESPColor.Value }, true)
+                Color = Options.TaskESPColor.Value }, true)
         end
-        table.insert(Objects.Misc, Object)
+        table.insert(Objects.Tasks, Object)
     elseif Name == "Mirror" then
         if Toggles.MiscESPToggle.Value then
             Functions.AddESP({ Object = Object, Text = "Mirror",
@@ -2452,13 +2453,31 @@ local ESPOrder = {
       "ObjectiveESPColor", Color3.fromRGB(0, 255, 0) },
 }
 
-for _, def in ipairs(ESPOrder) do
+local function BuildESPEntry(def)
     Toggles[def[1]] = Mini.Toggle(tabESP.Page, L(
         "esp." .. def[1], def[3], def[2], def[5], def[4]))
     local ColorCfg = L("col." .. def[1], def[4] .. " 颜色", def[2] .. " Color")
     ColorCfg.Default = def[8]
     Options[def[7]] = Mini.ColorPicker(tabESP.Page, ColorCfg)
 end
+
+-- 原版分类（Doors ~ Misc）
+for i = 1, 8 do BuildESPEntry(ESPOrder[i]) end
+
+--───────────────── 任务（闸门单独成类） ─────────────────
+-- 闸门原来跟购物车挤在 Misc 里，现在单独挑出来，颜色也换掉了
+Mini.Divider(tabESP.Page)
+Mini.Label(tabESP.Page, L("cat.task", "任务", "Tasks"), Theme.Accent)
+Toggles.TaskESPToggle = Mini.Toggle(tabESP.Page, L(
+    "esp.task", "闸门", "Garage Door",
+    "Highlights the garage door. The original kept it inside Misc, next to the shopping cart.",
+    "高亮闸门。原版把它塞在「杂项」里跟购物车同一条，这里单独拎出来。"))
+local TaskColorCfg = L("col.task", "闸门 颜色", "Garage Door Color")
+TaskColorCfg.Default = Color3.fromRGB(255, 0, 170)
+Options.TaskESPColor = Mini.ColorPicker(tabESP.Page, TaskColorCfg)
+
+-- 原版分类（Objectives ~ Entities）
+for i = 9, #ESPOrder do BuildESPEntry(ESPOrder[i]) end
 
 Toggles.EntityESPToggle = Mini.Toggle(tabESP.Page, L(
     "esp.entity", "实体", "Entities",
@@ -2847,9 +2866,7 @@ Toggles.MiscESPToggle:OnChanged(function(Value)
     for _, Object in ipairs(Objects.Misc) do
         if Value then
             local Label = Object.Name
-            if Object.Name == "StairwellLockpickDoor" or Object.Name == "StiarwellLockpickDoor" then
-                Label = "Garage Door"
-            elseif Object.Name == "StairwellFireAlarm" then
+            if Object.Name == "StairwellFireAlarm" then
                 Label = "Fire Alarm"
             elseif Object.Name == "ShoppingCart" then
                 Label = "Shopping Cart"
@@ -2865,6 +2882,23 @@ Toggles.MiscESPToggle:OnChanged(function(Value)
 end)
 Options.MiscESPColor:OnChanged(function(Value)
     for _, Object in ipairs(Objects.Misc) do ESPLibrary:UpdateObjectColor(Object, Value) end
+end)
+
+-- 任务分类：闸门（原版 Misc 里那条 StairwellLockpickDoor 分支）
+Toggles.TaskESPToggle:OnChanged(function(Value)
+    for _, Object in ipairs(Objects.Tasks) do
+        if Value then
+            Functions.AddESP({ Object = Object, Text = "Garage Door",
+                Color = Options.TaskESPColor.Value }, true)
+        else
+            Functions.RemoveESP(Object)
+        end
+    end
+end)
+Options.TaskESPColor:OnChanged(function(Value)
+    for _, Object in ipairs(Objects.Tasks) do
+        ESPLibrary:UpdateObjectColor(Object, Value)
+    end
 end)
 
 Toggles.ObjectiveESPToggle:OnChanged(function(Value)
