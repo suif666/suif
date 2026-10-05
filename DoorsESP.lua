@@ -353,19 +353,27 @@ function Mini.NewWindow(title, subtitle)
         return page
     end
 
-    -- 界面开关键。WindUI 窗口自己有 Open / Close，这里记一份开关状态，
-    -- 所以不走 WindUI 的 ToggleKey（否则一个键会被两边各切一次，等于没切）。
-    local uiOpen = true
-    function W.Toggle()
-        uiOpen = not uiOpen
-        if uiOpen then
-            SafeCall(function() return win:Open() end)
-        else
-            SafeCall(function() return win:Close() end)
-        end
-        return uiOpen
+    -- 界面开关键。
+    -- WindUI 没有内置的窗口快捷键，所以这里自己调它的 Open / Close。
+    -- 注意：状态要读库自己的 win.Closed，不能自己记一份 ——
+    -- 库自带的最小化按钮也会改这个状态，自记的话一按快捷键就两边错位。
+    local function IsWindowOpen()
+        if win.Closed ~= nil then return win.Closed == false end
+        if win.IsOpen ~= nil then return win.IsOpen == true end
+        if win.Opened ~= nil then return win.Opened == true end
+        return true
     end
 
+    function W.Toggle()
+        if IsWindowOpen() then
+            SafeCall(function() return win:Close() end)
+        else
+            SafeCall(function() return win:Open() end)
+        end
+        return IsWindowOpen()
+    end
+
+    Mini.__Window = win
     W.ConfigManager = win.ConfigManager
     -- 卸载那条路上老代码会调 Window.Gui:Destroy()。
     -- 必须是窗口的 ScreenGui：销毁它才会连带清掉整棵界面树，
@@ -661,6 +669,29 @@ end
 do
     local Saved = getgenv() and getgenv().DoorsESPX_Lang or nil
     if Saved and Lang.Strings[Saved] then Lang.Current = Saved end
+end
+
+-- 界面开着的时候把鼠标唤醒。
+-- 直接跟 win.Closed 同步，所以不管是按快捷键、点最小化、还是点悬浮球，鼠标状态都对得上。
+-- 挂 Heartbeat + 0.25 秒节流（不能用 while + task.wait，那样在某些环境下就是死循环）。
+do
+    local UIS = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local acc = 0
+    RunService.Heartbeat:Connect(function(dt)
+        local win = Mini.__Window
+        if not win then return end
+        acc = acc + (tonumber(dt) or 0.25)
+        if acc < 0.25 then return end
+        acc = 0
+        local want = (win.Closed ~= true) and (win.IsOpen ~= false) and (win.Opened ~= false)
+        if UIS.MouseIconEnabled ~= want then
+            pcall(function() UIS.MouseIconEnabled = want end)
+        end
+        if want then
+            pcall(function() UIS.MouseBehavior = Enum.MouseBehavior.Default end)
+        end
+    end)
 end
 
 --=====================================================================
@@ -2138,8 +2169,8 @@ end
 -- 5. UI 布局（每一页的控件名 / 默认值 / 颜色 照抄原版）
 --=====================================================================
 local Window = Mini.NewWindow(
-    L("win.title", "Doors · ESP 提取版", "Doors · ESP Extraction"),
-    L("win.sub",   "原版行为 · 视野 120", "Original behaviour · FOV 120"))
+    L("win.title", "Msptds", "Msptds"),
+    L("win.sub",   "Doors · ESP", "Doors · ESP"))
 
 local tabLang   = Window:Tab(L("tab.lang",    "语言",      "Language"))
 local tabESP    = Window:Tab(L("tab.esp",     "ESP",       "ESP"))
@@ -2177,7 +2208,7 @@ LangDropdown:OnChanged(function(Value)
             return loadstring(game:HttpGet(SCRIPT_URL))()
         end)
         if not ok then
-            warn("[DoorsESPX] 换语言后自动重载失败：" .. tostring(err) .. "，请手动重新执行一次脚本")
+            warn("[Msptds] 换语言后自动重载失败：" .. tostring(err) .. "，请手动重新执行一次脚本")
         end
     end)
 end)
@@ -2366,6 +2397,11 @@ Toggles.NoclipToggle = Mini.Toggle(tabChar.Page, L(
     "角色可以穿墙（每帧把 CanCollide 关掉）。"))
 local NoclipKeybind = Mini.Keybind(tabChar.Page, {
     Key = "char.noclipkey", Text = "穿墙快捷键", Default = Enum.KeyCode.N })
+Mini.Divider(tabChar.Page)
+Toggles.FlyToggle = Mini.Toggle(tabChar.Page, L(
+    "char.fly", "飞行", "Fly",
+    "Fly with WASD, Space to go up and LeftCtrl to go down.",
+    "WASD 相对镜头飞行，空格上升、左 Ctrl 下降。"))
 
 --────────────────────────── 绕过 ──────────────────────────
 Mini.Divider(tabBypass.Page)
@@ -2825,6 +2861,9 @@ end)
 local Char = { Character = nil, Humanoid = nil, RootPart = nil }
 
 -- 原版 6559-6560 行：只设 MaxForce，别的一个都不动
+local FlyBody = Instance.new("BodyVelocity")
+FlyBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
 local ManipulateBody = Instance.new("BodyVelocity")
 ManipulateBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 
@@ -2996,14 +3035,45 @@ Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- 原版写法：每 tick 直接写「取反」的值，所以关掉开关后下一帧就自动还原
-    -- （之前只在开启时写 false、从不写回 true，关掉后会残留一段穿墙）
+    -- 原版写法：每 tick 直接写「取反」的值，所以关掉开关后下一帧就自己还原。
+    -- 只碰根部件和 CollisionPart（跟原版一致）—— 原来每帧遍历整个角色的部件，是卡顿来源之一。
     local Noclip = Toggles.NoclipToggle.Value or Toggles.NoPullbackNoclipToggle.Value
     RootPart.CanCollide = not Noclip
-    for _, Part in ipairs(Character:GetDescendants()) do
-        if Part:IsA("BasePart") and Part ~= RootPart then
-            Part.CanCollide = not Noclip
+    local CollisionPart = Character:FindFirstChild("CollisionPart")
+    if CollisionPart then CollisionPart.CanCollide = not Noclip end
+
+    -- 飞行：WASD 相对镜头，空格上升 / 左 Ctrl 下降
+    if Toggles.FlyToggle.Value then
+        local UIS = Services.UserInputService
+        local Move = Vector3.new(0, 0, 0)
+        if UIS and UIS.IsKeyDown then
+            local function Down(Key)
+                local ok, v = pcall(function() return UIS:IsKeyDown(Key) end)
+                return (ok and v) and 1 or 0
+            end
+            local Fwd = Down(Enum.KeyCode.W) - Down(Enum.KeyCode.S)
+            local Side = Down(Enum.KeyCode.D) - Down(Enum.KeyCode.A)
+            local Up = Down(Enum.KeyCode.Space) - Down(Enum.KeyCode.LeftControl)
+            local Cam = Services.Workspace.CurrentCamera
+            if Cam then
+                local ok, Look, Right = pcall(function()
+                    return Cam.CFrame.LookVector, Cam.CFrame.RightVector
+                end)
+                if ok and Look then
+                    -- 相机没给 RightVector 的话自己兜一个，免得算术直接报错
+                    if not Right then Right = Vector3.new(1, 0, 0) end
+                    Move = (Look * Fwd) + (Right * Side) + Vector3.new(0, Up, 0)
+                end
+            end
         end
+        FlyBody.Parent = RootPart
+        if Move.Magnitude > 0 then
+            FlyBody.Velocity = Move.Unit * (Options.FlySpeed and Options.FlySpeed.Value or 60)
+        else
+            FlyBody.Velocity = Vector3.new(0, 0, 0)
+        end
+    elseif FlyBody.Parent then
+        FlyBody.Parent = nil
     end
 
     -- 无拉回穿墙：给一个 2.25 的前推（原来速度操控里的 Velocity 模式）
@@ -3199,8 +3269,11 @@ Connections.CreakHud = Services.RunService.RenderStepped:Connect(function()
     if not HUD.Panel then return end
 
     HUD.Panel.Visible = true
-    local T = HudTheme()
     local Now = GetCreakAggression(FindCreak())
+    -- 值没变就不碰 UI（每帧写 Text / Size 也是卡顿来源之一）
+    if HUD.LastShown == Now then return end
+    HUD.LastShown = Now
+    local T = HudTheme()
     if not Now then
         HUD.Value.Text = "--%"
         HUD.Value.TextColor3 = T.Sub
@@ -3327,50 +3400,76 @@ local function OrbitStep(dt)
     end
 end
 
---────────────────────────── 隔墙互动 ──────────────────────────
--- 两件事一起做，缺哪样都能用一半：
---   ① 把场景里所有 ProximityPrompt 的 HoldDuration 压成 0 → 按钮变成秒按（不需要执行器函数）
---   ② 执行器有 fireproximityprompt 时，把「距离范围内」的提示直接从墙这边触发
-local PromptHoldCache = {}
-local PromptSweepLast = 0
+--────────────────────────── 隔墙互动（照搬 Abysall 的互动三件套） ──────────────────────────
+-- Abysall 的做法（原版 1367-1381 行 + 7490-7492 行）：
+--   ① 扫到一个 ProximityPrompt，先把它的三个原值存成属性：
+--        HoldDuration_Old / RequiresLineOfSight_Old / MaxActivationDistance_Old
+--   ② 距离倍率：MaxActivationDistance = 原值 × 倍率
+--   ③ 秒互动：HoldDuration = 0
+--   ④ 隔墙：RequiresLineOfSight = false      ← 真正的「隔墙」就是这一条
+-- 之前我是自己扫范围 + 猛喷 fireproximityprompt，既费性能又不可靠；现在按原版来。
+local PromptReach = { List = {}, Seen = {}, Conn = nil }
 
-local function SetPromptInstant(Prompt)
-    if not Prompt:IsA("ProximityPrompt") then return end
-    if PromptHoldCache[Prompt] == nil then
-        PromptHoldCache[Prompt] = Prompt.HoldDuration
-    end
-    if Prompt.HoldDuration ~= 0 then
-        pcall(function() Prompt.HoldDuration = 0 end)
+local function RememberPrompt(Prompt)
+    local ok = pcall(function() return Prompt:IsA("ProximityPrompt") end)
+    if not ok then return end
+    if PromptReach.Seen[Prompt] then return end
+    PromptReach.Seen[Prompt] = true
+    pcall(function()
+        Prompt:SetAttribute("HoldDuration_Old", Prompt.HoldDuration)
+        Prompt:SetAttribute("RequiresLineOfSight_Old", Prompt.RequiresLineOfSight)
+        Prompt:SetAttribute("MaxActivationDistance_Old", Prompt.MaxActivationDistance)
+    end)
+    PromptReach.List[#PromptReach.List + 1] = Prompt
+end
+
+local function ApplyPromptReach(Prompt)
+    if not Prompt or not Prompt.Parent then return end
+    local OldDist = Prompt:GetAttribute("MaxActivationDistance_Old")
+    local Reach = (Options.WallInteractReach and Options.WallInteractReach.Value) or 10
+    if OldDist then
+        local ok, err = pcall(function() Prompt.MaxActivationDistance = OldDist * Reach end)
+        if not ok then warn("[Msptds] 距离倍率写失败：" .. tostring(err)) end
+    else
+        warn("[Msptds] 这个提示没记住原距离：" .. tostring(Prompt.Name))
     end
 end
 
-local function RestorePrompts()
-    for Prompt, Old in pairs(PromptHoldCache) do
-        if Prompt.Parent then
-            pcall(function() Prompt.HoldDuration = Old end)
-        end
-    end
-    for Prompt in pairs(PromptHoldCache) do
-        PromptHoldCache[Prompt] = nil
+local function ApplyPrompt(Prompt)
+    ApplyPromptReach(Prompt)
+    -- 每条属性单独 pcall：某条被拒也不会把其它几条一起丢掉
+    local ok1, err1 = pcall(function() Prompt.HoldDuration = 0 end)
+    local ok2, err2 = pcall(function() Prompt.RequiresLineOfSight = false end)
+    if not ok1 or not ok2 then
+        warn("[Msptds] 隔墙互动写提示失败：" .. tostring(err1) .. " / " .. tostring(err2))
     end
 end
 
-local function SweepPrompts(Range)
-    local Root = Char.RootPart
-    if not Root then return end
-    local Origin = Root.Position
-    for _, Prompt in ipairs(Services.Workspace:GetDescendants()) do
-        if Prompt:IsA("ProximityPrompt") and Prompt.Enabled and Prompt.Parent then
-            SetPromptInstant(Prompt)
-            if FirePrompt then
-                local Host = Prompt.Parent
-                local Pos = Host and Host.Position
-                if Pos and (Pos - Origin).Magnitude <= Range then
-                    pcall(FirePrompt, Prompt, 0)
-                end
-            end
+local function RestorePrompt(Prompt)
+    pcall(function()
+        Prompt.HoldDuration = Prompt:GetAttribute("HoldDuration_Old")
+        Prompt.RequiresLineOfSight = Prompt:GetAttribute("RequiresLineOfSight_Old")
+        Prompt.MaxActivationDistance = Prompt:GetAttribute("MaxActivationDistance_Old")
+    end)
+end
+
+local function ScanPrompts(Apply)
+    for _, Desc in ipairs(Services.Workspace:GetDescendants()) do
+        if Desc.ClassName == "ProximityPrompt" then
+            RememberPrompt(Desc)
+            if Apply then ApplyPrompt(Desc) end
         end
     end
+end
+
+-- 开门/触发用一个「临时拉长」的版本：把范围拉大、按住归零，然后让游戏自己交互
+local function ReachPrompt(Prompt)
+    if not Prompt then return false end
+    return pcall(function()
+        Prompt.MaxActivationDistance = 1000
+        Prompt.HoldDuration = 0
+        Prompt.RequiresLineOfSight = false
+    end)
 end
 
 --────────────────────────── 自动楼层（楼梯间） ──────────────────────────
@@ -3389,15 +3488,18 @@ local function GetCurrentRooms()
     return Services.Workspace:FindFirstChild("CurrentRooms")
 end
 
--- 开门：把这道门上能找到的提示都触发一遍（锁的解锁提示 / 假提示 / 通用激活提示）
-local function FireDoorPrompt(Door)
-    if not FirePrompt then return end
+-- 原版自动楼层只做两件事：每帧 PivotTo 到门上 + 开一次 DoorReach（让游戏自己去开门）。
+-- 它根本不喷 fireproximityprompt —— 我之前每帧喷一次，又费性能又慢，这里改回原版做法。
+-- 门的提示只拉长一次（按门缓存），不是每帧。
+local AutoFloorDoorReached = nil
+
+local function ReachDoor(Door)
+    if not Door or AutoFloorDoorReached == Door then return end
+    AutoFloorDoorReached = Door
     local Lock = Door:FindFirstChild("Lock")
-    local Prompt = Lock and (Lock:FindFirstChild("UnlockPrompt") or Lock:FindFirstChild("FakePrompt"))
-    Prompt = Prompt or Door:FindFirstChild("ActivateEventPrompt") or Door:FindFirstChild("DoorPrompt")
-    if Prompt then
-        pcall(FirePrompt, Prompt, 0)
-    end
+    ReachPrompt(Lock and (Lock:FindFirstChild("UnlockPrompt") or Lock:FindFirstChild("FakePrompt")))
+    ReachPrompt(Door:FindFirstChild("ActivateEventPrompt"))
+    ReachPrompt(Door:FindFirstChild("DoorPrompt"))
 end
 
 local function StopAutoFloor(reason)
@@ -3488,10 +3590,11 @@ local function StartAutoFloor()
     end
 
     AutoFloorState.Running = true
+    AutoFloorDoorReached = nil
     InstallTeleportHook()
     Connections.AutoFloor = Services.RunService.Heartbeat:Connect(function()
         local ok, err = xpcall(AutoFloorStep, Trace)
-        if not ok then warn("[DoorsESPX] 自动楼层出错：" .. tostring(err)) end
+        if not ok then warn("[Msptds] 自动楼层出错：" .. tostring(err)) end
     end)
     return true
 end
@@ -3532,6 +3635,7 @@ AutoFloorStep = function()
         end
         local Collision = ExitDoor:FindFirstChild("Collision")
         local EnterPrompt = Collision and Collision:FindFirstChild("EnterPrompt")
+        ReachPrompt(EnterPrompt)
         if EnterPrompt and FirePrompt then
             pcall(FirePrompt, EnterPrompt, 0)
         end
@@ -3545,7 +3649,7 @@ AutoFloorStep = function()
         if Character then
             pcall(function() Character:PivotTo(Door:GetPivot()) end)
         end
-        FireDoorPrompt(Door)
+        ReachDoor(Door)
     end
 end
 
@@ -3623,6 +3727,10 @@ end
 
 --────────────────────────── 新功能控件 ──────────────────────────
 
+-- 飞行
+Options.FlySpeed = Mini.Slider(tabChar.Page, {
+    Key = "char.flyspeed", Text = "飞行速度", Min = 20, Max = 300, Default = 60, Rounding = 0 })
+
 -- 无加速度
 Toggles.NoAccelerationToggle = Mini.Toggle(tabChar.Page, L(
     "char.noaccel", "无加速度", "No Acceleration",
@@ -3645,39 +3753,40 @@ Toggles.OrbitToggle = Mini.Toggle(tabChar.Page, L(
     "char.orbit", "物品环绕", "Orbit Drops",
     "Orbits every item you dropped around your character (same as the original addon).",
     "把你掉在地上的东西按一个圈均匀绕在角色周围转（照抄 tplays 插件的「环绕掉落物」）。"))
+Mini.Label(tabChar.Page, L("char.orbit.note",
+    "只环绕「自己掉的」东西（掉落物上 PlayerName 属性等于你的名字），别人的不碰。关掉后东西停在原地。",
+    "Only your own dropped items are orbited (PlayerName attribute equals your name). Turning it off leaves them where they are."))
 
 Mini.Divider(tabChar.Page)
 
--- 隔墙互动
-Options.WallInteractRange = Mini.Slider(tabChar.Page, {
-    Key = "char.wallrange", Text = "隔墙互动距离", Min = 5, Max = 60, Default = 20, Rounding = 0 })
+-- 隔墙互动（照搬 Abysall 的互动三件套）
+Options.WallInteractReach = Mini.Slider(tabChar.Page, {
+    Key = "char.wallreach", Text = "互动距离倍率", Min = 1, Max = 30, Default = 10, Rounding = 0 })
 Toggles.WallInteractToggle = Mini.Toggle(tabChar.Page, L(
     "char.wall", "隔墙互动", "Interact Through Walls",
-    "Zeroes every prompt's hold time and fires prompts through walls (needs fireproximityprompt).",
-    "把场景里所有按钮的按住时间压成 0，并且隔着墙触发范围内的提示（要执行器有 fireproximityprompt）。"))
+    "Abysall's trio: reach multiplier, instant hold, and no line-of-sight check.",
+    "照搬 Abysall 的互动三件套：距离倍率 + 秒互动 + 关掉视线检测。"))
 
-local PromptAddedConn
-
-local function SetPromptListener(on)
-    if on then
-        if not PromptAddedConn then
-            PromptAddedConn = Services.Workspace.DescendantAdded:Connect(function(Inst)
-                if Inst:IsA("ProximityPrompt") then SetPromptInstant(Inst) end
-            end)
-        end
-    elseif PromptAddedConn then
-        pcall(function() PromptAddedConn:Disconnect() end)
-        PromptAddedConn = nil
-    end
-end
+-- 距离倍率变了就重算一遍（不用每帧扫）
+Options.WallInteractReach:OnChanged(function()
+    if not Toggles.WallInteractToggle.Value then return end
+    for _, Prompt in ipairs(PromptReach.List) do ApplyPromptReach(Prompt) end
+end)
 
 Toggles.WallInteractToggle:OnChanged(function(Value)
     if Value then
-        SetPromptListener(true)
-        SweepPrompts(Options.WallInteractRange.Value)
+        ScanPrompts(true)
+        -- 常驻一个监听，把后来生成的提示也记下来（很便宜，只有新增实例时才跑）
+        if not PromptReach.Conn then
+            PromptReach.Conn = Services.Workspace.DescendantAdded:Connect(function(Inst)
+                if Inst.ClassName == "ProximityPrompt" then
+                    RememberPrompt(Inst)
+                    if Toggles.WallInteractToggle.Value then ApplyPrompt(Inst) end
+                end
+            end)
+        end
     else
-        SetPromptListener(false)
-        RestorePrompts()
+        for _, Prompt in ipairs(PromptReach.List) do RestorePrompt(Prompt) end
     end
 end)
 
@@ -3712,9 +3821,21 @@ Toggles.AutoFloorToggle:OnChanged(function(Value)
     AutoFloorStatus.Text = AutoFloorStatusText()
 end)
 
+Mini.Label(tabAuto.Page, L("auto.note",
+    "过了第 98 门才开始找「StairwellExitDoor」，看到它就直接传过去触发出口提示 = 通关。"
+    .. "触发条件是「看到出口门」而不是写死门号，所以新版 100 门楼梯间、旧版 200 门都能过。"
+    .. "开门不靠 DoorReach，是直接把门的提示 fireproximityprompt 过去，所以需要执行器有这个函数。",
+    "After door 98 it starts looking for StairwellExitDoor; seeing it teleports you there and fires the exit prompt. "
+    .. "The trigger is the exit door itself, not a hard-coded door number, so both the new 100-door stairwell and the old 200-door one work. "
+    .. "Doors are opened by firing their prompt directly instead of mspaint's DoorReach, so fireproximityprompt is required."))
 
 -- 保存配置
 Mini.Divider(tabSet.Page)
+Mini.Label(tabSet.Page, L("set.cfg.note",
+    "配置存在执行器的 WindUI/DoorsESPX/config/ 下（靠 WindUI 自带的配置系统，按控件的 Flag 认值）。"
+    .. "打开游戏时如果已经有存档会自动读一次。执行器没有 writefile 就用不了。",
+    "Configs live in WindUI/DoorsESPX/config/ and use WindUI's built-in config system (keyed by each control's Flag). "
+    .. "An existing save is loaded on injection. Needs the executor's writefile."))
 Mini.Button(tabSet.Page, L("set.cfg.save", "保存配置", "Save Config")):OnClick(function()
     SaveConfig()
 end)
@@ -3744,17 +3865,7 @@ end)
 Connections.Orbit = Services.RunService.Heartbeat:Connect(function(dt)
     if not Toggles.OrbitToggle.Value then return end
     local ok, err = xpcall(OrbitStep, Trace, dt)
-    if not ok then warn("[DoorsESPX] 物品环绕出错：" .. tostring(err)) end
-end)
-
--- 隔墙互动：每 0.2 秒扫一次附近的提示
-Connections.WallInteract = Services.RunService.Heartbeat:Connect(function()
-    if not Toggles.WallInteractToggle.Value then return end
-    local now = os.clock()
-    if now - PromptSweepLast < 0.2 then return end
-    PromptSweepLast = now
-    local ok, err = xpcall(SweepPrompts, Trace, Options.WallInteractRange.Value)
-    if not ok then warn("[DoorsESPX] 隔墙互动出错：" .. tostring(err)) end
+    if not ok then warn("[Msptds] 物品环绕出错：" .. tostring(err)) end
 end)
 
 -- 启动时自动读一次存档（有的话）
@@ -3792,6 +3903,9 @@ function Module.Unload()
     if ManipulateBody then
         pcall(function() ManipulateBody:Destroy() end)
     end
+    if FlyBody then
+        pcall(function() FlyBody:Destroy() end)
+    end
 
     if Toggles.AmbientToggle.Value or Toggles.RemoveCameraFog.Value then
         pcall(function()
@@ -3809,7 +3923,7 @@ function Module.Unload()
     if getgenv()[STATE_KEY] == Module then
         getgenv()[STATE_KEY] = nil
     end
-    print("[DoorsESPX] 已卸载")
+    print("[Msptds] 已卸载")
 end
 
 -- 测试 / 调试用：暴露内部表（不改任何行为）
@@ -3821,11 +3935,11 @@ Module.Lang = Lang
 
 getgenv()[STATE_KEY] = Module
 
-print("[DoorsESPX] 载入完成 · ESP 开关默认全关（同原版）")
-print("[DoorsESPX] " .. tostring(UIKeybind.Key.Name) .. " 开关界面 · "
+print("[Msptds] 载入完成 · ESP 开关默认全关（同原版）")
+print("[Msptds] " .. tostring(UIKeybind.Key.Name) .. " 开关界面 · "
     .. tostring(FovKeybind.Key.Name) .. " 视野 · "
     .. tostring(NoclipKeybind.Key.Name) .. " 穿墙 · "
     .. tostring(NoPullbackKeybind.Key.Name) .. " 无拉回穿墙")
-print("[DoorsESPX] 卸载 getgenv().DoorsESPX.Unload()")
+print("[Msptds] 卸载 getgenv().DoorsESPX.Unload()")
 
 return Module
