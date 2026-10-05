@@ -49,35 +49,6 @@ if getgenv()[STATE_KEY] then
     pcall(function() getgenv()[STATE_KEY].Unload() end)
 end
 
-local function RandomString(n)
-    local pool = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local out, len = {}, #pool
-    for i = 1, (n or 20) do
-        local k = math.random(1, len)
-        out[i] = pool:sub(k, k)
-    end
-    return table.concat(out)
-end
-
-local function Create(class, props, parent)
-    local inst = Instance.new(class)
-    if props then
-        for k, v in pairs(props) do
-            inst[k] = v
-        end
-    end
-    if parent then inst.Parent = parent end
-    return inst
-end
-
-local function GetHiddenUI()
-    if gethui then
-        local ok, ui = pcall(gethui)
-        if ok and ui then return ui end
-    end
-    return Services.CoreGui
-end
-
 --=====================================================================
 -- 0.5 界面多语言（只翻译界面文字；ESP 标签保持游戏原版名称）
 --=====================================================================
@@ -160,19 +131,6 @@ end
 --=====================================================================
 -- 1. 自建 UI 库
 --=====================================================================
-local Theme = {
-    Bg       = Color3.fromRGB(18, 19, 23),
-    Panel    = Color3.fromRGB(26, 28, 34),
-    Row      = Color3.fromRGB(32, 35, 42),
-    RowHover = Color3.fromRGB(40, 44, 53),
-    Stroke   = Color3.fromRGB(48, 52, 62),
-    Text     = Color3.fromRGB(232, 236, 244),
-    SubText  = Color3.fromRGB(140, 148, 164),
-    Accent   = Color3.fromRGB(0, 200, 255),
-    Font     = Enum.Font.Gotham,
-    FontBold = Enum.Font.GothamBold,
-}
-
 --=====================================================================
 -- 1. WindUI-Boreal 引导
 --    UI 库换成你 GitHub 上那份（和 suif.lua 用的同一个地址、同一个版本号）
@@ -2229,7 +2187,7 @@ for i = 1, 8 do BuildESPEntry(ESPOrder[i]) end
 --───────────────── 任务（闸门单独成类） ─────────────────
 -- 闸门原来跟购物车挤在 Misc 里，现在单独挑出来，颜色也换掉了
 Mini.Divider(tabESP.Page)
-Mini.Label(tabESP.Page, L("cat.task", "任务", "Tasks"), Theme.Accent)
+Mini.Label(tabESP.Page, L("cat.task", "任务", "Tasks"))
 Toggles.TaskESPToggle = Mini.Toggle(tabESP.Page, L(
     "esp.task", "闸门", "Garage Door",
     "Highlights the garage door. The original kept it inside Misc, next to the shopping cart.",
