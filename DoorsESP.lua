@@ -44,6 +44,14 @@ local TweenService      = Services.TweenService
 local ReplicatedStorage = Services.ReplicatedStorage
 local LocalPlayer       = Players.LocalPlayer
 
+-- 执行器的 fireproximityprompt。隔墙互动、自动楼层、无拉回穿墙都要用它，
+-- 所以在这里就取好（后面几节都靠这个局部变量）。
+local FirePrompt
+do
+    local ok, fn = pcall(function() return getgenv().fireproximityprompt end)
+    if ok and type(fn) == "function" then FirePrompt = fn end
+end
+
 local STATE_KEY = "DoorsESPX"
 if getgenv()[STATE_KEY] then
     pcall(function() getgenv()[STATE_KEY].Unload() end)
@@ -203,7 +211,37 @@ end
 
 -- 给控件套一个代理：读 .Value / .Key / .Selected 走取值函数，
 -- 调 :Set / :SetValue / :OnChanged 走下面这套方法，其余读写原样转给 WindUI 的控件。
+-- WindUI 的 Desc（说明文字）在长文案下会溢出、不换行。
+-- 元素建完之后把它那个 TextLabel 找出来，强制打开自动换行。
+local function FixDescWrap(el)
+    local desc = el and el.Desc
+    if type(desc) ~= "string" or desc == "" then return end
+    local seen = {}
+    local function Walk(node, depth)
+        if depth > 6 or type(node) ~= "table" or seen[node] then return false end
+        seen[node] = true
+        if node.ClassName == "TextLabel" and node.Text == desc then
+            pcall(function()
+                node.TextWrapped = true
+                node.TextTruncate = Enum.TextTruncate.None
+                node.TextYAlignment = Enum.TextYAlignment.Top
+            end)
+            return true
+        end
+        for k, v in pairs(node) do
+            if k ~= "Parent" and k ~= "Window" and k ~= "Tab"
+                and k ~= "ElementTable" and type(v) == "table" then
+                if Walk(v, depth + 1) then return true end
+            end
+        end
+        return false
+    end
+    -- 真库的 Desc 挂在 element.<XxxFrame>.UIElements.Desc 上，所以从整个元素开始找
+    Walk(el, 0)
+end
+
 local function MakeProxy(el, values, setters, methods)
+    FixDescWrap(el)
     local t = { __el = el }
     return setmetatable(t, {
         __index = function(_, k)
@@ -387,6 +425,12 @@ function Mini.ColorPicker(parent, cfg)
         Callback = Tracker(shadow, function(nv) v = nv end),
     })
 
+    -- WindUI 取色器的颜色 setter 是 :Update(Color3[, 透明度])（它自己的配置系统就用这个）。
+    -- 建完之后再补一次，色块和内部状态才会跟默认色对上；不补的话新库里色块可能是白的。
+    if type(el.Update) == "function" then
+        SafeCall(function() return el:Update(v) end)
+    end
+
     return MakeProxy(el, {
         Value = function() return v end,
     }, {
@@ -562,6 +606,14 @@ function Mini.Label(parent, text, color)
     local function Resolve()
         if found and found.Parent ~= nil then return found end
         found = FindTextLabel(el.UIElements or el, 0)
+        if found then
+            -- 长提示要换行，不然会顶出 UI 边界
+            pcall(function()
+                found.TextWrapped = true
+                found.TextTruncate = Enum.TextTruncate.None
+                found.TextYAlignment = Enum.TextYAlignment.Top
+            end)
+        end
         return found
     end
 
@@ -2368,19 +2420,18 @@ local AnticheatStatus = Mini.Label(tabBypass.Page, L("by.anti.off",
     "当前状态：未关闭反作弊", "Status: anticheat still active"))
 Lang.BindFn(AnticheatStatus, AnticheatText)
 Mini.Divider(tabBypass.Page)
-Toggles.VelocityManipulationToggle = Mini.Toggle(tabBypass.Page, L(
-    "by.vel", "速度操控（防拉回）", "Velocity Manipulation",
-    "Moves your character forward slowly, mitigating the game's anti-noclip.",
-    "持续往前推，让游戏的反穿墙判定误以为你在正常移动。"))
-Options.VelocityManipulationMode = Mini.Dropdown(tabBypass.Page, {
-    Key = "by.velmode", Text = "操控方式", Values = { "Velocity", "Pivot" }, Default = 1 })
-local VelocityKeybind = Mini.Keybind(tabBypass.Page, {
-    Key = "by.velkey", Text = "速度操控快捷键", Default = Enum.KeyCode.V })
-Mini.Label(tabBypass.Page, L("by.vel.note",
-    "Velocity：给角色挂一个 2.25 的前向速度，最稳，推荐。"
-    .. "Pivot：直接往前 PivotTo 2560 studs（穿墙用），Fools / OldHotel 层原版会跳过。",
-    "Velocity: a constant 2.25 forward velocity, the stable option. "
-    .. "Pivot: PivotTo 2560 studs forward each frame (wall phasing); skipped on Fools / OldHotel like the original."))
+Toggles.NoPullbackNoclipToggle = Mini.Toggle(tabBypass.Page, L(
+    "by.nopull", "无拉回穿墙", "No-Pullback Noclip",
+    "Uses the addon's chair trick to replace the anticheat, plus noclip and a slow forward push.",
+    "抄 tplays 插件的椅子法把反作弊顶掉，再配合穿墙 + 缓慢前推，走过去不会被拉回。"))
+local NoPullbackKeybind = Mini.Keybind(tabBypass.Page, {
+    Key = "by.nopullkey", Text = "无拉回穿墙快捷键", Default = Enum.KeyCode.V })
+Mini.Label(tabBypass.Page, L("by.nopull.note",
+    "做法照抄 tplays 插件的「反作弊绕过」：先对 CartControl 发一次遥控，再每帧朝椅子的 SeatPrompt 触发一次，"
+    .. "让服务器认为你坐在椅子上（反作弊就不再拉你）；同时把角色 CanCollide 关掉实现穿墙，再给一个 2.25 的前推。"
+    .. "需要执行器有 fireproximityprompt，且当前房间附近有椅子 / 购物车。",
+    "Same as the addon's anticheat bypass: fire CartControl once, then poke the chair's SeatPrompt every frame so the server thinks you are seated (the anticheat stops pulling you back), with noclip and a 2.25 forward push. "
+    .. "Needs fireproximityprompt and a chair / cart nearby."))
 
 --────────────────────────── Creak 愤怒值（右下角） ──────────────────────────
 Toggles.CreakAggressionMeter = Mini.Toggle(tabCreak.Page, L(
@@ -2388,10 +2439,10 @@ Toggles.CreakAggressionMeter = Mini.Toggle(tabCreak.Page, L(
     "Shows Creak's aggression in the bottom-right corner.",
     "在屏幕右下角常驻显示 Creak 的愤怒值。"))
 Mini.Label(tabCreak.Page, L("creak.note",
-    "这块是独立的 HUD：固定贴在屏幕右下角，用 Drawing 画的，"
+    "这块是独立的 HUD：固定贴在屏幕右下角，配色直接取 WindUI 的主题表，"
     .. "完全不受 ESP 设置（透明度 / 淡出 / 渲染上限 / 文字开关）影响。"
     .. "Creak 没出现时显示 --%。读的是 CreakGraph 动画轨道的 Aggression 参数。",
-    "This is a standalone HUD pinned to the bottom-right corner, drawn with Drawing, so none of the "
+    "This is a standalone HUD pinned to the bottom-right corner, styled with WindUI's own theme, so none of the "
     .. "ESP settings (transparency / fade / render limit / text toggle) affect it. Shows --% while Creak is absent. "
     .. "The value comes from the CreakGraph animation track's Aggression parameter."))
 
@@ -2887,6 +2938,108 @@ Toggles.SpeedBypassToggle:OnChanged(function(Value)
     if not Value then ResetSpeed() end
 end)
 
+--────────────────────────── 无拉回穿墙：椅子法（抄 tplays 插件的反作弊绕过） ──────────────────────────
+-- 插件原文：
+--   CartControl:FireServer() 然后循环 fireproximityprompt(collider.SeatPrompt)
+--   等 Character 出现 SeatedInSeat 属性 = 服务器认为你坐上了椅子 → 反作弊判定被顶掉
+--   Heartbeat 里把椅子钉在角色身上、Collider 速度拉高
+-- 我们这边把「钉椅子」放在 Heartbeat，坐椅子的判定靠持续触发 SeatPrompt。
+local ChairBypass = { Target = nil, Collider = nil }
+
+local function StopChairBypass()
+    ChairBypass.Target, ChairBypass.Collider = nil, nil
+end
+
+local function FindSeatTarget()
+    local Root = Char.RootPart
+    local Rooms = Services.Workspace:FindFirstChild("CurrentRooms")
+    if not Rooms then return nil end
+    local Best, BestDist = nil, nil
+    for _, Room in ipairs(Rooms:GetChildren()) do
+        for _, Obj in ipairs(Room:GetChildren()) do
+            local Name = Obj.Name
+            if string.find(Name, "OfficeChair") or Name == "ShoppingCart" or Name == "TV_Stand" then
+                local Base = Obj:FindFirstChild("Base")
+                local Collider = Obj:FindFirstChild("Collider")
+                if Base and Collider and Collider:FindFirstChild("SeatPrompt") then
+                    local Pos = Base.Position
+                    local Dist = (Root and Pos) and (Pos - Root.Position).Magnitude or 0
+                    if not BestDist or Dist < BestDist then Best, BestDist = Obj, Dist end
+                end
+            end
+        end
+    end
+    return Best
+end
+
+local function StartChairBypass()
+    StopChairBypass()
+    if not FirePrompt then
+        pcall(function()
+            Mini.WindUI:Notify({
+                Title = "执行器没有 fireproximityprompt，椅子法用不了",
+                Duration = 5, Icon = "warning",
+            })
+        end)
+        return false
+    end
+    local Target = FindSeatTarget()
+    if not Target then
+        pcall(function()
+            Mini.WindUI:Notify({
+                Title = "附近没找到椅子 / 购物车，椅子法用不了",
+                Duration = 5, Icon = "warning",
+            })
+        end)
+        return false
+    end
+
+    ChairBypass.Target = Target
+    ChairBypass.Collider = Target:FindFirstChild("Collider")
+
+    local Remotes = GetRemotesFolder()
+    local CartControl = Remotes and Remotes:FindFirstChild("CartControl")
+    if CartControl then
+        pcall(function() CartControl:FireServer() end)
+    end
+
+    local SeatPrompt = ChairBypass.Collider and ChairBypass.Collider:FindFirstChild("SeatPrompt")
+    if not SeatPrompt then return false end
+
+    pcall(function()
+        Mini.WindUI:Notify({ Title = "反作弊已被绕过（椅子法）", Duration = 3, Icon = "check" })
+    end)
+    return true
+end
+
+-- 每帧做三件事（插件的 task.wait 循环就是这个节奏，这里挂 Heartbeat 更省一个线程）：
+--   ① 朝椅子的 SeatPrompt 触发一次，让服务器持续认为你坐着
+--   ② 把 Collider 速度拉高
+--   ③ 把椅子钉在角色身上
+Connections.NoPullbackChair = Services.RunService.Heartbeat:Connect(function()
+    if not Toggles.NoPullbackNoclipToggle.Value then return end
+    local Target, Character = ChairBypass.Target, Char.Character
+    if not (Target and Character and Target.Parent) then return end
+
+    local Collider = ChairBypass.Collider
+    local SeatPrompt = Collider and Collider:FindFirstChild("SeatPrompt")
+    if SeatPrompt and FirePrompt then
+        pcall(FirePrompt, SeatPrompt, 0)
+    end
+    if Collider then
+        pcall(function() Collider.AssemblyLinearVelocity = Vector3.new(0, 10000, 0) end)
+    end
+    pcall(function() Target:PivotTo(Character:GetPivot()) end)
+end)
+
+Toggles.NoPullbackNoclipToggle:OnChanged(function(Value)
+    if Value then
+        StartChairBypass()
+    else
+        StopChairBypass()
+    end
+end)
+
 Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
     local Character, Humanoid, RootPart = Char.Character, Char.Humanoid, Char.RootPart
     if not Character or not Humanoid or not RootPart or not RootPart.Parent then return end
@@ -2908,31 +3061,21 @@ Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
         end
     end
 
-    local Noclip = Toggles.NoclipToggle.Value
-    local VelocityManip = Toggles.VelocityManipulationToggle.Value
-
-    if Noclip or VelocityManip then
+    -- 无拉回穿墙也要把碰撞关掉，不然穿不过去
+    local Noclip = Toggles.NoclipToggle.Value or Toggles.NoPullbackNoclipToggle.Value
+    if Noclip then
         RootPart.CanCollide = false
-        if Noclip then
-            for _, Part in ipairs(Character:GetChildren()) do
-                if Part:IsA("BasePart") then Part.CanCollide = false end
-            end
+        for _, Part in ipairs(Character:GetDescendants()) do
+            if Part:IsA("BasePart") then Part.CanCollide = false end
         end
     end
 
-    if VelocityManip and Options.VelocityManipulationMode.Value == "Velocity" then
+    -- 无拉回穿墙：给一个 2.25 的前推（原来速度操控里的 Velocity 模式）
+    if Toggles.NoPullbackNoclipToggle.Value then
         ManipulateBody.Parent = RootPart
         ManipulateBody.Velocity = RootPart.CFrame.LookVector * 2.25
     elseif ManipulateBody.Parent then
         ManipulateBody.Parent = nil
-    end
-
-    if VelocityManip and Options.VelocityManipulationMode.Value == "Pivot"
-        and Floor ~= "Fools" and Floor ~= "OldHotel" then
-        local cam = Services.Workspace.CurrentCamera
-        if cam then
-            Character:PivotTo(cam:GetPivot() * CFrame.new(0, 0, 2560))
-        end
     end
 end)
 
@@ -3012,63 +3155,137 @@ Toggles.DisableAnticheat:OnChanged(function(Value)
 end)
 
 --=====================================================================
--- 11. Creak 愤怒值 —— 屏幕右下角常驻 HUD（Drawing，与 ESP 设置无关）
+-- 11. Creak 愤怒值 —— 屏幕右下角常驻 HUD（WindUI 配色，与 ESP 设置无关）
 --=====================================================================
-local CreakCamera = Services.Workspace.CurrentCamera
-local HUD = {
-    Drawings = {},
-    Panel = nil, Title = nil, BarBG = nil, BarFill = nil,
-}
+local HUD = { Gui = nil, Panel = nil, Title = nil, Value = nil, BarBG = nil, BarFill = nil }
 
-local function CreateHudDrawing(kind)
-    local d = Drawing.new(kind)
-    table.insert(HUD.Drawings, d)
-    return d
+-- HUD 的配色直接读 WindUI 的主题表，跟窗口是同一套颜色（不是自己拍脑袋配的）
+local function HudTheme()
+    local Dark = Mini.WindUI and Mini.WindUI.Themes and Mini.WindUI.Themes.Dark or nil
+    return {
+        Bg     = (Dark and Dark.Background) or Color3.fromRGB(16, 16, 16),
+        Text   = (Dark and Dark.Text) or Color3.fromRGB(255, 255, 255),
+        Sub    = (Dark and Dark.Placeholder) or Color3.fromRGB(122, 122, 122),
+        Accent = (Dark and Dark.Primary) or Color3.fromRGB(0, 145, 255),
+        Track  = (Dark and Dark.Button) or Color3.fromRGB(82, 82, 91),
+        Stroke = (Dark and Dark.Outline) or Color3.fromRGB(255, 255, 255),
+    }
 end
 
+-- WindUI 用的就是 GothamSSm，这里跟着用同一款字
+local function HudFont(weight)
+    if Font and Font.new then
+        local ok, f = pcall(Font.new, "rbxasset://fonts/families/GothamSSm.json",
+            weight or Enum.FontWeight.SemiBold)
+        if ok and f then return f end
+    end
+    if weight == Enum.FontWeight.Bold then return Enum.Font.GothamBold end
+    return Enum.Font.Gotham
+end
+
+local function HudParent()
+    if gethui then
+        local ok, ui = pcall(gethui)
+        if ok and ui then return ui end
+    end
+    return Services.CoreGui
+end
+
+Lang.Strings.zh["creak.hud"] = "Creak · 愤怒值"
+Lang.Strings.en["creak.hud"] = "Creak · Aggression"
+
 local function BuildHud()
-    if HUD.Title then return end
+    if HUD.Panel then return end
+    local T = HudTheme()
 
-    HUD.Panel = CreateHudDrawing("Square")
-    HUD.Panel.Filled = true
-    HUD.Panel.Color = Color3.fromRGB(12, 14, 18)
-    HUD.Panel.Transparency = 0.35
-    HUD.Panel.Visible = false
+    local Gui = Instance.new("ScreenGui")
+    Gui.Name = "DoorsESPX_Creak"
+    Gui.ResetOnSpawn = false
+    Gui.IgnoreGuiInset = true
+    Gui.DisplayOrder = 999
+    Gui.Parent = HudParent()
+    HUD.Gui = Gui
 
-    HUD.Title = CreateHudDrawing("Text")
-    HUD.Title.Text = "Aggression --%"
-    HUD.Title.Size = 15
-    HUD.Title.Font = (Drawing.Fonts and (Drawing.Fonts.Plex or Drawing.Fonts.UI)) or 1
-    HUD.Title.Color = Color3.fromRGB(255, 255, 255)
-    HUD.Title.Center = false
-    HUD.Title.Outline = true
-    HUD.Title.Visible = false
+    local Panel = Instance.new("Frame")
+    Panel.Name = "CreakPanel"
+    Panel.AnchorPoint = Vector2.new(1, 1)
+    Panel.Position = UDim2.new(1, -20, 1, -20)
+    Panel.Size = UDim2.fromOffset(232, 58)
+    Panel.BackgroundColor3 = T.Bg
+    Panel.BackgroundTransparency = 0.08
+    Panel.BorderSizePixel = 0
+    Panel.Visible = false
+    Panel.Parent = Gui
+    HUD.Panel = Panel
 
-    HUD.BarBG = CreateHudDrawing("Square")
-    HUD.BarBG.Size = Vector2.new(200, 8)
-    HUD.BarBG.Filled = true
-    HUD.BarBG.Color = Color3.fromRGB(58, 58, 64)
-    HUD.BarBG.Transparency = 0.15
-    HUD.BarBG.Visible = false
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Panel
 
-    HUD.BarFill = CreateHudDrawing("Square")
-    HUD.BarFill.Size = Vector2.new(0, 8)
-    HUD.BarFill.Filled = true
-    HUD.BarFill.Visible = false
+    local Stroke = Instance.new("UIStroke")
+    Stroke.Color = T.Stroke
+    Stroke.Transparency = 0.82
+    Stroke.Thickness = 1
+    Stroke.Parent = Panel
+
+    local Title = Instance.new("TextLabel")
+    Title.Text = Lang.T("creak.hud") or "Creak"
+    Title.FontFace = HudFont(Enum.FontWeight.SemiBold)
+    Title.TextSize = 12
+    Title.TextColor3 = T.Sub
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.BackgroundTransparency = 1
+    Title.Position = UDim2.new(0, 12, 0, 8)
+    Title.Size = UDim2.new(1, -24, 0, 16)
+    Title.Parent = Panel
+    HUD.Title = Title
+
+    local Value = Instance.new("TextLabel")
+    Value.Text = "--%"
+    Value.FontFace = HudFont(Enum.FontWeight.Bold)
+    Value.TextSize = 20
+    Value.TextColor3 = T.Text
+    Value.TextXAlignment = Enum.TextXAlignment.Right
+    Value.BackgroundTransparency = 1
+    Value.AnchorPoint = Vector2.new(1, 0)
+    Value.Position = UDim2.new(1, -12, 0, 6)
+    Value.Size = UDim2.new(1, -24, 0, 24)
+    Value.Parent = Panel
+    HUD.Value = Value
+
+    local BarBG = Instance.new("Frame")
+    BarBG.Name = "BarBG"
+    BarBG.BackgroundColor3 = T.Track
+    BarBG.BorderSizePixel = 0
+    BarBG.Position = UDim2.new(0, 12, 0, 38)
+    BarBG.Size = UDim2.new(1, -24, 0, 6)
+    BarBG.Parent = Panel
+    HUD.BarBG = BarBG
+
+    local BarCorner = Instance.new("UICorner")
+    BarCorner.CornerRadius = UDim.new(1, 0)
+    BarCorner.Parent = BarBG
+
+    local BarFill = Instance.new("Frame")
+    BarFill.Name = "BarFill"
+    BarFill.BackgroundColor3 = T.Accent
+    BarFill.BorderSizePixel = 0
+    BarFill.Size = UDim2.new(0, 0, 1, 0)
+    BarFill.Parent = BarBG
+    HUD.BarFill = BarFill
+
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    FillCorner.Parent = BarFill
 end
 
 local function HideHud()
-    if not HUD.Title then return end
-    HUD.Panel.Visible = false
-    HUD.Title.Visible = false
-    HUD.BarBG.Visible = false
-    HUD.BarFill.Visible = false
+    if HUD.Panel then HUD.Panel.Visible = false end
 end
 
 local function DestroyHud()
-    for _, d in ipairs(HUD.Drawings) do pcall(function() d:Remove() end) end
-    HUD.Drawings = {}
-    HUD.Panel, HUD.Title, HUD.BarBG, HUD.BarFill = nil, nil, nil, nil
+    if HUD.Gui then pcall(function() HUD.Gui:Destroy() end) end
+    HUD.Gui, HUD.Panel, HUD.Title, HUD.Value, HUD.BarBG, HUD.BarFill = nil, nil, nil, nil, nil, nil
 end
 
 -- 读 CreakGraph 动画轨道的 Aggression 参数（原版方法）
@@ -3106,11 +3323,8 @@ end
 
 Toggles.CreakAggressionMeter:OnChanged(function(Value)
     if Value then
-        if not Drawing then
-            warn("[DoorsESPX] 执行器没有 Drawing API，Creak 愤怒值 HUD 无法显示")
-            return
-        end
         BuildHud()
+        if HUD.Panel then HUD.Panel.Visible = true end
     else
         HideHud()
     end
@@ -3118,43 +3332,22 @@ end)
 
 Connections.CreakHud = Services.RunService.RenderStepped:Connect(function()
     if not Toggles.CreakAggressionMeter.Value then return end
-    if not HUD.Title then return end
-
-    if not CreakCamera or not CreakCamera.Parent then
-        CreakCamera = Services.Workspace.CurrentCamera
-        if not CreakCamera then return end
-    end
-
-    local Viewport = CreakCamera.ViewportSize
-    local W, H = 240, 52
-    local X = Viewport.X - W - 20
-    local Y = Viewport.Y - H - 20
-
-    HUD.Panel.Position = Vector2.new(X, Y)
-    HUD.Panel.Size = Vector2.new(W, H)
-    HUD.Title.Position = Vector2.new(X + 12, Y + 8)
-    HUD.BarBG.Position = Vector2.new(X + 12, Y + 32)
-    HUD.BarBG.Size = Vector2.new(W - 24, 8)
-    HUD.BarFill.Position = HUD.BarBG.Position
+    if not HUD.Panel then return end
 
     HUD.Panel.Visible = true
-    HUD.Title.Visible = true
-    HUD.BarBG.Visible = true
-
-    local Value = GetCreakAggression(FindCreak())
-    if not Value then
-        HUD.Title.Text = "Aggression --%"
-        HUD.Title.Color = Color3.fromRGB(190, 190, 190)
-        HUD.BarFill.Visible = false
+    local T = HudTheme()
+    local Now = GetCreakAggression(FindCreak())
+    if not Now then
+        HUD.Value.Text = "--%"
+        HUD.Value.TextColor3 = T.Sub
+        HUD.BarFill.Size = UDim2.new(0, 0, 1, 0)
         return
     end
 
-    HUD.Title.Text = "Aggression " .. math.floor(Value * 100 + 0.5) .. "%"
-    HUD.Title.Color = Color3.fromRGB(255, 255, 255)
-    HUD.BarFill.Size = Vector2.new((W - 24) * Value, 8)
-    HUD.BarFill.Color = Color3.fromRGB(70, 220, 100)
-        :Lerp(Color3.fromRGB(255, 55, 55), Value)
-    HUD.BarFill.Visible = true
+    HUD.Value.Text = tostring(math.floor(Now * 100 + 0.5)) .. "%"
+    HUD.Value.TextColor3 = T.Text
+    HUD.BarFill.Size = UDim2.new(Now, 0, 1, 0)
+    HUD.BarFill.BackgroundColor3 = T.Accent:Lerp(Color3.fromRGB(255, 55, 55), Now)
 end)
 
 --=====================================================================
@@ -3169,15 +3362,11 @@ Connections.Input = Services.UserInputService.InputBegan:Connect(function(input,
     if input.KeyCode == NoclipKeybind.Key then
         Toggles.NoclipToggle:Set(not Toggles.NoclipToggle.Value)
     end
-    if input.KeyCode == VelocityKeybind.Key then
-        Toggles.VelocityManipulationToggle:Set(
-            not Toggles.VelocityManipulationToggle.Value)
+    if input.KeyCode == NoPullbackKeybind.Key then
+        Toggles.NoPullbackNoclipToggle:Set(
+            not Toggles.NoPullbackNoclipToggle.Value)
     end
 end)
-
-if not Drawing then
-    warn("[DoorsESPX] 你的执行器没有 Drawing API，Creak 愤怒值 HUD 不会显示（原版也是用 Drawing）")
-end
 
 --=====================================================================
 -- 13. 新功能：无加速度 / 物品环绕 / 隔墙互动 / 自动楼层 / 保存配置
@@ -3278,14 +3467,6 @@ end
 -- 两件事一起做，缺哪样都能用一半：
 --   ① 把场景里所有 ProximityPrompt 的 HoldDuration 压成 0 → 按钮变成秒按（不需要执行器函数）
 --   ② 执行器有 fireproximityprompt 时，把「距离范围内」的提示直接从墙这边触发
-local FirePrompt = nil
-do
-    local ok, fn = pcall(function() return getgenv().fireproximityprompt end)
-    if ok and type(fn) == "function" then
-        FirePrompt = fn
-    end
-end
-
 local PromptHoldCache = {}
 local PromptSweepLast = 0
 
@@ -3760,6 +3941,7 @@ function Module.Unload()
 
     DisconnectScene()
     DestroyHud()
+    StopChairBypass()
 
     if ManipulateBody then
         pcall(function() ManipulateBody:Destroy() end)
@@ -3798,7 +3980,7 @@ print("[DoorsESPX] 载入完成 · ESP 开关默认全关（同原版）")
 print("[DoorsESPX] " .. tostring(UIKeybind.Key.Name) .. " 开关界面 · "
     .. tostring(FovKeybind.Key.Name) .. " 视野 · "
     .. tostring(NoclipKeybind.Key.Name) .. " 穿墙 · "
-    .. tostring(VelocityKeybind.Key.Name) .. " 速度操控")
+    .. tostring(NoPullbackKeybind.Key.Name) .. " 无拉回穿墙")
 print("[DoorsESPX] 卸载 getgenv().DoorsESPX.Unload()")
 
 return Module
