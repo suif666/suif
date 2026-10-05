@@ -791,18 +791,32 @@ end
 -- ═══════════════════ ③ Drawing：Creak 攻击性条那一类 ═══════════════════
 local DRAWINGS = {}
 local DRAW_HOOKED = false
+local DRAW_WHY = ""
 
 local function hookDrawing()
 	if DRAW_HOOKED then return end
-	local D = rawget(getgenv(), "Drawing") or rawget(_G, "Drawing") or Drawing
-	if type(D) ~= "table" or type(D.new) ~= "function" then return end
-	DRAW_HOOKED = true
-
+	-- ⚠ 有些执行器把 Drawing 做成【只读表】，直接改会抛
+	--   attempt to modify a readonly table
+	--   所以整段包 pcall：钩不上就放弃，绝不能让这步把整个脚本打断
+	local okD, D = pcall(function()
+		return rawget(getgenv(), "Drawing") or rawget(_G, "Drawing") or Drawing
+	end)
+	if not okD or type(D) ~= "table" or type(D.new) ~= "function" then
+		DRAW_WHY = "这个执行器没有 Drawing 库"
+		return
+	end
 	local oldNew = D.new
-	D.new = function(kind)
-		local obj = oldNew(kind)
-		table.insert(DRAWINGS, obj)
-		return obj
+	local okSet = pcall(function()
+		D.new = function(kind)
+			local obj = oldNew(kind)
+			table.insert(DRAWINGS, obj)
+			return obj
+		end
+	end)
+	if okSet then
+		DRAW_HOOKED = true
+	else
+		DRAW_WHY = "Drawing 是只读表，钩不上（只有 Creak 攻击性条会保持英文）"
 	end
 end
 
@@ -816,16 +830,19 @@ local function fixDrawings()
 		elseif type(t) == "string" and t ~= "" then
 			local nt = translate(t)
 			if nt ~= t then
-				pcall(function() d.Text = nt end)
-				STATS.DRAW = STATS.DRAW + 1
+				local okw = pcall(function() d.Text = nt end)
+				if okw then STATS.DRAW = STATS.DRAW + 1 end
 			end
 		end
 	end
 end
 
 -- ═══════════════════ 调度 ═══════════════════
+-- ★ 从这里到 AbysallCN 定义全部包在 pcall 里：
+--   任何一步失败都只影响那一步，【绝不能】挡住最后的加载
+pcall(function()
 -- 尽早钩 Drawing（原脚本建 Creak 条时会用到）
-hookDrawing()
+pcall(hookDrawing)
 
 task.spawn(function()
 	local RunService = game:GetService("RunService")
@@ -837,6 +854,11 @@ task.spawn(function()
 	local espState = ESP_HOOKED and "已接上 ESP 钩子" or "⚠ 没等到 Abysall.ESPLibrary（ESP 文字可能不翻）"
 	print("[汉化] " .. espState)
 	print(string.format("[汉化] 词表 %d 条（%d 片段 + %d 单词）", #ZH, #CONCAT, WORD_COUNT))
+	if DRAW_HOOKED then
+		print("[汉化] Drawing 钩子已接上（Creak 攻击性条也能翻）")
+	else
+		print("[汉化] ⚠ Drawing 钩子未接上：" .. DRAW_WHY)
+	end
 
 	fixAllGui()
 
@@ -872,7 +894,9 @@ getgenv().AbysallCN = {
 	end,
 	Dict = ZH,
 }
+end)   -- ← pcall 结束
 
 -- ═══════════════════ 加载官方原版 ═══════════════════
+-- 这一步【不在】pcall 里：官方脚本自己的报错要原样暴露出来，方便排查
 print("[汉化] 从官方源加载原版脚本…")
 loadstring(game:HttpGet(OFFICIAL_URL))()
