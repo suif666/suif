@@ -350,6 +350,10 @@ function Mini.NewWindow(title, subtitle)
     end
 
     W.ConfigManager = win.ConfigManager
+    -- 卸载那条路上老代码会调 Window.Gui:Destroy()。
+    -- 必须是窗口的 ScreenGui：销毁它才会连带清掉整棵界面树，
+    -- 否则换语言「卸载 + 重新执行脚本」时，旧界面的文字会留在实例树里。
+    W.Gui = win.Gui or win.ScreenGui
     return W
 end
 
