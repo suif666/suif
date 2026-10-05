@@ -1,3 +1,9 @@
+local function PickDesc(cfg)
+    -- 提示 / 说明文字一律不显示：一是用户要求把所有提示去掉，
+    -- 二是长文案在 WindUI 里会顶出控件边界。
+    return nil
+end
+
 --[[
 =====================================================================
   Doors · ESP 提取版 (原版行为)          自建 UI / 单文件 / 无外部依赖
@@ -469,15 +475,11 @@ function Mini.MultiSelect(parent, cfg)
     local shadow = NewShadow()
     local values = cfg.Values or {}
     local set = {}
-    local CountLabel
-    local UpdateCount
     local function RebuildFrom(list)
         set = {}
         if type(list) == "table" then
             for _, name in ipairs(list) do set[name] = true end
         end
-        -- 计数标签要跟着更新（UpdateCount 是后面才赋值的，所以这里按 upvalue 取）
-        if UpdateCount then UpdateCount() end
     end
 
     local el = parent:Dropdown({
@@ -497,7 +499,12 @@ function Mini.MultiSelect(parent, cfg)
         for _, name in ipairs(values) do
             if set[name] then list[#list + 1] = name end
         end
-        SafeCall(function() return el:Set(list) end)
+        -- 真库多选的 setter 是 :Select（它自己的配置系统就用这个），没有才退回 :Set
+        if type(el.Select) == "function" then
+            SafeCall(function() return el:Select(list) end)
+        else
+            SafeCall(function() return el:Set(list) end)
+        end
     end
 
     local methods = CommonMethods(el, shadow, function() return set end, RebuildFrom)
@@ -508,25 +515,12 @@ function Mini.MultiSelect(parent, cfg)
         return t
     end
 
-    -- 旧 Mini 的那个「已选 N」标签是库自己画的，这里补上，行为别丢
-    Lang.Strings.zh["sel.count"] = Lang.Strings.zh["sel.count"] or "已选 %d"
-    Lang.Strings.en["sel.count"] = Lang.Strings.en["sel.count"] or "%d selected"
-    CountLabel = Mini.Label(parent, Lang.Format("sel.count", 0))
-    UpdateCount = function()
-        local n = 0
-        for _, name in ipairs(values) do
-            if set[name] then n = n + 1 end
-        end
-        CountLabel.Text = Lang.Format("sel.count", n) or tostring(n)
-    end
-
     t = MakeProxy(el, {
         Value = function() return set end,
         Selected = function() return set end,
     }, {
         Value = function(nv) RebuildFrom(nv) end,
     }, methods)
-    UpdateCount()
     return t
 end
 
@@ -897,6 +891,8 @@ local AllowedInstances = {
     MinecartRig = true, SeekMovingNewClone = true, Cellar = true,
     ArchivesPackageDeposit = true, StairwellScrapper = true, StairwellFireAlarm = true,
     ShoppingCart = true, Mirror = true, StairwellLockpickDoor = true,
+    -- 游戏里这个门的名字是拼错的（原版那边也是两种拼法都认）
+    ["StiarwellLockpickDoor"] = true,
 }
 AllowedInstances.TimerLever = true
 AllowedInstances.Figure = true
@@ -1685,7 +1681,7 @@ Functions.HandleObject = function(Object)
                 table.insert(Objects.Objectives, Object)
             end
         end)
-    elseif Name == "StairwellLockpickDoor" then
+    elseif Name == "StairwellLockpickDoor" or Name == "StiarwellLockpickDoor" then
         -- 闸门（原版挂在 Misc 里，和购物车同一条分支）→ 现在单独归到「任务」分类
         if Toggles.TaskESPToggle.Value then
             Functions.AddESP({ Object = Object, Text = "Garage Door",
@@ -2185,12 +2181,6 @@ LangDropdown:OnChanged(function(Value)
         end
     end)
 end)
-Mini.Label(tabLang.Page, L("lang.note",
-    "切换语言只换界面文字。ESP 标签保持游戏里的原始名称（Lockpicks / Rush / Door 6 / Gold Pile [42] 这类），不翻译。",
-    "Switching language only changes the interface. ESP labels keep the game's original names (Lockpicks / Rush / Door 6 / Gold Pile [42])."))
-Mini.Label(tabLang.Page, L("lang.tip",
-    "中文 / English 都可以，选完立刻生效，不用重载脚本。",
-    "Pick Chinese or English; it applies immediately, no reload needed."))
 
 --────────────────────────── ESP 开关 ──────────────────────────
 local ESPOrder = {
@@ -2258,9 +2248,6 @@ local EntityColorCfg = L("col.entity", "实体 颜色", "Entities Color")
 EntityColorCfg.Default = Color3.fromRGB(255, 0, 0)
 Options.EntityESPColor = Mini.ColorPicker(tabESP.Page, EntityColorCfg)
 
-Mini.Label(tabESP.Page, L("esp.entitylist.note",
-    "Entity List 默认一个都不选（和原版 AllowNull 一样），点开下面的列表勾实体。",
-    "Entity List starts with nothing selected (same as the original AllowNull). Open the list below and tick entities."))
 Options.EntityESPOptions = Mini.MultiSelect(tabESP.Page, {
     Key = "esp.entitylist", Text = "实体列表",
     Values = EntityListValues, Default = {},
@@ -2317,9 +2304,6 @@ Toggles.ESPArrowsToggle = Mini.Toggle(tabSet.Page, L(
     "Shows arrow that point to off-screen objects.", "屏幕外对象显示指向箭头。"))
 
 Mini.Divider(tabSet.Page)
-Mini.Label(tabSet.Page, L("set.hidetext.note",
-    "下面的开关等于把「文字透明度」一键拉到 1：只留轮廓，一个名字都不显示。",
-    "The switch below is a shortcut for pulling Text Transparency to 1: outlines only, no names."))
 local TextOffToggle = Mini.Toggle(tabSet.Page, L(
     "set.hidetext", "隐藏 ESP 文字", "Hide ESP Text",
     "Same as Text Transparency = 1.", "等同于把文字透明度设成 1。"))
@@ -2358,11 +2342,6 @@ Toggles.RemoveCameraFog = Mini.Toggle(tabCam.Page, L(
     "cam.fog", "除雾", "Remove Fog",
     "Removes all fog effects from the camera.",
     "把 FogEnd 拉满 + 所有 Atmosphere.Density 归零，远景不再灰蒙蒙。"))
-Mini.Label(tabCam.Page, L("cam.note",
-    "「场景高亮」每帧守着 Lighting.Ambient —— Doors 每进房间都会用 0.2 秒把它 Tween 回暗值，设一次没用；"
-    .. "「除雾」改 FogEnd 和 Atmosphere.Density，游戏改回来也会被按回去。两个都跟 ESP 无关，关掉会还原。",
-    "Ambient is re-applied every frame because Doors tweens Lighting.Ambient back to the room's dark value; "
-    .. "Remove Fog forces FogEnd and every Atmosphere.Density back. Both are independent of the ESP settings and restore on disable."))
 
 --────────────────────────── 角色：速度绕过 / 穿墙 ──────────────────────────
 -- 这个速度绕过照抄 tplaysaddon（mspaint 的 Tplay 插件）里的 StartWSConnection：
@@ -2380,8 +2359,6 @@ Toggles.SpeedBypassToggle = Mini.Toggle(tabChar.Page, L(
     "char.bypass", "速度绕过", "Speed Bypass",
     "Writes the extra speed into the game's own SpeedBoostBehind attribute instead of fighting WalkSpeed.",
     "照 tplays 插件的做法：把多出来的速度写进游戏自己的 SpeedBoostBehind 属性，让游戏自己算出这个速度，就不会被拉回。"))
-Options.SpeedBypassMethod = Mini.Dropdown(tabChar.Page, {
-    Key = "char.bypassmethod", Text = "方式", Values = { "属性", "滑行" }, Default = 1 })
 Mini.Divider(tabChar.Page)
 Toggles.NoclipToggle = Mini.Toggle(tabChar.Page, L(
     "char.noclip", "穿墙", "Noclip",
@@ -2389,36 +2366,8 @@ Toggles.NoclipToggle = Mini.Toggle(tabChar.Page, L(
     "角色可以穿墙（每帧把 CanCollide 关掉）。"))
 local NoclipKeybind = Mini.Keybind(tabChar.Page, {
     Key = "char.noclipkey", Text = "穿墙快捷键", Default = Enum.KeyCode.N })
-Mini.Label(tabChar.Page, L("char.bypass.note",
-    "行走速度 / 爬梯速度 两个滑条都是 0–75，默认 15（游戏原速）。"
-    .. "方式「属性」= 只写 SpeedBoostBehind 属性，最干净；「滑行」= 属性 + 每帧触发一次下蹲遥控，就是插件里推荐的那条（作者说比 RakNet 方式稳）。"
-    .. "关掉会把 WalkSpeed 复位成 15、SpeedBoostBehind 复位成 0。",
-    "Both sliders are 0-75, default 15 (the game's own speed). "
-    .. "Method Attribute = only writes SpeedBoostBehind; Slide = attribute plus one crouch remote per frame, the one the addon recommends over its RakNet mode. "
-    .. "Turning it off resets WalkSpeed to 15 and SpeedBoostBehind to 0."))
-Mini.Label(tabChar.Page, L("char.note",
-    "穿墙单独用会被 Doors 的反作弊拉回来，想稳就先开「绕过」那页的反作弊绕过（去爬一次梯子）。",
-    "Noclip alone gets pulled back by Doors' anticheat; enable Anticheat Bypass on the Bypass tab (climb a ladder once) for a stable one."))
 
 --────────────────────────── 绕过 ──────────────────────────
-Toggles.DisableAnticheat = Mini.Toggle(tabBypass.Page, L(
-    "by.anti", "反作弊绕过", "Anticheat Bypass",
-    "Completely disables the anticheat, after interacting with a ladder.",
-    "开好后去爬一次梯子，游戏的反作弊就会被关掉。"))
-Lang.Strings.zh["by.anti.on"] = "当前状态：反作弊已关闭"
-Lang.Strings.en["by.anti.on"] = "Status: anticheat disabled"
-
-local Anticheat = { Disabled = false }
-local function AnticheatText()
-    if Anticheat.Disabled then
-        return Lang.T("by.anti.on") or "anticheat disabled"
-    end
-    return Lang.T("by.anti.off") or "anticheat active"
-end
-
-local AnticheatStatus = Mini.Label(tabBypass.Page, L("by.anti.off",
-    "当前状态：未关闭反作弊", "Status: anticheat still active"))
-Lang.BindFn(AnticheatStatus, AnticheatText)
 Mini.Divider(tabBypass.Page)
 Toggles.NoPullbackNoclipToggle = Mini.Toggle(tabBypass.Page, L(
     "by.nopull", "无拉回穿墙", "No-Pullback Noclip",
@@ -2426,25 +2375,12 @@ Toggles.NoPullbackNoclipToggle = Mini.Toggle(tabBypass.Page, L(
     "抄 tplays 插件的椅子法把反作弊顶掉，再配合穿墙 + 缓慢前推，走过去不会被拉回。"))
 local NoPullbackKeybind = Mini.Keybind(tabBypass.Page, {
     Key = "by.nopullkey", Text = "无拉回穿墙快捷键", Default = Enum.KeyCode.V })
-Mini.Label(tabBypass.Page, L("by.nopull.note",
-    "做法照抄 tplays 插件的「反作弊绕过」：先对 CartControl 发一次遥控，再每帧朝椅子的 SeatPrompt 触发一次，"
-    .. "让服务器认为你坐在椅子上（反作弊就不再拉你）；同时把角色 CanCollide 关掉实现穿墙，再给一个 2.25 的前推。"
-    .. "需要执行器有 fireproximityprompt，且当前房间附近有椅子 / 购物车。",
-    "Same as the addon's anticheat bypass: fire CartControl once, then poke the chair's SeatPrompt every frame so the server thinks you are seated (the anticheat stops pulling you back), with noclip and a 2.25 forward push. "
-    .. "Needs fireproximityprompt and a chair / cart nearby."))
 
 --────────────────────────── Creak 愤怒值（右下角） ──────────────────────────
 Toggles.CreakAggressionMeter = Mini.Toggle(tabCreak.Page, L(
     "creak.meter", "Creak 愤怒值（右下角）", "Creak Aggression Meter (bottom-right)",
     "Shows Creak's aggression in the bottom-right corner.",
     "在屏幕右下角常驻显示 Creak 的愤怒值。"))
-Mini.Label(tabCreak.Page, L("creak.note",
-    "这块是独立的 HUD：固定贴在屏幕右下角，配色直接取 WindUI 的主题表，"
-    .. "完全不受 ESP 设置（透明度 / 淡出 / 渲染上限 / 文字开关）影响。"
-    .. "Creak 没出现时显示 --%。读的是 CreakGraph 动画轨道的 Aggression 参数。",
-    "This is a standalone HUD pinned to the bottom-right corner, styled with WindUI's own theme, so none of the "
-    .. "ESP settings (transparency / fade / render limit / text toggle) affect it. Shows --% while Creak is absent. "
-    .. "The value comes from the CreakGraph animation track's Aggression parameter."))
 
 --=====================================================================
 -- 6. 原版 ESP 库设置（数值照抄 Main.luau 5443-5458 行）
@@ -3051,22 +2987,22 @@ Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
         Character:SetAttribute("SpeedBoostBehind", Options.SpeedBypassLadder.Value - 15)
         Humanoid.WalkSpeed = Options.SpeedBypassWalk.Value
 
-        if Options.SpeedBypassMethod.Value == "滑行" then
-            local Crouch = GetCrouchRemote()
-            if Crouch then
-                pcall(function()
-                    Crouch:FireServer(Character:GetAttribute("Crouching"), true)
-                end)
-            end
+        -- 方式固定为插件的「滑行」：每帧点一下下蹲遥控
+        local Crouch = GetCrouchRemote()
+        if Crouch then
+            pcall(function()
+                Crouch:FireServer(Character:GetAttribute("Crouching"), true)
+            end)
         end
     end
 
-    -- 无拉回穿墙也要把碰撞关掉，不然穿不过去
+    -- 原版写法：每 tick 直接写「取反」的值，所以关掉开关后下一帧就自动还原
+    -- （之前只在开启时写 false、从不写回 true，关掉后会残留一段穿墙）
     local Noclip = Toggles.NoclipToggle.Value or Toggles.NoPullbackNoclipToggle.Value
-    if Noclip then
-        RootPart.CanCollide = false
-        for _, Part in ipairs(Character:GetDescendants()) do
-            if Part:IsA("BasePart") then Part.CanCollide = false end
+    RootPart.CanCollide = not Noclip
+    for _, Part in ipairs(Character:GetDescendants()) do
+        if Part:IsA("BasePart") and Part ~= RootPart then
+            Part.CanCollide = not Noclip
         end
     end
 
@@ -3080,81 +3016,9 @@ Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
 end)
 
 --=====================================================================
--- 10. 绕过：反作弊绕过
+-- 10. 绕过（原来这里的「反作弊绕过」按需求删掉了，只保留「无拉回穿墙」）
 --=====================================================================
-local function SetAnticheatStatus()
-    if AnticheatStatus then AnticheatStatus.Text = AnticheatText() end
-end
 
-Connections.AnticheatDisabler = LocalPlayer.CharacterAdded:Connect(function(Character)
-    local ClimbConn = Character:GetAttributeChangedSignal("Climbing"):Connect(function()
-        if Character:GetAttribute("Climbing") ~= true then return end
-        if not Toggles.DisableAnticheat.Value or Anticheat.Disabled then return end
-        task.wait(0.25)
-        Character:SetAttribute("Climbing", false)
-        Anticheat.Disabled = true
-        SetAnticheatStatus()
-    end)
-    table.insert(Connections, ClimbConn)
-end)
-
-if LocalPlayer.Character then
-    local Character = LocalPlayer.Character
-    local ClimbConn = Character:GetAttributeChangedSignal("Climbing"):Connect(function()
-        if Character:GetAttribute("Climbing") ~= true then return end
-        if not Toggles.DisableAnticheat.Value or Anticheat.Disabled then return end
-        task.wait(0.25)
-        Character:SetAttribute("Climbing", false)
-        Anticheat.Disabled = true
-        SetAnticheatStatus()
-    end)
-    table.insert(Connections, ClimbConn)
-end
-
-task.spawn(function()
-    if not GetRemotesFolder() then
-        local ok, res = pcall(function()
-            return Services.ReplicatedStorage:WaitForChild("RemotesFolder", 60)
-        end)
-        if ok and res then RemotesFolder = res end
-    end
-    if not RemotesFolder then return end
-
-    local Cutscene = RemotesFolder:WaitForChild("Cutscene", 30)
-    if Cutscene then
-        Connections.AnticheatEnableDetector1 = Cutscene.OnClientEvent:Connect(function(Name)
-            if Anticheat.Disabled and typeof(Name) == "string"
-                and not Name:find("SewerSeek") then
-                Anticheat.Disabled = false
-                SetAnticheatStatus()
-            end
-        end)
-    end
-
-    local UseEnemyModule = RemotesFolder:WaitForChild("UseEnemyModule", 30)
-    if UseEnemyModule then
-        Connections.AnticheatEnableDetector2 = UseEnemyModule.OnClientEvent:Connect(function(Name)
-            if Name == "Void" or Name == "Glitch" then
-                if Anticheat.Disabled then
-                    Anticheat.Disabled = false
-                    SetAnticheatStatus()
-                end
-            end
-        end)
-    end
-end)
-
-Toggles.DisableAnticheat:OnChanged(function(Value)
-    if Anticheat.Disabled and not Value then
-        local Folder = GetRemotesFolder()
-        local Rem = Folder and Folder:FindFirstChild("ClimbLadder")
-        if Rem then pcall(function() Rem:FireServer() end) end
-        Anticheat.Disabled = false
-    end
-    SetAnticheatStatus()
-end)
-
---=====================================================================
 -- 11. Creak 愤怒值 —— 屏幕右下角常驻 HUD（WindUI 配色，与 ESP 设置无关）
 --=====================================================================
 local HUD = { Gui = nil, Panel = nil, Title = nil, Value = nil, BarBG = nil, BarFill = nil }
@@ -3781,9 +3645,6 @@ Toggles.OrbitToggle = Mini.Toggle(tabChar.Page, L(
     "char.orbit", "物品环绕", "Orbit Drops",
     "Orbits every item you dropped around your character (same as the original addon).",
     "把你掉在地上的东西按一个圈均匀绕在角色周围转（照抄 tplays 插件的「环绕掉落物」）。"))
-Mini.Label(tabChar.Page, L("char.orbit.note",
-    "只环绕「自己掉的」东西（掉落物上 PlayerName 属性等于你的名字），别人的不碰。关掉后东西停在原地。",
-    "Only your own dropped items are orbited (PlayerName attribute equals your name). Turning it off leaves them where they are."))
 
 Mini.Divider(tabChar.Page)
 
@@ -3819,9 +3680,6 @@ Toggles.WallInteractToggle:OnChanged(function(Value)
         RestorePrompts()
     end
 end)
-Mini.Label(tabChar.Page, L("char.wall.note",
-    "能不能穿过墙取决于执行器：有 fireproximityprompt 就是真隔墙触发；没有的话只剩「按住时间归零」（秒互动），关掉会还原。",
-    "With fireproximityprompt it really fires through walls; without it you still get instant hold (0s), and turning it off restores the original hold times."))
 
 -- 自动楼层（楼梯间）
 Toggles.AutoFloorToggle = Mini.Toggle(tabAuto.Page, L(
@@ -3854,21 +3712,9 @@ Toggles.AutoFloorToggle:OnChanged(function(Value)
     AutoFloorStatus.Text = AutoFloorStatusText()
 end)
 
-Mini.Label(tabAuto.Page, L("auto.note",
-    "过了第 98 门才开始找「StairwellExitDoor」，看到它就直接传过去触发出口提示 = 通关。"
-    .. "触发条件是「看到出口门」而不是写死门号，所以新版 100 门楼梯间、旧版 200 门都能过。"
-    .. "开门不靠 DoorReach，是直接把门的提示 fireproximityprompt 过去，所以需要执行器有这个函数。",
-    "After door 98 it starts looking for StairwellExitDoor; seeing it teleports you there and fires the exit prompt. "
-    .. "The trigger is the exit door itself, not a hard-coded door number, so both the new 100-door stairwell and the old 200-door one work. "
-    .. "Doors are opened by firing their prompt directly instead of mspaint's DoorReach, so fireproximityprompt is required."))
 
 -- 保存配置
 Mini.Divider(tabSet.Page)
-Mini.Label(tabSet.Page, L("set.cfg.note",
-    "配置存在执行器的 WindUI/DoorsESPX/config/ 下（靠 WindUI 自带的配置系统，按控件的 Flag 认值）。"
-    .. "打开游戏时如果已经有存档会自动读一次。执行器没有 writefile 就用不了。",
-    "Configs live in WindUI/DoorsESPX/config/ and use WindUI's built-in config system (keyed by each control's Flag). "
-    .. "An existing save is loaded on injection. Needs the executor's writefile."))
 Mini.Button(tabSet.Page, L("set.cfg.save", "保存配置", "Save Config")):OnClick(function()
     SaveConfig()
 end)
@@ -3972,7 +3818,6 @@ Module.Toggles = Toggles
 Module.Options = Options
 Module.Char = Char
 Module.Lang = Lang
-Module.Anticheat = Anticheat
 
 getgenv()[STATE_KEY] = Module
 
