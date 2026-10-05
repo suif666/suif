@@ -2592,13 +2592,24 @@ Mini.Label(tabCam.Page, L("cam.note",
     "Ambient is re-applied every frame because Doors tweens Lighting.Ambient back to the room's dark value; "
     .. "Remove Fog forces FogEnd and every Atmosphere.Density back. Both are independent of the ESP settings and restore on disable."))
 
---────────────────────────── 角色：速度 / 穿墙 ──────────────────────────
-Options.SpeedBoostSlider = Mini.Slider(tabChar.Page, {
-    Key = "char.speedslider", Text = "速度加成", Min = 0, Max = 100, Default = 0, Rounding = 0 })
-Toggles.SpeedBoostToggle = Mini.Toggle(tabChar.Page, L(
-    "char.speed", "开启速度加成", "Enable Speed Boost",
-    "Increases your walkspeed by the specified amount.",
-    "在游戏当前移速上加你设定的数值。"))
+--────────────────────────── 角色：速度绕过 / 穿墙 ──────────────────────────
+-- 这个速度绕过照抄 tplaysaddon（mspaint 的 Tplay 插件）里的 StartWSConnection：
+--   每帧把「爬梯速度 - 15」写进角色自己的 SpeedBoostBehind 属性，
+--   再把 WalkSpeed 写成行走速度。
+-- 为什么这样不会被拉回：Doors 自己的 Functions.GetCurrentSpeed 本来就是
+--   15 + SpeedBoost + SpeedBoostBehind + SpeedBoostExtra + ...
+--   所以把差额写进属性之后，游戏自己算出来的速度就等于你要的速度，
+--   客户端和服务端对得上，没有「异常差值」可判 —— 直接改 WalkSpeed 才会被拉回。
+Options.SpeedBypassWalk = Mini.Slider(tabChar.Page, {
+    Key = "char.walk", Text = "行走速度", Min = 0, Max = 75, Default = 15, Rounding = 0 })
+Options.SpeedBypassLadder = Mini.Slider(tabChar.Page, {
+    Key = "char.ladder", Text = "爬梯速度", Min = 0, Max = 75, Default = 15, Rounding = 0 })
+Toggles.SpeedBypassToggle = Mini.Toggle(tabChar.Page, L(
+    "char.bypass", "速度绕过", "Speed Bypass",
+    "Writes the extra speed into the game's own SpeedBoostBehind attribute instead of fighting WalkSpeed.",
+    "照 tplays 插件的做法：把多出来的速度写进游戏自己的 SpeedBoostBehind 属性，让游戏自己算出这个速度，就不会被拉回。"))
+Options.SpeedBypassMethod = Mini.Dropdown(tabChar.Page, {
+    Key = "char.bypassmethod", Text = "方式", Values = { "属性", "滑行" }, Default = 1 })
 Mini.Divider(tabChar.Page)
 Toggles.NoclipToggle = Mini.Toggle(tabChar.Page, L(
     "char.noclip", "穿墙", "Noclip",
@@ -2606,11 +2617,16 @@ Toggles.NoclipToggle = Mini.Toggle(tabChar.Page, L(
     "角色可以穿墙（每帧把 CanCollide 关掉）。"))
 local NoclipKeybind = Mini.Keybind(tabChar.Page, {
     Key = "char.noclipkey", Text = "穿墙快捷键", Default = Enum.KeyCode.N })
+Mini.Label(tabChar.Page, L("char.bypass.note",
+    "行走速度 / 爬梯速度 两个滑条都是 0–75，默认 15（游戏原速）。"
+    .. "方式「属性」= 只写 SpeedBoostBehind 属性，最干净；「滑行」= 属性 + 每帧触发一次下蹲遥控，就是插件里推荐的那条（作者说比 RakNet 方式稳）。"
+    .. "关掉会把 WalkSpeed 复位成 15、SpeedBoostBehind 复位成 0。",
+    "Both sliders are 0-75, default 15 (the game's own speed). "
+    .. "Method Attribute = only writes SpeedBoostBehind; Slide = attribute plus one crouch remote per frame, the one the addon recommends over its RakNet mode. "
+    .. "Turning it off resets WalkSpeed to 15 and SpeedBoostBehind to 0."))
 Mini.Label(tabChar.Page, L("char.note",
-    "速度是「游戏当前移速 + 加成」，药水、受伤、下蹲这些游戏自己的修正都算在内，所以不会把游戏的速度改坏。"
-    .. "穿墙单独用会被 Doors 的反作弊拉回来，想稳就先开「绕过」那页的反作弊绕过（去爬一次梯子）。",
-    "Speed is the game's current walkspeed plus your bonus, so potions/injuries/crouching still count. "
-    .. "Noclip alone gets pulled back by Doors' anticheat; enable Anticheat Bypass on the Bypass tab (climb a ladder once) for a stable one."))
+    "穿墙单独用会被 Doors 的反作弊拉回来，想稳就先开「绕过」那页的反作弊绕过（去爬一次梯子）。",
+    "Noclip alone gets pulled back by Doors' anticheat; enable Anticheat Bypass on the Bypass tab (climb a ladder once) for a stable one."))
 
 --────────────────────────── 绕过 ──────────────────────────
 Toggles.DisableAnticheat = Mini.Toggle(tabBypass.Page, L(
@@ -3109,53 +3125,23 @@ local function GetLiveModifiers()
     return Services.ReplicatedStorage:FindFirstChild("LiveModifiers")
 end
 
-local function IsCrouching()
-    if not Char.Character then return false end
-    if Floor == "Fools" or Floor == "OldHotel" then
-        return Char.Character:GetAttribute("Crouching") == true
+-- RemotesFolder / Crouch 遥控（滑行方式要用；反作弊绕过那页也用同一个）
+local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
+
+local function GetRemotesFolder()
+    if not RemotesFolder or not RemotesFolder.Parent then
+        RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
     end
-    local CP = Char.Character:FindFirstChild("CollisionPart")
-        or Char.Character:FindFirstChild("Collision")
-    if CP then return CP.CollisionGroup == "PlayerCrouching" end
-    return Char.Character:GetAttribute("Crouching") == true
+    return RemotesFolder
 end
 
-local function GetInjuriesSpeed()
-    if not Char.Humanoid then return 0 end
-    return 0.075 * (Char.Humanoid.MaxHealth - Char.Humanoid.Health)
-end
+local CrouchRemote
 
--- 原版 Functions.GetCurrentSpeed（Main.luau 868 行）
-local function GetCurrentSpeed()
-    local Speed = 15
-    if Char.Character then
-        Speed = Speed + (Char.Character:GetAttribute("SpeedBoost") or 0)
-        Speed = Speed + (Char.Character:GetAttribute("SpeedBoostBehind") or 0)
-        Speed = Speed + (Char.Character:GetAttribute("SpeedBoostExtra") or 0)
-    end
-    if Floor == "Party" then Speed = Speed + 10 end
-
-    local LiveModifiers = GetLiveModifiers()
-    if LiveModifiers then
-        if LiveModifiers:FindFirstChild("PlayerFast") then Speed = Speed + 3 end
-        if LiveModifiers:FindFirstChild("PlayerFaster") then Speed = Speed + 6 end
-        if LiveModifiers:FindFirstChild("PlayerFastest") then Speed = Speed + 20 end
-        if LiveModifiers:FindFirstChild("PlayerSlow") then Speed = Speed - 3 end
-        if LiveModifiers:FindFirstChild("PlayerSlowHealth") then
-            Speed = Speed - GetInjuriesSpeed()
-        end
-    end
-
-    if IsCrouching() then
-        if LiveModifiers and LiveModifiers:FindFirstChild("PlayerCrouchSlow") then
-            Speed = Speed - 8
-        elseif LiveModifiers and LiveModifiers:FindFirstChild("PlayerSlow") then
-            Speed = Speed - 8
-        else
-            Speed = Speed - 5
-        end
-    end
-    return Speed
+local function GetCrouchRemote()
+    if CrouchRemote and CrouchRemote.Parent then return CrouchRemote end
+    local Folder = GetRemotesFolder()
+    CrouchRemote = Folder and Folder:FindFirstChild("Crouch") or nil
+    return CrouchRemote
 end
 
 local function SetupCharacter(Character)
@@ -3170,16 +3156,15 @@ end
 SetupCharacter(LocalPlayer.Character)
 Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(SetupCharacter)
 
-Toggles.SpeedBoostToggle:OnChanged(function(Value)
-    if Char.Humanoid then
-        Char.Humanoid.WalkSpeed = GetCurrentSpeed()
-            + (Value and Options.SpeedBoostSlider.Value or 0)
-    end
-end)
-Options.SpeedBoostSlider:OnChanged(function(Value)
-    if Toggles.SpeedBoostToggle.Value and Char.Humanoid then
-        Char.Humanoid.WalkSpeed = GetCurrentSpeed() + Value
-    end
+-- 关掉时照插件复位（StartWSConnection 的反向操作）
+local function ResetSpeed()
+    local Character, Humanoid = Char.Character, Char.Humanoid
+    if Character then Character:SetAttribute("SpeedBoostBehind", 0) end
+    if Humanoid then Humanoid.WalkSpeed = 15 end
+end
+
+Toggles.SpeedBypassToggle:OnChanged(function(Value)
+    if not Value then ResetSpeed() end
 end)
 
 Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
@@ -3187,8 +3172,20 @@ Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
     if not Character or not Humanoid or not RootPart or not RootPart.Parent then return end
     if Humanoid.Health <= 0 then return end
 
-    if Toggles.SpeedBoostToggle.Value then
-        Humanoid.WalkSpeed = GetCurrentSpeed() + Options.SpeedBoostSlider.Value
+    if Toggles.SpeedBypassToggle.Value then
+        -- 插件原文：Character:SetAttribute("SpeedBoostBehind", Variables.ladderspeed-15)
+        --           Character.Humanoid.WalkSpeed = Variables.walkspeed
+        Character:SetAttribute("SpeedBoostBehind", Options.SpeedBypassLadder.Value - 15)
+        Humanoid.WalkSpeed = Options.SpeedBypassWalk.Value
+
+        if Options.SpeedBypassMethod.Value == "滑行" then
+            local Crouch = GetCrouchRemote()
+            if Crouch then
+                pcall(function()
+                    Crouch:FireServer(Character:GetAttribute("Crouching"), true)
+                end)
+            end
+        end
     end
 
     local Noclip = Toggles.NoclipToggle.Value
@@ -3222,8 +3219,6 @@ end)
 --=====================================================================
 -- 10. 绕过：反作弊绕过
 --=====================================================================
-local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
-
 local function SetAnticheatStatus()
     if AnticheatStatus then AnticheatStatus.Text = AnticheatText() end
 end
@@ -3254,11 +3249,11 @@ if LocalPlayer.Character then
 end
 
 task.spawn(function()
-    if not RemotesFolder then
+    if not GetRemotesFolder() then
         local ok, res = pcall(function()
             return Services.ReplicatedStorage:WaitForChild("RemotesFolder", 60)
         end)
-        if ok then RemotesFolder = res end
+        if ok and res then RemotesFolder = res end
     end
     if not RemotesFolder then return end
 
@@ -3288,8 +3283,7 @@ end)
 
 Toggles.DisableAnticheat:OnChanged(function(Value)
     if Anticheat.Disabled and not Value then
-        local Folder = RemotesFolder
-            or Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
+        local Folder = GetRemotesFolder()
         local Rem = Folder and Folder:FindFirstChild("ClimbLadder")
         if Rem then pcall(function() Rem:FireServer() end) end
         Anticheat.Disabled = false
