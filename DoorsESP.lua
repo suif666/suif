@@ -173,752 +173,471 @@ local Theme = {
     FontBold = Enum.Font.GothamBold,
 }
 
+--=====================================================================
+-- 1. WindUI-Boreal 引导
+--    UI 库换成你 GitHub 上那份（和 suif.lua 用的同一个地址、同一个版本号）
+--=====================================================================
+local WINDUI_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8"
+
+local WindUI
+do
+    local ok, res = pcall(function()
+        return loadstring(game:HttpGet(WINDUI_URL))()
+    end)
+    if not ok or type(res) ~= "table" then
+        warn("[DoorsESP] WindUI-Boreal 加载失败：" .. tostring(res))
+        if setclipboard then
+            pcall(setclipboard, "WindUI-Boreal 加载失败：" .. tostring(res))
+        end
+        return
+    end
+    WindUI = res
+end
+
+print("[DoorsESP] WindUI-Boreal " .. tostring(WindUI.ExpandFeatureVersion) .. " 已加载")
+
+--=====================================================================
+-- 1.5) Mini 兼容适配层
+--    界面整个换成 WindUI-Boreal，但下面那几千行 ESP 逻辑一行都不改：
+--    老代码读的是 Toggles.X.Value / Options.Y.Value，用的是 :OnChanged / :SetValue
+--    / :Key / .Selected，这一层把这些 API 原样架在 WindUI 的控件上。
+--=====================================================================
 local Mini = {}
+Mini.WindUI = WindUI
+Mini.Registry = {}   -- [控件] = { fn = 回调, get = 取值函数 }，读配置 / 重放时用
 
-local function MakeRow(parent, height)
-    local row = Create("Frame", {
-        Parent = parent,
-        BackgroundColor3 = Theme.Row,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -10, 0, height),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, row)
-    return row
+local function NewShadow()
+    return { Cb = nil, Click = nil, InSet = false }
 end
 
-local function MakeLabel(parent, text, x, w, color, font, size, key)
-    local lbl = Create("TextLabel", {
-        Parent = parent,
-        BackgroundTransparency = 1,
-        Font = font or Theme.Font,
-        Text = text,
-        TextSize = size or 13,
-        TextColor3 = color or Theme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Position = UDim2.new(0, x, 0, 0),
-        Size = UDim2.new(0, w, 1, 0),
-        TextTruncate = Enum.TextTruncate.AtEnd,
-    })
-    if key then Lang.Bind(lbl, key) end
-    return lbl
-end
-
-function Mini.NewWindow(title, subtitle)
-    local gui = Create("ScreenGui", {
-        Name = RandomString(24),
-        ResetOnSpawn = false,
-        IgnoreGuiInset = true,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        DisplayOrder = 100,
-    })
-    if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
-    if protect_gui then pcall(protect_gui, gui) end
-    gui.Parent = GetHiddenUI()
-
-    local root = Create("Frame", {
-        Name = "Root",
-        Parent = gui,
-        BackgroundColor3 = Theme.Bg,
-        BorderSizePixel = 0,
-        Position = UDim2.new(0.5, -320, 0.5, -215),
-        Size = UDim2.fromOffset(640, 430),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 8) }, root)
-    Create("UIStroke", { Color = Theme.Stroke, Thickness = 1 }, root)
-
-    local barHeight = 40
-    local bar = Create("Frame", {
-        Name = "Bar", Parent = root,
-        BackgroundColor3 = Theme.Panel, BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, barHeight),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 8) }, bar)
-    Create("Frame", {
-        Parent = bar, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0,
-        Position = UDim2.new(0, 0, 1, -8), Size = UDim2.new(1, 0, 0, 8),
-    })
-    Create("Frame", {
-        Parent = root, BackgroundColor3 = Theme.Accent, BorderSizePixel = 0,
-        Position = UDim2.new(0, 10, 0, barHeight - 2), Size = UDim2.new(1, -20, 0, 2),
-    })
-
-    local titleLbl = Create("TextLabel", {
-        Parent = bar, BackgroundTransparency = 1, Font = Theme.FontBold,
-        Text = PickText(title), TextSize = 15, TextColor3 = Theme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Position = UDim2.new(0, 14, 0, 0), Size = UDim2.new(0.6, 0, 1, 0),
-    })
-    Lang.Bind(titleLbl, PickKey(title))
-    local subLbl = Create("TextLabel", {
-        Parent = bar, BackgroundTransparency = 1, Font = Theme.Font,
-        Text = PickText(subtitle), TextSize = 11, TextColor3 = Theme.SubText,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Position = UDim2.new(0.35, 0, 0, 0), Size = UDim2.new(0.5, -46, 1, 0),
-    })
-    Lang.Bind(subLbl, PickKey(subtitle))
-
-    local closeBtn = Create("TextButton", {
-        Parent = bar, BackgroundColor3 = Color3.fromRGB(46, 30, 32), BorderSizePixel = 0,
-        AutoButtonColor = false, Font = Theme.FontBold, Text = "×",
-        TextSize = 18, TextColor3 = Color3.fromRGB(255, 150, 150),
-        Position = UDim2.new(1, -34, 0, 6), Size = UDim2.fromOffset(26, 26),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, closeBtn)
-    local minBtn = Create("TextButton", {
-        Parent = bar, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
-        AutoButtonColor = false, Font = Theme.FontBold, Text = "—",
-        TextSize = 14, TextColor3 = Theme.SubText,
-        Position = UDim2.new(1, -66, 0, 6), Size = UDim2.fromOffset(26, 26),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, minBtn)
-
-    local tabBar = Create("ScrollingFrame", {
-        Parent = root, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0,
-        Position = UDim2.new(0, 8, 0, barHeight + 10),
-        Size = UDim2.new(0, 130, 1, -(barHeight + 18)),
-        ScrollBarThickness = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
-        AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, tabBar)
-    Create("UIListLayout", {
-        Parent = tabBar, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder,
-    })
-    Create("UIPadding", {
-        Parent = tabBar,
-        PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6),
-        PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6),
-    })
-
-    local pages = Create("Frame", {
-        Parent = root, BackgroundTransparency = 1,
-        Position = UDim2.new(0, 146, 0, barHeight + 10),
-        Size = UDim2.new(1, -154, 1, -(barHeight + 18)),
-    })
-
-    local window = { Gui = gui, Root = root, Tabs = {}, ActiveTab = nil }
-
-    do
-        local dragging, dragStart, startPos = false, nil, nil
-        bar.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-                or input.UserInputType == Enum.UserInputType.Touch then
-                dragging, dragStart, startPos = true, input.Position, root.Position
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if not dragging then return end
-            if input.UserInputType ~= Enum.UserInputType.MouseMovement
-                and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            local d = input.Position - dragStart
-            root.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y)
-        end)
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-                or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = false
-            end
-        end)
-    end
-
-    closeBtn.MouseButton1Click:Connect(function() root.Visible = false end)
-    minBtn.MouseButton1Click:Connect(function() root.Visible = false end)
-
-    function window:SetVisible(v) root.Visible = v end
-    function window:Toggle() root.Visible = not root.Visible end
-
-    function window:Tab(nameCfg)
-        local name = PickText(nameCfg)
-        local page = Create("ScrollingFrame", {
-            Parent = pages, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
-            BorderSizePixel = 0, ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Theme.Stroke,
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            Visible = false,
-        })
-        Create("UIListLayout", {
-            Parent = page, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder,
-        })
-
-        local btn = Create("TextButton", {
-            Parent = tabBar, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
-            AutoButtonColor = false, Font = Theme.Font, Text = name, TextSize = 13,
-            TextColor3 = Theme.SubText, Size = UDim2.new(1, -12, 0, 32),
-        })
-        Create("UICorner", { CornerRadius = UDim.new(0, 6) }, btn)
-        Lang.Bind(btn, PickKey(nameCfg), "Text")
-
-        local tab = { Page = page, Button = btn, Name = name }
-        btn.MouseButton1Click:Connect(function()
-            for _, t in pairs(window.Tabs) do
-                t.Page.Visible = false
-                TweenService:Create(t.Button, TweenInfo.new(0.15),
-                    { BackgroundColor3 = Theme.Row }):Play()
-                t.Button.TextColor3 = Theme.SubText
-            end
-            page.Visible = true
-            TweenService:Create(btn, TweenInfo.new(0.15),
-                { BackgroundColor3 = Color3.fromRGB(30, 62, 78) }):Play()
-            btn.TextColor3 = Theme.Accent
-            window.ActiveTab = tab
-        end)
-
-        window.Tabs[#window.Tabs + 1] = tab
-        if not window.ActiveTab then
-            page.Visible = true
-            btn.BackgroundColor3 = Color3.fromRGB(30, 62, 78)
-            btn.TextColor3 = Theme.Accent
-            window.ActiveTab = tab
-        end
-        return tab
-    end
-
-    return window
-end
-
-function Mini.Toggle(parent, cfg)
-    local row = MakeRow(parent, 34)
-    local lbl = MakeLabel(row, PickText(cfg), 12, 220, Theme.Text, Theme.Font, 13, PickKey(cfg))
+-- 控件标题 / 描述 / Flag 都交给 PickText / PickKey / PickDesc 解析，
+-- 这样 L() 里只写中文、英文靠 Lang.T(Key) 取，切语言的时候整块 UI 重建后就是对应语言。
+local function PickDesc(cfg)
+    if type(cfg) ~= "table" then return nil end
     local tipKey = cfg.Key and (cfg.Key .. ".tip") or nil
-    local tip = (tipKey and Lang.T(tipKey)) or cfg.Tooltip
-    if not (tipKey and Lang.Has(tipKey)) then tipKey = nil end
-    if tip then
-        lbl.Size = UDim2.new(1, -78, 0, 16)
-        lbl.Position = UDim2.new(0, 12, 0, 3)
-        local tipLbl = Create("TextLabel", {
-            Parent = row, BackgroundTransparency = 1, Font = Theme.Font,
-            Text = tip, TextSize = 10, TextColor3 = Theme.SubText,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Position = UDim2.new(0, 12, 0, 18), Size = UDim2.new(1, -78, 0, 13),
-            TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2,
-        })
-        Lang.Bind(tipLbl, tipKey)
-    else
-        lbl.Size = UDim2.new(1, -78, 1, 0)
-    end
-
-    local sw = Create("Frame", {
-        Parent = row, BackgroundColor3 = Color3.fromRGB(52, 56, 66),
-        BorderSizePixel = 0, Position = UDim2.new(1, -50, 0.5, -9),
-        Size = UDim2.fromOffset(38, 18),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(1, 0) }, sw)
-    local knob = Create("Frame", {
-        Parent = sw, BackgroundColor3 = Color3.fromRGB(180, 186, 198),
-        BorderSizePixel = 0, Position = UDim2.new(0, 2, 0, 2),
-        Size = UDim2.fromOffset(14, 14),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(1, 0) }, knob)
-
-    local btn = Create("TextButton", {
-        Parent = row, BackgroundTransparency = 1, Text = "",
-        Size = UDim2.fromScale(1, 1), AutoButtonColor = false,
-    })
-
-    local element = { Value = cfg.Default and true or false, Callbacks = {} }
-
-    local function paint()
-        local on = element.Value
-        TweenService:Create(sw, TweenInfo.new(0.15), {
-            BackgroundColor3 = on and Theme.Accent or Color3.fromRGB(52, 56, 66) }):Play()
-        TweenService:Create(knob, TweenInfo.new(0.15), {
-            Position = on and UDim2.new(1, -16, 0, 2) or UDim2.new(0, 2, 0, 2),
-            BackgroundColor3 = on and Color3.fromRGB(255, 255, 255)
-                or Color3.fromRGB(180, 186, 198) }):Play()
-    end
-
-    function element:Set(v, silent)
-        element.Value = v and true or false
-        paint()
-        if not silent then
-            for _, cb in ipairs(element.Callbacks) do cb(element.Value) end
-        end
-    end
-    function element:OnChanged(cb)
-        element.Callbacks[#element.Callbacks + 1] = cb
-        cb(element.Value)
-    end
-
-    btn.MouseButton1Click:Connect(function() element:Set(not element.Value) end)
-    btn.MouseEnter:Connect(function() row.BackgroundColor3 = Theme.RowHover end)
-    btn.MouseLeave:Connect(function() row.BackgroundColor3 = Theme.Row end)
-
-    paint()
-    return element
+    if tipKey and Lang.Has(tipKey) then return Lang.T(tipKey) end
+    return cfg.Tooltip
 end
 
-function Mini.Slider(parent, cfg)
-    local row = MakeRow(parent, 44)
-    MakeLabel(row, PickText(cfg), 12, 220, Theme.Text, Theme.Font, 13, PickKey(cfg))
-    local valueLbl = Create("TextLabel", {
-        Parent = row, BackgroundTransparency = 1, Font = Theme.FontBold,
-        Text = tostring(cfg.Default), TextSize = 13, TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Position = UDim2.new(1, -70, 0, 5), Size = UDim2.fromOffset(58, 16),
-    })
-    local track = Create("Frame", {
-        Parent = row, BackgroundColor3 = Color3.fromRGB(52, 56, 66),
-        BorderSizePixel = 0, Position = UDim2.new(0, 12, 0, 30),
-        Size = UDim2.new(1, -24, 0, 5),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(1, 0) }, track)
-    local fill = Create("Frame", {
-        Parent = track, BackgroundColor3 = Theme.Accent, BorderSizePixel = 0,
-        Size = UDim2.fromScale(0, 1),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(1, 0) }, fill)
-
-    local element = { Value = cfg.Default, Min = cfg.Min, Max = cfg.Max,
-                      Rounding = cfg.Rounding or 0, Callbacks = {} }
-
-    local function paint()
-        local alpha = 0
-        if element.Max > element.Min then
-            alpha = (element.Value - element.Min) / (element.Max - element.Min)
-        end
-        fill.Size = UDim2.fromScale(math.clamp(alpha, 0, 1), 1)
-        valueLbl.Text = tostring(element.Value)
+local function SafeCall(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then
+        warn("[DoorsESP] " .. tostring(err))
+        return false
     end
-
-    local dragging = false
-    local function setFromX(px)
-        local rel = math.clamp((px - track.AbsolutePosition.X)
-            / math.max(track.AbsoluteSize.X, 1), 0, 1)
-        local raw = element.Min + (element.Max - element.Min) * rel
-        local step = 10 ^ (-element.Rounding)
-        raw = math.floor(raw / step + 0.5) * step
-        if element.Rounding == 0 then raw = math.floor(raw + 0.5) end
-        raw = math.clamp(raw, element.Min, element.Max)
-        if raw ~= element.Value then
-            element.Value = raw
-            paint()
-            for _, cb in ipairs(element.Callbacks) do cb(raw) end
-        end
-    end
-
-    track.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            setFromX(input.Position.X)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-            or input.UserInputType == Enum.UserInputType.Touch then
-            setFromX(input.Position.X)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    function element:Set(v, silent)
-        element.Value = math.clamp(v, element.Min, element.Max)
-        paint()
-        if not silent then
-            for _, cb in ipairs(element.Callbacks) do cb(element.Value) end
-        end
-    end
-    function element:OnChanged(cb)
-        element.Callbacks[#element.Callbacks + 1] = cb
-        cb(element.Value)
-    end
-
-    paint()
-    return element
+    return true
 end
 
-function Mini.ColorPicker(parent, cfg)
-    local row = MakeRow(parent, 38)
-    MakeLabel(row, PickText(cfg), 12, 200, Theme.Text, Theme.Font, 13, PickKey(cfg))
-    local swatch = Create("TextButton", {
-        Parent = row, BackgroundColor3 = cfg.Default, BorderSizePixel = 0,
-        AutoButtonColor = false, Text = "",
-        Position = UDim2.new(1, -46, 0.5, -11), Size = UDim2.fromOffset(34, 22),
+-- 给控件套一个代理：读 .Value / .Key / .Selected 走取值函数，
+-- 调 :Set / :SetValue / :OnChanged 走下面这套方法，其余读写原样转给 WindUI 的控件。
+local function MakeProxy(el, values, setters, methods)
+    local t = { __el = el }
+    return setmetatable(t, {
+        __index = function(_, k)
+            local get = values[k]
+            if get then return get() end
+            local m = methods[k]
+            if m then return m end
+            local v = el[k]
+            -- WindUI 自己的方法要绑回它自己
+            if type(v) == "function" then
+                return function(_, ...) return v(el, ...) end
+            end
+            return v
+        end,
+        __newindex = function(_, k, v)
+            local set = setters[k]
+            if set then set(v) else el[k] = v end
+        end,
     })
-    Create("UICorner", { CornerRadius = UDim.new(0, 5) }, swatch)
-    Create("UIStroke", { Color = Theme.Stroke, Thickness = 1 }, swatch)
+end
 
-    local panel = Create("Frame", {
-        Parent = parent, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0,
-        Size = UDim2.new(1, -10, 0, 0), Visible = false, ClipsDescendants = true,
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, panel)
+-- 一套所有控件共用的方法。setLocal 更新本地值，getValue 取本地值，
+-- el 是 WindUI 的真控件，shadow 存「建完之后才注册」的那些回调。
+local function CommonMethods(el, shadow, getValue, setLocal)
+    local M = {}
 
-    local element = { Value = cfg.Default, Callbacks = {} }
-    local r = cfg.Default.R * 255
-    local g = cfg.Default.G * 255
-    local b = cfg.Default.B * 255
-
-    local function apply(silent)
-        element.Value = Color3.fromRGB(r, g, b)
-        swatch.BackgroundColor3 = element.Value
-        if not silent then
-            for _, cb in ipairs(element.Callbacks) do cb(element.Value) end
-        end
+    -- 真正的赋值：先屏蔽转发器，避免库的 :Set 自己回调一次、我们又回调一次
+    function M.Set(t, v)
+        shadow.InSet = true
+        SafeCall(function() return el:Set(v) end)
+        shadow.InSet = false
+        setLocal(v)
+        if shadow.Cb then SafeCall(shadow.Cb, getValue()) end
+        return t
     end
 
-    local function channel(text, order, get, set)
-        local r2 = MakeRow(panel, 36)
-        r2.LayoutOrder = order
-        r2.BackgroundTransparency = 1
-        MakeLabel(r2, text, 10, 16, Theme.SubText, Theme.FontBold, 12)
-        local t = Create("Frame", {
-            Parent = r2, BackgroundColor3 = Color3.fromRGB(52, 56, 66),
-            BorderSizePixel = 0, Position = UDim2.new(0, 30, 0, 16),
-            Size = UDim2.new(1, -60, 0, 5),
-        })
-        Create("UICorner", { CornerRadius = UDim.new(1, 0) }, t)
-        local f = Create("Frame", {
-            Parent = t, BackgroundColor3 = Theme.Accent, BorderSizePixel = 0,
-            Size = UDim2.fromScale(get() / 255, 1),
-        })
-        Create("UICorner", { CornerRadius = UDim.new(1, 0) }, f)
-        local v = Create("TextLabel", {
-            Parent = r2, BackgroundTransparency = 1, Font = Theme.Font,
-            Text = tostring(get()), TextSize = 11, TextColor3 = Theme.SubText,
-            TextXAlignment = Enum.TextXAlignment.Right,
-            Position = UDim2.new(1, -50, 0, 3), Size = UDim2.fromOffset(40, 14),
-        })
-
-        local function paintCh()
-            f.Size = UDim2.fromScale(get() / 255, 1)
-            v.Text = tostring(get())
-        end
-
-        local drag = false
-        local function fromX(px)
-            local rel = math.clamp((px - t.AbsolutePosition.X)
-                / math.max(t.AbsoluteSize.X, 1), 0, 1)
-            local nv = math.floor(rel * 255 + 0.5)
-            if nv ~= get() then
-                set(nv)
-                paintCh()
-                apply()
-            end
-        end
-        t.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-                or input.UserInputType == Enum.UserInputType.Touch then
-                drag = true
-                fromX(input.Position.X)
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if drag and (input.UserInputType == Enum.UserInputType.MouseMovement
-                or input.UserInputType == Enum.UserInputType.Touch) then
-                fromX(input.Position.X)
-            end
-        end)
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1
-                or input.UserInputType == Enum.UserInputType.Touch then
-                drag = false
-            end
-        end)
-    end
-
-    Create("UIListLayout", {
-        Parent = panel, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder,
-    })
-    Create("UIPadding", {
-        Parent = panel, PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4),
-        PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4),
-    })
-    channel("R", 1, function() return r end, function(v2) r = v2 end)
-    channel("G", 2, function() return g end, function(v2) g = v2 end)
-    channel("B", 3, function() return b end, function(v2) b = v2 end)
-
-    swatch.MouseButton1Click:Connect(function()
-        if panel.Visible then
-            TweenService:Create(panel, TweenInfo.new(0.18),
-                { Size = UDim2.new(1, -10, 0, 0) }):Play()
-            task.delay(0.19, function() panel.Visible = false end)
+    -- 第二参 silent = true 时不触发 OnChanged（老 Mini 的语义）
+    function M.SetValue(t, v, silent)
+        if silent then
+            local keep = shadow.Cb
+            shadow.Cb = nil
+            M.Set(t, v)
+            shadow.Cb = keep
         else
-            panel.Visible = true
-            TweenService:Create(panel, TweenInfo.new(0.18),
-                { Size = UDim2.new(1, -10, 0, 126) }):Play()
+            M.Set(t, v)
         end
-    end)
-
-    function element:Set(c, silent)
-        r, g, b = c.R * 255, c.G * 255, c.B * 255
-        apply(silent)
-    end
-    function element:OnChanged(cb)
-        element.Callbacks[#element.Callbacks + 1] = cb
-        cb(element.Value)
+        return t
     end
 
-    swatch.BackgroundColor3 = cfg.Default
-    return element
+    function M.OnChanged(t, fn)
+        shadow.Cb = fn
+        Mini.Registry[t] = { fn = fn, get = getValue }
+        return t
+    end
+
+    function M.OnClick(_, fn)
+        shadow.Click = fn
+        return _
+    end
+
+    function M.SetDisabled(t, b)
+        el.Disabled = b and true or false
+        return t
+    end
+
+    function M.Destroy()
+        SafeCall(function() return el:Destroy() end)
+    end
+
+    return M
 end
 
-function Mini.Button(parent, cfg)
-    local row = MakeRow(parent, 34)
-    local btn = Create("TextButton", {
-        Parent = row, BackgroundColor3 = Color3.fromRGB(30, 62, 78),
-        BorderSizePixel = 0, AutoButtonColor = false, Font = Theme.FontBold,
-        Text = PickText(cfg), TextSize = 13, TextColor3 = Theme.Accent,
-        Size = UDim2.fromScale(1, 1),
+-- WindUI 的 Callback 必须在建控件的时候就交出去，而老代码是建完再 :OnChanged，
+-- 所以先给它一个转发器；真正要调的回调存在 shadow 里，调用时再取。
+local function Tracker(shadow, setLocal)
+    return function(v)
+        setLocal(v)
+        if shadow.InSet then return end
+        if shadow.Cb then SafeCall(shadow.Cb, v) end
+    end
+end
+
+--────────────────────────── 窗口 ──────────────────────────
+function Mini.NewWindow(title, subtitle)
+    local win = WindUI:CreateWindow({
+        Title = PickText(title),
+        Icon = "door-open",
+        Author = PickText(subtitle),
+        Folder = "DoorsESPX",
+        Size = UDim2.new(0, 640, 0, 470),
+        Resizable = true,
+        ScrollBarEnabled = true,
+        User = { Enabled = true, Anonymous = false },
+        OpenButton = { Scale = 0.85, OnlyIcon = false },
     })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, btn)
-    Lang.Bind(btn, PickKey(cfg))
-    local element = { Callbacks = {} }
-    btn.MouseButton1Click:Connect(function()
-        for _, cb in ipairs(element.Callbacks) do cb() end
-    end)
-    function element:OnClick(cb)
-        element.Callbacks[#element.Callbacks + 1] = cb
+
+    local W = { Win = win, Tabs = {} }
+
+    function W.Tab(_, name)
+        local windTab = win:Tab({ Title = PickText(name), Icon = "circle" })
+        local page = { Page = windTab, WindTab = windTab, Name = name }
+        W.Tabs[#W.Tabs + 1] = page
+        return page
     end
-    return element
+
+    -- 界面开关键。WindUI 窗口自己有 Open / Close，这里记一份开关状态，
+    -- 所以不走 WindUI 的 ToggleKey（否则一个键会被两边各切一次，等于没切）。
+    local uiOpen = true
+    function W.Toggle()
+        uiOpen = not uiOpen
+        if uiOpen then
+            SafeCall(function() return win:Open() end)
+        else
+            SafeCall(function() return win:Close() end)
+        end
+        return uiOpen
+    end
+
+    W.ConfigManager = win.ConfigManager
+    return W
 end
 
-function Mini.Label(parent, text, color)
-    local row = MakeRow(parent, 30)
-    row.BackgroundTransparency = 1
-    local lbl = MakeLabel(row, PickText(text), 4, 600, color or Theme.SubText,
-        Theme.Font, 11, PickKey(text))
-    lbl.Size = UDim2.new(1, -8, 1, 0)
-    lbl.TextWrapped = true
-    return lbl
-end
+--────────────────────────── 开关 ──────────────────────────
+function Mini.Toggle(parent, cfg)
+    local shadow = NewShadow()
+    local v = cfg.Default and true or false
 
-function Mini.Divider(parent)
-    local d = Create("Frame", {
-        Parent = parent, BackgroundColor3 = Theme.Stroke, BorderSizePixel = 0,
-        Size = UDim2.new(1, -10, 0, 1),
+    local el = parent:Toggle({
+        Title = PickText(cfg),
+        Desc = PickDesc(cfg),
+        Value = v,
+        Flag = PickKey(cfg),
+        Type = "Toggle",
+        Callback = Tracker(shadow, function(nv) v = nv and true or false end),
     })
-    return d
+
+    return MakeProxy(el, {
+        Value = function() return v end,
+    }, {
+        Value = function(nv) v = nv and true or false end,
+    }, CommonMethods(el, shadow, function() return v end, function(nv) v = nv and true or false end))
 end
 
--- 单选下拉（原版 ESPTextFont / ESPTracersOrigin 用）
+--────────────────────────── 滑块 ──────────────────────────
+-- WindUI 滑块的 .Value 是 { Min = , Max = , Default = } 这张表，
+-- 但脚本里几十处读的都是数字，所以套一层代理把 .Value 变成数字。
+function Mini.Slider(parent, cfg)
+    local shadow = NewShadow()
+    local v = tonumber(cfg.Default) or tonumber(cfg.Min) or 0
+
+    local el = parent:Slider({
+        Title = PickText(cfg),
+        Desc = PickDesc(cfg),
+        Value = { Min = cfg.Min, Max = cfg.Max, Default = v },
+        Step = cfg.Rounding or 1,
+        Flag = PickKey(cfg),
+        Callback = Tracker(shadow, function(nv) v = tonumber(nv) or v end),
+    })
+
+    return MakeProxy(el, {
+        Value = function() return v end,
+    }, {
+        Value = function(nv) v = tonumber(nv) or v end,
+    }, CommonMethods(el, shadow, function() return v end, function(nv) v = tonumber(nv) or v end))
+end
+
+--────────────────────────── 取色器 ──────────────────────────
+function Mini.ColorPicker(parent, cfg)
+    local shadow = NewShadow()
+    local v = cfg.Default
+
+    local el = parent:Colorpicker({
+        Title = PickText(cfg),
+        Desc = PickDesc(cfg),
+        Value = v,
+        Flag = PickKey(cfg),
+        Callback = Tracker(shadow, function(nv) v = nv end),
+    })
+
+    return MakeProxy(el, {
+        Value = function() return v end,
+    }, {
+        Value = function(nv) v = nv end,
+    }, CommonMethods(el, shadow, function() return v end, function(nv) v = nv end))
+end
+
+--────────────────────────── 下拉框 ──────────────────────────
 function Mini.Dropdown(parent, cfg)
-    local values = cfg.Values
-    local openH = 34 + math.min(#values, 8) * 21
-    local holder = Create("Frame", {
-        Parent = parent, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0,
-        Size = UDim2.new(1, -10, 0, 34), ClipsDescendants = true,
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, holder)
+    local shadow = NewShadow()
+    local values = cfg.Values or {}
+    -- 老 Mini 的 Default 是「第几项」，WindUI 要「那一项本身」
+    local v = cfg.Default
+    if type(v) == "number" then v = values[v] or values[1] else v = v or values[1] end
 
-    local header = Create("TextButton", {
-        Parent = holder, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
-        AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 34),
-    })
-    MakeLabel(header, PickText(cfg), 12, 200, Theme.Text, Theme.Font, 13, PickKey(cfg))
-    local cur = Create("TextLabel", {
-        Parent = header, BackgroundTransparency = 1, Font = Theme.Font,
-        Text = "", TextSize = 11, TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Position = UDim2.new(1, -150, 0, 0), Size = UDim2.fromOffset(138, 34),
+    local el = parent:Dropdown({
+        Title = PickText(cfg),
+        Desc = PickDesc(cfg),
+        Values = values,
+        Value = v,
+        Flag = PickKey(cfg),
+        Callback = Tracker(shadow, function(nv) v = nv end),
     })
 
-    local list = Create("ScrollingFrame", {
-        Parent = holder, BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 34), Size = UDim2.new(1, 0, 0, openH - 34),
-        ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Stroke,
-        CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    })
-    Create("UIListLayout", {
-        Parent = list, Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder,
-    })
-
-    local element = { Value = values[cfg.Default or 1], Callbacks = {} }
-    local items = {}
-
-    local function paintSelection()
-        for name, item in pairs(items) do
-            item.BackgroundColor3 = (name == element.Value) and Color3.fromRGB(30, 62, 78)
-                or Theme.Row
-        end
-        cur.Text = tostring(element.Value)
-    end
-
-    for i, name in ipairs(values) do
-        local item = Create("TextButton", {
-            Parent = list, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
-            AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 20),
-            LayoutOrder = i,
-        })
-        MakeLabel(item, name, 10, 300, Theme.Text, Theme.Font, 12)
-        items[name] = item
-        item.MouseButton1Click:Connect(function()
-            element.Value = name
-            paintSelection()
-            for _, cb in ipairs(element.Callbacks) do cb(element.Value) end
-        end)
-    end
-
-    local open = false
-    header.MouseButton1Click:Connect(function()
-        open = not open
-        TweenService:Create(holder, TweenInfo.new(0.2),
-            { Size = open and UDim2.new(1, -10, 0, openH) or UDim2.new(1, -10, 0, 34) }):Play()
-    end)
-
-    function element:OnChanged(cb)
-        element.Callbacks[#element.Callbacks + 1] = cb
-        cb(element.Value)
-    end
-
-    paintSelection()
-    return element
+    return MakeProxy(el, {
+        Value = function() return v end,
+    }, {
+        Value = function(nv) v = nv end,
+    }, CommonMethods(el, shadow, function() return v end, function(nv) v = nv end))
 end
 
--- 多选下拉（原版 Entity List 用，AllowNull 语义 = 默认一个都不选）
+--────────────────────────── 多选下拉框 ──────────────────────────
+-- 老代码读的是 Options.X.Value["名字"] 这种「名字 → true」的哈希表，
+-- WindUI 的多选给的是数组，所以这里两边都转一手，另外补一个 :SetAll。
 function Mini.MultiSelect(parent, cfg)
-    local entries = cfg.Values
-    local openH = 34 + math.min(#entries, 8) * 22
-    local holder = Create("Frame", {
-        Parent = parent, BackgroundColor3 = Theme.Panel, BorderSizePixel = 0,
-        Size = UDim2.new(1, -10, 0, 34), ClipsDescendants = true,
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 6) }, holder)
-
-    local header = Create("TextButton", {
-        Parent = holder, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
-        AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 34),
-    })
-    MakeLabel(header, PickText(cfg), 12, 220, Theme.Text, Theme.Font, 13, PickKey(cfg))
-    local count = Create("TextLabel", {
-        Parent = header, BackgroundTransparency = 1, Font = Theme.Font,
-        Text = "", TextSize = 11, TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Right,
-        Position = UDim2.new(1, -110, 0, 0), Size = UDim2.fromOffset(100, 34),
-    })
-
-    local list = Create("ScrollingFrame", {
-        Parent = holder, BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 34), Size = UDim2.new(1, 0, 0, openH - 34),
-        ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.Stroke,
-        CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    })
-    Create("UIListLayout", {
-        Parent = list, Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder,
-    })
-
-    local element = { Selected = {}, Callbacks = {} }
-    for _, v in ipairs(entries) do
-        element.Selected[v] = (cfg.Default ~= nil) and cfg.Default[v] == true or false
+    local shadow = NewShadow()
+    local values = cfg.Values or {}
+    local set = {}
+    local CountLabel
+    local UpdateCount
+    local function RebuildFrom(list)
+        set = {}
+        if type(list) == "table" then
+            for _, name in ipairs(list) do set[name] = true end
+        end
+        -- 计数标签要跟着更新（UpdateCount 是后面才赋值的，所以这里按 upvalue 取）
+        if UpdateCount then UpdateCount() end
     end
 
-    local boxes = {}
+    local el = parent:Dropdown({
+        Title = PickText(cfg),
+        Desc = PickDesc(cfg),
+        Values = values,
+        Value = {},
+        Multi = true,
+        SearchBarEnabled = true,
+        Flag = PickKey(cfg),
+        Callback = Tracker(shadow, RebuildFrom),
+    })
 
-    local function selectedCount()
+    local t
+    local function Push()
+        local list = {}
+        for _, name in ipairs(values) do
+            if set[name] then list[#list + 1] = name end
+        end
+        SafeCall(function() return el:Set(list) end)
+    end
+
+    local methods = CommonMethods(el, shadow, function() return set end, RebuildFrom)
+    function methods.SetAll(_, on)
+        for _, name in ipairs(values) do set[name] = on and true or nil end
+        Push()
+        if shadow.Cb then SafeCall(shadow.Cb, set) end
+        return t
+    end
+
+    -- 旧 Mini 的那个「已选 N」标签是库自己画的，这里补上，行为别丢
+    Lang.Strings.zh["sel.count"] = Lang.Strings.zh["sel.count"] or "已选 %d"
+    Lang.Strings.en["sel.count"] = Lang.Strings.en["sel.count"] or "%d selected"
+    CountLabel = Mini.Label(parent, Lang.Format("sel.count", 0))
+    UpdateCount = function()
         local n = 0
-        for _, v in pairs(element.Selected) do
-            if v then n = n + 1 end
+        for _, name in ipairs(values) do
+            if set[name] then n = n + 1 end
         end
-        return n
+        CountLabel.Text = Lang.Format("sel.count", n) or tostring(n)
     end
 
-    local function updateCount()
-        count.Text = Lang.Format("ms.count", selectedCount())
-    end
-
-    local function fire()
-        for _, cb in ipairs(element.Callbacks) do cb(element.Selected) end
-    end
-
-    for i, name in ipairs(entries) do
-        local item = Create("TextButton", {
-            Parent = list, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
-            AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 21),
-            LayoutOrder = i,
-        })
-        MakeLabel(item, name, 10, 240, Theme.Text, Theme.Font, 12)
-        local box = Create("Frame", {
-            Parent = item, BackgroundColor3 = Color3.fromRGB(52, 56, 66),
-            BorderSizePixel = 0, Position = UDim2.new(1, -26, 0.5, -7),
-            Size = UDim2.fromOffset(14, 14),
-        })
-        Create("UICorner", { CornerRadius = UDim.new(0, 4) }, box)
-        boxes[name] = box
-
-        local function paintItem()
-            local on = element.Selected[name] == true
-            box.BackgroundColor3 = on and Theme.Accent or Color3.fromRGB(52, 56, 66)
-        end
-        paintItem()
-
-        item.MouseButton1Click:Connect(function()
-            element.Selected[name] = not (element.Selected[name] == true)
-            paintItem()
-            updateCount()
-            fire()
-        end)
-    end
-
-    local open = false
-    header.MouseButton1Click:Connect(function()
-        open = not open
-        TweenService:Create(holder, TweenInfo.new(0.2),
-            { Size = open and UDim2.new(1, -10, 0, openH) or UDim2.new(1, -10, 0, 34) }):Play()
-    end)
-
-    -- 原版下拉用 Options.X.Value[...] 判断选中，这里让 .Value 指向 Selected
-    element.Value = element.Selected
-
-    Lang.Strings.zh["ms.count"] = "已选 %d"
-    Lang.Strings.en["ms.count"] = "%d selected"
-    Lang.BindFn(count, function() return Lang.Format("ms.count", selectedCount()) end)
-
-    updateCount()
-
-    function element:SetAll(v)
-        for k in pairs(element.Selected) do
-            element.Selected[k] = v
-            boxes[k].BackgroundColor3 = v and Theme.Accent or Color3.fromRGB(52, 56, 66)
-        end
-        updateCount()
-        fire()
-    end
-    function element:OnChanged(cb)
-        element.Callbacks[#element.Callbacks + 1] = cb
-        cb(element.Selected)
-    end
-
-    return element
+    t = MakeProxy(el, {
+        Value = function() return set end,
+        Selected = function() return set end,
+    }, {
+        Value = function(nv) RebuildFrom(nv) end,
+    }, methods)
+    UpdateCount()
+    return t
 end
 
+--────────────────────────── 快捷键 ──────────────────────────
+-- 老代码读的是 X.Key（Enum.KeyCode），WindUI 存的 .Value 是字符串名字，这里转回来。
 function Mini.Keybind(parent, cfg)
-    local row = MakeRow(parent, 34)
-    MakeLabel(row, PickText(cfg), 12, 200, Theme.Text, Theme.Font, 13, PickKey(cfg))
-    local btn = Create("TextButton", {
-        Parent = row, BackgroundColor3 = Color3.fromRGB(52, 56, 66),
-        BorderSizePixel = 0, AutoButtonColor = false, Font = Theme.FontBold,
-        Text = tostring(cfg.Default and cfg.Default.Name or "?"), TextSize = 12,
-        TextColor3 = Theme.Text,
-        Position = UDim2.new(1, -84, 0.5, -11), Size = UDim2.fromOffset(72, 22),
-    })
-    Create("UICorner", { CornerRadius = UDim.new(0, 5) }, btn)
+    local shadow = NewShadow()
+    local v = cfg.Default
 
-    local element = { Key = cfg.Default, Callbacks = {} }
-    local capturing = false
-    btn.MouseButton1Click:Connect(function()
-        capturing = true
-        btn.Text = Lang.T("kb.press") or "…"
-    end)
-    UserInputService.InputBegan:Connect(function(input)
-        if not capturing then return end
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            element.Key = input.KeyCode
-            btn.Text = input.KeyCode.Name
-            capturing = false
+    local el = parent:Keybind({
+        Title = PickText(cfg),
+        Desc = PickDesc(cfg),
+        Value = v,
+        Flag = PickKey(cfg),
+        Callback = Tracker(shadow, function(nv) v = nv end),
+    })
+
+    local function ToKeyCode(raw)
+        if typeof and typeof(raw) == "EnumItem" then return raw end
+        if type(raw) == "string" and Enum and Enum.KeyCode then
+            local ok, code = pcall(function() return Enum.KeyCode[raw] end)
+            if ok and code then return code end
         end
-    end)
-    function element:OnChanged(cb)
-        element.Callbacks[#element.Callbacks + 1] = cb
+        return v
     end
-    return element
+
+    return MakeProxy(el, {
+        Key = function() return ToKeyCode(el.Value) end,
+        Value = function() return ToKeyCode(el.Value) end,
+    }, {}, CommonMethods(el, shadow, function() return ToKeyCode(el.Value) end, function() end))
+end
+
+--────────────────────────── 按钮 ──────────────────────────
+function Mini.Button(parent, cfg)
+    local shadow = NewShadow()
+
+    local el = parent:Button({
+        Title = PickText(cfg),
+        Desc = PickDesc(cfg),
+        Flag = PickKey(cfg),
+        Callback = function()
+            if shadow.Click then SafeCall(shadow.Click) end
+        end,
+    })
+
+    local methods = CommonMethods(el, shadow, function() return nil end, function() end)
+    -- 按钮本体点一次也要执行
+    if type(el.Set) == "function" then
+        local oldSet = methods.Set
+        methods.Set = function(t, ...)
+            if shadow.Click then SafeCall(shadow.Click) end
+            return oldSet(t, ...)
+        end
+    end
+    return MakeProxy(el, {}, {}, methods)
+end
+
+--────────────────────────── 文字 ──────────────────────────
+function Mini.Label(parent, text, color)
+    local labelText = PickText(text)
+    local el = parent:Label({ Text = labelText })
+
+    -- 状态刷新 / 语言切换靠的是 .Text，所以得在 WindUI 的控件里找到那个 TextLabel
+    local found
+    local function FindTextLabel(root, depth)
+        if depth > 5 or type(root) ~= "table" then return nil end
+        if root.ClassName == "TextLabel" then return root end
+        for k, v in pairs(root) do
+            if k ~= "Parent" and k ~= "Window" and k ~= "Tab"
+                and k ~= "ElementTable" and type(v) == "table" then
+                local hit = FindTextLabel(v, depth + 1)
+                if hit then return hit end
+            end
+        end
+        return nil
+    end
+    local function Resolve()
+        if found and found.Parent ~= nil then return found end
+        found = FindTextLabel(el.UIElements or el, 0)
+        return found
+    end
+
+    -- 注意：Text 不能放成原生字段，否则 `label.Text = x` 不会触发 __newindex，
+    -- 语言切换 / 状态刷新那几处赋值就会静默失效。所以用 getter + setter。
+    local t = { __el = el, Color = color }
+    local current = labelText
+    local function Apply(txt)
+        current = txt
+        local lbl = Resolve()
+        if lbl then SafeCall(function() lbl.Text = txt end) end
+    end
+    local function Noop(_, _ignored) return t end
+
+    rawset(t, "Set", function(_, txt) Apply(txt) return t end)
+    rawset(t, "SetText", function(_, txt) Apply(txt) return t end)
+    rawset(t, "OnChanged", Noop)
+    rawset(t, "OnClick", Noop)
+    rawset(t, "SetDisabled", Noop)
+    rawset(t, "Destroy", function() SafeCall(function() return el:Destroy() end) end)
+    setmetatable(t, {
+        __index = function(_, k)
+            if k == "Text" then return current end
+            return nil
+        end,
+        __newindex = function(self, k, v)
+            if k == "Text" then Apply(v) return end
+            rawset(self, k, v)
+        end,
+    })
+    Apply(labelText)
+    return t
+end
+
+--────────────────────────── 分隔线 ──────────────────────────
+function Mini.Divider(parent)
+    local ok, el = pcall(function() return parent:Divider() end)
+    if ok then return el end
+    return parent:Space({})
+end
+
+-- 把每个控件注册过的回调按「当前值」重跑一遍。
+-- 读配置、切语言之后状态没跟上的时候用它兜底（所有回调都是幂等的）。
+function Mini.ReapplyAll()
+    for _, entry in pairs(Mini.Registry) do
+        if entry.fn then SafeCall(entry.fn, entry.get()) end
+    end
+end
+
+-- 上次切过的语言：换语言走的是「卸载 + 重新执行脚本」，重载后要接着用同一个语言
+do
+    local Saved = getgenv() and getgenv().DoorsESPX_Lang or nil
+    if Saved and Lang.Strings[Saved] then Lang.Current = Saved end
 end
 
 --=====================================================================
@@ -2404,14 +2123,38 @@ local tabCam    = Window:Tab(L("tab.cam",     "相机",      "Camera"))
 local tabChar   = Window:Tab(L("tab.char",    "角色",      "Character"))
 local tabBypass = Window:Tab(L("tab.bypass",  "绕过",      "Bypass"))
 local tabCreak  = Window:Tab(L("tab.creak",   "Creak",     "Creak"))
+local tabAuto   = Window:Tab(L("tab.auto",    "自动",      "Auto"))
 
 --────────────────────────── 语言 ──────────────────────────
+-- 注意：这里故意不给 Key —— 语言不进存档。
+-- 否则读档时会把语言又改回存的那一刻的值，换完语言一重载就被顶回来。
 local LangDropdown = Mini.Dropdown(tabLang.Page, {
-    Key = "lang.pick", Text = "界面语言",
-    Values = { "中文", "English" }, Default = 1,
+    Text = "界面语言",
+    Values = { "中文", "English" }, Default = (Lang.Current == "en") and 2 or 1,
 })
+-- 只认「真的值变化」：建界面时下拉框会用当前项回放一次回调，
+-- 那一次不算用户切换 —— 否则重载之后会再切一次，来回重载停不下来。
+local LastLangPick = (Lang.Current == "en") and "English" or "中文"
+
 LangDropdown:OnChanged(function(Value)
-    Lang.Set(Value == "中文" and "zh" or "en")
+    if Value == LastLangPick then return end
+    LastLangPick = Value
+    local Want = (Value == "中文") and "zh" or "en"
+    if Want == Lang.Current then return end
+    -- WindUI 控件的文字是建的时候定死的，没有改标题的接口，
+    -- 所以换语言走「先存语言 → 卸载 → 重新执行本脚本」，界面整体按新语言重建。
+    Lang.Set(Want)
+    getgenv().DoorsESPX_Lang = Want
+    task.defer(function()
+        local State = getgenv()[STATE_KEY]
+        if State and State.Unload then pcall(State.Unload) end
+        local ok, err = pcall(function()
+            return loadstring(game:HttpGet(SCRIPT_URL))()
+        end)
+        if not ok then
+            warn("[DoorsESPX] 换语言后自动重载失败：" .. tostring(err) .. "，请手动重新执行一次脚本")
+        end
+    end)
 end)
 Mini.Label(tabLang.Page, L("lang.note",
     "切换语言只换界面文字。ESP 标签保持游戏里的原始名称（Lockpicks / Rush / Door 6 / Gold Pile [42] 这类），不翻译。",
@@ -3458,6 +3201,573 @@ end)
 if not Drawing then
     warn("[DoorsESPX] 你的执行器没有 Drawing API，Creak 愤怒值 HUD 不会显示（原版也是用 Drawing）")
 end
+
+--=====================================================================
+-- 13. 新功能：无加速度 / 物品环绕 / 隔墙互动 / 自动楼层 / 保存配置
+--=====================================================================
+--────────────────────────── 无加速度（抄 Abysall 的 RemoveAcceleration） ──────────────────────────
+-- 原理：游戏给角色部件用的是默认物理材质，移动起来会打滑、被推飞。
+-- Abysall 的做法是把每个部件的密度顶到 100（摩擦/弹性照抄根部件原来的值），
+-- 重量一上来就打滑不起来了。每个部件的原始材质存在 PartProperties 里，关掉时还原。
+local NoAccelPartProperties = {}
+local NoAccelLast = 0
+
+-- fengari 里没有 debug.traceback，写一个两边都能用的
+local function Trace(err)
+    local parts = { tostring(err) }
+    if debug then
+        if type(debug.traceback) == "function" then
+            local ok, tb = pcall(debug.traceback, "", 2)
+            if ok and tb then parts[#parts + 1] = tostring(tb) end
+        elseif type(debug.getinfo) == "function" then
+            -- fengari 没有 traceback，用 getinfo 手工拼
+            for lvl = 2, 10 do
+                local ok, info = pcall(debug.getinfo, lvl, "Sl")
+                if not ok or not info or not info.currentline or info.currentline <= 0 then break end
+                parts[#parts + 1] = string.format("  栈%d: 第%s行 (%s)",
+                    lvl, tostring(info.currentline), tostring(info.name or "?"))
+            end
+        end
+    end
+    return table.concat(parts, "\n")
+end
+
+local function ApplyNoAcceleration(on)
+    local Character = Char.Character
+    if not Character then return end
+    for _, Part in ipairs(Character:GetDescendants()) do
+        if Part:IsA("BasePart") then
+            local Base = NoAccelPartProperties[Part]
+            if on then
+                if Base == nil then
+                    Base = Part.CustomPhysicalProperties
+                    NoAccelPartProperties[Part] = Base
+                end
+                if Base and PhysicalProperties then
+                    pcall(function()
+                        Part.CustomPhysicalProperties = PhysicalProperties.new(
+                            100, Base.Friction, Base.Elasticity,
+                            Base.FrictionWeight, Base.ElasticityWeight)
+                    end)
+                end
+            elseif Base then
+                pcall(function() Part.CustomPhysicalProperties = Base end)
+                NoAccelPartProperties[Part] = nil
+            end
+        end
+    end
+end
+
+--────────────────────────── 物品环绕（抄 tplays 插件的 OrbitDrops） ──────────────────────────
+-- 原理：每帧把所有「自己掉落的东西」按一个圆周均匀摆到角色周围。
+-- 角度是累加的，所以看起来是在绕圈；高度和半径各给一个滑块。
+local OrbitState = { Angle = 0 }
+
+local function MyDrops()
+    local out = {}
+    local Folder = Services.Workspace:FindFirstChild("Drops")
+    if not Folder then return out end
+    for _, Drop in ipairs(Folder:GetChildren()) do
+        if Drop:IsA("Model") and Drop:GetAttribute("PlayerName") == LocalPlayer.Name then
+            out[#out + 1] = Drop
+        end
+    end
+    return out
+end
+
+local function OrbitStep(dt)
+    local Root = Char.RootPart
+    if not Root then return end
+    local Drops = MyDrops()
+    if #Drops == 0 then return end
+
+    OrbitState.Angle = (OrbitState.Angle + dt * 90 * (Options.OrbitSpeed.Value or 1)) % 360
+    local Height = Options.OrbitHeight.Value or 3
+    local Offset = Options.OrbitOffset.Value or 6
+
+    for num, Drop in ipairs(Drops) do
+        local Main = Drop:FindFirstChild("Main")
+        if Main then
+            pcall(function() Main.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
+        end
+        pcall(function()
+            Drop:PivotTo((CFrame.Angles(0, math.rad(OrbitState.Angle - 360 / #Drops * num), 0)
+                + Root.Position) * CFrame.new(0, Height, Offset))
+        end)
+    end
+end
+
+--────────────────────────── 隔墙互动 ──────────────────────────
+-- 两件事一起做，缺哪样都能用一半：
+--   ① 把场景里所有 ProximityPrompt 的 HoldDuration 压成 0 → 按钮变成秒按（不需要执行器函数）
+--   ② 执行器有 fireproximityprompt 时，把「距离范围内」的提示直接从墙这边触发
+local FirePrompt = nil
+do
+    local ok, fn = pcall(function() return getgenv().fireproximityprompt end)
+    if ok and type(fn) == "function" then
+        FirePrompt = fn
+    end
+end
+
+local PromptHoldCache = {}
+local PromptSweepLast = 0
+
+local function SetPromptInstant(Prompt)
+    if not Prompt:IsA("ProximityPrompt") then return end
+    if PromptHoldCache[Prompt] == nil then
+        PromptHoldCache[Prompt] = Prompt.HoldDuration
+    end
+    if Prompt.HoldDuration ~= 0 then
+        pcall(function() Prompt.HoldDuration = 0 end)
+    end
+end
+
+local function RestorePrompts()
+    for Prompt, Old in pairs(PromptHoldCache) do
+        if Prompt.Parent then
+            pcall(function() Prompt.HoldDuration = Old end)
+        end
+    end
+    for Prompt in pairs(PromptHoldCache) do
+        PromptHoldCache[Prompt] = nil
+    end
+end
+
+local function SweepPrompts(Range)
+    local Root = Char.RootPart
+    if not Root then return end
+    local Origin = Root.Position
+    for _, Prompt in ipairs(Services.Workspace:GetDescendants()) do
+        if Prompt:IsA("ProximityPrompt") and Prompt.Enabled and Prompt.Parent then
+            SetPromptInstant(Prompt)
+            if FirePrompt then
+                local Host = Prompt.Parent
+                local Pos = Host and Host.Position
+                if Pos and (Pos - Origin).Magnitude <= Range then
+                    pcall(FirePrompt, Prompt, 0)
+                end
+            end
+        end
+    end
+end
+
+--────────────────────────── 自动楼层（楼梯间） ──────────────────────────
+-- 抄 tplays 插件的 Stairwell 分支，但按我们这份脚本的条件改了两处：
+--   · 插件靠 mspaint 的 DoorReach 隔空开门，我们没这个功能 —— 改成直接把门的提示
+--     fireproximityprompt 过去（就是上面隔墙互动那套），效果一样；
+--   · 通关条件不写死门号：看到 StairwellExitDoor 就通关，所以新版 100 门、旧版 200 门都适配。
+local AutoFloorState = { Running = false, CrouchFired = false, Notify = nil, Hooks = {} }
+
+local function GetLatestRoom()
+    local GameData = Services.ReplicatedStorage:FindFirstChild("GameData")
+    return GameData and GameData:FindFirstChild("LatestRoom") or nil
+end
+
+local function GetCurrentRooms()
+    return Services.Workspace:FindFirstChild("CurrentRooms")
+end
+
+-- 开门：把这道门上能找到的提示都触发一遍（锁的解锁提示 / 假提示 / 通用激活提示）
+local function FireDoorPrompt(Door)
+    if not FirePrompt then return end
+    local Lock = Door:FindFirstChild("Lock")
+    local Prompt = Lock and (Lock:FindFirstChild("UnlockPrompt") or Lock:FindFirstChild("FakePrompt"))
+    Prompt = Prompt or Door:FindFirstChild("ActivateEventPrompt") or Door:FindFirstChild("DoorPrompt")
+    if Prompt then
+        pcall(FirePrompt, Prompt, 0)
+    end
+end
+
+local function StopAutoFloor(reason)
+    AutoFloorState.Running = false
+    if Connections.AutoFloor then
+        pcall(function() Connections.AutoFloor:Disconnect() end)
+        Connections.AutoFloor = nil
+    end
+    if AutoFloorState.Notify then
+        pcall(function() AutoFloorState.Notify:Destroy() end)
+        AutoFloorState.Notify = nil
+    end
+    if AutoFloorState.CrouchFired then
+        AutoFloorState.CrouchFired = false
+        local Crouch = GetCrouchRemote and GetCrouchRemote() or nil
+        if Crouch then
+            pcall(function() Crouch:FireServer(true, true) end)
+        end
+    end
+    for _, Restore in ipairs(AutoFloorState.Hooks) do
+        pcall(Restore)
+    end
+    AutoFloorState.Hooks = {}
+    if reason then
+        pcall(function()
+            Mini.WindUI:Notify({ Title = reason, Duration = 4, Icon = "info" })
+        end)
+    end
+end
+
+local function InstallTeleportHook()
+    -- 插件里靠 hookfunction 把游戏「把你传回原地」的处理函数换成空的。
+    -- 执行器没这几个函数也没关系，只是被传送时可能被拉回一次。
+    local hookfunction = getgenv().hookfunction
+    local restorefunction = getgenv().restorefunction
+    local checkcaller = getgenv().checkcaller
+    if type(hookfunction) ~= "function" or type(restorefunction) ~= "function" then
+        return false
+    end
+
+    local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
+    local ServerTeleported = RemotesFolder and RemotesFolder:FindFirstChild("ServerTeleported")
+    if not ServerTeleported then return false end
+
+    local ok = pcall(function()
+        local Sig = ServerTeleported.OnClientEvent
+        local RealConnect = Sig.Connect
+        local hooked
+        hooked = hookfunction(RealConnect, function(self, fn)
+            if type(checkcaller) == "function" and not checkcaller() then
+                local blanked = hookfunction(fn, function() end)
+                AutoFloorState.Hooks[#AutoFloorState.Hooks + 1] = function()
+                    restorefunction(blanked)
+                end
+            end
+            return hooked(self, fn)
+        end)
+        AutoFloorState.Hooks[#AutoFloorState.Hooks + 1] = function()
+            restorefunction(RealConnect)
+        end
+    end)
+    return ok
+end
+
+local AutoFloorStep   -- 前向声明：StartAutoFloor 的循环里要用它
+
+local function StartAutoFloor()
+    if AutoFloorState.Running then return false end
+
+    local LatestRoom = GetLatestRoom()
+    local CurrentRooms = GetCurrentRooms()
+    if not (LatestRoom and CurrentRooms) then
+        pcall(function()
+            Mini.WindUI:Notify({
+                Title = "现在不在 Doors 里：找不到 GameData.LatestRoom",
+                Duration = 4, Icon = "warning",
+            })
+        end)
+        return false
+    end
+    if not FirePrompt then
+        pcall(function()
+            Mini.WindUI:Notify({
+                Title = "执行器没有 fireproximityprompt，传送到门前也开不了门",
+                Duration = 5, Icon = "warning",
+            })
+        end)
+    end
+
+    AutoFloorState.Running = true
+    InstallTeleportHook()
+    Connections.AutoFloor = Services.RunService.Heartbeat:Connect(function()
+        local ok, err = xpcall(AutoFloorStep, Trace)
+        if not ok then warn("[DoorsESPX] 自动楼层出错：" .. tostring(err)) end
+    end)
+    return true
+end
+
+AutoFloorStep = function()
+    if not AutoFloorState.Running then return end
+
+    local LatestRoom = GetLatestRoom()
+    local CurrentRooms = GetCurrentRooms()
+    if not (LatestRoom and CurrentRooms) then return end
+
+    -- 插件在这里会把滑行速度一起打开（楼梯间里跑得快）。我们没有 mspaint 的滑行开关，
+    -- 就照它原文那样直接点一下下蹲遥控。
+    if not AutoFloorState.CrouchFired then
+        local Crouch = GetCrouchRemote and GetCrouchRemote() or nil
+        if Crouch then
+            AutoFloorState.CrouchFired = true
+            pcall(function() Crouch:FireServer(true, true) end)
+        end
+    end
+
+    -- 房间名是字符串，数字门号转一下才能找到
+    local Room = CurrentRooms:FindFirstChild(tostring(LatestRoom.Value))
+    if not Room then return end
+    local Door = Room:FindFirstChild("Door")
+
+    -- 过了 98 门才开始找出口门：新版楼梯间一共 100 门，旧版 200 门也一样能过，
+    -- 因为真正触发通关的是「看到出口门」，不是门号。
+    local ExitDoor = nil
+    if LatestRoom.Value > 98 then
+        ExitDoor = Room:FindFirstChild("StairwellExitDoor")
+    end
+
+    if ExitDoor then
+        local Character = Char.Character
+        if Character then
+            pcall(function() Character:PivotTo(ExitDoor:GetPivot()) end)
+        end
+        local Collision = ExitDoor:FindFirstChild("Collision")
+        local EnterPrompt = Collision and Collision:FindFirstChild("EnterPrompt")
+        if EnterPrompt and FirePrompt then
+            pcall(FirePrompt, EnterPrompt, 0)
+        end
+        pcall(function()
+            Mini.WindUI:Notify({ Title = "楼梯间已完成", Duration = 10, Icon = "check" })
+        end)
+        -- 非静默置回 false：会走到 OnChanged → StopAutoFloor 收尾，状态标签也跟着刷新
+        Toggles.AutoFloorToggle:SetValue(false)
+    elseif Door then
+        local Character = Char.Character
+        if Character then
+            pcall(function() Character:PivotTo(Door:GetPivot()) end)
+        end
+        FireDoorPrompt(Door)
+    end
+end
+
+--────────────────────────── 保存配置 ──────────────────────────
+-- 直接用 WindUI 自带的 ConfigManager（存在 WindUI/DoorsESPX/config/ 下），
+-- 靠每个控件建的时候传的 Flag 认值，不用自己写存读。
+local SaveManager = Window.ConfigManager
+local CONFIG_NAME = "default"
+
+local function ConfigReady()
+    if not SaveManager then
+        pcall(function()
+            Mini.WindUI:Notify({
+                Title = "配置系统不可用（执行器没有 writefile，或 WindUI 窗口没设 Folder）",
+                Duration = 4, Icon = "warning",
+            })
+        end)
+        return false
+    end
+    return true
+end
+
+local function SaveConfig()
+    if not ConfigReady() then return false end
+    local ok, err = pcall(function()
+        local Config = SaveManager:CreateConfig(CONFIG_NAME, true)
+        Config:Save()
+    end)
+    pcall(function()
+        Mini.WindUI:Notify({
+            Title = ok and "配置已保存" or ("保存失败：" .. tostring(err)),
+            Duration = 3, Icon = ok and "check" or "warning",
+        })
+    end)
+    return ok
+end
+
+local function LoadConfig()
+    if not ConfigReady() then return false end
+    local ok, err = pcall(function()
+        local Config = SaveManager:CreateConfig(CONFIG_NAME, true)
+        Config:Load()
+    end)
+    if ok then
+        Mini.ReapplyAll()
+    end
+    pcall(function()
+        Mini.WindUI:Notify({
+            Title = ok and "配置已读取" or ("读取失败：" .. tostring(err)),
+            Duration = 3, Icon = ok and "check" or "warning",
+        })
+    end)
+    return ok
+end
+
+-- fengari 里没有 debug.traceback，写一个两边都能用的
+local function Trace(err)
+    local parts = { tostring(err) }
+    if debug then
+        if type(debug.traceback) == "function" then
+            local ok, tb = pcall(debug.traceback, "", 2)
+            if ok and tb then parts[#parts + 1] = tostring(tb) end
+        elseif type(debug.getinfo) == "function" then
+            -- fengari 没有 traceback，用 getinfo 手工拼
+            for lvl = 2, 10 do
+                local ok, info = pcall(debug.getinfo, lvl, "Sl")
+                if not ok or not info or not info.currentline or info.currentline <= 0 then break end
+                parts[#parts + 1] = string.format("  栈%d: 第%s行 (%s)",
+                    lvl, tostring(info.currentline), tostring(info.name or "?"))
+            end
+        end
+    end
+    return table.concat(parts, "\n")
+end
+
+--────────────────────────── 新功能控件 ──────────────────────────
+
+-- 无加速度
+Toggles.NoAccelerationToggle = Mini.Toggle(tabChar.Page, L(
+    "char.noaccel", "无加速度", "No Acceleration",
+    "Sets every character part's density to 100 so you stop sliding around (same as the original).",
+    "把角色每个部件的密度顶到 100，移动时不会再打滑、被推飞（照抄原版的 Remove Acceleration）。"))
+Toggles.NoAccelerationToggle:OnChanged(function(Value)
+    ApplyNoAcceleration(Value)
+end)
+
+Mini.Divider(tabChar.Page)
+
+-- 物品环绕
+Options.OrbitSpeed = Mini.Slider(tabChar.Page, {
+    Key = "char.orbitspeed", Text = "环绕速度", Min = 0.2, Max = 3, Default = 1, Rounding = 0.1 })
+Options.OrbitHeight = Mini.Slider(tabChar.Page, {
+    Key = "char.orbitheight", Text = "环绕高度", Min = 0, Max = 10, Default = 3, Rounding = 0 })
+Options.OrbitOffset = Mini.Slider(tabChar.Page, {
+    Key = "char.orbitoffset", Text = "环绕半径", Min = 0, Max = 20, Default = 6, Rounding = 0 })
+Toggles.OrbitToggle = Mini.Toggle(tabChar.Page, L(
+    "char.orbit", "物品环绕", "Orbit Drops",
+    "Orbits every item you dropped around your character (same as the original addon).",
+    "把你掉在地上的东西按一个圈均匀绕在角色周围转（照抄 tplays 插件的「环绕掉落物」）。"))
+Mini.Label(tabChar.Page, L("char.orbit.note",
+    "只环绕「自己掉的」东西（掉落物上 PlayerName 属性等于你的名字），别人的不碰。关掉后东西停在原地。",
+    "Only your own dropped items are orbited (PlayerName attribute equals your name). Turning it off leaves them where they are."))
+
+Mini.Divider(tabChar.Page)
+
+-- 隔墙互动
+Options.WallInteractRange = Mini.Slider(tabChar.Page, {
+    Key = "char.wallrange", Text = "隔墙互动距离", Min = 5, Max = 60, Default = 20, Rounding = 0 })
+Toggles.WallInteractToggle = Mini.Toggle(tabChar.Page, L(
+    "char.wall", "隔墙互动", "Interact Through Walls",
+    "Zeroes every prompt's hold time and fires prompts through walls (needs fireproximityprompt).",
+    "把场景里所有按钮的按住时间压成 0，并且隔着墙触发范围内的提示（要执行器有 fireproximityprompt）。"))
+
+local PromptAddedConn
+
+local function SetPromptListener(on)
+    if on then
+        if not PromptAddedConn then
+            PromptAddedConn = Services.Workspace.DescendantAdded:Connect(function(Inst)
+                if Inst:IsA("ProximityPrompt") then SetPromptInstant(Inst) end
+            end)
+        end
+    elseif PromptAddedConn then
+        pcall(function() PromptAddedConn:Disconnect() end)
+        PromptAddedConn = nil
+    end
+end
+
+Toggles.WallInteractToggle:OnChanged(function(Value)
+    if Value then
+        SetPromptListener(true)
+        SweepPrompts(Options.WallInteractRange.Value)
+    else
+        SetPromptListener(false)
+        RestorePrompts()
+    end
+end)
+Mini.Label(tabChar.Page, L("char.wall.note",
+    "能不能穿过墙取决于执行器：有 fireproximityprompt 就是真隔墙触发；没有的话只剩「按住时间归零」（秒互动），关掉会还原。",
+    "With fireproximityprompt it really fires through walls; without it you still get instant hold (0s), and turning it off restores the original hold times."))
+
+-- 自动楼层（楼梯间）
+Toggles.AutoFloorToggle = Mini.Toggle(tabAuto.Page, L(
+    "auto.floor", "自动楼层（楼梯间）", "Auto Floor (Stairwell)",
+    "Walks you through the stairwell door by door and finishes it automatically.",
+    "一路把你送到楼梯间出口门并自动通关（照抄 tplays 插件的 Stairwell 分支）。"))
+
+Lang.Strings.zh["auto.state.off"] = "状态：未运行"
+Lang.Strings.en["auto.state.off"] = "Status: idle"
+local AutoFloorStatus = Mini.Label(tabAuto.Page, L("auto.state.off", "状态：未运行", "Status: idle"))
+
+local function AutoFloorStatusText()
+    if not AutoFloorState.Running then
+        return Lang.T("auto.state.off") or "状态：未运行"
+    end
+    local LatestRoom = GetLatestRoom()
+    local Door = LatestRoom and LatestRoom.Value or "?"
+    if Lang.Current == "zh" then
+        return "运行中 · 已开 " .. tostring(Door) .. " 门"
+    end
+    return "Running · doors opened: " .. tostring(Door)
+end
+
+Toggles.AutoFloorToggle:OnChanged(function(Value)
+    if Value then
+        StartAutoFloor()
+    else
+        StopAutoFloor(nil)
+    end
+    AutoFloorStatus.Text = AutoFloorStatusText()
+end)
+
+Mini.Label(tabAuto.Page, L("auto.note",
+    "过了第 98 门才开始找「StairwellExitDoor」，看到它就直接传过去触发出口提示 = 通关。"
+    .. "触发条件是「看到出口门」而不是写死门号，所以新版 100 门楼梯间、旧版 200 门都能过。"
+    .. "开门不靠 DoorReach，是直接把门的提示 fireproximityprompt 过去，所以需要执行器有这个函数。",
+    "After door 98 it starts looking for StairwellExitDoor; seeing it teleports you there and fires the exit prompt. "
+    .. "The trigger is the exit door itself, not a hard-coded door number, so both the new 100-door stairwell and the old 200-door one work. "
+    .. "Doors are opened by firing their prompt directly instead of mspaint's DoorReach, so fireproximityprompt is required."))
+
+-- 保存配置
+Mini.Divider(tabSet.Page)
+Mini.Label(tabSet.Page, L("set.cfg.note",
+    "配置存在执行器的 WindUI/DoorsESPX/config/ 下（靠 WindUI 自带的配置系统，按控件的 Flag 认值）。"
+    .. "打开游戏时如果已经有存档会自动读一次。执行器没有 writefile 就用不了。",
+    "Configs live in WindUI/DoorsESPX/config/ and use WindUI's built-in config system (keyed by each control's Flag). "
+    .. "An existing save is loaded on injection. Needs the executor's writefile."))
+Mini.Button(tabSet.Page, L("set.cfg.save", "保存配置", "Save Config")):OnClick(function()
+    SaveConfig()
+end)
+Mini.Button(tabSet.Page, L("set.cfg.load", "读取配置", "Load Config")):OnClick(function()
+    LoadConfig()
+end)
+Mini.Button(tabSet.Page, L("set.cfg.del", "删除配置", "Delete Config")):OnClick(function()
+    if not ConfigReady() then return end
+    pcall(function() SaveManager:DeleteConfig(CONFIG_NAME) end)
+    pcall(function()
+        Mini.WindUI:Notify({ Title = "配置已删除", Duration = 3, Icon = "trash" })
+    end)
+end)
+
+--────────────────────────── 新功能运行循环 ──────────────────────────
+
+-- 无加速度：每 0.5 秒补一次（重生、换部件都能跟上），只在自己开着的时候跑
+Connections.NoAcceleration = Services.RunService.Heartbeat:Connect(function()
+    if not Toggles.NoAccelerationToggle.Value then return end
+    local now = os.clock()
+    if now - NoAccelLast < 0.5 then return end
+    NoAccelLast = now
+    ApplyNoAcceleration(true)
+end)
+
+-- 物品环绕
+Connections.Orbit = Services.RunService.Heartbeat:Connect(function(dt)
+    if not Toggles.OrbitToggle.Value then return end
+    local ok, err = xpcall(OrbitStep, Trace, dt)
+    if not ok then warn("[DoorsESPX] 物品环绕出错：" .. tostring(err)) end
+end)
+
+-- 隔墙互动：每 0.2 秒扫一次附近的提示
+Connections.WallInteract = Services.RunService.Heartbeat:Connect(function()
+    if not Toggles.WallInteractToggle.Value then return end
+    local now = os.clock()
+    if now - PromptSweepLast < 0.2 then return end
+    PromptSweepLast = now
+    local ok, err = xpcall(SweepPrompts, Trace, Options.WallInteractRange.Value)
+    if not ok then warn("[DoorsESPX] 隔墙互动出错：" .. tostring(err)) end
+end)
+
+-- 启动时自动读一次存档（有的话）
+task.defer(function()
+    if SaveManager then
+        local ok = pcall(function()
+            local Config = SaveManager:CreateConfig(CONFIG_NAME, true)
+            Config:Load()
+        end)
+        if ok then
+            Mini.ReapplyAll()
+            if AutoFloorStatus then
+                AutoFloorStatus.Text = AutoFloorStatusText()
+            end
+        end
+    end
+end)
 
 local Module = {}
 
