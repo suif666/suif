@@ -79,6 +79,85 @@ local function GetHiddenUI()
 end
 
 --=====================================================================
+-- 0.5 界面多语言（只翻译界面文字；ESP 标签保持游戏原版名称）
+--=====================================================================
+local Lang = {
+    Current  = "zh",
+    Strings  = { zh = {}, en = {} },
+    Registry = {},
+    Names    = { zh = "中文", en = "English" },
+}
+
+function Lang.T(key)
+    if not key then return nil end
+    local t = Lang.Strings[Lang.Current]
+    return t and t[key] or nil
+end
+
+function Lang.Has(key)
+    return Lang.T(key) ~= nil
+end
+
+function Lang.Bind(inst, key, prop)
+    if not key then return inst end
+    Lang.Registry[#Lang.Registry + 1] = { inst = inst, key = key, prop = prop or "Text" }
+    local v = Lang.T(key)
+    if v ~= nil then inst[prop or "Text"] = v end
+    return inst
+end
+
+-- 动态文字（比如「已选 3」）用回调，切换语言时重新算
+function Lang.BindFn(inst, fn)
+    Lang.Registry[#Lang.Registry + 1] = { inst = inst, fn = fn }
+    inst.Text = fn()
+    return inst
+end
+
+function Lang.Format(key, ...)
+    local fmt = Lang.T(key)
+    if not fmt then return tostring((...)) end
+    local ok, out = pcall(string.format, fmt, ...)
+    return ok and out or tostring((...))
+end
+
+function Lang.Set(code)
+    if not Lang.Strings[code] then return false end
+    Lang.Current = code
+    for _, e in ipairs(Lang.Registry) do
+        if e.fn then
+            e.inst.Text = e.fn()
+        else
+            local v = Lang.T(e.key)
+            if v ~= nil then e.inst[e.prop] = v end
+        end
+    end
+    return true
+end
+
+-- UI 构建时用 L(...) 就地声明两种语言，省掉一张独立的 key 表
+local function L(key, zh, en, zhTip, enTip)
+    Lang.Strings.zh[key] = zh
+    Lang.Strings.en[key] = en or zh
+    if zhTip then
+        Lang.Strings.zh[key .. ".tip"] = zhTip
+        Lang.Strings.en[key .. ".tip"] = enTip or zhTip
+    end
+    return { Key = key, Text = zh, Tooltip = zhTip }
+end
+
+local function PickText(cfg)
+    if type(cfg) == "table" then
+        return (cfg.Key and Lang.T(cfg.Key)) or cfg.Text or ""
+    end
+    return tostring(cfg or "")
+end
+
+local function PickKey(cfg)
+    if type(cfg) == "table" then return cfg.Key end
+    return nil
+end
+
+--=====================================================================
 -- 1. 自建 UI 库
 --=====================================================================
 local Theme = {
@@ -107,8 +186,8 @@ local function MakeRow(parent, height)
     return row
 end
 
-local function MakeLabel(parent, text, x, w, color, font, size)
-    return Create("TextLabel", {
+local function MakeLabel(parent, text, x, w, color, font, size, key)
+    local lbl = Create("TextLabel", {
         Parent = parent,
         BackgroundTransparency = 1,
         Font = font or Theme.Font,
@@ -120,6 +199,8 @@ local function MakeLabel(parent, text, x, w, color, font, size)
         Size = UDim2.new(0, w, 1, 0),
         TextTruncate = Enum.TextTruncate.AtEnd,
     })
+    if key then Lang.Bind(lbl, key) end
+    return lbl
 end
 
 function Mini.NewWindow(title, subtitle)
@@ -161,18 +242,20 @@ function Mini.NewWindow(title, subtitle)
         Position = UDim2.new(0, 10, 0, barHeight - 2), Size = UDim2.new(1, -20, 0, 2),
     })
 
-    Create("TextLabel", {
+    local titleLbl = Create("TextLabel", {
         Parent = bar, BackgroundTransparency = 1, Font = Theme.FontBold,
-        Text = title, TextSize = 15, TextColor3 = Theme.Text,
+        Text = PickText(title), TextSize = 15, TextColor3 = Theme.Text,
         TextXAlignment = Enum.TextXAlignment.Left,
         Position = UDim2.new(0, 14, 0, 0), Size = UDim2.new(0.6, 0, 1, 0),
     })
-    Create("TextLabel", {
+    Lang.Bind(titleLbl, PickKey(title))
+    local subLbl = Create("TextLabel", {
         Parent = bar, BackgroundTransparency = 1, Font = Theme.Font,
-        Text = subtitle or "", TextSize = 11, TextColor3 = Theme.SubText,
+        Text = PickText(subtitle), TextSize = 11, TextColor3 = Theme.SubText,
         TextXAlignment = Enum.TextXAlignment.Right,
         Position = UDim2.new(0.35, 0, 0, 0), Size = UDim2.new(0.5, -46, 1, 0),
     })
+    Lang.Bind(subLbl, PickKey(subtitle))
 
     local closeBtn = Create("TextButton", {
         Parent = bar, BackgroundColor3 = Color3.fromRGB(46, 30, 32), BorderSizePixel = 0,
@@ -245,7 +328,8 @@ function Mini.NewWindow(title, subtitle)
     function window:SetVisible(v) root.Visible = v end
     function window:Toggle() root.Visible = not root.Visible end
 
-    function window:Tab(name)
+    function window:Tab(nameCfg)
+        local name = PickText(nameCfg)
         local page = Create("ScrollingFrame", {
             Parent = pages, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
             BorderSizePixel = 0, ScrollBarThickness = 3,
@@ -264,6 +348,7 @@ function Mini.NewWindow(title, subtitle)
             TextColor3 = Theme.SubText, Size = UDim2.new(1, -12, 0, 32),
         })
         Create("UICorner", { CornerRadius = UDim.new(0, 6) }, btn)
+        Lang.Bind(btn, PickKey(nameCfg), "Text")
 
         local tab = { Page = page, Button = btn, Name = name }
         btn.MouseButton1Click:Connect(function()
@@ -295,17 +380,21 @@ end
 
 function Mini.Toggle(parent, cfg)
     local row = MakeRow(parent, 34)
-    local lbl = MakeLabel(row, cfg.Text, 12, 220, Theme.Text, Theme.Font, 13)
-    if cfg.Tooltip then
+    local lbl = MakeLabel(row, PickText(cfg), 12, 220, Theme.Text, Theme.Font, 13, PickKey(cfg))
+    local tipKey = cfg.Key and (cfg.Key .. ".tip") or nil
+    local tip = (tipKey and Lang.T(tipKey)) or cfg.Tooltip
+    if not (tipKey and Lang.Has(tipKey)) then tipKey = nil end
+    if tip then
         lbl.Size = UDim2.new(1, -78, 0, 16)
         lbl.Position = UDim2.new(0, 12, 0, 3)
-        Create("TextLabel", {
+        local tipLbl = Create("TextLabel", {
             Parent = row, BackgroundTransparency = 1, Font = Theme.Font,
-            Text = cfg.Tooltip, TextSize = 10, TextColor3 = Theme.SubText,
+            Text = tip, TextSize = 10, TextColor3 = Theme.SubText,
             TextXAlignment = Enum.TextXAlignment.Left,
             Position = UDim2.new(0, 12, 0, 18), Size = UDim2.new(1, -78, 0, 13),
             TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 2,
         })
+        Lang.Bind(tipLbl, tipKey)
     else
         lbl.Size = UDim2.new(1, -78, 1, 0)
     end
@@ -362,7 +451,7 @@ end
 
 function Mini.Slider(parent, cfg)
     local row = MakeRow(parent, 44)
-    MakeLabel(row, cfg.Text, 12, 220, Theme.Text, Theme.Font, 13)
+    MakeLabel(row, PickText(cfg), 12, 220, Theme.Text, Theme.Font, 13, PickKey(cfg))
     local valueLbl = Create("TextLabel", {
         Parent = row, BackgroundTransparency = 1, Font = Theme.FontBold,
         Text = tostring(cfg.Default), TextSize = 13, TextColor3 = Theme.Accent,
@@ -448,7 +537,7 @@ end
 
 function Mini.ColorPicker(parent, cfg)
     local row = MakeRow(parent, 38)
-    MakeLabel(row, cfg.Text, 12, 200, Theme.Text, Theme.Font, 13)
+    MakeLabel(row, PickText(cfg), 12, 200, Theme.Text, Theme.Font, 13, PickKey(cfg))
     local swatch = Create("TextButton", {
         Parent = row, BackgroundColor3 = cfg.Default, BorderSizePixel = 0,
         AutoButtonColor = false, Text = "",
@@ -577,10 +666,11 @@ function Mini.Button(parent, cfg)
     local btn = Create("TextButton", {
         Parent = row, BackgroundColor3 = Color3.fromRGB(30, 62, 78),
         BorderSizePixel = 0, AutoButtonColor = false, Font = Theme.FontBold,
-        Text = cfg.Text, TextSize = 13, TextColor3 = Theme.Accent,
+        Text = PickText(cfg), TextSize = 13, TextColor3 = Theme.Accent,
         Size = UDim2.fromScale(1, 1),
     })
     Create("UICorner", { CornerRadius = UDim.new(0, 6) }, btn)
+    Lang.Bind(btn, PickKey(cfg))
     local element = { Callbacks = {} }
     btn.MouseButton1Click:Connect(function()
         for _, cb in ipairs(element.Callbacks) do cb() end
@@ -594,7 +684,8 @@ end
 function Mini.Label(parent, text, color)
     local row = MakeRow(parent, 30)
     row.BackgroundTransparency = 1
-    local lbl = MakeLabel(row, text, 4, 600, color or Theme.SubText, Theme.Font, 11)
+    local lbl = MakeLabel(row, PickText(text), 4, 600, color or Theme.SubText,
+        Theme.Font, 11, PickKey(text))
     lbl.Size = UDim2.new(1, -8, 1, 0)
     lbl.TextWrapped = true
     return lbl
@@ -622,7 +713,7 @@ function Mini.Dropdown(parent, cfg)
         Parent = holder, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
         AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 34),
     })
-    MakeLabel(header, cfg.Text, 12, 200, Theme.Text, Theme.Font, 13)
+    MakeLabel(header, PickText(cfg), 12, 200, Theme.Text, Theme.Font, 13, PickKey(cfg))
     local cur = Create("TextLabel", {
         Parent = header, BackgroundTransparency = 1, Font = Theme.Font,
         Text = "", TextSize = 11, TextColor3 = Theme.Accent,
@@ -696,7 +787,7 @@ function Mini.MultiSelect(parent, cfg)
         Parent = holder, BackgroundColor3 = Theme.Row, BorderSizePixel = 0,
         AutoButtonColor = false, Text = "", Size = UDim2.new(1, 0, 0, 34),
     })
-    MakeLabel(header, cfg.Text, 12, 220, Theme.Text, Theme.Font, 13)
+    MakeLabel(header, PickText(cfg), 12, 220, Theme.Text, Theme.Font, 13, PickKey(cfg))
     local count = Create("TextLabel", {
         Parent = header, BackgroundTransparency = 1, Font = Theme.Font,
         Text = "", TextSize = 11, TextColor3 = Theme.Accent,
@@ -721,12 +812,16 @@ function Mini.MultiSelect(parent, cfg)
 
     local boxes = {}
 
-    local function updateCount()
+    local function selectedCount()
         local n = 0
         for _, v in pairs(element.Selected) do
             if v then n = n + 1 end
         end
-        count.Text = "已选 " .. n
+        return n
+    end
+
+    local function updateCount()
+        count.Text = Lang.Format("ms.count", selectedCount())
     end
 
     local function fire()
@@ -772,6 +867,10 @@ function Mini.MultiSelect(parent, cfg)
     -- 原版下拉用 Options.X.Value[...] 判断选中，这里让 .Value 指向 Selected
     element.Value = element.Selected
 
+    Lang.Strings.zh["ms.count"] = "已选 %d"
+    Lang.Strings.en["ms.count"] = "%d selected"
+    Lang.BindFn(count, function() return Lang.Format("ms.count", selectedCount()) end)
+
     updateCount()
 
     function element:SetAll(v)
@@ -792,7 +891,7 @@ end
 
 function Mini.Keybind(parent, cfg)
     local row = MakeRow(parent, 34)
-    MakeLabel(row, cfg.Text, 12, 200, Theme.Text, Theme.Font, 13)
+    MakeLabel(row, PickText(cfg), 12, 200, Theme.Text, Theme.Font, 13, PickKey(cfg))
     local btn = Create("TextButton", {
         Parent = row, BackgroundColor3 = Color3.fromRGB(52, 56, 66),
         BorderSizePixel = 0, AutoButtonColor = false, Font = Theme.FontBold,
@@ -806,7 +905,7 @@ function Mini.Keybind(parent, cfg)
     local capturing = false
     btn.MouseButton1Click:Connect(function()
         capturing = true
-        btn.Text = "按键…"
+        btn.Text = Lang.T("kb.press") or "…"
     end)
     UserInputService.InputBegan:Connect(function(input)
         if not capturing then return end
@@ -1671,7 +1770,9 @@ if getgenv then
 end
 
 return Library
+
 end)()
+
 
 --=====================================================================
 -- 4. 原版 Functions / Objects 表 / 扫描队列
@@ -2289,135 +2390,258 @@ do
 end
 
 --=====================================================================
--- 5. 原版 ESP 开关（名字 / 默认值 / 颜色 全部照抄）
+-- 5. UI 布局（每一页的控件名 / 默认值 / 颜色 照抄原版）
 --=====================================================================
-local Window = Mini.NewWindow("Doors · ESP 提取版", "原版行为 · 视野 120")
+local Window = Mini.NewWindow(
+    L("win.title", "Doors · ESP 提取版", "Doors · ESP Extraction"),
+    L("win.sub",   "原版行为 · 视野 120", "Original behaviour · FOV 120"))
 
-local tabESP = Window:Tab("ESP")
-local tabSet = Window:Tab("ESP 设置")
-local tabCam = Window:Tab("视野")
-local tabCreak = Window:Tab("Creak")
+local tabLang   = Window:Tab(L("tab.lang",    "语言",      "Language"))
+local tabESP    = Window:Tab(L("tab.esp",     "ESP",       "ESP"))
+local tabSet    = Window:Tab(L("tab.set",     "ESP 设置",  "ESP Settings"))
+local tabCam    = Window:Tab(L("tab.cam",     "相机",      "Camera"))
+local tabChar   = Window:Tab(L("tab.char",    "角色",      "Character"))
+local tabBypass = Window:Tab(L("tab.bypass",  "绕过",      "Bypass"))
+local tabCreak  = Window:Tab(L("tab.creak",   "Creak",     "Creak"))
 
---────────────────────────── ESP 开关页 ──────────────────────────
+--────────────────────────── 语言 ──────────────────────────
+local LangDropdown = Mini.Dropdown(tabLang.Page, {
+    Key = "lang.pick", Text = "界面语言",
+    Values = { "中文", "English" }, Default = 1,
+})
+LangDropdown:OnChanged(function(Value)
+    Lang.Set(Value == "中文" and "zh" or "en")
+end)
+Mini.Label(tabLang.Page, L("lang.note",
+    "切换语言只换界面文字。ESP 标签保持游戏里的原始名称（Lockpicks / Rush / Door 6 / Gold Pile [42] 这类），不翻译。",
+    "Switching language only changes the interface. ESP labels keep the game's original names (Lockpicks / Rush / Door 6 / Gold Pile [42])."))
+Mini.Label(tabLang.Page, L("lang.tip",
+    "中文 / English 都可以，选完立刻生效，不用重载脚本。",
+    "Pick Chinese or English; it applies immediately, no reload needed."))
+
+--────────────────────────── ESP 开关 ──────────────────────────
 local ESPOrder = {
-    { "DoorESPToggle", "Doors", "Highlights the next door.",
+    { "DoorESPToggle", "Doors",        "门",     "门",
+      "Highlights the next door.", "高亮下一道门。",
       "DoorESPColor", Color3.fromRGB(0, 200, 255) },
-    { "HidingSpotESPToggle", "Hiding Spots", "Highlights places where you can hide from entities",
+    { "HidingSpotESPToggle", "Hiding Spots", "藏身点", "藏身点",
+      "Highlights places where you can hide from entities", "高亮可以躲实体藏身点。",
       "HidingSpotESPColor", Color3.fromRGB(255, 170, 0) },
-    { "PlayerESPToggle", "Players", "Highlights other players.",
+    { "PlayerESPToggle", "Players",    "玩家",   "玩家",
+      "Highlights other players.", "高亮其他玩家。",
       "PlayerESPColor", Color3.fromRGB(255, 255, 255) },
-    { "ChestESPToggle", "Chests", "Highlights objects that can contain loot.",
+    { "ChestESPToggle", "Chests",      "宝箱",   "宝箱",
+      "Highlights objects that can contain loot.", "高亮可能出物资的箱子。",
       "ChestESPColor", Color3.fromRGB(255, 255, 0) },
-    { "ItemESPToggle", "Items", "Highlights all collectable items/consumables.",
+    { "ItemESPToggle", "Items",        "物品",   "物品",
+      "Highlights all collectable items/consumables.", "高亮所有可拾取物品 / 消耗品。",
       "ItemESPColor", Color3.fromRGB(170, 0, 255) },
-    { "CurrencyESPToggle", "Currency", "Highlights all currency that spawns.",
+    { "CurrencyESPToggle", "Currency", "货币",   "货币",
+      "Highlights all currency that spawns.", "高亮刷出来的货币（金币堆 / 星尘）。",
       "CurrencyESPColor", Color3.fromRGB(255, 255, 0) },
-    { "LadderESPToggle", "Ladders", "Highlights ladders that can be used to disable the anticheat.",
+    { "LadderESPToggle", "Ladders",    "梯子",   "梯子",
+      "Highlights ladders that can be used to disable the anticheat.",
+      "高亮梯子（爬一下可以关掉反作弊）。",
       "LadderESPColor", Color3.fromRGB(3, 67, 71) },
-    { "MiscESPToggle", "Misc", "Highlights miscellaneous objects that can be used to disable the anticheat.",
+    { "MiscESPToggle", "Misc",         "杂项",   "杂项",
+      "Highlights miscellaneous objects that can be used to disable the anticheat.",
+      "高亮杂项物件（也能用来关反作弊）。",
       "MiscESPColor", Color3.fromRGB(255, 255, 255) },
-    { "ObjectiveESPToggle", "Objectives", "",
+    { "ObjectiveESPToggle", "Objectives", "目标物", "目标物",
+      "Highlights objectives you have to interact with.", "高亮需要交互的任务目标。",
       "ObjectiveESPColor", Color3.fromRGB(0, 255, 0) },
 }
 
 for _, def in ipairs(ESPOrder) do
-    local t = Mini.Toggle(tabESP.Page, { Text = def[2], Default = false, Tooltip = def[3] })
-    Toggles[def[1]] = t
-    local c = Mini.ColorPicker(tabESP.Page, { Text = def[2] .. " Color", Default = def[5] })
-    Options[def[4]] = c
+    Toggles[def[1]] = Mini.Toggle(tabESP.Page, L(
+        "esp." .. def[1], def[3], def[2], def[5], def[4]))
+    local ColorCfg = L("col." .. def[1], def[4] .. " 颜色", def[2] .. " Color")
+    ColorCfg.Default = def[8]
+    Options[def[7]] = Mini.ColorPicker(tabESP.Page, ColorCfg)
 end
 
-Toggles.EntityESPToggle = Mini.Toggle(tabESP.Page, {
-    Text = "Entities", Default = false, Tooltip = "Highlights all entities that spawn.",
-})
-Options.EntityESPColor = Mini.ColorPicker(tabESP.Page, {
-    Text = "Entities Color", Default = Color3.fromRGB(255, 0, 0),
-})
+Toggles.EntityESPToggle = Mini.Toggle(tabESP.Page, L(
+    "esp.entity", "实体", "Entities",
+    "Highlights all entities that spawn.", "高亮所有刷出来的实体。"))
+local EntityColorCfg = L("col.entity", "实体 颜色", "Entities Color")
+EntityColorCfg.Default = Color3.fromRGB(255, 0, 0)
+Options.EntityESPColor = Mini.ColorPicker(tabESP.Page, EntityColorCfg)
 
-Mini.Label(tabESP.Page, "Entity List（默认不选，和原版 AllowNull 一致）", Theme.Text)
+Mini.Label(tabESP.Page, L("esp.entitylist.note",
+    "Entity List 默认一个都不选（和原版 AllowNull 一样），点开下面的列表勾实体。",
+    "Entity List starts with nothing selected (same as the original AllowNull). Open the list below and tick entities."))
 Options.EntityESPOptions = Mini.MultiSelect(tabESP.Page, {
-    Text = "Entity List", Values = EntityListValues, Default = {},
+    Key = "esp.entitylist", Text = "实体列表",
+    Values = EntityListValues, Default = {},
 })
-Mini.Button(tabESP.Page, { Text = "全选" }):OnClick(function()
-    Options.EntityESPOptions:SetAll(true)
-end)
-Mini.Button(tabESP.Page, { Text = "全不选" }):OnClick(function()
-    Options.EntityESPOptions:SetAll(false)
-end)
+Mini.Button(tabESP.Page, L("btn.all",  "全选",   "Select All"))
+    :OnClick(function() Options.EntityESPOptions:SetAll(true) end)
+Mini.Button(tabESP.Page, L("btn.none", "全不选", "Clear"))
+    :OnClick(function() Options.EntityESPOptions:SetAll(false) end)
 
---────────────────────────── ESP 设置页 ──────────────────────────
-Toggles.ESPRainbow = Mini.Toggle(tabSet.Page, {
-    Text = "Rainbow Effect", Default = false,
-    Tooltip = "Makes the esp objects change colour like a rainbow.",
-})
-Toggles.ESPShowDistance = Mini.Toggle(tabSet.Page, {
-    Text = "Show Distance", Default = true,
-    Tooltip = "Shows how far away your character is from the object.",
-})
+--────────────────────────── ESP 设置 ──────────────────────────
+Toggles.ESPRainbow = Mini.Toggle(tabSet.Page, L(
+    "set.rainbow", "彩虹效果", "Rainbow Effect",
+    "Makes the esp objects change colour like a rainbow.",
+    "让 ESP 颜色像彩虹一样流动。"))
+local ShowDistanceCfg = L("set.showdist", "显示距离", "Show Distance",
+    "Shows how far away your character is from the object.",
+    "在名字下面额外显示距离。")
+ShowDistanceCfg.Default = true
+Toggles.ESPShowDistance = Mini.Toggle(tabSet.Page, ShowDistanceCfg)
 Mini.Divider(tabSet.Page)
 
 Options.ESPFillTransparency = Mini.Slider(tabSet.Page, {
-    Text = "Fill Transparency", Min = 0, Max = 1, Default = 0.75, Rounding = 2 })
+    Key = "set.fill", Text = "填充透明度", Min = 0, Max = 1, Default = 0.75, Rounding = 2 })
 Options.ESPOutlineTransparency = Mini.Slider(tabSet.Page, {
-    Text = "Outline Transparency", Min = 0, Max = 1, Default = 0, Rounding = 2 })
+    Key = "set.outline", Text = "轮廓透明度", Min = 0, Max = 1, Default = 0, Rounding = 2 })
 Options.ESPTextTransparency = Mini.Slider(tabSet.Page, {
-    Text = "Text Transparency", Min = 0, Max = 1, Default = 0, Rounding = 2 })
+    Key = "set.text", Text = "文字透明度", Min = 0, Max = 1, Default = 0, Rounding = 2 })
 Options.ESPTextOutlineTransparency = Mini.Slider(tabSet.Page, {
-    Text = "Text Outline Transparency", Min = 0, Max = 1, Default = 0, Rounding = 2 })
+    Key = "set.textoutline", Text = "文字描边透明度", Min = 0, Max = 1, Default = 0, Rounding = 2 })
 Options.ESPFadeTime = Mini.Slider(tabSet.Page, {
-    Text = "Fade Time", Min = 0, Max = 1, Default = 0.25, Rounding = 2 })
+    Key = "set.fade", Text = "淡出时间", Min = 0, Max = 1, Default = 0.25, Rounding = 2 })
 Options.ESPRenderLimit = Mini.Slider(tabSet.Page, {
-    Text = "Render Limit", Min = 30, Max = 240, Default = 240, Rounding = 0 })
+    Key = "set.render", Text = "渲染上限", Min = 30, Max = 240, Default = 240, Rounding = 0 })
 Options.ESPTextSize = Mini.Slider(tabSet.Page, {
-    Text = "Text Size", Min = 12, Max = 24, Default = 20, Rounding = 0 })
+    Key = "set.textsize", Text = "文字大小", Min = 12, Max = 24, Default = 20, Rounding = 0 })
 Options.ESPTextFont = Mini.Dropdown(tabSet.Page, {
-    Text = "Text Font", Values = FontValues, Default = 12 })
+    Key = "set.font", Text = "文字字体", Values = FontValues, Default = 12 })
 
 Mini.Divider(tabSet.Page)
 Options.ESPTracersOrigin = Mini.Dropdown(tabSet.Page, {
-    Text = "Tracer Origin", Values = { "Bottom", "Center", "Top", "Mouse" }, Default = 1 })
+    Key = "set.tracerorigin", Text = "连线起点",
+    Values = { "Bottom", "Center", "Top", "Mouse" }, Default = 1 })
 Options.ESPTracerThickness = Mini.Slider(tabSet.Page, {
-    Text = "Tracer Thickness", Min = 0.5, Max = 2, Default = 0.75, Rounding = 2 })
-Toggles.ESPTracersToggle = Mini.Toggle(tabSet.Page, {
-    Text = "Enable Tracers", Default = false,
-    Tooltip = "Draws a line to highlighted objects." })
+    Key = "set.tracerthick", Text = "连线粗细", Min = 0.5, Max = 2, Default = 0.75, Rounding = 2 })
+Toggles.ESPTracersToggle = Mini.Toggle(tabSet.Page, L(
+    "set.tracers", "开启连线", "Enable Tracers",
+    "Draws a line to highlighted objects.", "从屏幕底部拉一条线指向高亮对象。"))
 
 Mini.Divider(tabSet.Page)
 Options.ESPArrowsRadius = Mini.Slider(tabSet.Page, {
-    Text = "Arrow Radius", Min = 100, Max = 500, Default = 250, Rounding = 0 })
-Toggles.ESPArrowsToggle = Mini.Toggle(tabSet.Page, {
-    Text = "Enable Arrows", Default = false,
-    Tooltip = "Shows arrow that point to off-screen objects." })
+    Key = "set.arrowradius", Text = "箭头半径", Min = 100, Max = 500, Default = 250, Rounding = 0 })
+Toggles.ESPArrowsToggle = Mini.Toggle(tabSet.Page, L(
+    "set.arrows", "开启箭头", "Enable Arrows",
+    "Shows arrow that point to off-screen objects.", "屏幕外对象显示指向箭头。"))
 
 Mini.Divider(tabSet.Page)
-Mini.Label(tabSet.Page,
-    "下面是便捷开关：把 Text Transparency 一键拉到 1（= 只留轮廓，没有文字）。",
-    Theme.SubText)
-local TextOffToggle
-TextOffToggle = Mini.Toggle(tabSet.Page, {
-    Text = "隐藏 ESP 文字", Default = false,
-    Tooltip = "等于把 Text Transparency 拉到 1",
-})
-TextOffToggle:OnChanged(function(v)
-    Options.ESPTextTransparency:Set(v and 1 or 0, true)
-    ESPLibrary:SetTextTransparency(v and 1 or 0)
+Mini.Label(tabSet.Page, L("set.hidetext.note",
+    "下面的开关等于把「文字透明度」一键拉到 1：只留轮廓，一个名字都不显示。",
+    "The switch below is a shortcut for pulling Text Transparency to 1: outlines only, no names."))
+local TextOffToggle = Mini.Toggle(tabSet.Page, L(
+    "set.hidetext", "隐藏 ESP 文字", "Hide ESP Text",
+    "Same as Text Transparency = 1.", "等同于把文字透明度设成 1。"))
+TextOffToggle:OnChanged(function(Value)
+    Options.ESPTextTransparency:Set(Value and 1 or 0, true)
+    ESPLibrary:SetTextTransparency(Value and 1 or 0)
 end)
-Options.ESPTextTransparency:OnChanged(function(v)
-    TextOffToggle:Set(v >= 1, true)
+Options.ESPTextTransparency:OnChanged(function(Value)
+    TextOffToggle:Set(Value >= 1, true)
 end)
 
---────────────────────────── 视野页 ──────────────────────────
-Toggles.FOVToggle = Mini.Toggle(tabCam.Page, {
-    Text = "Custom FOV", Default = true, Tooltip = "Only applies the Field of View slider when enabled.",
-})
+local UIKeybind = Mini.Keybind(tabSet.Page, {
+    Key = "set.uikey", Text = "界面开关键", Default = Enum.KeyCode.RightShift })
+
+--────────────────────────── 相机：FOV + 场景高亮 + 除雾 ──────────────────────────
+local FovToggleCfg = L("cam.fov", "自定义视野", "Custom FOV",
+    "Only applies the Field of View slider when enabled.",
+    "只有在开着的时候视野滑条才生效。")
+FovToggleCfg.Default = true
+Toggles.FOVToggle = Mini.Toggle(tabCam.Page, FovToggleCfg)
 Options.FieldOfView = Mini.Slider(tabCam.Page, {
-    Text = "Field of View", Min = 1, Max = 120, Default = 120, Rounding = 0 })
+    Key = "cam.fovslider", Text = "视野", Min = 1, Max = 120, Default = 120, Rounding = 0 })
 local FovKeybind = Mini.Keybind(tabCam.Page, {
-    Text = "Custom Fov 快捷键", Default = Enum.KeyCode.O,
-})
+    Key = "cam.fovkey", Text = "视野快捷键", Default = Enum.KeyCode.O })
+
+Mini.Divider(tabCam.Page)
+Toggles.AmbientToggle = Mini.Toggle(tabCam.Page, L(
+    "cam.ambient", "场景高亮", "Ambient",
+    "Changes the lighting color to the specified value.",
+    "把环境光强行拉成指定颜色，整个场景提亮。"))
+local AmbientColorCfg = L("cam.ambientcolor", "环境光颜色", "Ambient Color")
+AmbientColorCfg.Default = Color3.fromRGB(255, 255, 255)
+Options.AmbientColor = Mini.ColorPicker(tabCam.Page, AmbientColorCfg)
+
+Toggles.RemoveCameraFog = Mini.Toggle(tabCam.Page, L(
+    "cam.fog", "除雾", "Remove Fog",
+    "Removes all fog effects from the camera.",
+    "把 FogEnd 拉满 + 所有 Atmosphere.Density 归零，远景不再灰蒙蒙。"))
+Mini.Label(tabCam.Page, L("cam.note",
+    "「场景高亮」每帧守着 Lighting.Ambient —— Doors 每进房间都会用 0.2 秒把它 Tween 回暗值，设一次没用；"
+    .. "「除雾」改 FogEnd 和 Atmosphere.Density，游戏改回来也会被按回去。两个都跟 ESP 无关，关掉会还原。",
+    "Ambient is re-applied every frame because Doors tweens Lighting.Ambient back to the room's dark value; "
+    .. "Remove Fog forces FogEnd and every Atmosphere.Density back. Both are independent of the ESP settings and restore on disable."))
+
+--────────────────────────── 角色：速度 / 穿墙 ──────────────────────────
+Options.SpeedBoostSlider = Mini.Slider(tabChar.Page, {
+    Key = "char.speedslider", Text = "速度加成", Min = 0, Max = 100, Default = 0, Rounding = 0 })
+Toggles.SpeedBoostToggle = Mini.Toggle(tabChar.Page, L(
+    "char.speed", "开启速度加成", "Enable Speed Boost",
+    "Increases your walkspeed by the specified amount.",
+    "在游戏当前移速上加你设定的数值。"))
+Mini.Divider(tabChar.Page)
+Toggles.NoclipToggle = Mini.Toggle(tabChar.Page, L(
+    "char.noclip", "穿墙", "Noclip",
+    "Allows your character to pass through solid objects.",
+    "角色可以穿墙（每帧把 CanCollide 关掉）。"))
+local NoclipKeybind = Mini.Keybind(tabChar.Page, {
+    Key = "char.noclipkey", Text = "穿墙快捷键", Default = Enum.KeyCode.N })
+Mini.Label(tabChar.Page, L("char.note",
+    "速度是「游戏当前移速 + 加成」，药水、受伤、下蹲这些游戏自己的修正都算在内，所以不会把游戏的速度改坏。"
+    .. "穿墙单独用会被 Doors 的反作弊拉回来，想稳就先开「绕过」那页的反作弊绕过（去爬一次梯子）。",
+    "Speed is the game's current walkspeed plus your bonus, so potions/injuries/crouching still count. "
+    .. "Noclip alone gets pulled back by Doors' anticheat; enable Anticheat Bypass on the Bypass tab (climb a ladder once) for a stable one."))
+
+--────────────────────────── 绕过 ──────────────────────────
+Toggles.DisableAnticheat = Mini.Toggle(tabBypass.Page, L(
+    "by.anti", "反作弊绕过", "Anticheat Bypass",
+    "Completely disables the anticheat, after interacting with a ladder.",
+    "开好后去爬一次梯子，游戏的反作弊就会被关掉。"))
+Lang.Strings.zh["by.anti.on"] = "当前状态：反作弊已关闭"
+Lang.Strings.en["by.anti.on"] = "Status: anticheat disabled"
+
+local Anticheat = { Disabled = false }
+local function AnticheatText()
+    if Anticheat.Disabled then
+        return Lang.T("by.anti.on") or "anticheat disabled"
+    end
+    return Lang.T("by.anti.off") or "anticheat active"
+end
+
+local AnticheatStatus = Mini.Label(tabBypass.Page, L("by.anti.off",
+    "当前状态：未关闭反作弊", "Status: anticheat still active"))
+Lang.BindFn(AnticheatStatus, AnticheatText)
+Mini.Divider(tabBypass.Page)
+Toggles.VelocityManipulationToggle = Mini.Toggle(tabBypass.Page, L(
+    "by.vel", "速度操控（防拉回）", "Velocity Manipulation",
+    "Moves your character forward slowly, mitigating the game's anti-noclip.",
+    "持续往前推，让游戏的反穿墙判定误以为你在正常移动。"))
+Options.VelocityManipulationMode = Mini.Dropdown(tabBypass.Page, {
+    Key = "by.velmode", Text = "操控方式", Values = { "Velocity", "Pivot" }, Default = 1 })
+local VelocityKeybind = Mini.Keybind(tabBypass.Page, {
+    Key = "by.velkey", Text = "速度操控快捷键", Default = Enum.KeyCode.V })
+Mini.Label(tabBypass.Page, L("by.vel.note",
+    "Velocity：给角色挂一个 2.25 的前向速度，最稳，推荐。"
+    .. "Pivot：直接往前 PivotTo 2560 studs（穿墙用），Fools / OldHotel 层原版会跳过。",
+    "Velocity: a constant 2.25 forward velocity, the stable option. "
+    .. "Pivot: PivotTo 2560 studs forward each frame (wall phasing); skipped on Fools / OldHotel like the original."))
+
+--────────────────────────── Creak 愤怒值（右下角） ──────────────────────────
+Toggles.CreakAggressionMeter = Mini.Toggle(tabCreak.Page, L(
+    "creak.meter", "Creak 愤怒值（右下角）", "Creak Aggression Meter (bottom-right)",
+    "Shows Creak's aggression in the bottom-right corner.",
+    "在屏幕右下角常驻显示 Creak 的愤怒值。"))
+Mini.Label(tabCreak.Page, L("creak.note",
+    "这块是独立的 HUD：固定贴在屏幕右下角，用 Drawing 画的，"
+    .. "完全不受 ESP 设置（透明度 / 淡出 / 渲染上限 / 文字开关）影响。"
+    .. "Creak 没出现时显示 --%。读的是 CreakGraph 动画轨道的 Aggression 参数。",
+    "This is a standalone HUD pinned to the bottom-right corner, drawn with Drawing, so none of the "
+    .. "ESP settings (transparency / fade / render limit / text toggle) affect it. Shows --% while Creak is absent. "
+    .. "The value comes from the CreakGraph animation track's Aggression parameter."))
 
 --=====================================================================
--- 6. 原版 ESP 库设置（数值照抄 5443-5458 行）
+-- 6. 原版 ESP 库设置（数值照抄 Main.luau 5443-5458 行）
 --=====================================================================
 ESPLibrary:SetRainbow(false)
 ESPLibrary:SetShowDistance(true)
@@ -2482,7 +2706,9 @@ Toggles.HidingSpotESPToggle:OnChanged(function(Value)
     end
 end)
 Options.HidingSpotESPColor:OnChanged(function(Value)
-    for _, Object in ipairs(Objects.HidingSpots) do ESPLibrary:UpdateObjectColor(Object, Value) end
+    for _, Object in ipairs(Objects.HidingSpots) do
+        ESPLibrary:UpdateObjectColor(Object, Value)
+    end
 end)
 
 Toggles.PlayerESPToggle:OnChanged(function(Value)
@@ -2574,40 +2800,29 @@ end)
 local function EntityLabel(Object)
     local Label = EntityESPLabels[Object.Name]
     if not Label and Entities[Object.Name] then Label = Entities[Object.Name].Alias end
-    if not Label and string.sub(Object.Name, 1, #"MirrorRig_Portrait") == "MirrorRig_Portrait" then
-        Label = "Portrait"
-    end
     return Label
 end
 
-Toggles.EntityESPToggle:OnChanged(function(Value)
-    for _, Object in ipairs(Objects.Entities) do
-        if Value then
-            local Label = EntityLabel(Object)
-            if Label and Options.EntityESPOptions.Value[Label] then
-                Functions.AddESP({ Object = Object, Text = Label,
-                    Color = Options.EntityESPColor.Value }, NodeEntities[Label] ~= true)
-            else
-                Functions.RemoveESP(Object)
-            end
-        else
-            Functions.RemoveESP(Object)
-        end
+local function EntityPass(Value, Object)
+    if not Value then
+        Functions.RemoveESP(Object)
+        return
     end
+    local Label = EntityLabel(Object)
+    if Label and Options.EntityESPOptions.Value[Label] then
+        Functions.AddESP({ Object = Object, Text = Label,
+            Color = Options.EntityESPColor.Value }, NodeEntities[Label] ~= true)
+    else
+        Functions.RemoveESP(Object)
+    end
+end
+
+Toggles.EntityESPToggle:OnChanged(function(Value)
+    for _, Object in ipairs(Objects.Entities) do EntityPass(Value, Object) end
 end)
 Options.EntityESPOptions:OnChanged(function()
     for _, Object in ipairs(Objects.Entities) do
-        if Toggles.EntityESPToggle.Value then
-            local Label = EntityLabel(Object)
-            if Label and Options.EntityESPOptions.Value[Label] then
-                Functions.AddESP({ Object = Object, Text = Label,
-                    Color = Options.EntityESPColor.Value }, NodeEntities[Label] ~= true)
-            else
-                Functions.RemoveESP(Object)
-            end
-        else
-            Functions.RemoveESP(Object)
-        end
+        EntityPass(Toggles.EntityESPToggle.Value, Object)
     end
 end)
 Options.EntityESPColor:OnChanged(function(Value)
@@ -2686,33 +2901,13 @@ Toggles.ObjectiveESPToggle:OnChanged(function(Value)
     end
 end)
 Options.ObjectiveESPColor:OnChanged(function(Value)
-    for _, Object in ipairs(Objects.Objectives) do ESPLibrary:UpdateObjectColor(Object, Value) end
+    for _, Object in ipairs(Objects.Objectives) do
+        ESPLibrary:UpdateObjectColor(Object, Value)
+    end
 end)
 
--- 原版玩家 ESP 的加入/离开跟踪
-for _, Player in ipairs(Services.Players:GetPlayers()) do
-    if Player ~= LocalPlayer then
-        if Player.Character and Toggles.PlayerESPToggle.Value then
-            Functions.AddESP({ Object = Player.Character, Text = Player.Name,
-                Color = Options.PlayerESPColor.Value })
-        end
-        local CharConn = Player.CharacterAdded:Connect(function(NewCharacter)
-            if Toggles.PlayerESPToggle.Value then
-                Functions.AddESP({ Object = NewCharacter, Text = Player.Name,
-                    Color = Options.PlayerESPColor.Value })
-            end
-        end)
-        local DeadConn = Player:GetAttributeChangedSignal("Alive"):Connect(function()
-            if Player:GetAttribute("Alive") ~= true and Player.Character then
-                Functions.RemoveESP(Player.Character)
-            end
-        end)
-        table.insert(Connections, CharConn)
-        table.insert(Connections, DeadConn)
-    end
-end
-
-Connections.PlayerHandler = Services.Players.PlayerAdded:Connect(function(Player)
+-- 原版玩家 ESP 的加入 / 离开跟踪
+local function WatchPlayer(Player)
     if Player == LocalPlayer then return end
     if Player.Character and Toggles.PlayerESPToggle.Value then
         Functions.AddESP({ Object = Player.Character, Text = Player.Name,
@@ -2731,10 +2926,13 @@ Connections.PlayerHandler = Services.Players.PlayerAdded:Connect(function(Player
     end)
     table.insert(Connections, CharConn)
     table.insert(Connections, DeadConn)
-end)
+end
+
+for _, Player in ipairs(Services.Players:GetPlayers()) do WatchPlayer(Player) end
+Connections.PlayerHandler = Services.Players.PlayerAdded:Connect(WatchPlayer)
 
 --=====================================================================
--- 8. 视野 FOV（原版写法；滑条默认值 70 -> 120，这是你要求的唯一改动）
+-- 8. 视野 FOV + 场景高亮 + 除雾
 --=====================================================================
 local MainGame
 
@@ -2753,240 +2951,486 @@ task.spawn(function()
     if ok and res then MainGame = res end
 end)
 
-local LastFovApply = 0
-Connections.FovHandler = Services.RunService.Heartbeat:Connect(function()
+local FovCamera = Services.Workspace.CurrentCamera
+
+-- 原版 6774-6781 行：RenderStepped 每帧设一次，优先走游戏自己的 fovtarget
+Connections.FovHandler = Services.RunService.RenderStepped:Connect(function()
     if not Toggles.FOVToggle.Value then return end
-    if tick() - LastFovApply < 0.1 then return end
-    LastFovApply = tick()
+
+    local Camera = Services.Workspace:FindFirstChild("Camera")
+    if not Camera then
+        Camera = Services.Workspace.CurrentCamera
+    end
+    FovCamera = Camera
+    if not FovCamera then return end
 
     if MainGame then
+        task.wait()
         MainGame.fovtarget = Options.FieldOfView.Value
     else
-        local cam = Services.Workspace.CurrentCamera
-        if cam then cam.FieldOfView = Options.FieldOfView.Value end
+        FovCamera.FieldOfView = Options.FieldOfView.Value
+    end
+end)
+
+--────────────────────────── 场景高亮（原版 AmbientToggle） ──────────────────────────
+local Lighting = Services.Lighting
+
+local SceneOriginal = {
+    Ambient = Lighting.Ambient,
+    FogEnd  = Lighting.FogEnd,
+}
+local AtmoOriginal = {}
+
+local AmbientConn, FogConn, AtmoAddedConn
+local AtmoConns = {}
+
+local function DisconnectScene()
+    if AmbientConn then AmbientConn:Disconnect() AmbientConn = nil end
+    if FogConn then FogConn:Disconnect() FogConn = nil end
+    if AtmoAddedConn then AtmoAddedConn:Disconnect() AtmoAddedConn = nil end
+    for _, c in ipairs(AtmoConns) do pcall(function() c:Disconnect() end) end
+    AtmoConns = {}
+end
+
+Toggles.AmbientToggle:OnChanged(function(Value)
+    if Value then
+        SceneOriginal.Ambient = Lighting.Ambient
+        Lighting.Ambient = Options.AmbientColor.Value
+        -- Doors 每进房间都会用 0.2 秒 Tween 把 Ambient 拉回暗值，
+        -- 所以必须每帧守着；RenderStepped 在渲染之前跑，画面不会闪暗。
+        AmbientConn = Services.RunService.RenderStepped:Connect(function()
+            if Toggles.AmbientToggle.Value
+                and Lighting.Ambient ~= Options.AmbientColor.Value then
+                Lighting.Ambient = Options.AmbientColor.Value
+            end
+        end)
+    else
+        if AmbientConn then AmbientConn:Disconnect() AmbientConn = nil end
+        Lighting.Ambient = SceneOriginal.Ambient
+    end
+end)
+Options.AmbientColor:OnChanged(function(Value)
+    if Toggles.AmbientToggle.Value then Lighting.Ambient = Value end
+end)
+
+--────────────────────────── 除雾（原版 RemoveCameraFog） ──────────────────────────
+local function WatchAtmosphere(Object)
+    if not Object:IsA("Atmosphere") then return end
+    if AtmoOriginal[Object] == nil then AtmoOriginal[Object] = Object.Density end
+
+    local Conn = Object:GetPropertyChangedSignal("Density"):Connect(function()
+        if Object.Density ~= 0 then AtmoOriginal[Object] = Object.Density end
+        if Toggles.RemoveCameraFog.Value then Object.Density = 0 end
+    end)
+    table.insert(AtmoConns, Conn)
+
+    if Toggles.RemoveCameraFog.Value and Object.Density ~= 0 then
+        AtmoOriginal[Object] = Object.Density
+        Object.Density = 0
+    end
+end
+
+Toggles.RemoveCameraFog:OnChanged(function(Value)
+    if Value then
+        SceneOriginal.FogEnd = Lighting.FogEnd
+        Lighting.FogEnd = 10000000
+
+        for _, Object in ipairs(Lighting:GetChildren()) do WatchAtmosphere(Object) end
+        AtmoAddedConn = Lighting.DescendantAdded:Connect(function(Object)
+            if Toggles.RemoveCameraFog.Value then WatchAtmosphere(Object) end
+        end)
+
+        FogConn = Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+            if Lighting.FogEnd ~= 10000000 then
+                SceneOriginal.FogEnd = Lighting.FogEnd
+                if Toggles.RemoveCameraFog.Value then
+                    Lighting.FogEnd = 10000000
+                end
+            end
+        end)
+    else
+        if FogConn then FogConn:Disconnect() FogConn = nil end
+        if AtmoAddedConn then AtmoAddedConn:Disconnect() AtmoAddedConn = nil end
+        for _, c in ipairs(AtmoConns) do pcall(function() c:Disconnect() end) end
+        AtmoConns = {}
+
+        Lighting.FogEnd = SceneOriginal.FogEnd
+        for Object, Density in pairs(AtmoOriginal) do
+            if Object.Parent then Object.Density = Density end
+        end
+        AtmoOriginal = {}
     end
 end)
 
 --=====================================================================
--- 9. Creak 愤怒值（原版 3510-3694 行，Drawing 实现原样搬运）
+-- 9. 角色：速度加成 / 穿墙
 --=====================================================================
-local CreakAggressionMetersTable = {}
-local CreakAggressionCamera = Services.Workspace.CurrentCamera
-local CreakAggressionChildAddedConnection = nil
+local Char = { Character = nil, Humanoid = nil, RootPart = nil }
 
-Toggles.CreakAggressionMeter = Mini.Toggle(tabCreak.Page, {
-    Text = "Creak Aggression Meter", Default = false,
-    Tooltip = "Shows Creak's aggression above its head.",
-})
+-- 原版 6559-6560 行：只设 MaxForce，别的一个都不动
+local ManipulateBody = Instance.new("BodyVelocity")
+ManipulateBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 
-local function CleanupCreakAggressionMeter(CreakModel)
-    local CreakMeterData = CreakAggressionMetersTable[CreakModel]
-    if not CreakMeterData then return end
-
-    CreakAggressionMetersTable[CreakModel] = nil
-
-    if CreakMeterData.RenderConnection then
-        CreakMeterData.RenderConnection:Disconnect()
-    end
-    if CreakMeterData.DestroyConnection then
-        CreakMeterData.DestroyConnection:Disconnect()
-    end
-
-    for _, CreakDrawingObject in ipairs(CreakMeterData.Drawings) do
-        pcall(function() CreakDrawingObject:Remove() end)
-    end
+local function GetLiveModifiers()
+    return Services.ReplicatedStorage:FindFirstChild("LiveModifiers")
 end
 
-local function GetCreakAggressionValue(CreakModel)
-    local CreakAnimator = CreakModel:FindFirstChildOfClass("Animator")
-        or (CreakModel:FindFirstChild("AnimationController")
-            and CreakModel.AnimationController:FindFirstChildOfClass("Animator"))
-        or CreakModel:FindFirstChildOfClass("AnimationController")
+local function IsCrouching()
+    if not Char.Character then return false end
+    if Floor == "Fools" or Floor == "OldHotel" then
+        return Char.Character:GetAttribute("Crouching") == true
+    end
+    local CP = Char.Character:FindFirstChild("CollisionPart")
+        or Char.Character:FindFirstChild("Collision")
+    if CP then return CP.CollisionGroup == "PlayerCrouching" end
+    return Char.Character:GetAttribute("Crouching") == true
+end
 
-    if not CreakAnimator then return nil end
+local function GetInjuriesSpeed()
+    if not Char.Humanoid then return 0 end
+    return 0.075 * (Char.Humanoid.MaxHealth - Char.Humanoid.Health)
+end
 
-    for _, CreakAnimationTrack in ipairs(CreakAnimator:GetPlayingAnimationTracks()) do
-        if CreakAnimationTrack.Name == "CreakGraph"
-            or (CreakAnimationTrack.Animation
-                and CreakAnimationTrack.Animation.Name == "CreakGraph") then
-            local CreakSuccess, CreakAggressionValue =
-                pcall(CreakAnimationTrack.GetParameter, CreakAnimationTrack, "Aggression")
-            if CreakSuccess and typeof(CreakAggressionValue) == "number" then
-                return math.clamp(CreakAggressionValue, 0, 1)
+-- 原版 Functions.GetCurrentSpeed（Main.luau 868 行）
+local function GetCurrentSpeed()
+    local Speed = 15
+    if Char.Character then
+        Speed = Speed + (Char.Character:GetAttribute("SpeedBoost") or 0)
+        Speed = Speed + (Char.Character:GetAttribute("SpeedBoostBehind") or 0)
+        Speed = Speed + (Char.Character:GetAttribute("SpeedBoostExtra") or 0)
+    end
+    if Floor == "Party" then Speed = Speed + 10 end
+
+    local LiveModifiers = GetLiveModifiers()
+    if LiveModifiers then
+        if LiveModifiers:FindFirstChild("PlayerFast") then Speed = Speed + 3 end
+        if LiveModifiers:FindFirstChild("PlayerFaster") then Speed = Speed + 6 end
+        if LiveModifiers:FindFirstChild("PlayerFastest") then Speed = Speed + 20 end
+        if LiveModifiers:FindFirstChild("PlayerSlow") then Speed = Speed - 3 end
+        if LiveModifiers:FindFirstChild("PlayerSlowHealth") then
+            Speed = Speed - GetInjuriesSpeed()
+        end
+    end
+
+    if IsCrouching() then
+        if LiveModifiers and LiveModifiers:FindFirstChild("PlayerCrouchSlow") then
+            Speed = Speed - 8
+        elseif LiveModifiers and LiveModifiers:FindFirstChild("PlayerSlow") then
+            Speed = Speed - 8
+        else
+            Speed = Speed - 5
+        end
+    end
+    return Speed
+end
+
+local function SetupCharacter(Character)
+    if not Character then return end
+    Char.Character = Character
+    Char.Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    Char.RootPart = Character:FindFirstChild("HumanoidRootPart")
+        or Character.PrimaryPart
+        or Character:FindFirstChildWhichIsA("BasePart")
+end
+
+SetupCharacter(LocalPlayer.Character)
+Connections.CharacterAdded = LocalPlayer.CharacterAdded:Connect(SetupCharacter)
+
+Toggles.SpeedBoostToggle:OnChanged(function(Value)
+    if Char.Humanoid then
+        Char.Humanoid.WalkSpeed = GetCurrentSpeed()
+            + (Value and Options.SpeedBoostSlider.Value or 0)
+    end
+end)
+Options.SpeedBoostSlider:OnChanged(function(Value)
+    if Toggles.SpeedBoostToggle.Value and Char.Humanoid then
+        Char.Humanoid.WalkSpeed = GetCurrentSpeed() + Value
+    end
+end)
+
+Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
+    local Character, Humanoid, RootPart = Char.Character, Char.Humanoid, Char.RootPart
+    if not Character or not Humanoid or not RootPart or not RootPart.Parent then return end
+    if Humanoid.Health <= 0 then return end
+
+    if Toggles.SpeedBoostToggle.Value then
+        Humanoid.WalkSpeed = GetCurrentSpeed() + Options.SpeedBoostSlider.Value
+    end
+
+    local Noclip = Toggles.NoclipToggle.Value
+    local VelocityManip = Toggles.VelocityManipulationToggle.Value
+
+    if Noclip or VelocityManip then
+        RootPart.CanCollide = false
+        if Noclip then
+            for _, Part in ipairs(Character:GetChildren()) do
+                if Part:IsA("BasePart") then Part.CanCollide = false end
+            end
+        end
+    end
+
+    if VelocityManip and Options.VelocityManipulationMode.Value == "Velocity" then
+        ManipulateBody.Parent = RootPart
+        ManipulateBody.Velocity = RootPart.CFrame.LookVector * 2.25
+    elseif ManipulateBody.Parent then
+        ManipulateBody.Parent = nil
+    end
+
+    if VelocityManip and Options.VelocityManipulationMode.Value == "Pivot"
+        and Floor ~= "Fools" and Floor ~= "OldHotel" then
+        local cam = Services.Workspace.CurrentCamera
+        if cam then
+            Character:PivotTo(cam:GetPivot() * CFrame.new(0, 0, 2560))
+        end
+    end
+end)
+
+--=====================================================================
+-- 10. 绕过：反作弊绕过
+--=====================================================================
+local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
+
+local function SetAnticheatStatus()
+    if AnticheatStatus then AnticheatStatus.Text = AnticheatText() end
+end
+
+Connections.AnticheatDisabler = LocalPlayer.CharacterAdded:Connect(function(Character)
+    local ClimbConn = Character:GetAttributeChangedSignal("Climbing"):Connect(function()
+        if Character:GetAttribute("Climbing") ~= true then return end
+        if not Toggles.DisableAnticheat.Value or Anticheat.Disabled then return end
+        task.wait(0.25)
+        Character:SetAttribute("Climbing", false)
+        Anticheat.Disabled = true
+        SetAnticheatStatus()
+    end)
+    table.insert(Connections, ClimbConn)
+end)
+
+if LocalPlayer.Character then
+    local Character = LocalPlayer.Character
+    local ClimbConn = Character:GetAttributeChangedSignal("Climbing"):Connect(function()
+        if Character:GetAttribute("Climbing") ~= true then return end
+        if not Toggles.DisableAnticheat.Value or Anticheat.Disabled then return end
+        task.wait(0.25)
+        Character:SetAttribute("Climbing", false)
+        Anticheat.Disabled = true
+        SetAnticheatStatus()
+    end)
+    table.insert(Connections, ClimbConn)
+end
+
+task.spawn(function()
+    if not RemotesFolder then
+        local ok, res = pcall(function()
+            return Services.ReplicatedStorage:WaitForChild("RemotesFolder", 60)
+        end)
+        if ok then RemotesFolder = res end
+    end
+    if not RemotesFolder then return end
+
+    local Cutscene = RemotesFolder:WaitForChild("Cutscene", 30)
+    if Cutscene then
+        Connections.AnticheatEnableDetector1 = Cutscene.OnClientEvent:Connect(function(Name)
+            if Anticheat.Disabled and typeof(Name) == "string"
+                and not Name:find("SewerSeek") then
+                Anticheat.Disabled = false
+                SetAnticheatStatus()
+            end
+        end)
+    end
+
+    local UseEnemyModule = RemotesFolder:WaitForChild("UseEnemyModule", 30)
+    if UseEnemyModule then
+        Connections.AnticheatEnableDetector2 = UseEnemyModule.OnClientEvent:Connect(function(Name)
+            if Name == "Void" or Name == "Glitch" then
+                if Anticheat.Disabled then
+                    Anticheat.Disabled = false
+                    SetAnticheatStatus()
+                end
+            end
+        end)
+    end
+end)
+
+Toggles.DisableAnticheat:OnChanged(function(Value)
+    if Anticheat.Disabled and not Value then
+        local Folder = RemotesFolder
+            or Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
+        local Rem = Folder and Folder:FindFirstChild("ClimbLadder")
+        if Rem then pcall(function() Rem:FireServer() end) end
+        Anticheat.Disabled = false
+    end
+    SetAnticheatStatus()
+end)
+
+--=====================================================================
+-- 11. Creak 愤怒值 —— 屏幕右下角常驻 HUD（Drawing，与 ESP 设置无关）
+--=====================================================================
+local CreakCamera = Services.Workspace.CurrentCamera
+local HUD = {
+    Drawings = {},
+    Panel = nil, Title = nil, BarBG = nil, BarFill = nil,
+}
+
+local function CreateHudDrawing(kind)
+    local d = Drawing.new(kind)
+    table.insert(HUD.Drawings, d)
+    return d
+end
+
+local function BuildHud()
+    if HUD.Title then return end
+
+    HUD.Panel = CreateHudDrawing("Square")
+    HUD.Panel.Filled = true
+    HUD.Panel.Color = Color3.fromRGB(12, 14, 18)
+    HUD.Panel.Transparency = 0.35
+    HUD.Panel.Visible = false
+
+    HUD.Title = CreateHudDrawing("Text")
+    HUD.Title.Text = "Aggression --%"
+    HUD.Title.Size = 15
+    HUD.Title.Font = (Drawing.Fonts and (Drawing.Fonts.Plex or Drawing.Fonts.UI)) or 1
+    HUD.Title.Color = Color3.fromRGB(255, 255, 255)
+    HUD.Title.Center = false
+    HUD.Title.Outline = true
+    HUD.Title.Visible = false
+
+    HUD.BarBG = CreateHudDrawing("Square")
+    HUD.BarBG.Size = Vector2.new(200, 8)
+    HUD.BarBG.Filled = true
+    HUD.BarBG.Color = Color3.fromRGB(58, 58, 64)
+    HUD.BarBG.Transparency = 0.15
+    HUD.BarBG.Visible = false
+
+    HUD.BarFill = CreateHudDrawing("Square")
+    HUD.BarFill.Size = Vector2.new(0, 8)
+    HUD.BarFill.Filled = true
+    HUD.BarFill.Visible = false
+end
+
+local function HideHud()
+    if not HUD.Title then return end
+    HUD.Panel.Visible = false
+    HUD.Title.Visible = false
+    HUD.BarBG.Visible = false
+    HUD.BarFill.Visible = false
+end
+
+local function DestroyHud()
+    for _, d in ipairs(HUD.Drawings) do pcall(function() d:Remove() end) end
+    HUD.Drawings = {}
+    HUD.Panel, HUD.Title, HUD.BarBG, HUD.BarFill = nil, nil, nil, nil
+end
+
+-- 读 CreakGraph 动画轨道的 Aggression 参数（原版方法）
+local function GetCreakAggression(Model)
+    if not Model then return nil end
+    local Animator = Model:FindFirstChildOfClass("Animator")
+        or (Model:FindFirstChild("AnimationController")
+            and Model.AnimationController:FindFirstChildOfClass("Animator"))
+        or Model:FindFirstChildOfClass("AnimationController")
+    if not Animator then return nil end
+
+    local ok, Tracks = pcall(function() return Animator:GetPlayingAnimationTracks() end)
+    if not ok or not Tracks then return nil end
+
+    for _, Track in ipairs(Tracks) do
+        local IsCreakGraph = Track.Name == "CreakGraph"
+            or (Track.Animation and Track.Animation.Name == "CreakGraph")
+        if IsCreakGraph then
+            local ok2, Value = pcall(Track.GetParameter, Track, "Aggression")
+            if ok2 and type(Value) == "number" then
+                return math.clamp(Value, 0, 1)
             end
         end
     end
     return nil
 end
 
-local function CreateCreakAggressionDrawings()
-    local CreakDrawingList = {}
-
-    local function CreateCreakDrawing(CreakDrawingType)
-        local CreakNewDrawing = Drawing.new(CreakDrawingType)
-        table.insert(CreakDrawingList, CreakNewDrawing)
-        return CreakNewDrawing
-    end
-
-    local CreakTitleText = CreateCreakDrawing("Text")
-    CreakTitleText.Text = "Aggression --%"
-    CreakTitleText.Size = 16
-    CreakTitleText.Font = Drawing.Fonts.Plex
-    CreakTitleText.Color = Color3.fromRGB(255, 255, 255)
-    CreakTitleText.Center = true
-    CreakTitleText.Outline = true
-    CreakTitleText.Visible = false
-
-    local CreakBarBackground = CreateCreakDrawing("Square")
-    CreakBarBackground.Size = Vector2.new(112, 6)
-    CreakBarBackground.Filled = true
-    CreakBarBackground.Color = Color3.fromRGB(58, 58, 64)
-    CreakBarBackground.Transparency = 0.15
-    CreakBarBackground.Visible = false
-
-    local CreakBarFill = CreateCreakDrawing("Square")
-    CreakBarFill.Size = Vector2.new(0, 6)
-    CreakBarFill.Filled = true
-    CreakBarFill.Visible = false
-
-    return {
-        Drawings = CreakDrawingList,
-        TitleText = CreakTitleText,
-        BarBackground = CreakBarBackground,
-        BarFill = CreakBarFill
-    }
+local function FindCreak()
+    local Folder = Services.Workspace:FindFirstChild("LiveEntities")
+    if not Folder then return nil end
+    local Model = Folder:FindFirstChild("Creak")
+    if Model and Model.Parent then return Model end
+    return nil
 end
 
-local function AddCreakAggressionMeter(CreakModel)
-    if not Toggles.CreakAggressionMeter.Value
-        or CreakModel.Name ~= "Creak"
-        or CreakAggressionMetersTable[CreakModel] then
-        return
-    end
-
-    local CreakHeadPart = CreakModel:FindFirstChild("Head")
-    if not CreakHeadPart or not CreakHeadPart:IsA("BasePart") then return end
-
-    local CreakMeterData = CreateCreakAggressionDrawings()
-    CreakAggressionMetersTable[CreakModel] = CreakMeterData
-
-    CreakMeterData.RenderConnection = RunService.RenderStepped:Connect(function()
-        if not Toggles.CreakAggressionMeter.Value or not CreakModel.Parent
-            or not CreakHeadPart.Parent then
-            CleanupCreakAggressionMeter(CreakModel)
+Toggles.CreakAggressionMeter:OnChanged(function(Value)
+    if Value then
+        if not Drawing then
+            warn("[DoorsESPX] 执行器没有 Drawing API，Creak 愤怒值 HUD 无法显示")
             return
         end
-
-        if not CreakAggressionCamera or not CreakAggressionCamera.Parent then
-            CreakAggressionCamera = Services.Workspace.CurrentCamera
-            if not CreakAggressionCamera then return end
-        end
-
-        local CreakScreenPosition, CreakIsOnScreen =
-            CreakAggressionCamera:WorldToViewportPoint(
-                CreakHeadPart.Position + Vector3.new(0, 1.85, 0))
-        if not (CreakIsOnScreen and CreakScreenPosition.Z > 0) then
-            CreakMeterData.TitleText.Visible = false
-            CreakMeterData.BarBackground.Visible = false
-            CreakMeterData.BarFill.Visible = false
-            return
-        end
-
-        CreakMeterData.TitleText.Position =
-            Vector2.new(CreakScreenPosition.X, CreakScreenPosition.Y - 28)
-        CreakMeterData.BarBackground.Position =
-            Vector2.new(CreakScreenPosition.X - 56, CreakScreenPosition.Y - 6)
-        CreakMeterData.BarFill.Position = CreakMeterData.BarBackground.Position
-
-        local CreakAggressionValue = GetCreakAggressionValue(CreakModel)
-
-        if not CreakAggressionValue then
-            CreakMeterData.TitleText.Text = "Aggression --%"
-            CreakMeterData.TitleText.Color = Color3.fromRGB(200, 200, 200)
-            CreakMeterData.BarFill.Size = Vector2.new(0, 6)
-            CreakMeterData.TitleText.Visible = true
-            CreakMeterData.BarBackground.Visible = true
-            CreakMeterData.BarFill.Visible = false
-            return
-        end
-
-        CreakMeterData.TitleText.Text =
-            "Aggression " .. math.floor(CreakAggressionValue * 100 + 0.5) .. "%"
-        CreakMeterData.TitleText.Color = Color3.fromRGB(255, 255, 255)
-        CreakMeterData.BarFill.Size = Vector2.new(112 * CreakAggressionValue, 6)
-        CreakMeterData.BarFill.Color = Color3.fromRGB(70, 220, 100)
-            :Lerp(Color3.fromRGB(255, 55, 55), CreakAggressionValue)
-        CreakMeterData.TitleText.Visible = true
-        CreakMeterData.BarBackground.Visible = true
-        CreakMeterData.BarFill.Visible = true
-    end)
-
-    CreakMeterData.DestroyConnection = CreakModel.Destroying:Connect(function()
-        CleanupCreakAggressionMeter(CreakModel)
-    end)
-end
-
-local function StartCreakAggressionListener()
-    if CreakAggressionChildAddedConnection then return end
-
-    local CreakLiveEntitiesFolder = Services.Workspace:FindFirstChild("LiveEntities")
-    if not CreakLiveEntitiesFolder then return end
-
-    CreakAggressionChildAddedConnection =
-        CreakLiveEntitiesFolder.ChildAdded:Connect(function(CreakNewChild)
-            if CreakNewChild.Name == "Creak" then
-                AddCreakAggressionMeter(CreakNewChild)
-            end
-        end)
-end
-
-local function StopCreakAggressionListener()
-    if CreakAggressionChildAddedConnection then
-        CreakAggressionChildAddedConnection:Disconnect()
-        CreakAggressionChildAddedConnection = nil
-    end
-end
-
-Toggles.CreakAggressionMeter:OnChanged(function(CreakToggleEnabled)
-    if CreakToggleEnabled then
-        for _, CreakEntityModel in ipairs(Objects.Entities or {}) do
-            AddCreakAggressionMeter(CreakEntityModel)
-        end
-
-        local CreakLiveEntitiesFolder = Services.Workspace:FindFirstChild("LiveEntities")
-        local CreakExistingModel = CreakLiveEntitiesFolder
-            and CreakLiveEntitiesFolder:FindFirstChild("Creak")
-        if CreakExistingModel then
-            AddCreakAggressionMeter(CreakExistingModel)
-        end
-
-        StartCreakAggressionListener()
+        BuildHud()
     else
-        StopCreakAggressionListener()
-
-        for CreakEntityModel in pairs(CreakAggressionMetersTable) do
-            CleanupCreakAggressionMeter(CreakEntityModel)
-        end
+        HideHud()
     end
 end)
 
--- 开关键
-local kb = Mini.Keybind(tabSet.Page, { Text = "界面开关键", Default = Enum.KeyCode.RightShift })
-Connections.Input = UserInputService.InputBegan:Connect(function(input, gpe)
+Connections.CreakHud = Services.RunService.RenderStepped:Connect(function()
+    if not Toggles.CreakAggressionMeter.Value then return end
+    if not HUD.Title then return end
+
+    if not CreakCamera or not CreakCamera.Parent then
+        CreakCamera = Services.Workspace.CurrentCamera
+        if not CreakCamera then return end
+    end
+
+    local Viewport = CreakCamera.ViewportSize
+    local W, H = 240, 52
+    local X = Viewport.X - W - 20
+    local Y = Viewport.Y - H - 20
+
+    HUD.Panel.Position = Vector2.new(X, Y)
+    HUD.Panel.Size = Vector2.new(W, H)
+    HUD.Title.Position = Vector2.new(X + 12, Y + 8)
+    HUD.BarBG.Position = Vector2.new(X + 12, Y + 32)
+    HUD.BarBG.Size = Vector2.new(W - 24, 8)
+    HUD.BarFill.Position = HUD.BarBG.Position
+
+    HUD.Panel.Visible = true
+    HUD.Title.Visible = true
+    HUD.BarBG.Visible = true
+
+    local Value = GetCreakAggression(FindCreak())
+    if not Value then
+        HUD.Title.Text = "Aggression --%"
+        HUD.Title.Color = Color3.fromRGB(190, 190, 190)
+        HUD.BarFill.Visible = false
+        return
+    end
+
+    HUD.Title.Text = "Aggression " .. math.floor(Value * 100 + 0.5) .. "%"
+    HUD.Title.Color = Color3.fromRGB(255, 255, 255)
+    HUD.BarFill.Size = Vector2.new((W - 24) * Value, 8)
+    HUD.BarFill.Color = Color3.fromRGB(70, 220, 100)
+        :Lerp(Color3.fromRGB(255, 55, 55), Value)
+    HUD.BarFill.Visible = true
+end)
+
+--=====================================================================
+-- 12. 快捷键 / 启动 / 卸载
+--=====================================================================
+Connections.Input = Services.UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if input.KeyCode == kb.Key then Window:Toggle() end
+    if input.KeyCode == UIKeybind.Key then Window:Toggle() end
     if input.KeyCode == FovKeybind.Key then
         Toggles.FOVToggle:Set(not Toggles.FOVToggle.Value)
+    end
+    if input.KeyCode == NoclipKeybind.Key then
+        Toggles.NoclipToggle:Set(not Toggles.NoclipToggle.Value)
+    end
+    if input.KeyCode == VelocityKeybind.Key then
+        Toggles.VelocityManipulationToggle:Set(
+            not Toggles.VelocityManipulationToggle.Value)
     end
 end)
 
 if not Drawing then
-    warn("[DoorsESPX] 你的执行器没有 Drawing API，Creak 愤怒值血条不会显示（原版就是用的 Drawing）")
+    warn("[DoorsESPX] 你的执行器没有 Drawing API，Creak 愤怒值 HUD 不会显示（原版也是用 Drawing）")
 end
 
---=====================================================================
--- 10. 卸载
---=====================================================================
 local Module = {}
 
 function Module.Unload()
@@ -2999,9 +3443,21 @@ function Module.Unload()
         end
     end
 
-    StopCreakAggressionListener()
-    for CreakEntityModel in pairs(CreakAggressionMetersTable) do
-        CleanupCreakAggressionMeter(CreakEntityModel)
+    DisconnectScene()
+    DestroyHud()
+
+    if ManipulateBody then
+        pcall(function() ManipulateBody:Destroy() end)
+    end
+
+    if Toggles.AmbientToggle.Value or Toggles.RemoveCameraFog.Value then
+        pcall(function()
+            Lighting.Ambient = SceneOriginal.Ambient
+            Lighting.FogEnd = SceneOriginal.FogEnd
+            for Object, Density in pairs(AtmoOriginal) do
+                if Object.Parent then Object.Density = Density end
+            end
+        end)
     end
 
     pcall(function() ESPLibrary:Unload() end)
@@ -3013,14 +3469,21 @@ function Module.Unload()
     print("[DoorsESPX] 已卸载")
 end
 
--- 测试/调试用：暴露内部表（不改任何行为）
+-- 测试 / 调试用：暴露内部表（不改任何行为）
 Module.Objects = Objects
 Module.Toggles = Toggles
 Module.Options = Options
+Module.Char = Char
+Module.Lang = Lang
+Module.Anticheat = Anticheat
 
 getgenv()[STATE_KEY] = Module
 
-print("[DoorsESPX] 载入完成 · 全部开关默认关闭（和原版一致）· RightShift 开关界面")
+print("[DoorsESPX] 载入完成 · ESP 开关默认全关（同原版）")
+print("[DoorsESPX] " .. tostring(UIKeybind.Key.Name) .. " 开关界面 · "
+    .. tostring(FovKeybind.Key.Name) .. " 视野 · "
+    .. tostring(NoclipKeybind.Key.Name) .. " 穿墙 · "
+    .. tostring(VelocityKeybind.Key.Name) .. " 速度操控")
 print("[DoorsESPX] 卸载 getgenv().DoorsESPX.Unload()")
 
 return Module
