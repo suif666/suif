@@ -1569,7 +1569,6 @@ end)()
 local Globals = {}
 local Connections = {}
 
-do
     --────────────────────────── 运行循环错误报告器 ──────────────────────────
     -- 运行循环里某个回调每帧报错时，Roblox 会把同一条错误刷满输出框，
     -- 导致根本看不到报错内容。这里每个「不同的」错误只打印一次，最多 5 条，
@@ -1594,7 +1593,6 @@ do
             local Ok, Err = pcall(Fn, table.unpack(Args, 1, Args.n))
             if not Ok then __DoorESPReport(Tag, Err) end
         end
-end
 end
 
 local ESPConnections = {}
