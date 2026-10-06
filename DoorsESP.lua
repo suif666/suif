@@ -453,7 +453,16 @@ function Mini.ColorPicker(parent, cfg)
 end
 
 --────────────────────────── 下拉框 ──────────────────────────
+-- 多选的实现抽出来，Dropdown 和 MultiSelect 共用（见下面 BuildMultiDropdown）。
+local BuildMultiDropdown
+
 function Mini.Dropdown(parent, cfg)
+    -- Multi = true 的下拉走多选实现：WindUI 多选回调给的是「数组」，
+    -- 但脚本里读的都是「集合」（Ignore[名字]），必须转一手。
+    if cfg.Multi then
+        return BuildMultiDropdown(parent, cfg, true)
+    end
+
     local shadow = NewShadow()
     local values = cfg.Values or {}
     -- 老 Mini 的 Default 是「第几项」，WindUI 要「那一项本身」
@@ -480,6 +489,18 @@ end
 -- 老代码读的是 Options.X.Value["名字"] 这种「名字 → true」的哈希表，
 -- WindUI 的多选给的是数组，所以这里两边都转一手，另外补一个 :SetAll。
 function Mini.MultiSelect(parent, cfg)
+    return BuildMultiDropdown(parent, cfg, false)
+end
+
+-- 多选下拉的实现。Dropdown(Multi=true) 和 MultiSelect 都走这里。
+-- 关键两点：
+--   1. 传给 WindUI 的 Value 必须是「字符串」（初始选中项），不能是表 ——
+--      WindUI 的 Display() 在 Multi 分支里只处理 table，别的情况下会把表
+--      直接赋给 TextLabel.Text，报 "string expected, got table"。
+--   2. WindUI 回调给的是「数组」，脚本里读的是「集合」（Ignore[名字]），
+--      所以要 RebuildFrom 转成 名字→true 的哈希表。
+-- WithSearch 控制要不要开搜索框。
+BuildMultiDropdown = function(parent, cfg, WithSearch)
     local shadow = NewShadow()
     local values = cfg.Values or {}
     local set = {}
@@ -490,9 +511,6 @@ function Mini.MultiSelect(parent, cfg)
         end
     end
 
-    -- WindUI 的多选下拉：Value 必须是「字符串」（初始选中项），不能是表。
-    -- 它内部会把它转成 {Value} 再维护；Multi 模式下回调传出来的是数组。
-    -- 传 {} 会让它把表直接赋给 TextLabel.Text → "string expected, got table"。
     local initial = cfg.Default
     if type(initial) == "table" then initial = initial[1] end
     local el = parent:Dropdown({
@@ -501,7 +519,7 @@ function Mini.MultiSelect(parent, cfg)
         Values = values,
         Value = initial or "",
         Multi = true,
-        SearchBarEnabled = true,
+        SearchBarEnabled = WithSearch,
         Flag = PickKey(cfg),
         Callback = Tracker(shadow, RebuildFrom),
     })
