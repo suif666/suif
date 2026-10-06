@@ -490,16 +490,22 @@ function Mini.MultiSelect(parent, cfg)
         end
     end
 
+    -- WindUI 的多选下拉：Value 必须是「字符串」（初始选中项），不能是表。
+    -- 它内部会把它转成 {Value} 再维护；Multi 模式下回调传出来的是数组。
+    -- 传 {} 会让它把表直接赋给 TextLabel.Text → "string expected, got table"。
+    local initial = cfg.Default
+    if type(initial) == "table" then initial = initial[1] end
     local el = parent:Dropdown({
         Title = PickText(cfg),
         Desc = PickDesc(cfg),
         Values = values,
-        Value = {},
+        Value = initial or "",
         Multi = true,
         SearchBarEnabled = true,
         Flag = PickKey(cfg),
         Callback = Tracker(shadow, RebuildFrom),
     })
+    if type(cfg.Default) == "table" then RebuildFrom(cfg.Default) end
 
     local t
     local function Push()
@@ -864,15 +870,7 @@ local ObjectiveLabels = {
     ["GardenGateButton"] = "Gate Button",
 }
 
-local MiscLabels = {
-    ["StairwellLockpickDoor"] = "Garage Door",
-    ["StiarwellLockpickDoor"] = "Garage Door",
-    ["Mirror"] = "Mirror",
-    ["StairwellFireAlarm"] = "Fire Alarm",
-    ["ShoppingCart"] = "Shopping Cart",
-    ["ArchivesFihTank"] = "Fih Tank",
-    ["ArchivesFishTank"] = "Fih Tank",
-}
+-- [deadcode] 删掉未使用的 MiscLabels（原版里也同样闲置，省 1 个寄存器）
 
 -- 原版 Entity List 下拉项
 local EntityListValues = {
@@ -928,12 +926,7 @@ local AllowedInstances = {
 AllowedInstances.TimerLever = true
 AllowedInstances.Figure = true
 
--- 原版 CutsceneNames（这些不参与实体 ESP）
-local CutsceneNames = {
-    "Figure", "FigureEnd", "FigureHotelEnd", "FigureHotelFire",
-    "SeekIntroFools", "SeekIntroHotel", "SeekIntroMines", "SeekIntroMines2",
-    "SerewSeekDrain", "SewerSeekLower", "GrumbleNestEnd", "EyestalkIntro",
-}
+-- [deadcode] 删掉未使用的 CutsceneNames（原版里也同样闲置，省 1 个寄存器）
 
 --=====================================================================
 -- 3. 原版 Components/ESP.luau —— 原文内联，逐字节未改
@@ -1562,6 +1555,12 @@ local Functions = {}
 local Toggles = {}
 local Options = {}
 
+-- UI 是否已经建完。HandleObject 里有个 task.wait()（找对象所在房间那圈），
+-- 会让出主线程；扫描是挂在 RenderStepped 上的，于是可能在 UI 还在建、
+-- Toggles.XXX 还是 nil 的时候就被调用，一读 .Value 就报 "attempt to index nil"。
+-- 用这个标记挡住 UI 就绪之前的调用。
+local UIReady = false
+
 local Objects = {
     Prompts = {}, Objectives = {}, Doors = {}, HidingSpots = {}, Entities = {},
     SeekObstructions = {}, Items = {}, Chests = {}, Currency = {}, Ladders = {},
@@ -1661,6 +1660,12 @@ end
 -- 文字串 / 颜色 / RoomBased 参数与原版逐字一致
 --─────────────────────────────────────────────────────────────────────
 Functions.HandleObject = function(Object)
+    -- UI 没建完就先不处理（见上面 UIReady 的说明）
+    if not UIReady then
+        table.insert(Globals.ObjectQueue, Object)
+        return
+    end
+
     local CurrentRooms = Services.Workspace:FindFirstChild("CurrentRooms")
 
     if CurrentRooms then
@@ -2045,6 +2050,9 @@ end
 local function HandleEntitySpawn(Entity)
     if not Entity or typeof(Entity) ~= "Instance" then return end
 
+    -- UI 没建完就先跳过（Toggles/Options 还是空的，读 .Value 会报 nil）
+    if not UIReady then return end
+
     local Model = Entity
     if Entity:IsA("Humanoid") then
         Model = Entity.Parent
@@ -2090,8 +2098,10 @@ local function HandleEntitySpawn(Entity)
     -- 所以在末尾统一分发一次，让移植过来的功能能拿到稳定的数据来源。
     local PortHooks = Globals.ObjectPortHooks
     if PortHooks then
+        -- 注意传的是 Model，不是 Object：这个函数里没有 Object 这个变量，
+        -- 原来写 pcall(Hook, Object) 传进去的是 nil，钩子永远是空转。
         for _, Hook in ipairs(PortHooks) do
-            pcall(Hook, Object)
+            pcall(Hook, Model)
         end
     end
 
@@ -3327,9 +3337,7 @@ FlyBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 local ManipulateBody = Instance.new("BodyVelocity")
 ManipulateBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 
-local function GetLiveModifiers()
-    return Services.ReplicatedStorage:FindFirstChild("LiveModifiers")
-end
+-- [deadcode] 删掉未使用的 GetLiveModifiers（省 1 个寄存器）
 
 -- RemotesFolder / Crouch 遥控（滑行方式要用；反作弊绕过那页也用同一个）
 local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
@@ -4560,14 +4568,7 @@ Connections.ExploitRefresh = Services.RunService.Heartbeat:Connect(function()
     end
 end)
 
--- 遍历一个集合，按名字挑出对象再交给回调
-local function ForEachNamed(Collection, Names, Callback)
-    for _, Object in ipairs(Collection) do
-        if Object and Object.Parent and Names[Object.Name] then
-            pcall(Callback, Object)
-        end
-    end
-end
+-- [deadcode] 删掉未使用的 ForEachNamed（省 1 个寄存器）
 
 local function ForEachDescendant(Object, Callback)
     for _, Part in ipairs(Object:GetDescendants()) do
@@ -8012,6 +8013,11 @@ Module.Char = Char
 Module.Lang = Lang
 
 getgenv()[STATE_KEY] = Module
+
+-- 走完这里，所有控件都建好了，扫描/实体回调可以正常读 Toggles/Options 了。
+-- 放在这一行而不是 UI 段末尾，是因为「综合/漏洞/楼层/档案馆/楼梯间」这五个页
+-- 是在 IIFE 里建的，位置在运行循环之后。
+UIReady = true
 
 print("[Msptds] 载入完成 · ESP 开关默认全关（同原版）")
 print("[Msptds] " .. tostring(UIKeybind.Key.Name) .. " 开关界面 · "
