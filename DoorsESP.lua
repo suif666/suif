@@ -4186,25 +4186,7 @@ local function LoadConfig()
     return ok
 end
 
--- fengari 里没有 debug.traceback，写一个两边都能用的
-local function Trace(err)
-    local parts = { tostring(err) }
-    if debug then
-        if type(debug.traceback) == "function" then
-            local ok, tb = pcall(debug.traceback, "", 2)
-            if ok and tb then parts[#parts + 1] = tostring(tb) end
-        elseif type(debug.getinfo) == "function" then
-            -- fengari 没有 traceback，用 getinfo 手工拼
-            for lvl = 2, 10 do
-                local ok, info = pcall(debug.getinfo, lvl, "Sl")
-                if not ok or not info or not info.currentline or info.currentline <= 0 then break end
-                parts[#parts + 1] = string.format("  栈%d: 第%s行 (%s)",
-                    lvl, tostring(info.currentline), tostring(info.name or "?"))
-            end
-        end
-    end
-    return table.concat(parts, "\n")
-end
+-- [regfix] 删除重复的 Trace 定义（保留前一个）
 
 --────────────────────────── 新功能控件 ──────────────────────────
 
@@ -5198,6 +5180,7 @@ end)
 --   ② 从下一间房开始挨个往后找，直到找到带 Seek_Arm 的那间（= 追逐起点）；
 --   ③ 一路上不断把角色 PivotTo 到房门上，门一开就继续 —— 等于快速「走过」去；
 --   ④ 到了带 Seek_Arm 的房间，把角色往下扔 2500 格躲开追逐判定。
+do  -- [regfix] 端口块作用域开始：降低顶层 local 寄存器占用
 local SkipSeekRunning = false
 
 local function SkipSeekHotelLoop()
@@ -7377,15 +7360,15 @@ end)
 --   Pivot    —— 每帧直接把角色往前挪 2560 格。幅度极大，用来穿长走廊；
 --               愚人酒店 / 旧酒店不适用（会把状态搞乱，原版也排除了）。
 -- 注意这两种都是「强制位移」，会和服务端的反作弊打架，所以默认不开。
-local ManipulateBody
+local VelocityManipBody
 local VelocityManipLast = 0
 
 local function EnsureManipulateBody()
-    if ManipulateBody and ManipulateBody.Parent then return ManipulateBody end
-    ManipulateBody = Instance.new("BodyVelocity")
-    ManipulateBody.Name = "DoorsESPX_Manipulate"
-    ManipulateBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    return ManipulateBody
+    if VelocityManipBody and VelocityManipBody.Parent then return VelocityManipBody end
+    VelocityManipBody = Instance.new("BodyVelocity")
+    VelocityManipBody.Name = "DoorsESPX_Manipulate"
+    VelocityManipBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    return VelocityManipBody
 end
 
 Connections.VelocityManipulation = Services.RunService.Heartbeat:Connect(function()
@@ -7394,7 +7377,7 @@ Connections.VelocityManipulation = Services.RunService.Heartbeat:Connect(functio
     local Root = Char.RootPart
 
     if not Enabled or not Root or Mode ~= "Velocity" then
-        if ManipulateBody and ManipulateBody.Parent then ManipulateBody.Parent = nil end
+        if VelocityManipBody and VelocityManipBody.Parent then VelocityManipBody.Parent = nil end
         return
     end
 
@@ -7976,6 +7959,7 @@ SelfAction = function(Action)
         Functions.Notify({ Title = "这个楼层不支持「" .. tostring(Action) .. "」" })
     end
 end
+end  -- [regfix] 端口块作用域结束
 
 local Module = {}
 
