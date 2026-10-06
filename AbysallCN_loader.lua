@@ -29,6 +29,11 @@ local Remote = "https://cdn.jsdelivr.net/gh/suif666/suif@43ed6b2155074922d6dab18
 local Local  = "abycn/overlay.lua"
 
 local function readAny(path)
+    -- isfile 不是所有执行器都有，所以能问就问，问不了就直接试着读
+    if type(isfile) == "function" then
+        local ok, exists = pcall(isfile, path)
+        if not ok or not exists then return nil end
+    end
     local ok, data = pcall(readfile, path)
     if ok and type(data) == "string" and #data > 1000 then return data end
     return nil
