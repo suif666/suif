@@ -20,12 +20,10 @@
 ═══════════════════════════════════════════════════════════════════════════
 ]]
 
--- 官方原版地址。默认走 jsDelivr CDN：
---   raw.githubusercontent.com 经常被墙 / 证书握手失败（实测 http=000），
---   而这个脚本本身也是从 jsDelivr 加载的，同源更稳。
--- 想改回 GitHub 原始域名就把下面注释掉的那行换上来。
+-- 官方原版地址。走 jsDelivr CDN（实测游戏内可直接加载官方仓库）：
+--   raw.githubusercontent.com 经常被墙 / 证书握手失败（本机实测 http=000）。
+-- 这一行必须指向【官方仓库】，它决定了游戏内请求的是谁的脚本，不要改。
 local OFFICIAL_URL = "https://cdn.jsdelivr.net/gh/therealcookiemonsterof1966/AbysallContinued@main/Games/Doors/Main.luau"
--- local OFFICIAL_URL = "https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau"
 
 local ZH = {
     [" seconds."] = " 秒。",
