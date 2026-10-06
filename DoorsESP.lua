@@ -331,6 +331,28 @@ local function Tracker(shadow, setLocal)
 end
 
 --────────────────────────── 窗口 ──────────────────────────
+--────────────────────────── 构建探针（定位卡死/报错用）──────────────────────────
+-- 每个控件创建时打一行日志。脚本卡住或报错时，最后打出来的那行就是出问题的控件。
+-- 排查完可以设成 false 关掉。
+-- 用 do...end 包住：BUILD_LOG / BuildSeq 只是探针自用，不该占外层寄存器
+-- （外层只剩个位数余量，见 Luau 200 local 限制）
+do
+local BUILD_LOG = true
+local BuildSeq = 0
+
+function Mini.__Trace(Kind, cfg)
+    if not BUILD_LOG then return end
+    BuildSeq = BuildSeq + 1
+    local key = "?"
+    if type(cfg) == "table" then
+        key = tostring(cfg.Key or cfg.Text or cfg.Title or "?")
+    elseif cfg ~= nil then
+        key = tostring(cfg)
+    end
+    print(("[DoorESP] #%d %s %s"):format(BuildSeq, Kind, key))
+end
+end
+
 function Mini.NewWindow(title, subtitle)
     local win = WindUI:CreateWindow({
         Title = PickText(title),
@@ -384,6 +406,7 @@ end
 
 --────────────────────────── 开关 ──────────────────────────
 function Mini.Toggle(parent, cfg)
+    Mini.__Trace("Toggle", cfg)
     local shadow = NewShadow()
     local v = cfg.Default and true or false
 
@@ -407,6 +430,7 @@ end
 -- WindUI 滑块的 .Value 是 { Min = , Max = , Default = } 这张表，
 -- 但脚本里几十处读的都是数字，所以套一层代理把 .Value 变成数字。
 function Mini.Slider(parent, cfg)
+    Mini.__Trace("Slider", cfg)
     local shadow = NewShadow()
     local v = tonumber(cfg.Default) or tonumber(cfg.Min) or 0
 
@@ -428,6 +452,7 @@ end
 
 --────────────────────────── 取色器 ──────────────────────────
 function Mini.ColorPicker(parent, cfg)
+    Mini.__Trace("ColorPicker", cfg)
     local shadow = NewShadow()
     local v = cfg.Default
 
@@ -457,6 +482,7 @@ end
 local BuildMultiDropdown
 
 function Mini.Dropdown(parent, cfg)
+    Mini.__Trace("Dropdown", cfg)
     -- Multi = true 的下拉走多选实现：WindUI 多选回调给的是「数组」，
     -- 但脚本里读的都是「集合」（Ignore[名字]），必须转一手。
     if cfg.Multi then
@@ -489,6 +515,7 @@ end
 -- 老代码读的是 Options.X.Value["名字"] 这种「名字 → true」的哈希表，
 -- WindUI 的多选给的是数组，所以这里两边都转一手，另外补一个 :SetAll。
 function Mini.MultiSelect(parent, cfg)
+    Mini.__Trace("MultiSelect", cfg)
     return BuildMultiDropdown(parent, cfg, false)
 end
 
@@ -519,7 +546,9 @@ BuildMultiDropdown = function(parent, cfg, WithSearch)
         Values = values,
         Value = initial or "",
         Multi = true,
-        SearchBarEnabled = WithSearch,
+        -- 和改动前保持一致：一律开搜索框。这是原脚本本来就有的行为，
+        -- 我之前按入口区分开关是多余改动，改回来避免引入任何行为差异。
+        SearchBarEnabled = true,
         Flag = PickKey(cfg),
         Callback = Tracker(shadow, RebuildFrom),
     })
@@ -559,6 +588,7 @@ end
 --────────────────────────── 快捷键 ──────────────────────────
 -- 老代码读的是 X.Key（Enum.KeyCode），WindUI 存的 .Value 是字符串名字，这里转回来。
 function Mini.Keybind(parent, cfg)
+    Mini.__Trace("Keybind", cfg)
     local shadow = NewShadow()
     local v = cfg.Default
 
@@ -587,6 +617,7 @@ end
 
 --────────────────────────── 按钮 ──────────────────────────
 function Mini.Button(parent, cfg)
+    Mini.__Trace("Button", cfg)
     local shadow = NewShadow()
 
     local el = parent:Button({
@@ -612,6 +643,7 @@ end
 
 --────────────────────────── 文字 ──────────────────────────
 function Mini.Label(parent, text, color)
+    Mini.__Trace("Label", text)
     local labelText = PickText(text)
     local el = parent:Label({ Text = labelText })
 
