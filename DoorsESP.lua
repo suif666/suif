@@ -1,9 +1,3 @@
-local function PickDesc(cfg)
-    -- 提示 / 说明文字一律不显示：一是用户要求把所有提示去掉，
-    -- 二是长文案在 WindUI 里会顶出控件边界。
-    return nil
-end
-
 --[[
 =====================================================================
   Doors · ESP 提取版 (原版行为)          自建 UI / 单文件 / 无外部依赖
@@ -202,6 +196,8 @@ local function NewShadow()
 end
 
 -- 控件标题 / 描述 / Flag 都交给 PickText / PickKey / PickDesc 解析，
+-- 提示文字一律不显示：一是用户要求把所有提示去掉，
+-- 二是长文案在 WindUI 里会顶出控件边界。
 -- 这样 L() 里只写中文、英文靠 Lang.T(Key) 取，切语言的时候整块 UI 重建后就是对应语言。
 local function PickDesc(cfg)
     if type(cfg) ~= "table" then return nil end
