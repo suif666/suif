@@ -8257,7 +8257,6 @@ Abysall.Interface.ApplySettingsTab(Window)
 Functions.Notify({ Title = "Successfully loaded in " .. math.floor((tick() - LoadStart) * 1000) / 1000 .. " seconds." , Body = "Press '" .. tostring(Options.MenuKeybind.Value) .. "' to toggle the UI."})
 
 
--- ══ AbysallCN 词表（数据段，全部中文集中在此，不占正文配额）══
 local _CN_TIPS = {
   ["Community"] = "社区",
   ["Copy Discord Invite"] = "复制 Discord 邀请链接",
@@ -8363,7 +8362,7 @@ do
     mt.__newindex = function(t, k, v)
       if (k == "Text" or k == "PlaceholderText" or k == "ContentText") and type(v) == "string" then
         local nv = tr(v)
-        if nv == v and #v > 1 then table.insert(_CN_SEEN, v) end
+        if nv == v then _CN_SEEN[v] = true end
         v = nv
       end
       if ni then return ni(t, k, v) end
@@ -8372,17 +8371,6 @@ do
     setreadonly(mt, true)
   end
   getgenv().AbysallCN_Seen = _CN_SEEN
-
-  if setclipboard then
-    getgenv().AbysallCN_DumpSeen = function()
-      local out, seen = {}, {}
-      for _, s in ipairs(_CN_SEEN) do
-        if not seen[s] and #s > 1 then seen[s] = true; table.insert(out, s) end
-      end
-      setclipboard(table.concat(out, "\n"))
-      print("[CN] 已复制 " .. tostring(#out) .. " 条未翻译英文到剪贴板")
-    end
-  end
   getgenv().AbysallCN_Translate = tr
   print("[CN] translator ready, entries=" .. tostring(#_CN_TIPS))
 end
