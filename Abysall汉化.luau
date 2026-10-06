@@ -4105,7 +4105,6 @@ Groupboxes.Stairwell_Misc = Tabs.Stairwell:AddLeftGroupbox("Exploits / Anti / Mi
 
 Groupboxes.Stairwell_Misc:AddDivider()
 Groupboxes.Stairwell_Misc:AddToggle("BypassNoise", { Text = "噪音电视断路器", Default = false, Tooltip = "拿着噪音电视时把它弄坏。" })
-Groupboxes.Stairwell_Misc:AddToggle("AntiNoise", { Text = "防噪音", Default = false, Tooltip = "阻止游戏在你移动时发出噪音（Visual studio auto ai 哈哈 ✌）。" })
 
 
 Groupboxes.Stairwell_Misc:AddToggle("DroppedItemValue", { Text = "物品数量", Default = false, Tooltip = "显示掉落物品的数量。" })
@@ -4884,59 +4883,6 @@ Toggles.OrbitDroppedItems:OnChanged(function(OrbitDroppedItemsEnabled)
 			end
 		end
 	end)
-end)
-
-Toggles.AntiNoise:OnChanged(function(value)
-	for i = #Connections, 1, -1 do
-		local conn = Connections[i]
-		if conn and conn.Disconnect then
-			conn:Disconnect()
-		end
-		table.remove(Connections, i)
-	end
-	if not value then return end
-	local antiNoiseConn = RunService.PreSimulation:Connect(function(dt)
-		if not value then return end
-		if not LocalPlayer:GetAttribute("Alive") then return end
-		local character = LocalPlayer.Character
-		if not character then return end
-		local rootPart = character:FindFirstChild("HumanoidRootPart")
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		local camera = workspace.CurrentCamera
-		if not rootPart or not humanoid or not camera then return end
-		if humanoid.Health <= 0 then return end
-		if rootPart.Anchored then return end
-		local state = humanoid:GetState()
-		if state == Enum.HumanoidStateType.Dead
-			or state == Enum.HumanoidStateType.Ragdoll
-			or state == Enum.HumanoidStateType.Climbing
-			or state == Enum.HumanoidStateType.Swimming then
-			return
-		end
-		humanoid.AutoRotate = false
-		humanoid:Move(Vector3.zero, false)
-		local inputVector = Controls:GetMoveVector()
-		local inputMagnitude = inputVector.Magnitude
-		if inputMagnitude <= 0 then
-			rootPart.AssemblyLinearVelocity = Vector3.zero
-			return
-		end
-		local cameraCFrame = camera.CFrame
-		local cameraForward = Vector3.new(cameraCFrame.LookVector.X, 0, cameraCFrame.LookVector.Z)
-		local cameraRight = Vector3.new(cameraCFrame.RightVector.X, 0, cameraCFrame.RightVector.Z)
-		if cameraForward.Magnitude < 0.001 or cameraRight.Magnitude < 0.001 then return end
-		cameraForward = cameraForward.Unit
-		cameraRight = cameraRight.Unit
-		local worldDirection = (cameraRight * inputVector.X) + (cameraForward * -inputVector.Z)
-		if worldDirection.Magnitude <= 0 then return end
-		worldDirection = worldDirection.Unit
-		local finalSpeed = humanoid.WalkSpeed * math.clamp(inputMagnitude, 0, 1)
-		local clampedDt = math.clamp(dt, 0, 1 / 30)
-		rootPart.AssemblyLinearVelocity = Vector3.zero
-		rootPart.CFrame = rootPart.CFrame + (worldDirection * finalSpeed * clampedDt)
-		rootPart.CFrame = CFrame.new(rootPart.Position, rootPart.Position + worldDirection)
-	end)
-	Connections[#Connections + 1] = antiNoiseConn
 end)
 
 Toggles.BypassNoise:OnChanged(function(value)
