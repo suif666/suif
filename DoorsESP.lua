@@ -5180,7 +5180,8 @@ end)
 --   ② 从下一间房开始挨个往后找，直到找到带 Seek_Arm 的那间（= 追逐起点）；
 --   ③ 一路上不断把角色 PivotTo 到房门上，门一开就继续 —— 等于快速「走过」去；
 --   ④ 到了带 Seek_Arm 的房间，把角色往下扔 2500 格躲开追逐判定。
-do  -- [regfix] 端口块作用域开始：降低顶层 local 寄存器占用
+;(function()  -- [regfix] 端口块独立函数作用域：Luau 每个函数最多 200 个 local 寄存器，
+             --           只有函数能重置寄存器池（do...end 不行）
 local SkipSeekRunning = false
 
 local function SkipSeekHotelLoop()
@@ -7959,7 +7960,7 @@ SelfAction = function(Action)
         Functions.Notify({ Title = "这个楼层不支持「" .. tostring(Action) .. "」" })
     end
 end
-end  -- [regfix] 端口块作用域结束
+end)()  -- [regfix] 端口块作用域结束
 
 local Module = {}
 
