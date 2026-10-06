@@ -331,27 +331,6 @@ local function Tracker(shadow, setLocal)
 end
 
 --────────────────────────── 窗口 ──────────────────────────
---────────────────────────── 构建探针（定位卡死/报错用）──────────────────────────
--- 每个控件创建时打一行日志。脚本卡住或报错时，最后打出来的那行就是出问题的控件。
--- 排查完可以设成 false 关掉。
--- 用 do...end 包住：BUILD_LOG / BuildSeq 只是探针自用，不该占外层寄存器
--- （外层只剩个位数余量，见 Luau 200 local 限制）
-do
-local BUILD_LOG = true
-local BuildSeq = 0
-
-function Mini.__Trace(Kind, cfg)
-    if not BUILD_LOG then return end
-    BuildSeq = BuildSeq + 1
-    local key = "?"
-    if type(cfg) == "table" then
-        key = tostring(cfg.Key or cfg.Text or cfg.Title or "?")
-    elseif cfg ~= nil then
-        key = tostring(cfg)
-    end
-    print(("[DoorESP] #%d %s %s"):format(BuildSeq, Kind, key))
-end
-end
 
 function Mini.NewWindow(title, subtitle)
     local win = WindUI:CreateWindow({
@@ -406,7 +385,6 @@ end
 
 --────────────────────────── 开关 ──────────────────────────
 function Mini.Toggle(parent, cfg)
-    Mini.__Trace("Toggle", cfg)
     local shadow = NewShadow()
     local v = cfg.Default and true or false
 
@@ -430,7 +408,6 @@ end
 -- WindUI 滑块的 .Value 是 { Min = , Max = , Default = } 这张表，
 -- 但脚本里几十处读的都是数字，所以套一层代理把 .Value 变成数字。
 function Mini.Slider(parent, cfg)
-    Mini.__Trace("Slider", cfg)
     local shadow = NewShadow()
     local v = tonumber(cfg.Default) or tonumber(cfg.Min) or 0
 
@@ -452,7 +429,6 @@ end
 
 --────────────────────────── 取色器 ──────────────────────────
 function Mini.ColorPicker(parent, cfg)
-    Mini.__Trace("ColorPicker", cfg)
     local shadow = NewShadow()
     local v = cfg.Default
 
@@ -482,7 +458,6 @@ end
 local BuildMultiDropdown
 
 function Mini.Dropdown(parent, cfg)
-    Mini.__Trace("Dropdown", cfg)
     -- Multi = true 的下拉走多选实现：WindUI 多选回调给的是「数组」，
     -- 但脚本里读的都是「集合」（Ignore[名字]），必须转一手。
     if cfg.Multi then
@@ -515,7 +490,6 @@ end
 -- 老代码读的是 Options.X.Value["名字"] 这种「名字 → true」的哈希表，
 -- WindUI 的多选给的是数组，所以这里两边都转一手，另外补一个 :SetAll。
 function Mini.MultiSelect(parent, cfg)
-    Mini.__Trace("MultiSelect", cfg)
     return BuildMultiDropdown(parent, cfg, false)
 end
 
@@ -588,7 +562,6 @@ end
 --────────────────────────── 快捷键 ──────────────────────────
 -- 老代码读的是 X.Key（Enum.KeyCode），WindUI 存的 .Value 是字符串名字，这里转回来。
 function Mini.Keybind(parent, cfg)
-    Mini.__Trace("Keybind", cfg)
     local shadow = NewShadow()
     local v = cfg.Default
 
@@ -617,7 +590,6 @@ end
 
 --────────────────────────── 按钮 ──────────────────────────
 function Mini.Button(parent, cfg)
-    Mini.__Trace("Button", cfg)
     local shadow = NewShadow()
 
     local el = parent:Button({
@@ -643,7 +615,6 @@ end
 
 --────────────────────────── 文字 ──────────────────────────
 function Mini.Label(parent, text, color)
-    Mini.__Trace("Label", text)
     local labelText = PickText(text)
     local el = parent:Label({ Text = labelText })
 
@@ -1597,6 +1568,35 @@ end)()
 --=====================================================================
 local Globals = {}
 local Connections = {}
+
+do
+    --────────────────────────── 运行循环错误报告器 ──────────────────────────
+    -- 运行循环里某个回调每帧报错时，Roblox 会把同一条错误刷满输出框，
+    -- 导致根本看不到报错内容。这里每个「不同的」错误只打印一次，最多 5 条，
+    -- 并且会自动跳过出错的那一帧，不会连累同一个回调里的其它功能。
+    do
+    local Seen, Total = {}, 0
+    __DoorESPReport = function(Tag, Err)
+        Total = Total + 1
+        local Msg = tostring(Err)
+        if Seen[Msg] then Seen[Msg] = Seen[Msg] + 1; return end
+        Seen[Msg] = 1
+        if Total <= 5 then
+            print("[DoorESP][运行错误] " .. Tag .. " >>> " .. Msg)
+        end
+    end
+    end
+
+    -- 把每帧调用的函数包一层 pcall：出错只报一次，且不影响其它功能
+    local function Guard(Tag, Fn)
+        return function(...)
+            local Args = table.pack(...)
+            local Ok, Err = pcall(Fn, table.unpack(Args, 1, Args.n))
+            if not Ok then __DoorESPReport(Tag, Err) end
+        end
+end
+end
+
 local ESPConnections = {}
 local ESPBlacklist = {}
 local Functions = {}
@@ -1709,460 +1709,467 @@ end
 -- 原版 HandleObject —— 只保留 ESP 相关的分支，其余作弊功能没搬
 -- 文字串 / 颜色 / RoomBased 参数与原版逐字一致
 --─────────────────────────────────────────────────────────────────────
-Functions.HandleObject = function(Object)
-    -- UI 没建完就先不处理（见上面 UIReady 的说明）
-    if not UIReady then
-        table.insert(Globals.ObjectQueue, Object)
-        return
-    end
-
-    local CurrentRooms = Services.Workspace:FindFirstChild("CurrentRooms")
-
-    if CurrentRooms then
-        for _, Room in ipairs(CurrentRooms:GetChildren()) do
-            if Object:IsDescendantOf(Room) then
-                Object:SetAttribute("ParentRoom", tonumber(Room.Name))
-                break
-            end
-            task.wait()
+do
+    local function __Raw(Object)
+        -- UI 没建完就先不处理（见上面 UIReady 的说明）
+        if not UIReady then
+            table.insert(Globals.ObjectQueue, Object)
+            return
         end
-    end
 
-    local Name = Object.Name
+        local CurrentRooms = Services.Workspace:FindFirstChild("CurrentRooms")
 
-    if Name == "KeyObtain" then
-        task.spawn(function()
-            task.wait(0.5)
-            if Object.Parent then
-                if Toggles.ObjectiveESPToggle.Value then
-                    Functions.AddESP({ Object = Object, Text = "Door Key",
-                        Color = Options.ObjectiveESPColor.Value }, true)
+        if CurrentRooms then
+            for _, Room in ipairs(CurrentRooms:GetChildren()) do
+                if Object:IsDescendantOf(Room) then
+                    Object:SetAttribute("ParentRoom", tonumber(Room.Name))
+                    break
                 end
-                table.insert(Objects.Objectives, Object)
-            end
-        end)
-    elseif Name == "ElectricalKeyObtain" then
-        task.spawn(function()
-            task.wait(0.5)
-            if Object.Parent then
-                if Toggles.ObjectiveESPToggle.Value then
-                    Functions.AddESP({ Object = Object, Text = "Electrical Key",
-                        Color = Options.ObjectiveESPColor.Value }, true)
-                end
-                table.insert(Objects.Objectives, Object)
-            end
-        end)
-    elseif Name == "TimerLever" then
-        task.spawn(function()
-            task.wait(0.5)
-            if Object.Parent then
-                Object:SetAttribute("AddTime",
-                    Object.TakeTimer.TextLabel.Text == "01:00" and 60 or 30)
-                if Toggles.ObjectiveESPToggle.Value then
-                    Functions.AddESP({
-                        Object = Object,
-                        Text = "Time Lever [+" .. Object:GetAttribute("AddTime") .. "s]",
-                        Color = Options.ObjectiveESPColor.Value }, true)
-                end
-                table.insert(Objects.Objectives, Object)
-            end
-        end)
-    elseif Name == "StairwellLockpickDoor" or Name == "StiarwellLockpickDoor" then
-        -- 闸门（原版挂在 Misc 里，和购物车同一条分支）→ 现在单独归到「任务」分类
-        if Toggles.TaskESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Garage Door",
-                Color = Options.TaskESPColor.Value }, true)
-        end
-        table.insert(Objects.Tasks, Object)
-    elseif Name == "Mirror" then
-        if Toggles.MiscESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Mirror",
-                Color = Options.MiscESPColor.Value }, true)
-        end
-        table.insert(Objects.Misc, Object)
-    elseif Name == "StairwellFireAlarm" then
-        if Toggles.MiscESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Fire Alarm",
-                Color = Options.MiscESPColor.Value }, true)
-        end
-        table.insert(Objects.Misc, Object)
-    elseif Name == "ShoppingCart" then
-        if Toggles.MiscESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Shopping Cart",
-                Color = Options.MiscESPColor.Value }, true)
-        end
-        table.insert(Objects.Misc, Object)
-    elseif Name == "StairwellScrapper" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Scrapper",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "ArchivesPackageDeposit" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Package Deposit",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "Cellar" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Cellar",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "ArchivesFihTank" then
-        if Toggles.MiscESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Fih Tank",
-                Color = Options.MiscESPColor.Value }, true)
-        end
-        table.insert(Objects.Misc, Object)
-    elseif Name == "LiveHintBook" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Hint Book",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "LiveBreakerPolePickup" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Fuse Breaker",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "LibraryHintPaper" or Name == "PickupItem" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Hint Paper",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "MinesAnchor" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({
-                Object = Object,
-                Text = "Anchor [" .. Object:WaitForChild("Sign").TextLabel.Text .. "]",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "WaterPump" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object:WaitForChild("Wheel"), Text = "Water Pump",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "CringlePresent" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Present",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "LeverForGate" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Gate Lever",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "VineGuillotine" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object.Lever, Text = "Vine Lever",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "MandrakeLive" then
-        if Toggles.ObjectiveESPToggle.Value
-            and Options.EntityESPOptions.Value["Mandrake Hole"] then
-            Functions.AddESP({ Object = Object.Hole, Text = "Mandrake Hole",
-                Color = Options.EntityESPColor.Value }, true)
-        end
-        table.insert(Objects.Entities, Object.Hole)
-    elseif Name == "MinesGenerator" then
-        task.spawn(function()
-            task.wait(0.75)
-            if Object.Parent then
-                if Toggles.ObjectiveESPToggle.Value then
-                    Functions.AddESP({ Object = Object, Text = "Generator",
-                        Color = Options.ObjectiveESPColor.Value }, true)
-                end
-                table.insert(Objects.Objectives, Object)
-            end
-        end)
-    elseif Name == "FuseObtain" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Generator Fuse",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "MinesGateButton" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Gate Button",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "GardenGateButton" then
-        if Toggles.ObjectiveESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Gate Button",
-                Color = Options.ObjectiveESPColor.Value }, true)
-        end
-        table.insert(Objects.Objectives, Object)
-    elseif Name == "Ladder" then
-        if Toggles.LadderESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Ladder",
-                Color = Options.LadderESPColor.Value }, true)
-        end
-        table.insert(Objects.Ladders, Object)
-    elseif Name == "Door" and Object.Parent and tonumber(Object.Parent.Name) then
-        local DoorParts = {}
-        for _, Child in ipairs(Object:GetChildren()) do
-            if Child.Name == "Door" and Child:IsA("BasePart") then
-                table.insert(DoorParts, Child)
+                task.wait()
             end
         end
 
-        if #DoorParts == 2 then
-            local HighlightModel = Instance.new("Model", Object)
-            HighlightModel.Name = "HighlightModel"
-            Instance.new("Humanoid", HighlightModel).Name = "HighlightHumanoid"
-            HighlightModel:SetAttribute("ParentRoom", tonumber(Object.Parent.Name))
+        local Name = Object.Name
 
-            for _, DoorPart in ipairs(DoorParts) do
-                local HP = Instance.new("Part", HighlightModel)
+        if Name == "KeyObtain" then
+            task.spawn(function()
+                task.wait(0.5)
+                if Object.Parent then
+                    if Toggles.ObjectiveESPToggle.Value then
+                        Functions.AddESP({ Object = Object, Text = "Door Key",
+                            Color = Options.ObjectiveESPColor.Value }, true)
+                    end
+                    table.insert(Objects.Objectives, Object)
+                end
+            end)
+        elseif Name == "ElectricalKeyObtain" then
+            task.spawn(function()
+                task.wait(0.5)
+                if Object.Parent then
+                    if Toggles.ObjectiveESPToggle.Value then
+                        Functions.AddESP({ Object = Object, Text = "Electrical Key",
+                            Color = Options.ObjectiveESPColor.Value }, true)
+                    end
+                    table.insert(Objects.Objectives, Object)
+                end
+            end)
+        elseif Name == "TimerLever" then
+            task.spawn(function()
+                task.wait(0.5)
+                if Object.Parent then
+                    Object:SetAttribute("AddTime",
+                        Object.TakeTimer.TextLabel.Text == "01:00" and 60 or 30)
+                    if Toggles.ObjectiveESPToggle.Value then
+                        Functions.AddESP({
+                            Object = Object,
+                            Text = "Time Lever [+" .. Object:GetAttribute("AddTime") .. "s]",
+                            Color = Options.ObjectiveESPColor.Value }, true)
+                    end
+                    table.insert(Objects.Objectives, Object)
+                end
+            end)
+        elseif Name == "StairwellLockpickDoor" or Name == "StiarwellLockpickDoor" then
+            -- 闸门（原版挂在 Misc 里，和购物车同一条分支）→ 现在单独归到「任务」分类
+            if Toggles.TaskESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Garage Door",
+                    Color = Options.TaskESPColor.Value }, true)
+            end
+            table.insert(Objects.Tasks, Object)
+        elseif Name == "Mirror" then
+            if Toggles.MiscESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Mirror",
+                    Color = Options.MiscESPColor.Value }, true)
+            end
+            table.insert(Objects.Misc, Object)
+        elseif Name == "StairwellFireAlarm" then
+            if Toggles.MiscESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Fire Alarm",
+                    Color = Options.MiscESPColor.Value }, true)
+            end
+            table.insert(Objects.Misc, Object)
+        elseif Name == "ShoppingCart" then
+            if Toggles.MiscESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Shopping Cart",
+                    Color = Options.MiscESPColor.Value }, true)
+            end
+            table.insert(Objects.Misc, Object)
+        elseif Name == "StairwellScrapper" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Scrapper",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "ArchivesPackageDeposit" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Package Deposit",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "Cellar" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Cellar",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "ArchivesFihTank" then
+            if Toggles.MiscESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Fih Tank",
+                    Color = Options.MiscESPColor.Value }, true)
+            end
+            table.insert(Objects.Misc, Object)
+        elseif Name == "LiveHintBook" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Hint Book",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "LiveBreakerPolePickup" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Fuse Breaker",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "LibraryHintPaper" or Name == "PickupItem" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Hint Paper",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "MinesAnchor" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({
+                    Object = Object,
+                    Text = "Anchor [" .. Object:WaitForChild("Sign").TextLabel.Text .. "]",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "WaterPump" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object:WaitForChild("Wheel"), Text = "Water Pump",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "CringlePresent" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Present",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "LeverForGate" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Gate Lever",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "VineGuillotine" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object.Lever, Text = "Vine Lever",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "MandrakeLive" then
+            if Toggles.ObjectiveESPToggle.Value
+                and Options.EntityESPOptions.Value["Mandrake Hole"] then
+                Functions.AddESP({ Object = Object.Hole, Text = "Mandrake Hole",
+                    Color = Options.EntityESPColor.Value }, true)
+            end
+            table.insert(Objects.Entities, Object.Hole)
+        elseif Name == "MinesGenerator" then
+            task.spawn(function()
+                task.wait(0.75)
+                if Object.Parent then
+                    if Toggles.ObjectiveESPToggle.Value then
+                        Functions.AddESP({ Object = Object, Text = "Generator",
+                            Color = Options.ObjectiveESPColor.Value }, true)
+                    end
+                    table.insert(Objects.Objectives, Object)
+                end
+            end)
+        elseif Name == "FuseObtain" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Generator Fuse",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "MinesGateButton" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Gate Button",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "GardenGateButton" then
+            if Toggles.ObjectiveESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Gate Button",
+                    Color = Options.ObjectiveESPColor.Value }, true)
+            end
+            table.insert(Objects.Objectives, Object)
+        elseif Name == "Ladder" then
+            if Toggles.LadderESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Ladder",
+                    Color = Options.LadderESPColor.Value }, true)
+            end
+            table.insert(Objects.Ladders, Object)
+        elseif Name == "Door" and Object.Parent and tonumber(Object.Parent.Name) then
+            local DoorParts = {}
+            for _, Child in ipairs(Object:GetChildren()) do
+                if Child.Name == "Door" and Child:IsA("BasePart") then
+                    table.insert(DoorParts, Child)
+                end
+            end
+
+            if #DoorParts == 2 then
+                local HighlightModel = Instance.new("Model", Object)
+                HighlightModel.Name = "HighlightModel"
+                Instance.new("Humanoid", HighlightModel).Name = "HighlightHumanoid"
+                HighlightModel:SetAttribute("ParentRoom", tonumber(Object.Parent.Name))
+
+                for _, DoorPart in ipairs(DoorParts) do
+                    local HP = Instance.new("Part", HighlightModel)
+                    HP.Transparency = 0.999
+                    HP.Size = DoorPart.Size
+                    HP.CanCollide = false
+                    HP.CFrame = DoorPart.CFrame
+                    HP.Name = "HighlightPart"
+                    HP.Material = Enum.Material.Plastic
+                    HP:SetAttribute("ParentRoom", tonumber(Object.Parent.Name))
+                    local W = Instance.new("WeldConstraint", HP)
+                    W.Part0 = HP W.Part1 = DoorPart W.Enabled = true
+                end
+                table.insert(Objects.Doors, HighlightModel)
+                if Toggles.DoorESPToggle.Value then
+                    Functions.AddESP({ Object = HighlightModel,
+                        Text = "Door " .. Functions.GetDoorNumber(Object),
+                        Color = Options.DoorESPColor.Value }, true)
+                end
+            else
+                local Root = Object:WaitForChild("Door", 9e9)
+                local HP = Instance.new("Part", Object)
                 HP.Transparency = 0.999
-                HP.Size = DoorPart.Size
+                HP.Size = Root.Size
                 HP.CanCollide = false
-                HP.CFrame = DoorPart.CFrame
+                HP.CFrame = Root.CFrame
                 HP.Name = "HighlightPart"
                 HP.Material = Enum.Material.Plastic
                 HP:SetAttribute("ParentRoom", tonumber(Object.Parent.Name))
                 local W = Instance.new("WeldConstraint", HP)
-                W.Part0 = HP W.Part1 = DoorPart W.Enabled = true
+                W.Part0 = HP W.Part1 = Root W.Enabled = true
+                Instance.new("Humanoid", Object).Name = "HighlightHumanoid"
+                table.insert(Objects.Doors, HP)
+                if Toggles.DoorESPToggle.Value then
+                    Functions.AddESP({ Object = HP,
+                        Text = "Door " .. Functions.GetDoorNumber(Object),
+                        Color = Options.DoorESPColor.Value }, true)
+                end
             end
-            table.insert(Objects.Doors, HighlightModel)
-            if Toggles.DoorESPToggle.Value then
-                Functions.AddESP({ Object = HighlightModel,
-                    Text = "Door " .. Functions.GetDoorNumber(Object),
-                    Color = Options.DoorESPColor.Value }, true)
-            end
-        else
-            local Root = Object:WaitForChild("Door", 9e9)
-            local HP = Instance.new("Part", Object)
-            HP.Transparency = 0.999
-            HP.Size = Root.Size
-            HP.CanCollide = false
-            HP.CFrame = Root.CFrame
-            HP.Name = "HighlightPart"
-            HP.Material = Enum.Material.Plastic
-            HP:SetAttribute("ParentRoom", tonumber(Object.Parent.Name))
-            local W = Instance.new("WeldConstraint", HP)
-            W.Part0 = HP W.Part1 = Root W.Enabled = true
-            Instance.new("Humanoid", Object).Name = "HighlightHumanoid"
-            table.insert(Objects.Doors, HP)
-            if Toggles.DoorESPToggle.Value then
-                Functions.AddESP({ Object = HP,
-                    Text = "Door " .. Functions.GetDoorNumber(Object),
-                    Color = Options.DoorESPColor.Value }, true)
-            end
-        end
 
-    elseif HidingSpotLabels[Name] or string.find(string.lower(Name), "hidingspot") then
-        local Label = HidingSpotLabels[Name]
-            or (string.find(string.lower(Name), "hidingspot") and "Hiding Spot" or nil)
-        if Label and Toggles.HidingSpotESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = Label,
-                Color = Options.HidingSpotESPColor.Value }, true)
-        end
-        table.insert(Objects.HidingSpots, Object)
-    elseif Object:FindFirstChild("HidingPrompt") or Object:FindFirstChild("HidePrompt") then
-        table.insert(Objects.HidingSpots, Object)
-    elseif Name == "ChestBox" or Name == "ChestBoxLocked" then
-        if Toggles.ChestESPToggle.Value then
-            Functions.AddESP({ Object = Object,
-                Text = Object:GetAttribute("Locked") and "Locked Chest" or "Chest",
-                Color = Options.ChestESPColor.Value }, true)
-        end
-        table.insert(Objects.Chests, Object)
-    elseif Name == "Toolbox" or Name == "Toolbox_Locked" then
-        if Toggles.ChestESPToggle.Value then
-            Functions.AddESP({ Object = Object,
-                Text = Object:GetAttribute("Locked") and "Locked Toolbox" or "Toolbox",
-                Color = Options.ChestESPColor.Value }, true)
-        end
-        table.insert(Objects.Chests, Object)
-    elseif Name == "Chest_Vine" then
-        if Toggles.ChestESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Vine Chest",
-                Color = Options.ChestESPColor.Value }, true)
-        end
-        table.insert(Objects.Chests, Object)
-    elseif Name == "Toolshed_Small" then
-        if Toggles.ChestESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Toolshed",
-                Color = Options.ChestESPColor.Value }, true)
-        end
-        table.insert(Objects.Chests, Object)
-    elseif Name == "Locker_Small_Locked" then
-        if Toggles.ChestESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Locked Item Locker",
-                Color = Options.ChestESPColor.Value }, true)
-        end
-        table.insert(Objects.Chests, Object)
-    elseif Name == "MouseHole" then
-        if Toggles.ChestESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Mouse",
-                Color = Options.ChestESPColor.Value }, true)
-        end
-        table.insert(Objects.Chests, Object)
-    elseif ItemNames[Name] and Object:FindFirstChild("ModulePrompt") then
-        if Toggles.ItemESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = ItemNames[Name],
-                Color = Options.ItemESPColor.Value },
-                Object:GetAttribute("ParentRoom") ~= nil)
-        end
-        table.insert(Objects.Items, Object)
-    elseif Name == "Green_Herb" then
-        if Toggles.ItemESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Green Herb",
-                Color = Options.ItemESPColor.Value }, true)
-        end
-        table.insert(Objects.Items, Object)
-    elseif Name == "GoldPile" and Object:GetAttribute("GoldValue") then
-        if Toggles.CurrencyESPToggle.Value then
-            Functions.AddESP({ Object = Object,
-                Text = "Gold Pile [" .. Object:GetAttribute("GoldValue") .. "]",
-                Color = Options.CurrencyESPColor.Value }, true)
-        end
-        table.insert(Objects.Currency, Object)
-    elseif Name == "StardustPickup" then
-        if Toggles.CurrencyESPToggle.Value then
-            Functions.AddESP({ Object = Object, Text = "Stardust Pile",
-                Color = Options.CurrencyESPColor.Value }, true)
-        end
-        table.insert(Objects.Currency, Object)
-    elseif Name == "GiggleCeiling" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Giggle"] then
-            Functions.AddESP({ Object = Object, Text = "Giggle",
-                Color = Options.EntityESPColor.Value }, true)
-        end
-        table.insert(Objects.Entities, Object)
-    elseif Name == "GloomPile" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Gloombat Eggs"] then
-            Functions.AddESP({ Object = Object, Text = "Gloombat Eggs",
-                Color = Options.EntityESPColor.Value })
-        end
-        table.insert(Objects.Entities, Object)
-    elseif Name == "DoorFake" or Name == "FakeDoor" then
-        if Object.Parent and Object:FindFirstChild("Hidden") then
-            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Dupe"] then
-                Functions.AddESP({ Object = Object, Text = "Dupe",
+        elseif HidingSpotLabels[Name] or string.find(string.lower(Name), "hidingspot") then
+            local Label = HidingSpotLabels[Name]
+                or (string.find(string.lower(Name), "hidingspot") and "Hiding Spot" or nil)
+            if Label and Toggles.HidingSpotESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = Label,
+                    Color = Options.HidingSpotESPColor.Value }, true)
+            end
+            table.insert(Objects.HidingSpots, Object)
+        elseif Object:FindFirstChild("HidingPrompt") or Object:FindFirstChild("HidePrompt") then
+            table.insert(Objects.HidingSpots, Object)
+        elseif Name == "ChestBox" or Name == "ChestBoxLocked" then
+            if Toggles.ChestESPToggle.Value then
+                Functions.AddESP({ Object = Object,
+                    Text = Object:GetAttribute("Locked") and "Locked Chest" or "Chest",
+                    Color = Options.ChestESPColor.Value }, true)
+            end
+            table.insert(Objects.Chests, Object)
+        elseif Name == "Toolbox" or Name == "Toolbox_Locked" then
+            if Toggles.ChestESPToggle.Value then
+                Functions.AddESP({ Object = Object,
+                    Text = Object:GetAttribute("Locked") and "Locked Toolbox" or "Toolbox",
+                    Color = Options.ChestESPColor.Value }, true)
+            end
+            table.insert(Objects.Chests, Object)
+        elseif Name == "Chest_Vine" then
+            if Toggles.ChestESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Vine Chest",
+                    Color = Options.ChestESPColor.Value }, true)
+            end
+            table.insert(Objects.Chests, Object)
+        elseif Name == "Toolshed_Small" then
+            if Toggles.ChestESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Toolshed",
+                    Color = Options.ChestESPColor.Value }, true)
+            end
+            table.insert(Objects.Chests, Object)
+        elseif Name == "Locker_Small_Locked" then
+            if Toggles.ChestESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Locked Item Locker",
+                    Color = Options.ChestESPColor.Value }, true)
+            end
+            table.insert(Objects.Chests, Object)
+        elseif Name == "MouseHole" then
+            if Toggles.ChestESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Mouse",
+                    Color = Options.ChestESPColor.Value }, true)
+            end
+            table.insert(Objects.Chests, Object)
+        elseif ItemNames[Name] and Object:FindFirstChild("ModulePrompt") then
+            if Toggles.ItemESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = ItemNames[Name],
+                    Color = Options.ItemESPColor.Value },
+                    Object:GetAttribute("ParentRoom") ~= nil)
+            end
+            table.insert(Objects.Items, Object)
+        elseif Name == "Green_Herb" then
+            if Toggles.ItemESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Green Herb",
+                    Color = Options.ItemESPColor.Value }, true)
+            end
+            table.insert(Objects.Items, Object)
+        elseif Name == "GoldPile" and Object:GetAttribute("GoldValue") then
+            if Toggles.CurrencyESPToggle.Value then
+                Functions.AddESP({ Object = Object,
+                    Text = "Gold Pile [" .. Object:GetAttribute("GoldValue") .. "]",
+                    Color = Options.CurrencyESPColor.Value }, true)
+            end
+            table.insert(Objects.Currency, Object)
+        elseif Name == "StardustPickup" then
+            if Toggles.CurrencyESPToggle.Value then
+                Functions.AddESP({ Object = Object, Text = "Stardust Pile",
+                    Color = Options.CurrencyESPColor.Value }, true)
+            end
+            table.insert(Objects.Currency, Object)
+        elseif Name == "GiggleCeiling" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Giggle"] then
+                Functions.AddESP({ Object = Object, Text = "Giggle",
+                    Color = Options.EntityESPColor.Value }, true)
+            end
+            table.insert(Objects.Entities, Object)
+        elseif Name == "GloomPile" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Gloombat Eggs"] then
+                Functions.AddESP({ Object = Object, Text = "Gloombat Eggs",
+                    Color = Options.EntityESPColor.Value })
+            end
+            table.insert(Objects.Entities, Object)
+        elseif Name == "DoorFake" or Name == "FakeDoor" then
+            if Object.Parent and Object:FindFirstChild("Hidden") then
+                if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Dupe"] then
+                    Functions.AddESP({ Object = Object, Text = "Dupe",
+                        Color = Options.EntityESPColor.Value }, true)
+                end
+                table.insert(Objects.Entities, Object)
+            end
+        elseif Name == "SideroomSpace" then
+            table.insert(Objects.Entities, Object)
+        elseif Name == "Snare" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Snare"] then
+                Functions.AddESP({ Object = Object, Text = "Snare",
+                    Color = Options.EntityESPColor.Value }, true)
+            end
+            table.insert(Objects.Entities, Object)
+        elseif Name == "BananaPeel" then
+            table.insert(Objects.Entities, Object)
+        elseif Name == "JeffTheKiller" then
+            table.insert(Objects.Entities, Object)
+        elseif Name == "GrumbleRig" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Grumble"] then
+                Functions.AddESP({ Object = Object, Text = "Grumble",
+                    Color = Options.EntityESPColor.Value }, true)
+            end
+            table.insert(Objects.Entities, Object)
+        elseif Name == "LiveEntityBramble" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Bramble"] then
+                Functions.AddESP({ Object = Object, Text = "Bramble",
+                    Color = Options.EntityESPColor.Value }, true)
+            end
+            table.insert(Objects.Entities, Object)
+        elseif Name == "Groundskeeper" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Groundskeeper"] then
+                Functions.AddESP({ Object = Object, Text = "Groundskeeper",
+                    Color = Options.EntityESPColor.Value }, true)
+            end
+            table.insert(Objects.Entities, Object)
+        elseif Name == "Figure" or Name == "FigureRig" or Name == "FigureRagdoll" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Figure"] then
+                Functions.AddESP({ Object = Object, Text = "Figure",
                     Color = Options.EntityESPColor.Value }, true)
             end
             table.insert(Objects.Entities, Object)
         end
-    elseif Name == "SideroomSpace" then
-        table.insert(Objects.Entities, Object)
-    elseif Name == "Snare" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Snare"] then
-            Functions.AddESP({ Object = Object, Text = "Snare",
-                Color = Options.EntityESPColor.Value }, true)
-        end
-        table.insert(Objects.Entities, Object)
-    elseif Name == "BananaPeel" then
-        table.insert(Objects.Entities, Object)
-    elseif Name == "JeffTheKiller" then
-        table.insert(Objects.Entities, Object)
-    elseif Name == "GrumbleRig" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Grumble"] then
-            Functions.AddESP({ Object = Object, Text = "Grumble",
-                Color = Options.EntityESPColor.Value }, true)
-        end
-        table.insert(Objects.Entities, Object)
-    elseif Name == "LiveEntityBramble" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Bramble"] then
-            Functions.AddESP({ Object = Object, Text = "Bramble",
-                Color = Options.EntityESPColor.Value }, true)
-        end
-        table.insert(Objects.Entities, Object)
-    elseif Name == "Groundskeeper" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Groundskeeper"] then
-            Functions.AddESP({ Object = Object, Text = "Groundskeeper",
-                Color = Options.EntityESPColor.Value }, true)
-        end
-        table.insert(Objects.Entities, Object)
-    elseif Name == "Figure" or Name == "FigureRig" or Name == "FigureRagdoll" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value["Figure"] then
-            Functions.AddESP({ Object = Object, Text = "Figure",
-                Color = Options.EntityESPColor.Value }, true)
-        end
-        table.insert(Objects.Entities, Object)
     end
+    Functions.HandleObject = Guard("HandleObject", __Raw)
 end
 
 --─────────────────────────────────────────────────────────────────────
 -- 原版 HandleEntitySpawn —— 只保留 ESP 部分（通知/聊天没搬）
 --─────────────────────────────────────────────────────────────────────
-local function HandleEntitySpawn(Entity)
-    if not Entity or typeof(Entity) ~= "Instance" then return end
+local HandleEntitySpawn
+do
+    local function __Raw(Entity)
+        if not Entity or typeof(Entity) ~= "Instance" then return end
 
-    -- UI 没建完就先跳过（Toggles/Options 还是空的，读 .Value 会报 nil）
-    if not UIReady then return end
+        -- UI 没建完就先跳过（Toggles/Options 还是空的，读 .Value 会报 nil）
+        if not UIReady then return end
 
-    local Model = Entity
-    if Entity:IsA("Humanoid") then
-        Model = Entity.Parent
-    end
-    if not Model or not Model:IsA("Model") then return end
-
-    local EntityData = Entities[Model.Name]
-    if not EntityData then return end
-    if Model:GetAttribute("Abysall_EntityHandled") then return end
-    Model:SetAttribute("Abysall_EntityHandled", true)
-
-    while not Model.PrimaryPart do
-        for _, Child in ipairs(Model:GetChildren()) do
-            if Child:IsA("BasePart") then Model.PrimaryPart = Child end
+        local Model = Entity
+        if Entity:IsA("Humanoid") then
+            Model = Entity.Parent
         end
-        if not Model.PrimaryPart then task.wait() end
-    end
-    task.wait(0.1)
+        if not Model or not Model:IsA("Model") then return end
 
-    if not Model.PrimaryPart
-        or LocalPlayer:DistanceFromCharacter(Model.PrimaryPart.Position) >= 10000 then
-        return
-    end
+        local EntityData = Entities[Model.Name]
+        if not EntityData then return end
+        if Model:GetAttribute("Abysall_EntityHandled") then return end
+        Model:SetAttribute("Abysall_EntityHandled", true)
 
-    local Alias = EntityData.Alias
-    local RealAlias = Alias
+        while not Model.PrimaryPart do
+            for _, Child in ipairs(Model:GetChildren()) do
+                if Child:IsA("BasePart") then Model.PrimaryPart = Child end
+            end
+            if not Model.PrimaryPart then task.wait() end
+        end
+        task.wait(0.1)
 
-    if Model.Name ~= "GloombatSwarm" then
-        if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value[RealAlias] then
-            if Model.Name == "MonumentEntity" then
-                Functions.AddESP({ Object = Model.Top, Text = Alias,
-                    Color = Options.EntityESPColor.Value })
-            else
-                Functions.AddESP({ Object = Model, Text = Alias,
-                    Color = Options.EntityESPColor.Value })
+        if not Model.PrimaryPart
+            or LocalPlayer:DistanceFromCharacter(Model.PrimaryPart.Position) >= 10000 then
+            return
+        end
+
+        local Alias = EntityData.Alias
+        local RealAlias = Alias
+
+        if Model.Name ~= "GloombatSwarm" then
+            if Toggles.EntityESPToggle.Value and Options.EntityESPOptions.Value[RealAlias] then
+                if Model.Name == "MonumentEntity" then
+                    Functions.AddESP({ Object = Model.Top, Text = Alias,
+                        Color = Options.EntityESPColor.Value })
+                else
+                    Functions.AddESP({ Object = Model, Text = Alias,
+                        Color = Options.EntityESPColor.Value })
+                end
+            end
+            table.insert(Objects.Entities, Model)
+        end
+
+        -- 移植功能用的收集钩子：本脚本的 HandleObject 只认 ESP 需要的那几类对象，
+        -- 像 Lava / ScaryWall 这些虽然在白名单里、却没有对应的分支，
+        -- 所以在末尾统一分发一次，让移植过来的功能能拿到稳定的数据来源。
+        local PortHooks = Globals.ObjectPortHooks
+        if PortHooks then
+            -- 注意传的是 Model，不是 Object：这个函数里没有 Object 这个变量，
+            -- 原来写 pcall(Hook, Object) 传进去的是 nil，钩子永远是空转。
+            for _, Hook in ipairs(PortHooks) do
+                pcall(Hook, Model)
             end
         end
-        table.insert(Objects.Entities, Model)
-    end
 
-    -- 移植功能用的收集钩子：本脚本的 HandleObject 只认 ESP 需要的那几类对象，
-    -- 像 Lava / ScaryWall 这些虽然在白名单里、却没有对应的分支，
-    -- 所以在末尾统一分发一次，让移植过来的功能能拿到稳定的数据来源。
-    local PortHooks = Globals.ObjectPortHooks
-    if PortHooks then
-        -- 注意传的是 Model，不是 Object：这个函数里没有 Object 这个变量，
-        -- 原来写 pcall(Hook, Object) 传进去的是 nil，钩子永远是空转。
-        for _, Hook in ipairs(PortHooks) do
-            pcall(Hook, Model)
+        if RusherAliases[RealAlias] then
+            Instance.new("Humanoid", Model).Name = "HighlightHumanoid"
+            local Root = Model.PrimaryPart
+            if Root then
+                Root.Transparency = 0.999
+                Root.Material = Enum.Material.Plastic
+            end
         end
     end
-
-    if RusherAliases[RealAlias] then
-        Instance.new("Humanoid", Model).Name = "HighlightHumanoid"
-        local Root = Model.PrimaryPart
-        if Root then
-            Root.Transparency = 0.999
-            Root.Material = Enum.Material.Plastic
-        end
-    end
+    HandleEntitySpawn = Guard("HandleEntitySpawn", __Raw)
 end
 
 -- 原版 QueueObject + 逐帧消费队列
