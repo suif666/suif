@@ -8364,3 +8364,149 @@ do
   end
   getgenv().AbysallCN_Translate = tr
 end
+
+-- ══════════════════════════════════════════════════════════════════════
+--  汉化版更新检测 / CNL Update Check
+--  作用：把上游源脚本（AbysallContinued / Games/Doors/Main.luau）的功能
+--        结构指纹，与「本汉化所依据的版本」做比对。一旦上游变了，说明
+--        汉化版可能已经落后，就用 Aby 自带的通知提醒执行者。
+--  特点：算指纹前会剥掉注释、压平空白，所以原作者只改注释或改缩进不会误报；
+--        一旦增删了实际代码，指纹必然变化。
+-- ══════════════════════════════════════════════════════════════════════
+do
+	-- 上游源脚本地址（即汉化对象）
+	local CNL_SOURCE_URL = "https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau"
+
+	-- ★ 本汉化所依据的源脚本指纹。以后同步完汉化，把这里改成最新指纹即可。
+	local CNL_SOURCE_FP = "f9aeac98-294342"
+
+	-- 汉化所依据的源脚本体积（仅用于提示信息）
+	local CNL_SOURCE_BYTES = 316104
+
+	local HEX_DIGITS = {}
+	for Char in ("0123456789abcdef"):gmatch(".") do
+		HEX_DIGITS[#HEX_DIGITS + 1] = Char
+	end
+
+	-- 剥掉注释。会跳过字符串与长括号，所以字符串里的 -- 不会被误判成注释。
+	local function CNL_StripComments(Source)
+		local Out, Buffer = {}, {}
+		local n, i = #Source, 1
+
+		while i <= n do
+			local c = Source:sub(i, i)
+
+			if c == "[" then
+				-- 长括号 [[...]] / [=[...]=] 原样保留
+				local eq = Source:match("^%[(=*)%[", i)
+				if eq then
+					local close = "]" .. eq .. "]"
+					local s = Source:find(close, i + #eq + 2, true)
+					local stop = s and (s + #close - 1) or n
+					Buffer[#Buffer + 1] = Source:sub(i, stop)
+					i = stop + 1
+				else
+					Buffer[#Buffer + 1] = c
+					i = i + 1
+				end
+
+			elseif c == '"' or c == "'" or c == "`" then
+				-- 字符串原样保留（含转义）
+				local j = i + 1
+				while j <= n do
+					local d = Source:sub(j, j)
+					if d == "\\" then
+						j = j + 2
+					elseif d == c then
+						j = j + 1
+						break
+					else
+						j = j + 1
+					end
+				end
+				Buffer[#Buffer + 1] = Source:sub(i, j - 1)
+				i = j
+
+			elseif c == "-" and Source:sub(i + 1, i + 1) == "-" then
+				local eq = Source:match("^%-%-%[(=*)%[", i)
+				if eq then
+					local close = "]" .. eq .. "]"
+					local s = Source:find(close, i + 4 + #eq, true)
+					i = s and (s + #close) or (n + 1)
+				else
+					i = Source:find("\n", i, true) or (n + 1)
+				end
+
+			else
+				Buffer[#Buffer + 1] = c
+				i = i + 1
+			end
+		end
+
+		Out[#Out + 1] = table.concat(Buffer)
+		return table.concat(Out)
+	end
+
+	-- 手写十六进制。Luau / Lua 5.3 对 %x 传浮点会报 "number has no integer
+	-- representation"，这里全程只做算术，两个环境都稳。
+	local function CNL_Hex8(Value)
+		local Out = {}
+		local n = math.floor(Value)
+		for _ = 1, 8 do
+			local d = math.floor(n % 16)
+			Out[#Out + 1] = HEX_DIGITS[d + 1]
+			n = math.floor((n - d) / 16)
+		end
+		return string.reverse(table.concat(Out))
+	end
+
+	-- 指纹 = 滚动哈希(压平空白后的源码) + "-" + 归一化后的字节长度
+	local function CNL_Fingerprint(Source)
+		local s = CNL_StripComments(Source)
+		s = s:gsub("[ \t\n\v\f\r]+", " ")
+		s = s:gsub("^ ", "")
+		s = s:gsub(" $", "")
+
+		local h = 0
+		for i = 1, #s do
+			h = (h * 31 + s:byte(i)) % 4294967296
+		end
+
+		return CNL_Hex8(h) .. "-" .. #s
+	end
+
+	-- 放到后台跑，绝不阻塞主脚本加载
+	task.spawn(function()
+		local Ok, Result = pcall(function()
+			return CNL_Fingerprint(game:HttpGet(CNL_SOURCE_URL, true))
+		end)
+
+		if not Ok then
+			warn("[CNL] 更新检测失败: " .. tostring(Result))
+			return
+		end
+
+		if Result ~= CNL_SOURCE_FP then
+			local Message = table.concat({
+				"检测到 Aby 源脚本已更新，当前汉化可能已经落后。",
+				"",
+				"汉化所依据: " .. CNL_SOURCE_FP .. "  (" .. tostring(CNL_SOURCE_BYTES) .. " 字节)",
+				"上游现状  : " .. tostring(Result),
+				"",
+				"请提醒作者更新汉化版。",
+			}, "\n")
+
+			local Ok2 = pcall(function()
+				Functions.Notify({
+					Title = "汉化版可能需要更新",
+					Body = Message,
+					Time = 12,
+				})
+			end)
+
+			if not Ok2 then
+				warn("[CNL] " .. Message)
+			end
+		end
+	end)
+end
