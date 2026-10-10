@@ -345,6 +345,7 @@ local zslzd99yTab = scriptSec:Tab({ Title = "在森林中的99夜", Icon = "shel
 local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked = false })
 local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
+local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2546,6 +2547,13 @@ xzTab:Button({
     Title = "[🔑]小猪", Desc = "只找到这一个 功能很多 很齐全", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%B0%8F%E7%8C%AA.lua", "小猪")
+    end
+})
+
+gTab:Button({
+    Title = "[🔑]狗", Desc = "只找到这一个 功能很多 很齐全", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/upd.lua", "狗")
     end
 })
 
