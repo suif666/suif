@@ -287,10 +287,19 @@ local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = fa
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
 local coordTab = funcSec:Tab({ Title = "坐标传送", Icon = "map-pin", Locked = false })
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】A 功能类 3 个黑白页签
+-- ║ 需要时把下面整段的 --[[ ]] 去掉即可恢复（内容一字未改）
+-- ╚══════════════════════════════════════════════════════════════╝
+--[[
 -- ── 黑白提取：功能类新增三个页签 ──
 local hbNpcTab     = funcSec:Tab({ Title = "NPC交互",  Icon = "server", Locked = false })
 local hbTriggerTab = funcSec:Tab({ Title = "触发类",   Icon = "zap",    Locked = false })
 local hbObjectTab  = funcSec:Tab({ Title = "控制物体", Icon = "box",    Locked = false })
+--]]
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】A 功能类 3 个黑白页签 结束
+-- ╚══════════════════════════════════════════════════════════════╝
 
 -- 视觉类
 local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = false })
@@ -298,9 +307,18 @@ local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = fals
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
 local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】B 视觉类 2 个黑白页签
+-- ║ 需要时把下面整段的 --[[ ]] 去掉即可恢复（内容一字未改）
+-- ╚══════════════════════════════════════════════════════════════╝
+--[[
 -- ── 黑白提取：视觉类新增两个页签 ──
 local hbAnimTab     = shijueSec:Tab({ Title = "动作/动画", Icon = "music", Locked = false })
 local hbDisguiseTab = shijueSec:Tab({ Title = "伪装玩家",  Icon = "user",  Locked = false })
+--]]
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】B 视觉类 2 个黑白页签 结束
+-- ╚══════════════════════════════════════════════════════════════╝
 
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
@@ -2170,12 +2188,21 @@ gnjbTab:Button({
     end
 })
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】C 「黑白脚本」按钮
+-- ║ 需要时把下面整段的 --[[ ]] 去掉即可恢复（内容一字未改）
+-- ╚══════════════════════════════════════════════════════════════╝
+--[[
 gnjbTab:Button({
     Title = "黑白脚本", Desc = "国内脚本 群[1062578052]", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8", "黑白脚本")
     end
 })
+--]]
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】C 「黑白脚本」按钮 结束
+-- ╚══════════════════════════════════════════════════════════════╝
 
 gnjbTab:Button({
     Title = "kunkun脚本", Desc = "国内脚本 群[1009291930]", Icon = "shell",
@@ -2618,6 +2645,11 @@ WindUI:Notify({
     Duration = 10
 })
 
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】D 黑白提取远程脚本整段
+-- ║ 需要时把下面整段的 --[[ ]] 去掉即可恢复（内容一字未改）
+-- ╚══════════════════════════════════════════════════════════════╝
+--[[
 -- ============================================================
 -- 黑白提取（远程脚本）——主脚本只建页签，功能全在远程脚本里
 -- 远程文件托管在 suif666/tu 的 hb/ 目录
@@ -2671,6 +2703,10 @@ lazyLoad(HB_REMOTE_BASE .. "object.lua", "控制物体", hbObjectTab)
 -- 脚本类 → 自然灾害（复用 suif.lua 已有的 zrzhTab；该页签已挂两个远程脚本，
 -- 这里跟着用 onDemand=true，点开页签时才加载）
 lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
+--]]
+-- ╔══════════════════════════════════════════════════════════════╗
+-- ║ 【已停用】D 黑白提取远程脚本整段 结束
+-- ╚══════════════════════════════════════════════════════════════╝
 
 -- ============ 全量自动加载全部远程脚本 ============
 -- 位置放在所有 lazyLoad 登记点之后，确保 lazyOrder 已全部登记
