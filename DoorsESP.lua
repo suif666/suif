@@ -2503,6 +2503,9 @@ local NoPullbackKeybind = Mini.Keybind(tabBypass.Page, {
     Key = "by.nopullkey", Text = "无拉回穿墙快捷键", Default = Enum.KeyCode.V })
 
 -- 反作弊操作替代（tplays 插件同名功能；跟上面的椅子法、跟速度绕过都不是一回事）
+-- ★ 前向声明：逻辑实现写在下面（椅子法那段之后），而 UI 注册在这里。
+--   不声明的话回调闭包捕获到的是全局 nil —— 一开开关就报「attempt to call a nil value」。
+local StartACMA, StopACMA
 Toggles.ACMABypassToggle = Mini.Toggle(tabBypass.Page, L(
     "by.acma", "反作弊操作替代", "Anticheat Operation Substitute",
     "tplays addon: parent a BodyVelocity to your root, push along the camera at 2.25, and force noclip.",
@@ -3131,7 +3134,7 @@ end)
 --   [垫片] Variables.Noclip         → 本脚本的 Toggles.NoclipToggle
 local ACMA = { Body = nil, Conn = nil, NoclipWasOn = false }
 
-local function StopACMA()
+function StopACMA()
     if ACMA.Body then
         pcall(function() ACMA.Body.Parent = nil end)
         ACMA.Body = nil
@@ -3152,7 +3155,7 @@ local function StopACMA()
     ACMA.NoclipWasOn = false
 end
 
-local function StartACMA()
+function StartACMA()
     StopACMA()
     local Character, RootPart = Char.Character, Char.RootPart
     if not (Character and RootPart and RootPart.Parent) then
