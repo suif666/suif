@@ -727,29 +727,41 @@ do
         return true
     end
 
-    -- 每帧：把鼠标行为顶成 Default。
-    -- ★ 必须绑在「相机之后」执行（Enum.RenderPriority.Camera.Value + 1）。
-    --   默认相机的鼠标锁定就是在 Camera 这个优先级里写 MouseBehavior 的，
-    --   普通 RenderStepped / Heartbeat 都跑在它**之前**，写完下一行就被相机覆盖 ——
-    --   这就是「明明每帧都在设，鼠标还是被锁」的原因。
+    -- ★★ 关键机理（这里踩过两次坑）：
+    --   Roblox 一帧内的执行顺序是 RenderStepped（含默认相机）→ Stepped → Heartbeat → 渲染。
+    --   · 仓库原版用 Heartbeat，方向是对的，但节流了 0.25 秒
+    --     → 一秒只写 4 次，两次之间游戏又把鼠标锁回去了，看起来就是「没生效」。
+    --   · 我上一版改成 RenderStepped(相机+1)，反而更差：只赢过相机，
+    --     游戏只要在 Heartbeat 里锁一次，就比我晚写、我输。
+    --   → 正解：Heartbeat 里每帧都写。Heartbeat 永远晚于 RenderStepped，
+    --     而且同一队列里「游戏先连接、我们后连接」，所以一定是最后写入的那个。
+    --   MouseIconEnabled 是持久状态，但它跟 MouseBehavior 是一套，一起每帧同步最省事。
     local function UnlockMouse()
         if not WindowShown() then return end
         pcall(function() UIS.MouseBehavior = Enum.MouseBehavior.Default end)
+        if UIS.MouseIconEnabled ~= true then
+            pcall(function() UIS.MouseIconEnabled = true end)
+        end
     end
+
+    -- ① 主路径：Heartbeat 每帧写（不节流）
+    RunService.Heartbeat:Connect(UnlockMouse)
+
+    -- ② 补一条渲染步：界面刚打开的那一帧就能立刻解锁，不用等下一个 Heartbeat。
+    --   用 Last（2000）而不是 Camera+1，尽可能排在所有渲染回调的最后。
     pcall(function()
         RunService:BindToRenderStep("DoorsESPX_UnlockMouse",
-            Enum.RenderPriority.Camera.Value + 1, UnlockMouse)
+            Enum.RenderPriority.Last.Value, UnlockMouse)
     end)
 
-    -- 低频：同步鼠标图标显隐（这个是持久状态，不需要每帧）
-    local acc = 0
-    RunService.Heartbeat:Connect(function(dt)
-        acc = acc + (tonumber(dt) or 0)
-        if acc < 0.25 then return end
-        acc = 0
-        local want = WindowShown()
-        if UIS.MouseIconEnabled ~= want then
-            pcall(function() UIS.MouseIconEnabled = want end)
+    -- ③ 一次性诊断：如果窗口对象拿不到，控制台会明说 —— 方便排查「为什么没解锁」。
+    task.spawn(function()
+        task.wait(3)
+        if not Mini.__Window then
+            warn("[DoorsESP] 鼠标唤醒：Mini.__Window 是 nil，拿不到窗口状态，鼠标不会解锁")
+        else
+            print("[DoorsESP] 鼠标唤醒已就绪（窗口状态："
+                .. (WindowShown() and "显示中" or "已关闭") .. "）")
         end
     end)
 end
@@ -3169,7 +3181,10 @@ function StartACMA()
     -- 插件原文：StuffToRemoveLater.body.Parent = Character.HumanoidRootPart
     local Body = Instance.new("BodyVelocity")
     Body.Name = "DoorsESPX_ACMA"
-    Body.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    -- ★ 必须是无穷大，照抄 t 的 StuffToRemoveLater.body.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+    --   写成 9e9 是错的：游戏自己给角色施加的速度/回拉会把它压过去，等于没开。
+    --   无穷大才代表「这一帧的速度由我说了算」，这才是这个功能生效的关键。
+    Body.MaxForce = Vector3.new(1 / 0, 1 / 0, 1 / 0)
     Body.Velocity = Vector3.new(0, 0, 0)
     Body.Parent = RootPart
     ACMA.Body = Body
@@ -3790,15 +3805,53 @@ local function GetServerTeleported()
     return RemotesFolder and RemotesFolder:FindFirstChild("ServerTeleported") or nil
 end
 
-local AutoFloorDoorReached = nil
-
+-- ★ 注意：这里没有一次性守卫了。
+--   原来写的是 `if AutoFloorDoorReached == Door then return end`，导致整个自动楼层
+--   期间「拉长提示」只生效一次；而游戏每帧都会把 MaxActivationDistance / HoldDuration
+--   改回自己的值（跟「交互距离不管用」是同一条机理），第二次开始提示就够不到了。
+--   → 必须每帧重拉，所以守卫去掉。
 local function ReachDoor(Door)
-    if not Door or AutoFloorDoorReached == Door then return end
-    AutoFloorDoorReached = Door
+    if not Door then return end
     local Lock = Door:FindFirstChild("Lock")
     ReachPrompt(Lock and (Lock:FindFirstChild("UnlockPrompt") or Lock:FindFirstChild("FakePrompt")))
     ReachPrompt(Door:FindFirstChild("ActivateEventPrompt"))
     ReachPrompt(Door:FindFirstChild("DoorPrompt"))
+end
+
+-- ★★★ 自动楼层真正「把门打开」的那一步 —— 原来的移植整个漏掉了它，所以门一直不开。
+--     原文（tplays 插件 L3953-3965，『门距离替代』的逐帧循环体）：
+--         local Root = Character.PrimaryPart or Character:FindFirstChild("HumanoidRootPart")
+--         local Room = CurrentRooms:FindFirstChild(LatestRoom.Value)
+--         local Door = Room and Room:FindFirstChild("Door")
+--         local DoorPart = Door and Door.PrimaryPart
+--         if Root and DoorPart and not Door:FindFirstChild("Lock") then
+--             if (Root.Position - DoorPart.Position).Magnitude < 30
+--                and (not lastOpened.Door == Door or lastOpened.Time < os.clock() - 1/3) then
+--                 lastOpened.Door = Door
+--                 lastOpened.Time = os.clock()
+--                 Door.ClientOpen:FireServer()
+--             end
+--         end
+--     ★ 开门的接口是门自己身上的 ClientOpen 遥控，不是 fireproximityprompt。
+--       原文那个 `(not lastOpened.Door == Door or ...)` 在 Lua 里等价于只看后半句
+--       （`not x == y` 先算 not x，得到 false，再和 Door 比恒为 false），
+--       实际效果就是一个 1/3 秒的全局节流，这里保持同样行为。
+local DoorOpenState = { Door = nil, Time = -1 / 0 }
+
+local function TryClientOpen(Door)
+    if not Door then return false end
+    local RootPart, DoorPart = Char.RootPart, Door.PrimaryPart
+    if not (RootPart and DoorPart) then return false end
+    if Door:FindFirstChild("Lock") then return false end          -- 有锁的门不碰，交给提示那条路
+    if (RootPart.Position - DoorPart.Position).Magnitude >= 30 then return false end
+    if DoorOpenState.Door == Door and not (DoorOpenState.Time < os.clock() - 1 / 3) then
+        return false                                              -- 1/3 秒节流（照原文）
+    end
+    local ClientOpen = Door:FindFirstChild("ClientOpen")
+    if not ClientOpen then return false end
+    DoorOpenState.Door, DoorOpenState.Time = Door, os.clock()
+    pcall(function() ClientOpen:FireServer() end)
+    return true
 end
 
 -- [垫片] Library.Toggles.DoorReach —— 插件每帧把它置 true，效果是隔空开门。
@@ -3950,7 +4003,7 @@ local function StartAutoFloor()
 
     AutoFloorState.Running = true
     AutoFloorState.CurrentDoor = nil
-    AutoFloorDoorReached = nil
+    DoorOpenState.Door, DoorOpenState.Time = nil, -1 / 0
 
     -- 插件原文（L8936-8946）：先关掉反传送开关，再挂钩
     AntiTeleportStub:SetValue(false)
@@ -4028,11 +4081,19 @@ AutoFloorStep = function()
     elseif Door then
         local Character = Char.Character
         if Character then pcall(function() Character:PivotTo(Door:GetPivot()) end) end
+        -- ★ 真正把门打开（原来漏了这一步，所以自动楼层只会站着不动）
+        TryClientOpen(Door)
     end
 
-    -- 插件原文：if not Library.Toggles.DoorReach.Value then ... SetValue(true) end
-    if not DoorReachShim.Value then
-        DoorReachShim:SetValue(true)
+    -- 插件原文：if not Library.Toggles.DoorReach.Value then SetValue(true) end
+    -- 原文只写一次就够，因为插件的 Library.Toggles.DoorReach 自带每帧刷新；
+    -- 这边没有库的那套，所以每帧都真去拉一次提示距离。
+    DoorReachShim.Value = true
+    ReachDoor(AutoFloorState.CurrentDoor)
+    -- 门被换上新的之后再实时跟进（房间切换后 CurrentDoor 会指向新门）
+    if Door and Door ~= AutoFloorState.CurrentDoor then
+        DoorReachShim.Value = true
+        ReachDoor(Door)
     end
 end
 
@@ -4343,18 +4404,23 @@ local function AutoFloorStatusText()
 end
 
 Toggles.AutoFloorToggle:OnChanged(function(Value)
+    -- ★ StartAutoFloor 里有两处 :Wait()（RenderStepped:Wait / Heartbeat:Wait），
+    --   直接写在 UI 回调里会阻塞 WindUI 的控件线程。必须丢进 task.spawn。
     if Value then
-        StartAutoFloor()
+        task.spawn(function()
+            StartAutoFloor()
+            AutoFloorStatus.Text = AutoFloorStatusText()
+        end)
     else
         StopAutoFloor(nil)
+        AutoFloorStatus.Text = AutoFloorStatusText()
     end
-    AutoFloorStatus.Text = AutoFloorStatusText()
 end)
 
 Mini.Label(tabAuto.Page, L("auto.note",
     "过了第 98 门才开始找「StairwellExitDoor」，看到它就直接传过去触发出口提示 = 通关。"
     .. "触发条件是「看到出口门」而不是写死门号，所以新版 100 门楼梯间、旧版 200 门都能过。"
-    .. "开门不靠 DoorReach，是直接把门的提示 fireproximityprompt 过去，所以需要执行器有这个函数。",
+    .. "开门用的是门自己身上的 ClientOpen 遥控（Door.ClientOpen:FireServer()），带 30 距离限制和 1/3 秒节流，有锁的门跳过。",
     "After door 98 it starts looking for StairwellExitDoor; seeing it teleports you there and fires the exit prompt. "
     .. "The trigger is the exit door itself, not a hard-coded door number, so both the new 100-door stairwell and the old 200-door one work. "
     .. "Doors are opened by firing their prompt directly instead of mspaint's DoorReach, so fireproximityprompt is required."))
