@@ -2240,6 +2240,7 @@ local tabChar   = Window:Tab(L("tab.char",    "角色",      "Character"))
 local tabBypass = Window:Tab(L("tab.bypass",  "绕过",      "Bypass"))
 local tabCreak  = Window:Tab(L("tab.creak",   "Creak",     "Creak"))
 local tabAuto   = Window:Tab(L("tab.auto",    "自动",      "Auto"))
+local tabMisc   = Window:Tab(L("tab.misc",    "杂项",      "Misc"))
 
 --────────────────────────── 语言 ──────────────────────────
 -- 注意：这里故意不给 Key —— 语言不进存档。
@@ -4034,6 +4035,103 @@ AutoFloorStep = function()
         DoorReachShim:SetValue(true)
     end
 end
+
+--────────────────────────── 杂项按钮（照搬 Abysall 的 Miscellaneous 按钮组） ──────────────────────────
+-- 对应 Abysall 原版 Main.luau 1483-1513 行的 AddButton 组，遥控名一字不改：
+--     Play Again       → RemotesFolder.PlayAgain:FireServer()
+--     Return to Lobby  → RemotesFolder.Lobby:FireServer()
+--     Revive           → RemotesFolder.Revive:FireServer()
+--     Reset Character  → replicatesignal(Player.Kill) → RemotesFolder.Underwater:FireServer(true) → Humanoid.Health = 0
+-- 原版每个按钮都是 DoubleClick = true（点两次才执行），这里保持同样行为。
+local MiscClick = {}
+
+local function MiscNotify(Title, Icon)
+    pcall(function()
+        Mini.WindUI:Notify({ Title = tostring(Title), Duration = 3, Icon = Icon or "info" })
+    end)
+end
+
+-- 对应原版的 DoubleClick = true：2 秒内点第二次才真的执行
+local function DoubleClick(key, Action)
+    local Now = os.clock()
+    if MiscClick[key] and (Now - MiscClick[key]) <= 2 then
+        MiscClick[key] = nil
+        Action()
+        return true
+    end
+    MiscClick[key] = Now
+    MiscNotify("再点一次确认（2 秒内）", "warning")
+    return false
+end
+
+local function FireRemote(name)
+    local Remotes = GetRemotesFolder()
+    local Remote = Remotes and Remotes:FindFirstChild(name)
+    if not Remote then
+        MiscNotify("找不到遥控 " .. tostring(name) .. "（现在不在 Doors 里？）", "warning")
+        return false
+    end
+    local ok, err = pcall(function() Remote:FireServer() end)
+    if not ok then
+        MiscNotify("触发失败：" .. tostring(err), "warning")
+    end
+    return ok
+end
+
+-- 重新开始（aby：Play Again）
+Mini.Button(tabMisc.Page, L("misc.playagain", "重新开始", "Play Again")):OnClick(function()
+    DoubleClick("playagain", function()
+        if FireRemote("PlayAgain") then MiscNotify("已发送：重新开始", "check") end
+    end)
+end)
+
+-- 返回大厅（aby：Return to Lobby）
+Mini.Button(tabMisc.Page, L("misc.lobby", "返回大厅", "Return to Lobby")):OnClick(function()
+    DoubleClick("lobby", function()
+        if FireRemote("Lobby") then MiscNotify("已发送：返回大厅", "check") end
+    end)
+end)
+
+-- 复活（aby：Revive）
+Mini.Button(tabMisc.Page, L("misc.revive", "复活", "Revive")):OnClick(function()
+    DoubleClick("revive", function()
+        if FireRemote("Revive") then MiscNotify("已发送：复活", "check") end
+    end)
+end)
+
+-- 重置角色（aby：Reset Character）
+-- 严格照原版的三段兜底顺序：replicatesignal → Underwater 遥控 → 本地血量归零
+Mini.Button(tabMisc.Page, L("misc.reset", "重置角色", "Reset Character")):OnClick(function()
+    DoubleClick("reset", function()
+        local LocalPlayer = Players.LocalPlayer
+        local Humanoid = Char.Humanoid
+
+        -- ① 原版首选：replicatesignal(Player.Kill)
+        local replicatesignal = getgenv().replicatesignal
+        if type(replicatesignal) == "function" and LocalPlayer then
+            local ok = pcall(function() replicatesignal(LocalPlayer.Kill) end)
+            MiscNotify(ok and "已重置角色（replicatesignal）" or "replicatesignal 调用失败", ok and "check" or "warning")
+            if ok then return end
+        end
+
+        -- ② 原版兜底一：RemotesFolder.Underwater:FireServer(true)
+        local Remotes = GetRemotesFolder()
+        local Underwater = Remotes and Remotes:FindFirstChild("Underwater")
+        if Underwater then
+            local ok = pcall(function() Underwater:FireServer(true) end)
+            MiscNotify(ok and "已发送：重置角色（Underwater）" or "Underwater 触发失败", ok and "check" or "warning")
+            if ok then return end
+        end
+
+        -- ③ 原版兜底二：本地血量归零（服务端靠自然复现，可能要等十几秒）
+        if Humanoid then
+            local ok = pcall(function() Humanoid.Health = 0 end)
+            MiscNotify(ok and "已重置角色（本地血量归零，可能要等一会）" or "重置失败", ok and "check" or "warning")
+        else
+            MiscNotify("角色还没加载好", "warning")
+        end
+    end)
+end)
 
 --────────────────────────── 保存配置 ──────────────────────────
 -- 直接用 WindUI 自带的 ConfigManager（存在 WindUI/DoorsESPX/config/ 下），
