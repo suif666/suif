@@ -2561,7 +2561,7 @@ gTab:Button({
         else
             warn("复制失败：当前环境不支持复制")
         end
-        run("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/upd.lua", "狗")
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E7%8B%97.lua", "狗")
     end
 })
 
