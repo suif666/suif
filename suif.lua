@@ -2551,8 +2551,16 @@ xzTab:Button({
 })
 
 gTab:Button({
-    Title = "[🔑]狗", Desc = "只找到这一个 功能很多 很齐全", Icon = "shell",
+    Title = "[🔑]HollyScriptX",
+    Desc = "总共没几个 把最好用的拿上来了",
+    Icon = "shell",
     Callback = function()
+        local link = "HSX-7562-3194-0835-4981-2470-1488-1029-6967"
+        if setclipboard then
+            setclipboard(link)
+        else
+            warn("复制失败：当前环境不支持复制")
+        end
         run("https://raw.githubusercontent.com/saosdkjiqwdjuqjudidw/HollyScriptX/refs/heads/main/upd.lua", "狗")
     end
 })
