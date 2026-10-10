@@ -223,10 +223,11 @@ end
 -- 控件标题 / 描述 / Flag 都交给 PickText / PickKey / PickDesc 解析，
 -- 这样 L() 里只写中文、英文靠 Lang.T(Key) 取，切语言的时候整块 UI 重建后就是对应语言。
 local function PickDesc(cfg)
-    if type(cfg) ~= "table" then return nil end
-    local tipKey = cfg.Key and (cfg.Key .. ".tip") or nil
-    if tipKey and Lang.Has(tipKey) then return Lang.T(tipKey) end
-    return cfg.Tooltip
+    -- ★ 这里必须返回 nil。
+    --   文件开头也定义过一份 PickDesc（就是同样的 return nil），但被这一份覆盖了，
+    --   于是所有说明文字又显示出来 —— 长文案在 WindUI 里会把控件顶出边界，
+    --   后面新增的控件（比如「秒互动」）就被挤到可视区外面，看着像"没加上"。
+    return nil
 end
 
 local function SafeCall(fn, ...)
@@ -611,6 +612,19 @@ end
 
 --────────────────────────── 文字 ──────────────────────────
 function Mini.Label(parent, text, color)
+    -- ★ 说明文字一律不创建：用户不需要这些描述，而且长文案在 WindUI 里会把
+    --   后面的控件顶出可视区（「秒互动」开关看不见就是这个原因之一）。
+    --   返回一个哑对象，让调用方照旧能赋 .Text / 调 :Set() 而不报错。
+    --   注意：Lua 的 return 必须是块的最后一条语句，所以这里用 if true then ... end
+    --   把下面的原始实现留成不可达代码（语法合法，运行不到）。
+    if true then
+        return {
+            Text = "",
+            Set = function(self) return self end,
+            SetText = function(self) return self end,
+            Destroy = function() end,
+        }
+    end
     local labelText = PickText(text)
     local el = parent:Label({ Text = labelText })
 
@@ -713,10 +727,18 @@ do
         return true
     end
 
-    -- 每帧：把鼠标行为顶成 Default，否则相机脚本立刻锁回中心
-    RunService.RenderStepped:Connect(function()
+    -- 每帧：把鼠标行为顶成 Default。
+    -- ★ 必须绑在「相机之后」执行（Enum.RenderPriority.Camera.Value + 1）。
+    --   默认相机的鼠标锁定就是在 Camera 这个优先级里写 MouseBehavior 的，
+    --   普通 RenderStepped / Heartbeat 都跑在它**之前**，写完下一行就被相机覆盖 ——
+    --   这就是「明明每帧都在设，鼠标还是被锁」的原因。
+    local function UnlockMouse()
         if not WindowShown() then return end
         pcall(function() UIS.MouseBehavior = Enum.MouseBehavior.Default end)
+    end
+    pcall(function()
+        RunService:BindToRenderStep("DoorsESPX_UnlockMouse",
+            Enum.RenderPriority.Camera.Value + 1, UnlockMouse)
     end)
 
     -- 低频：同步鼠标图标显隐（这个是持久状态，不需要每帧）
@@ -2475,10 +2497,21 @@ Toggles.FlyToggle = Mini.Toggle(tabChar.Page, L(
 Mini.Divider(tabBypass.Page)
 Toggles.NoPullbackNoclipToggle = Mini.Toggle(tabBypass.Page, L(
     "by.nopull", "无拉回穿墙", "No-Pullback Noclip",
-    "Uses the addon's chair trick to replace the anticheat, plus noclip and a slow forward push.",
-    "抄 tplays 插件的椅子法把反作弊顶掉，再配合穿墙 + 缓慢前推，走过去不会被拉回。"))
+    "tplays addon's anticheat bypass: grab a chair/cart so you stop being pulled back, plus noclip.",
+    "对应 tplays 插件的『反作弊绕过』：抓一把椅子/购物车把反作弊顶掉，再配合穿墙，走过去不会被拉回。"))
 local NoPullbackKeybind = Mini.Keybind(tabBypass.Page, {
     Key = "by.nopullkey", Text = "无拉回穿墙快捷键", Default = Enum.KeyCode.V })
+
+-- 反作弊操作替代（tplays 插件同名功能；跟上面的椅子法、跟速度绕过都不是一回事）
+Toggles.ACMABypassToggle = Mini.Toggle(tabBypass.Page, L(
+    "by.acma", "反作弊操作替代", "Anticheat Operation Substitute",
+    "tplays addon: parent a BodyVelocity to your root, push along the camera at 2.25, and force noclip.",
+    "对应 tplays 插件的『反作弊操作替代』：BodyVelocity 挂到根部件，沿视线方向推 2.25，并强制开穿墙。"))
+local ACMAKeybind = Mini.Keybind(tabBypass.Page, {
+    Key = "by.acmakey", Text = "反作弊操作替代快捷键", Default = Enum.KeyCode.B })
+Toggles.ACMABypassToggle:OnChanged(function(Value)
+    if Value then StartACMA() else StopACMA() end
+end)
 
 --────────────────────────── Creak 愤怒值（右下角） ──────────────────────────
 Toggles.CreakAggressionMeter = Mini.Toggle(tabCreak.Page, L(
@@ -3083,6 +3116,85 @@ Toggles.NoPullbackNoclipToggle:OnChanged(function(Value)
     end
 end)
 
+--────────────────────────── 反作弊操作替代（tplays 插件同名功能，来源 Abysall） ──────────
+-- ★ 这跟上面的「无拉回穿墙」（椅子法）和「速度绕过」是**三个不同的功能**，不要混：
+--     无拉回穿墙      = 抓一把椅子/购物车，靠椅子把反作弊顶掉（t 的『反作弊绕过』）
+--     速度绕过        = 改 WalkSpeed / 滑行（t 的『速度绕过』）
+--     反作弊操作替代  = 本段（t 的『反作弊操作替代』，tplaysaddon L3743-3772）
+--
+-- t 原文：
+--     StuffToRemoveLater.body.Parent = Character.HumanoidRootPart
+--     RenderStepped:  StuffToRemoveLater.body.Velocity = Camera.CFrame.LookVector * 2.25
+--     if Variables.Noclip.Value then Variables.noclipOn = true else Variables.Noclip:SetValue(true) end
+--     Variables.Noclip:SetDisabled(true)
+--   [垫片] StuffToRemoveLater.body → 就地建一个 BodyVelocity（下面叫 ACMA.Body）
+--   [垫片] Variables.Noclip         → 本脚本的 Toggles.NoclipToggle
+local ACMA = { Body = nil, Conn = nil, NoclipWasOn = false }
+
+local function StopACMA()
+    if ACMA.Body then
+        pcall(function() ACMA.Body.Parent = nil end)
+        ACMA.Body = nil
+    end
+    if ACMA.Conn then
+        pcall(function() ACMA.Conn:Disconnect() end)
+        ACMA.Conn = nil
+    end
+    -- 插件原文：pcall(Variables.Noclip.SetDisabled, Variables.Noclip, false)
+    local Noclip = Toggles.NoclipToggle
+    if Noclip and Noclip.SetDisabled then
+        pcall(function() Noclip:SetDisabled(false) end)
+    end
+    -- 插件原文：if not Variables.noclipOn then pcall(SetValue, false) end
+    if not ACMA.NoclipWasOn and Noclip and Noclip.SetValue then
+        pcall(function() Noclip:SetValue(false) end)
+    end
+    ACMA.NoclipWasOn = false
+end
+
+local function StartACMA()
+    StopACMA()
+    local Character, RootPart = Char.Character, Char.RootPart
+    if not (Character and RootPart and RootPart.Parent) then
+        pcall(function()
+            Mini.WindUI:Notify({ Title = "反作弊操作替代：角色还没加载好", Duration = 4, Icon = "warning" })
+        end)
+        return false
+    end
+
+    -- 插件原文：StuffToRemoveLater.body.Parent = Character.HumanoidRootPart
+    local Body = Instance.new("BodyVelocity")
+    Body.Name = "DoorsESPX_ACMA"
+    Body.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    Body.Velocity = Vector3.new(0, 0, 0)
+    Body.Parent = RootPart
+    ACMA.Body = Body
+
+    -- 插件原文：RenderStepped: body.Velocity = Camera.CFrame.LookVector * 2.25
+    ACMA.Conn = Services.RunService.RenderStepped:Connect(function()
+        if not ACMA.Body or not ACMA.Body.Parent then return end
+        local Cam = Services.Workspace.CurrentCamera
+        if not Cam then return end
+        pcall(function() ACMA.Body.Velocity = Cam.CFrame.LookVector * 2.25 end)
+    end)
+
+    -- 插件原文：if Variables.Noclip.Value then Variables.noclipOn = true else SetValue(true) end
+    local Noclip = Toggles.NoclipToggle
+    if Noclip and Noclip.Value then
+        ACMA.NoclipWasOn = true
+    else
+        ACMA.NoclipWasOn = false
+        if Noclip and Noclip.SetValue then
+            pcall(function() Noclip:SetValue(true) end)
+        end
+    end
+    -- 插件原文：pcall(Variables.Noclip.SetDisabled, Variables.Noclip, true)
+    if Noclip and Noclip.SetDisabled then
+        pcall(function() Noclip:SetDisabled(true) end)
+    end
+    return true
+end
+
 Connections.CharacterLoop = Services.RunService.RenderStepped:Connect(function()
     local Character, Humanoid, RootPart = Char.Character, Char.Humanoid, Char.RootPart
     if not Character or not Humanoid or not RootPart or not RootPart.Parent then return end
@@ -3370,6 +3482,9 @@ Connections.Input = Services.UserInputService.InputBegan:Connect(function(input,
     if input.KeyCode == NoPullbackKeybind.Key then
         Toggles.NoPullbackNoclipToggle:Set(
             not Toggles.NoPullbackNoclipToggle.Value)
+    end
+    if input.KeyCode == ACMAKeybind.Key then
+        Toggles.ACMABypassToggle:Set(not Toggles.ACMABypassToggle.Value)
     end
 end)
 
@@ -4023,6 +4138,8 @@ Mini.Label(tabChar.Page, L("char.orbit.note",
 
 Mini.Divider(tabChar.Page)
 
+Mini.Divider(tabChar.Page)
+
 -- 隔墙互动 / 秒互动（照搬 Abysall 的互动三件套，拆成三个独立开关）
 Options.WallInteractReach = Mini.Slider(tabChar.Page, {
     -- 数值照 Abysall 原版：Min 1 / Max 2 / Default 1 / Rounding 1
@@ -4062,6 +4179,34 @@ Toggles.WallInteractToggle:OnChanged(function(Value)
         ScanPrompts(true)
     else
         for _, Prompt in ipairs(PromptReach.List) do RestorePrompt(Prompt) end
+    end
+end)
+
+-- 交互距离 / 秒互动 / 隔墙：常驻重写。
+-- ★ 原来只在「开关变化」和「滑条变化」那两下写一次，游戏下一帧就把
+--   MaxActivationDistance / HoldDuration / RequiresLineOfSight 写回自己的值，
+--   所以表现就是「滑条拖了没用、距离不管用」。
+--   这里低频（10 次/秒）把已记住的提示重新写一遍，才真的生效。
+local PromptReachLoop = { Acc = 0 }
+Connections.PromptReachKeep = Services.RunService.Heartbeat:Connect(function(dt)
+    local Reach = tonumber(Options.WallInteractReach and Options.WallInteractReach.Value) or 1
+    local Instant = Toggles.InstantPromptsToggle and Toggles.InstantPromptsToggle.Value
+    local Clip = Toggles.WallInteractToggle and Toggles.WallInteractToggle.Value
+    if not (Instant or Clip or Reach ~= 1) then return end
+
+    PromptReachLoop.Acc = PromptReachLoop.Acc + (tonumber(dt) or 0)
+    if PromptReachLoop.Acc < 0.1 then return end
+    PromptReachLoop.Acc = 0
+
+    EnsurePromptWatch()
+    for _, Prompt in ipairs(PromptReach.List) do
+        pcall(function()
+            if not Prompt.Parent then return end
+            local Old = Prompt:GetAttribute("MaxActivationDistance_Old")
+            if Old then Prompt.MaxActivationDistance = Old * Reach end
+            if Instant then Prompt.HoldDuration = 0 end
+            if Clip then Prompt.RequiresLineOfSight = false end
+        end)
     end
 end)
 
@@ -4223,7 +4368,8 @@ print("[Msptds] 载入完成 · ESP 开关默认全关（同原版）")
 print("[Msptds] " .. tostring(UIKeybind.Key.Name) .. " 开关界面 · "
     .. tostring(FovKeybind.Key.Name) .. " 视野 · "
     .. tostring(NoclipKeybind.Key.Name) .. " 穿墙 · "
-    .. tostring(NoPullbackKeybind.Key.Name) .. " 无拉回穿墙")
+    .. tostring(NoPullbackKeybind.Key.Name) .. " 无拉回穿墙 · "
+    .. tostring(ACMAKeybind.Key.Name) .. " 反作弊操作替代")
 print("[Msptds] 卸载 getgenv().DoorsESPX.Unload()")
 
 return Module
