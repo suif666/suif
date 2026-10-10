@@ -108,12 +108,18 @@ end
 function Lang.Set(code)
     if not Lang.Strings[code] then return false end
     Lang.Current = code
+    -- ★ 每一项单独 pcall。
+    --   原来的写法只要某一项抛错（WindUI 控件已被销毁、或某个控件不接受这个属性），
+    --   整个循环就在中途断掉，后面所有项的标题都更新不到 ——
+    --   表现就是「一切语言，界面中英混杂、一大片功能像失效了」。
     for _, e in ipairs(Lang.Registry) do
         if e.fn then
-            e.inst.Text = e.fn()
+            pcall(function() e.inst.Text = e.fn() end)
         else
             local v = Lang.T(e.key)
-            if v ~= nil then e.inst[e.prop] = v end
+            if v ~= nil then
+                pcall(function() e.inst[e.prop] = v end)
+            end
         end
     end
     return true
@@ -672,24 +678,39 @@ do
 end
 
 -- 界面开着的时候把鼠标唤醒。
--- 直接跟 win.Closed 同步，所以不管是按快捷键、点最小化、还是点悬浮球，鼠标状态都对得上。
--- 挂 Heartbeat + 0.25 秒节流（不能用 while + task.wait，那样在某些环境下就是死循环）。
+-- ★ 关键：Roblox 的相机脚本每帧都会把 MouseBehavior 顶回 LockCenter，
+--   所以 MouseBehavior 必须每帧写（RenderStepped）。原来用 0.25 秒节流，
+--   写完下一帧就被锁回去，等于没唤醒 —— 这就是「开着界面鼠标还是被锁」的原因。
+--   MouseIconEnabled 是持久状态，用低频 Heartbeat 同步就够。
 do
     local UIS = game:GetService("UserInputService")
     local RunService = game:GetService("RunService")
+
+    -- WindUI 的窗口只有 .Closed / .Destroyed 两个状态位。
+    -- 原来还读了 .IsOpen / .Opened（WindUI 里没有这两个字段），
+    -- 靠 `nil ~= false` 恰好为真才没报错，这里直接简化掉。
+    local function WindowShown()
+        local win = Mini.__Window
+        if not win then return false end
+        if win.Closed == true or win.Destroyed == true then return false end
+        return true
+    end
+
+    -- 每帧：把鼠标行为顶成 Default，否则相机脚本立刻锁回中心
+    RunService.RenderStepped:Connect(function()
+        if not WindowShown() then return end
+        pcall(function() UIS.MouseBehavior = Enum.MouseBehavior.Default end)
+    end)
+
+    -- 低频：同步鼠标图标显隐（这个是持久状态，不需要每帧）
     local acc = 0
     RunService.Heartbeat:Connect(function(dt)
-        local win = Mini.__Window
-        if not win then return end
-        acc = acc + (tonumber(dt) or 0.25)
+        acc = acc + (tonumber(dt) or 0)
         if acc < 0.25 then return end
         acc = 0
-        local want = (win.Closed ~= true) and (win.IsOpen ~= false) and (win.Opened ~= false)
+        local want = WindowShown()
         if UIS.MouseIconEnabled ~= want then
             pcall(function() UIS.MouseIconEnabled = want end)
-        end
-        if want then
-            pcall(function() UIS.MouseBehavior = Enum.MouseBehavior.Default end)
         end
     end)
 end
@@ -2197,18 +2218,39 @@ LangDropdown:OnChanged(function(Value)
     LastLangPick = Value
     local Want = (Value == "中文") and "zh" or "en"
     if Want == Lang.Current then return end
-    -- WindUI 控件的文字是建的时候定死的，没有改标题的接口，
-    -- 所以换语言走「先存语言 → 卸载 → 重新执行本脚本」，界面整体按新语言重建。
+    local Was = Lang.Current
     Lang.Set(Want)
     getgenv().DoorsESPX_Lang = Want
+
     task.defer(function()
+        -- ★ 顺序修正：先取脚本、先编译，全都成功了才卸载旧界面。
+        --   原来是「先 Unload 再 HttpGet」—— 网络拉不动时界面已经被销毁，
+        --   新脚本又没跑起来，表现就是「一切语言，整个界面没了、大部分功能失效」。
+        local okFetch, Source = pcall(function() return game:HttpGet(SCRIPT_URL) end)
+        if not okFetch or type(Source) ~= "string" or #Source < 1000 then
+            -- 失败就把语言回退到切换前，界面原封不动继续用
+            Lang.Set(Was)
+            getgenv().DoorsESPX_Lang = Was
+            LastLangPick = (Was == "en") and "English" or "中文"
+            warn("[Msptds] 换语言失败：取不到脚本（" .. tostring(Source) .. "）。已保留当前界面。")
+            return
+        end
+
+        local okLoad, Chunk = pcall(loadstring, Source)
+        if not okLoad or type(Chunk) ~= "function" then
+            Lang.Set(Was)
+            getgenv().DoorsESPX_Lang = Was
+            LastLangPick = (Was == "en") and "English" or "中文"
+            warn("[Msptds] 换语言失败：脚本编译不过。已保留当前界面。")
+            return
+        end
+
         local State = getgenv()[STATE_KEY]
         if State and State.Unload then pcall(State.Unload) end
-        local ok, err = pcall(function()
-            return loadstring(game:HttpGet(SCRIPT_URL))()
-        end)
-        if not ok then
-            warn("[Msptds] 换语言后自动重载失败：" .. tostring(err) .. "，请手动重新执行一次脚本")
+
+        local okRun, err = pcall(Chunk)
+        if not okRun then
+            warn("[Msptds] 换语言后重载失败：" .. tostring(err) .. "，请手动重新执行一次脚本")
         end
     end)
 end)
@@ -3426,7 +3468,7 @@ end
 local function ApplyPromptReach(Prompt)
     if not Prompt or not Prompt.Parent then return end
     local OldDist = Prompt:GetAttribute("MaxActivationDistance_Old")
-    local Reach = (Options.WallInteractReach and Options.WallInteractReach.Value) or 10
+    local Reach = (Options.WallInteractReach and Options.WallInteractReach.Value) or 1
     if OldDist then
         local ok, err = pcall(function() Prompt.MaxActivationDistance = OldDist * Reach end)
         if not ok then warn("[Msptds] 距离倍率写失败：" .. tostring(err)) end
@@ -3438,10 +3480,26 @@ end
 local function ApplyPrompt(Prompt)
     ApplyPromptReach(Prompt)
     -- 每条属性单独 pcall：某条被拒也不会把其它几条一起丢掉
-    local ok1, err1 = pcall(function() Prompt.HoldDuration = 0 end)
-    local ok2, err2 = pcall(function() Prompt.RequiresLineOfSight = false end)
+    -- 照 Aby 拆成两个独立开关：秒互动(InstantPrompts) 管 HoldDuration，隔墙(PromptClip) 管视线检测。
+    -- 注意不能用 `COND and false or Old` —— COND 为真时 false 会被 or 跳过，拿回旧值，等于没生效。
+    local ok1, err1 = pcall(function()
+        local Instant = Toggles.InstantPromptsToggle and Toggles.InstantPromptsToggle.Value
+        if Instant then
+            Prompt.HoldDuration = 0
+        else
+            Prompt.HoldDuration = Prompt:GetAttribute("HoldDuration_Old")
+        end
+    end)
+    local ok2, err2 = pcall(function()
+        local Clip = Toggles.WallInteractToggle and Toggles.WallInteractToggle.Value
+        if Clip then
+            Prompt.RequiresLineOfSight = false
+        else
+            Prompt.RequiresLineOfSight = Prompt:GetAttribute("RequiresLineOfSight_Old")
+        end
+    end)
     if not ok1 or not ok2 then
-        warn("[Msptds] 隔墙互动写提示失败：" .. tostring(err1) .. " / " .. tostring(err2))
+        warn("[Msptds] 互动属性写失败：" .. tostring(err1) .. " / " .. tostring(err2))
     end
 end
 
@@ -3470,6 +3528,85 @@ local function ReachPrompt(Prompt)
         Prompt.HoldDuration = 0
         Prompt.RequiresLineOfSight = false
     end)
+end
+
+--────────────────────────── 自动互动（照搬 Abysall 的 AutoInteract） ──────────────────────────
+-- Aby 的做法（原版 7877-7899 行）：
+--   Heartbeat 里遍历已收集的提示，距离进入触发范围就 fire，节流 1/60 秒；
+--   同房间判断用提示的 ParentRoom 属性对玩家的 CurrentRoom。
+-- 这边没有 Aby 那套忽略名单 / 藏身点数据结构，所以只做「附近的提示自动触发」。
+local AutoInteract = { Last = 0, Conn = nil }
+
+-- 收集提示的常驻监听。原来只在「隔墙互动」打开时才建，导致单独开自动互动时列表是空的。
+local function EnsurePromptWatch()
+    if PromptReach.Conn then return end
+    ScanPrompts(false)
+    PromptReach.Conn = Services.Workspace.DescendantAdded:Connect(function(Inst)
+        if Inst.ClassName == "ProximityPrompt" then
+            RememberPrompt(Inst)
+            if Toggles.WallInteractToggle and Toggles.WallInteractToggle.Value then ApplyPrompt(Inst) end
+        end
+    end)
+end
+
+local function PromptInSameRoom(Prompt)
+    local Room = Prompt:GetAttribute("ParentRoom")
+    if not Room then return true end
+    local LP = Players.LocalPlayer
+    local Cur = LP and LP:GetAttribute("CurrentRoom")
+    if Cur == nil then return true end
+    return tonumber(Room) == tonumber(Cur)
+end
+
+local function AutoFirePrompt(Prompt)
+    if not Prompt or not Prompt.Parent or not Prompt.Enabled then return end
+    if not PromptInSameRoom(Prompt) then return end
+    local LP = Players.LocalPlayer
+    if not LP then return end
+
+    local Parent = Prompt.Parent
+    local Position
+    if Parent:IsA("BasePart") then
+        Position = Parent.Position
+    elseif Parent:IsA("Model") then
+        local ok, Pivot = pcall(function() return Parent:GetPivot().Position end)
+        if not ok then return end
+        Position = Pivot
+    else
+        return
+    end
+
+    if LP:DistanceFromCharacter(Position) > Prompt.MaxActivationDistance then return end
+
+    -- 触发前先放宽（和隔墙互动同一套），触发后 ApplyPrompt 会维持
+    ReachPrompt(Prompt)
+    local Fire = getgenv().fireproximityprompt
+    if type(Fire) ~= "function" then
+        local ok, Global = pcall(function() return fireproximityprompt end)
+        Fire = ok and Global or nil
+    end
+    if type(Fire) == "function" then
+        pcall(Fire, Prompt)
+    end
+end
+
+local function StartAutoInteract()
+    if AutoInteract.Conn then return end
+    EnsurePromptWatch()
+    AutoInteract.Conn = Services.RunService.Heartbeat:Connect(function()
+        if not (Toggles.AutoInteractToggle and Toggles.AutoInteractToggle.Value) then return end
+        local Now = tick()
+        if Now - AutoInteract.Last < 1 / 60 then return end
+        AutoInteract.Last = Now
+        for _, Prompt in ipairs(PromptReach.List) do
+            task.spawn(AutoFirePrompt, Prompt)
+        end
+    end)
+end
+
+local function StopAutoInteract()
+    if AutoInteract.Conn then pcall(function() AutoInteract.Conn:Disconnect() end) end
+    AutoInteract.Conn = nil
 end
 
 --────────────────────────── 自动楼层（楼梯间） ──────────────────────────
@@ -3759,35 +3896,55 @@ Mini.Label(tabChar.Page, L("char.orbit.note",
 
 Mini.Divider(tabChar.Page)
 
--- 隔墙互动（照搬 Abysall 的互动三件套）
+-- 隔墙互动 / 秒互动（照搬 Abysall 的互动三件套，拆成三个独立开关）
 Options.WallInteractReach = Mini.Slider(tabChar.Page, {
-    Key = "char.wallreach", Text = "互动距离倍率", Min = 1, Max = 30, Default = 10, Rounding = 0 })
+    -- 数值照 Abysall 原版：Min 1 / Max 2 / Default 1 / Rounding 1
+    -- 原来写的 1~30、默认 10 太大，游戏不认（ProximityPrompt 的实际生效范围有上限）
+    Key = "char.wallreach", Text = "互动距离倍率", Min = 1, Max = 2, Default = 1, Rounding = 1 })
+Toggles.InstantPromptsToggle = Mini.Toggle(tabChar.Page, L(
+    "char.instant", "秒互动", "Instant Prompts",
+    "All prompts trigger with no hold time (HoldDuration = 0).",
+    "所有提示都不要按住时间（HoldDuration 归零），照搬 Abysall 的 Instant Prompts。"))
 Toggles.WallInteractToggle = Mini.Toggle(tabChar.Page, L(
     "char.wall", "隔墙互动", "Interact Through Walls",
-    "Abysall's trio: reach multiplier, instant hold, and no line-of-sight check.",
-    "照搬 Abysall 的互动三件套：距离倍率 + 秒互动 + 关掉视线检测。"))
+    "Prompts ignore the line-of-sight check, so you can interact through walls.",
+    "关掉提示的视线检测，隔着墙也能交互，照搬 Abysall 的 Prompt Clip。"))
 
 -- 距离倍率变了就重算一遍（不用每帧扫）
 Options.WallInteractReach:OnChanged(function()
-    if not Toggles.WallInteractToggle.Value then return end
+    if not (Toggles.WallInteractToggle.Value or Toggles.InstantPromptsToggle.Value) then return end
     for _, Prompt in ipairs(PromptReach.List) do ApplyPromptReach(Prompt) end
+end)
+
+Toggles.InstantPromptsToggle:OnChanged(function(Value)
+    if Value then EnsurePromptWatch() end
+    for _, Prompt in ipairs(PromptReach.List) do
+        pcall(function()
+            if Value then
+                Prompt.HoldDuration = 0
+            else
+                Prompt.HoldDuration = Prompt:GetAttribute("HoldDuration_Old")
+            end
+        end)
+    end
 end)
 
 Toggles.WallInteractToggle:OnChanged(function(Value)
     if Value then
+        EnsurePromptWatch()
         ScanPrompts(true)
-        -- 常驻一个监听，把后来生成的提示也记下来（很便宜，只有新增实例时才跑）
-        if not PromptReach.Conn then
-            PromptReach.Conn = Services.Workspace.DescendantAdded:Connect(function(Inst)
-                if Inst.ClassName == "ProximityPrompt" then
-                    RememberPrompt(Inst)
-                    if Toggles.WallInteractToggle.Value then ApplyPrompt(Inst) end
-                end
-            end)
-        end
     else
         for _, Prompt in ipairs(PromptReach.List) do RestorePrompt(Prompt) end
     end
+end)
+
+-- 自动互动（照搬 Abysall 的 Auto Interact）
+Toggles.AutoInteractToggle = Mini.Toggle(tabAuto.Page, L(
+    "auto.interact", "自动互动", "Auto Interact",
+    "Automatically fires nearby prompts.",
+    "自动触发附近的提示，照搬 Abysall 的 Auto Interact。"))
+Toggles.AutoInteractToggle:OnChanged(function(Value)
+    if Value then StartAutoInteract() else StopAutoInteract() end
 end)
 
 -- 自动楼层（楼梯间）
