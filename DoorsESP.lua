@@ -63,6 +63,23 @@ if getgenv()[STATE_KEY] then
     pcall(function() getgenv()[STATE_KEY].Unload() end)
 end
 
+-- 换语言要重新执行本脚本，所以必须知道自己的地址。
+-- ★ 这里原来**根本没有这个变量**：老代码写的是
+--       State.Unload()                          -- 先把界面销毁
+--       loadstring(game:HttpGet(SCRIPT_URL))()  -- 再 HttpGet(nil) → 直接报错
+--   于是界面已经被销毁、新脚本又没跑起来 ——
+--   表现就是「一切语言，整个界面没了、大部分功能失效」。这就是那个 bug 的根。
+--   同时顺序也改成了「先取到、先编译，成功才卸载」（见下面的换语言处理）。
+local SCRIPT_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/DoorsESP.lua"
+-- 和 WindUI 那几个源同一套路：主源拉不动就换镜像，全都失败才放弃（放弃时保留当前界面）
+local SCRIPT_MIRRORS = {
+    SCRIPT_URL,
+    "https://cdn.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
+    "https://gcore.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
+    "https://testingcf.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
+    "https://fastly.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
+}
+
 --=====================================================================
 -- 0.5 界面多语言（只翻译界面文字；ESP 标签保持游戏原版名称）
 --=====================================================================
@@ -2226,13 +2243,22 @@ LangDropdown:OnChanged(function(Value)
         -- ★ 顺序修正：先取脚本、先编译，全都成功了才卸载旧界面。
         --   原来是「先 Unload 再 HttpGet」—— 网络拉不动时界面已经被销毁，
         --   新脚本又没跑起来，表现就是「一切语言，整个界面没了、大部分功能失效」。
-        local okFetch, Source = pcall(function() return game:HttpGet(SCRIPT_URL) end)
-        if not okFetch or type(Source) ~= "string" or #Source < 1000 then
+        local Source
+        local Tried = {}
+        for _, url in ipairs(SCRIPT_MIRRORS) do
+            local ok, got = pcall(function() return game:HttpGet(url) end)
+            if ok and type(got) == "string" and #got > 1000 then
+                Source = got
+                break
+            end
+            Tried[#Tried + 1] = tostring(url:match("^https?://([^/]+)")) .. "→" .. tostring(got)
+        end
+        if not Source then
             -- 失败就把语言回退到切换前，界面原封不动继续用
             Lang.Set(Was)
             getgenv().DoorsESPX_Lang = Was
             LastLangPick = (Was == "en") and "English" or "中文"
-            warn("[Msptds] 换语言失败：取不到脚本（" .. tostring(Source) .. "）。已保留当前界面。")
+            warn("[Msptds] 换语言失败：所有源都取不到脚本（" .. table.concat(Tried, "  ") .. "）。已保留当前界面。")
             return
         end
 
