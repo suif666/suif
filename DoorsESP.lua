@@ -3635,25 +3635,42 @@ local function StopAutoInteract()
     AutoInteract.Conn = nil
 end
 
---────────────────────────── 自动楼层（楼梯间） ──────────────────────────
--- 抄 tplays 插件的 Stairwell 分支，但按我们这份脚本的条件改了两处：
---   · 插件靠 mspaint 的 DoorReach 隔空开门，我们没这个功能 —— 改成直接把门的提示
---     fireproximityprompt 过去（就是上面隔墙互动那套），效果一样；
---   · 通关条件不写死门号：看到 StairwellExitDoor 就通关，所以新版 100 门、旧版 200 门都适配。
-local AutoFloorState = { Running = false, CrouchFired = false, Notify = nil, Hooks = {} }
+--────────────────────────── 自动楼层（楼梯间，照搬 tplays 插件） ──────────────────────────
+-- 这里是插件 `Variables.AutoFloors.Stairwell`（tplaysaddon-v2.4.0 L8927-9037）的逐句搬运。
+-- 插件那份代码调用了它自己内部的一批东西，本脚本里没有，所以下面先给它们做「等价垫片」：
+-- 同名、同行为、就地实现，让下面的原文能原样跑。垫片全部标了 [垫片]。
+--
+--   [垫片] Library:Notify                → Mini.WindUI:Notify
+--   [垫片] Library.Toggles.DoorReach     → 本脚本的 ReachDoor（把门的提示拉长，让游戏自己开门）
+--   [垫片] Toggles.AntiTeleport*         → 本脚本没有这两个开关，做成空开关
+--   [垫片] Variables.StuffToKeepEnabled  → 本脚本没有那批「防实体」开关，留空表
+--   [垫片] getTpFunction                 → 用 getconnections 找 ServerTeleported 的处理函数
+--   [垫片] hookfunction / checkcaller / restorefunction / isfunctionhooked
+--                                        → 执行器自带，取不到就退化成「不挂钩」
+--   [垫片] ServerTeleported / CurrentRooms / LatestRoom / Crouch → 直接从游戏里找
+local AutoFloorState = {
+    Running = false, Notify = nil, Hooks = {},
+    slideSH = false, raknet_at_hook = false, tpFunction = nil,
+    CurrentDoor = nil,
+}
 
+-- [垫片] 对应插件的 GameData.LatestRoom
 local function GetLatestRoom()
     local GameData = Services.ReplicatedStorage:FindFirstChild("GameData")
     return GameData and GameData:FindFirstChild("LatestRoom") or nil
 end
 
+-- [垫片] 对应插件的 workspace.CurrentRooms
 local function GetCurrentRooms()
     return Services.Workspace:FindFirstChild("CurrentRooms")
 end
 
--- 原版自动楼层只做两件事：每帧 PivotTo 到门上 + 开一次 DoorReach（让游戏自己去开门）。
--- 它根本不喷 fireproximityprompt —— 我之前每帧喷一次，又费性能又慢，这里改回原版做法。
--- 门的提示只拉长一次（按门缓存），不是每帧。
+-- [垫片] 对应插件的 ReplicatedStorage.RemotesFolder.ServerTeleported
+local function GetServerTeleported()
+    local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
+    return RemotesFolder and RemotesFolder:FindFirstChild("ServerTeleported") or nil
+end
+
 local AutoFloorDoorReached = nil
 
 local function ReachDoor(Door)
@@ -3665,63 +3682,133 @@ local function ReachDoor(Door)
     ReachPrompt(Door:FindFirstChild("DoorPrompt"))
 end
 
+-- [垫片] Library.Toggles.DoorReach —— 插件每帧把它置 true，效果是隔空开门。
+--        这里做成同名接口：置 true 时就去把当前门的提示拉长，等价。
+local DoorReachShim = { Value = false, Disabled = false }
+function DoorReachShim:SetValue(v)
+    self.Value = v and true or false
+    if self.Value then ReachDoor(AutoFloorState.CurrentDoor) end
+end
+function DoorReachShim:SetDisabled(v) self.Disabled = v and true or false end
+
+-- [垫片] Toggles.AntiTeleport / AntiTeleportRaknet —— 本脚本没有这两个开关，空实现
+local function StubToggle()
+    return {
+        Value = false, Disabled = false,
+        SetValue = function(self, v) self.Value = v and true or false end,
+        SetDisabled = function(self, v) self.Disabled = v and true or false end,
+    }
+end
+local AntiTeleportStub, AntiTeleportRaknetStub = StubToggle(), StubToggle()
+
+-- [垫片] Variables.StuffToKeepEnabled —— 插件靠它每帧把一批「防实体」开关顶开，
+--        本脚本没有那批开关，所以留空表（有的话往这里塞，行为和插件一致）。
+local StuffToKeepEnabled = {}
+
+-- [垫片] Library:Notify(Title, Description, Time)
+local function AFNotify(Title, Description, Time)
+    local Text = tostring(Title or "")
+    if Description ~= nil then Text = Text .. "：" .. tostring(Description) end
+    pcall(function()
+        Mini.WindUI:Notify({ Title = Text, Duration = tonumber(Time) or 4, Icon = "info" })
+    end)
+end
+
+-- [垫片] getTpFunction（插件 L4229-4233 原文）
+local function getTpFunction()
+    local ServerTeleported = GetServerTeleported()
+    if not ServerTeleported then return nil end
+    local getconnections = getgenv().getconnections
+    local connections = getconnections and getconnections(ServerTeleported.OnClientEvent)
+    local connection = connections and connections[1]
+    return connection and connection.Function
+end
+
+-- 停：对应插件 Callback 的 else 分支
 local function StopAutoFloor(reason)
     AutoFloorState.Running = false
-    if Connections.AutoFloor then
-        pcall(function() Connections.AutoFloor:Disconnect() end)
-        Connections.AutoFloor = nil
-    end
     if AutoFloorState.Notify then
         pcall(function() AutoFloorState.Notify:Destroy() end)
         AutoFloorState.Notify = nil
     end
-    if AutoFloorState.CrouchFired then
-        AutoFloorState.CrouchFired = false
+    -- 插件原文：if not Toggles.SlideSpeedHack and Variables.slideSH then
+    if AutoFloorState.slideSH then
+        AutoFloorState.slideSH = false
         local Crouch = GetCrouchRemote and GetCrouchRemote() or nil
-        if Crouch then
-            pcall(function() Crouch:FireServer(true, true) end)
+        if Crouch then pcall(function() Crouch:FireServer(true, true) end) end
+    end
+    AntiTeleportStub:SetDisabled(false)
+    if AutoFloorState.raknet_at_hook then
+        AntiTeleportRaknetStub:SetDisabled(false)
+    end
+    -- 插件原文：if isfunctionhooked and restorefunction then ... end
+    local isfunctionhooked = getgenv().isfunctionhooked
+    local restorefunction = getgenv().restorefunction
+    if type(isfunctionhooked) == "function" and type(restorefunction) == "function" then
+        if AutoFloorState.tpFunction then
+            pcall(function()
+                if isfunctionhooked(AutoFloorState.tpFunction) then
+                    restorefunction(AutoFloorState.tpFunction)
+                end
+            end)
+        end
+        local ServerTeleported = GetServerTeleported()
+        if ServerTeleported then
+            pcall(function()
+                if isfunctionhooked(ServerTeleported.OnClientEvent.Connect) then
+                    restorefunction(ServerTeleported.OnClientEvent.Connect)
+                end
+            end)
         end
     end
-    for _, Restore in ipairs(AutoFloorState.Hooks) do
-        pcall(Restore)
-    end
+    for _, Restore in ipairs(AutoFloorState.Hooks) do pcall(Restore) end
     AutoFloorState.Hooks = {}
-    if reason then
-        pcall(function()
-            Mini.WindUI:Notify({ Title = reason, Duration = 4, Icon = "info" })
-        end)
+    if AutoFloorState.LatestRoomChanged then
+        pcall(function() AutoFloorState.LatestRoomChanged:Disconnect() end)
+        AutoFloorState.LatestRoomChanged = nil
     end
+    if Connections.AutoFloor then
+        pcall(function() Connections.AutoFloor:Disconnect() end)
+        Connections.AutoFloor = nil
+    end
+    if reason then AFNotify(reason, nil, 4) end
 end
 
+-- 插件 Callback 的 then 分支里、hook 相关的部分（插件 L8947-8962 原文结构）
 local function InstallTeleportHook()
-    -- 插件里靠 hookfunction 把游戏「把你传回原地」的处理函数换成空的。
-    -- 执行器没这几个函数也没关系，只是被传送时可能被拉回一次。
     local hookfunction = getgenv().hookfunction
     local restorefunction = getgenv().restorefunction
     local checkcaller = getgenv().checkcaller
     if type(hookfunction) ~= "function" or type(restorefunction) ~= "function" then
-        return false
+        return false   -- 执行器不支持：只是被传送时可能被拉回一次，不影响开门
     end
-
-    local RemotesFolder = Services.ReplicatedStorage:FindFirstChild("RemotesFolder")
-    local ServerTeleported = RemotesFolder and RemotesFolder:FindFirstChild("ServerTeleported")
+    local ServerTeleported = GetServerTeleported()
     if not ServerTeleported then return false end
 
+    AutoFloorState.tpFunction = getTpFunction()
     local ok = pcall(function()
-        local Sig = ServerTeleported.OnClientEvent
-        local RealConnect = Sig.Connect
-        local hooked
-        hooked = hookfunction(RealConnect, function(self, fn)
-            if type(checkcaller) == "function" and not checkcaller() then
-                local blanked = hookfunction(fn, function() end)
-                AutoFloorState.Hooks[#AutoFloorState.Hooks + 1] = function()
-                    restorefunction(blanked)
+        if AutoFloorState.tpFunction then
+            local tp
+            tp = hookfunction(AutoFloorState.tpFunction, function(...)
+                if type(checkcaller) == "function" and checkcaller() then
+                    tp(...)
                 end
+            end)
+        end
+        local RealConnect = ServerTeleported.OnClientEvent.Connect
+        local hooked
+        hooked = hookfunction(RealConnect, function(self, func)
+            if type(checkcaller) == "function" and not checkcaller() then
+                local blanked = hookfunction(func, function() end)
+                AutoFloorState.Hooks[#AutoFloorState.Hooks + 1] = function()
+                    pcall(restorefunction, blanked)
+                end
+                AutoFloorState.tpFunction = func
             end
-            return hooked(self, fn)
+            return hooked(self, func)
         end)
         AutoFloorState.Hooks[#AutoFloorState.Hooks + 1] = function()
-            restorefunction(RealConnect)
+            pcall(restorefunction, RealConnect)
         end
     end)
     return ok
@@ -3735,33 +3822,48 @@ local function StartAutoFloor()
     local LatestRoom = GetLatestRoom()
     local CurrentRooms = GetCurrentRooms()
     if not (LatestRoom and CurrentRooms) then
-        pcall(function()
-            Mini.WindUI:Notify({
-                Title = "现在不在 Doors 里：找不到 GameData.LatestRoom",
-                Duration = 4, Icon = "warning",
-            })
-        end)
+        AFNotify("现在不在 Doors 里：找不到 GameData.LatestRoom", nil, 4)
         return false
     end
     if not FirePrompt then
-        pcall(function()
-            Mini.WindUI:Notify({
-                Title = "执行器没有 fireproximityprompt，传送到门前也开不了门",
-                Duration = 5, Icon = "warning",
-            })
-        end)
+        AFNotify("执行器没有 fireproximityprompt，传送到门前也开不了门", nil, 5)
     end
 
     AutoFloorState.Running = true
+    AutoFloorState.CurrentDoor = nil
     AutoFloorDoorReached = nil
+
+    -- 插件原文（L8936-8946）：先关掉反传送开关，再挂钩
+    AntiTeleportStub:SetValue(false)
+    AntiTeleportRaknetStub:SetValue(false)
+    Services.RunService.RenderStepped:Wait()
+    AntiTeleportStub:SetDisabled(true)
+    AntiTeleportRaknetStub:SetDisabled(true)
+
     InstallTeleportHook()
+    Services.RunService.Heartbeat:Wait()
+
+    -- 插件原文（L8963-8968）：建一个常驻提示，显示已开门数 / 当前房间
+    local tempRoom = GetCurrentRooms() and GetCurrentRooms():FindFirstChild(tostring(LatestRoom.Value))
+    local Raw = tempRoom and tempRoom:GetAttribute("RawName") or "?"
+    AutoFloorState.Notify = { Destroy = function() end }   -- [垫片] 插件是 Library:Notify({Persist=true})，这里用日志提示代替
+    AFNotify(string.format("自动楼层已启动  已开门 %s  当前房间 %s", tostring(LatestRoom.Value), tostring(Raw)), nil, 5)
+
     Connections.AutoFloor = Services.RunService.Heartbeat:Connect(function()
         local ok, err = xpcall(AutoFloorStep, Trace)
         if not ok then warn("[Msptds] 自动楼层出错：" .. tostring(err)) end
     end)
+
+    -- 插件原文（L9004-9008）：门号变化时更新提示
+    AutoFloorState.LatestRoomChanged = LatestRoom.Changed:Connect(function()
+        local R = GetCurrentRooms() and GetCurrentRooms():FindFirstChild(tostring(LatestRoom.Value))
+        local RN = R and R:GetAttribute("RawName") or "?"
+        AFNotify(string.format("已开门 %s  当前房间 %s", tostring(LatestRoom.Value), tostring(RN)), nil, 3)
+    end)
     return true
 end
 
+-- 插件原文（L8971-9003）的 Heartbeat 循环体
 AutoFloorStep = function()
     if not AutoFloorState.Running then return end
 
@@ -3769,50 +3871,49 @@ AutoFloorStep = function()
     local CurrentRooms = GetCurrentRooms()
     if not (LatestRoom and CurrentRooms) then return end
 
-    -- 插件在这里会把滑行速度一起打开（楼梯间里跑得快）。我们没有 mspaint 的滑行开关，
-    -- 就照它原文那样直接点一下下蹲遥控。
-    if not AutoFloorState.CrouchFired then
-        local Crouch = GetCrouchRemote and GetCrouchRemote() or nil
-        if Crouch then
-            AutoFloorState.CrouchFired = true
-            pcall(function() Crouch:FireServer(true, true) end)
-        end
-    end
-
-    -- 房间名是字符串，数字门号转一下才能找到
     local Room = CurrentRooms:FindFirstChild(tostring(LatestRoom.Value))
-    if not Room then return end
-    local Door = Room:FindFirstChild("Door")
+    local Door = Room and Room:FindFirstChild("Door")
 
-    -- 过了 98 门才开始找出口门：新版楼梯间一共 100 门，旧版 200 门也一样能过，
-    -- 因为真正触发通关的是「看到出口门」，不是门号。
-    local ExitDoor = nil
-    if LatestRoom.Value > 98 then
-        ExitDoor = Room:FindFirstChild("StairwellExitDoor")
+    -- 插件原文：if not Variables.slideSH then Variables.slideSH = true; Crouch:FireServer(true,true) end
+    if not AutoFloorState.slideSH then
+        AutoFloorState.slideSH = true
+        local Crouch = GetCrouchRemote and GetCrouchRemote() or nil
+        if Crouch then pcall(function() Crouch:FireServer(true, true) end) end
     end
 
-    if ExitDoor then
-        local Character = Char.Character
-        if Character then
-            pcall(function() Character:PivotTo(ExitDoor:GetPivot()) end)
+    -- 插件原文：for _, toggle in Variables.StuffToKeepEnabled do ... end
+    for _, toggle in ipairs(StuffToKeepEnabled) do
+        if not toggle.Value and not toggle.Disabled then
+            pcall(function() toggle:SetValue(true) end)
         end
-        local Collision = ExitDoor:FindFirstChild("Collision")
+    end
+
+    local stairwellexit
+    if LatestRoom.Value > 98 then
+        stairwellexit = Room and Room:FindFirstChild("StairwellExitDoor")
+    end
+
+    AutoFloorState.CurrentDoor = Door or AutoFloorState.CurrentDoor
+
+    if stairwellexit then
+        local Character = Char.Character
+        if Character then pcall(function() Character:PivotTo(stairwellexit:GetPivot()) end) end
+        local Collision = stairwellexit:FindFirstChild("Collision")
         local EnterPrompt = Collision and Collision:FindFirstChild("EnterPrompt")
         ReachPrompt(EnterPrompt)
-        if EnterPrompt and FirePrompt then
-            pcall(FirePrompt, EnterPrompt, 0)
-        end
-        pcall(function()
-            Mini.WindUI:Notify({ Title = "楼梯间已完成", Duration = 10, Icon = "check" })
-        end)
-        -- 非静默置回 false：会走到 OnChanged → StopAutoFloor 收尾，状态标签也跟着刷新
+        if EnterPrompt and FirePrompt then pcall(FirePrompt, EnterPrompt) end
+        AFNotify("楼梯间已完成！", nil, 10)
         Toggles.AutoFloorToggle:SetValue(false)
+        -- 插件原文：Toggles.AutoFloor:SetDisabled(true)
+        if Toggles.AutoFloorToggle.SetDisabled then Toggles.AutoFloorToggle:SetDisabled(true) end
     elseif Door then
         local Character = Char.Character
-        if Character then
-            pcall(function() Character:PivotTo(Door:GetPivot()) end)
-        end
-        ReachDoor(Door)
+        if Character then pcall(function() Character:PivotTo(Door:GetPivot()) end) end
+    end
+
+    -- 插件原文：if not Library.Toggles.DoorReach.Value then ... SetValue(true) end
+    if not DoorReachShim.Value then
+        DoorReachShim:SetValue(true)
     end
 end
 
