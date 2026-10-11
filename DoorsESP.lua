@@ -70,14 +70,18 @@ end
 --   于是界面已经被销毁、新脚本又没跑起来 ——
 --   表现就是「一切语言，整个界面没了、大部分功能失效」。这就是那个 bug 的根。
 --   同时顺序也改成了「先取到、先编译，成功才卸载」（见下面的换语言处理）。
-local SCRIPT_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/DoorsESP.lua"
+-- ★ 主源换成 jsDelivr（j 开头的那个）：国内能直连，raw.githubusercontent 经常连不上。
+--   注意：jsDelivr 对 @main 有缓存（约 12 小时）。刚推的新版本如果没生效，
+--   访问一次 https://purge.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua 强制刷新即可。
+local SCRIPT_URL = "https://cdn.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua"
 -- 和 WindUI 那几个源同一套路：主源拉不动就换镜像，全都失败才放弃（放弃时保留当前界面）
+-- 顺序：jsDelivr 各节点 → gcore → testingcf → fastly → raw.githubusercontent 兜底
 local SCRIPT_MIRRORS = {
     SCRIPT_URL,
-    "https://cdn.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
     "https://gcore.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
     "https://testingcf.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
     "https://fastly.jsdelivr.net/gh/suif666/suif@main/DoorsESP.lua",
+    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/DoorsESP.lua",
 }
 
 --=====================================================================
@@ -174,12 +178,13 @@ end
 --=====================================================================
 -- 多个源轮着试：raw.githubusercontent 在有些执行器/网络环境下拉不动，
 -- 拉不动就换 jsDelivr（几个镜像），全都失败才放弃。
+-- ★ 主源也换成 jsDelivr（j 开头的那个）：国内直连更稳，raw 放最后兜底。
 local WINDUI_SOURCES = {
-    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
     "https://cdn.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
     "https://gcore.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
     "https://testingcf.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
     "https://fastly.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua",
+    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
 }
 
 local WindUI
