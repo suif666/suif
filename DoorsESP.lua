@@ -4637,34 +4637,65 @@ Connections.PromptReachKeep = Services.RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
---────────────────────────── 自动砸电视（aby：Noise Tv Breaker） ──────────────────────────
--- 对应 Abysall 原版 Main.luau 3495 行的开关 "Noise Tv Breaker"（内部名 BypassNoise），
--- 逻辑在 L4288-4314，逐行照搬：
---     local function checkBypassNoiseTvStand(targetTvStand)
---         if not targetTvStand:IsA("Model") then return end
---         if targetTvStand.Name ~= "TV_Stand" then return end
---         local tvStandCurrentCFrame = targetTvStand:GetPivot()
---         if tvStandCurrentCFrame.Position.Y > -119 then
---             targetTvStand:PivotTo(CFrame.new(
---                 tvStandCurrentCFrame.Position.X, -120, tvStandCurrentCFrame.Position.Z))
---         end
---     end
---     local Misc = workspace:FindFirstChild("Misc")
---     Misc.ChildAdded:Connect(checkBypassNoiseTvStand)
---     for _, child in ipairs(Misc:GetChildren()) do checkBypassNoiseTvStand(child) end
--- ★ 所谓「砸」不是真打碎：是把电视整台沉到 y = -120（地图地板以下），
---   Noise 实体就附不上去了 —— 所以原名叫 Breaker 不叫 Smasher。
-local NoiseTvBreaker = { Conn = nil }
+--────────────────────────── 自动砸电视（aby: Noise Tv Breaker + Sapphire 的扫描手法） ──────────────────────────
+-- 来源一：Abysall 原版 Main.luau L3495 的开关 "Noise Tv Breaker"（内部名 BypassNoise），
+--         实现 L4288-4314 —— 把 TV_Stand 整台沉到 y = -120。
+-- 来源二：Sapphire.lua 处理装饰物的通用手法（NoBatDecor, L4943-4956）——
+--         遍历整个 workspace 用「名字谓词」找目标，再挂 workspace.DescendantAdded 兜住新出现的。
+--
+-- ★ 之前为什么「不怎么管用」：
+--   aby 那版监听的是 workspace.Misc.ChildAdded，因为 aby 里这个 TV 确实生在 Misc 下。
+--   但在 Doors 里 TV_Stand 是一个【实体】（Entities 表里 Alias = "Noise_TV"），
+--   实体是走 workspace.DescendantAdded 生成的 —— 只要它不生在 Misc 下，
+--   我原来那段就一行都不会执行，开关亮着也毫无反应。
+--   现在按 Sapphire 的手法改成扫整个 workspace，并且把命中数报出来，
+--   这样"到底有没有生效"一眼就能看见。
+local NoiseTvBreaker = { Conn = nil, Sweep = nil, Count = 0, Notified = false }
 
-local function CheckNoiseTvStand(Inst)
-    if not Inst or not Inst:IsA("Model") then return end
-    if Inst.Name ~= "TV_Stand" then return end
+-- 名字谓词：aby 只认 TV_Stand；这里放宽一点，凡是含 TV 的 Model 都算，
+-- 免得游戏改个名字（Noise_TV / TVStand / TV_Base…）就整个失效。
+local function IsTvLike(Inst)
+    if not Inst or not Inst:IsA("Model") then return false end
+    local Name = Inst.Name
+    if Name == "TV_Stand" then return true end
+    return string.find(string.upper(Name), "TV") ~= nil and not string.find(string.upper(Name), "VIGNETTE")
+end
+
+-- 沉一台电视。aby 用 -119 判断、-120 落地；这里保留同一套数值（它验过）。
+-- 额外补一刀：有些实体的部件是 Anchored 的，光 PivotTo 模型可能不动，
+-- 所以对每个 BasePart 再单独写一次 CFrame 兜底。
+local function SinkOneTv(Inst)
+    if not IsTvLike(Inst) then return false end
     local Pivot = Inst:GetPivot()
-    if Pivot.Position.Y > -119 then
-        pcall(function()
-            Inst:PivotTo(CFrame.new(Pivot.Position.X, -120, Pivot.Position.Z))
-        end)
+    if Pivot.Position.Y <= -119 then return false end      -- 已经在下面了
+
+    local Target = CFrame.new(Pivot.Position.X, -120, Pivot.Position.Z)
+    local ok = pcall(function() Inst:PivotTo(Target) end)
+
+    if not ok then
+        -- PivotTo 失败（比如模型没有 PrimaryPart 且部件都 Anchored）就逐个零件写
+        for _, Part in ipairs(Inst:GetDescendants()) do
+            if Part:IsA("BasePart") then
+                pcall(function()
+                    Part.CFrame = CFrame.new(Part.Position.X, -120, Part.Position.Z)
+                end)
+            end
+        end
     end
+
+    -- 就算沉下去了也随手把碰撞关掉，免得它在下面还能挡人
+    for _, Part in ipairs(Inst:GetDescendants()) do
+        if Part:IsA("BasePart") then pcall(function() Part.CanCollide = false end) end
+    end
+    return true
+end
+
+local function SweepTvs()
+    local Hit = 0
+    for _, Inst in ipairs(Services.Workspace:GetDescendants()) do
+        if SinkOneTv(Inst) then Hit = Hit + 1 end
+    end
+    return Hit
 end
 
 function StopNoiseTvBreaker()
@@ -4672,26 +4703,47 @@ function StopNoiseTvBreaker()
         pcall(function() NoiseTvBreaker.Conn:Disconnect() end)
         NoiseTvBreaker.Conn = nil
     end
+    if NoiseTvBreaker.Sweep then
+        pcall(function() NoiseTvBreaker.Sweep:Disconnect() end)
+        NoiseTvBreaker.Sweep = nil
+    end
 end
 
 function StartNoiseTvBreaker()
     StopNoiseTvBreaker()
-    local Misc = Services.Workspace:FindFirstChild("Misc")
-    if not Misc then
-        -- 原版这里是直接 return（不在对应场景就没电视）。我们补一句提示，
-        -- 免得开关亮着却没有任何反应、看着像坏了。
-        pcall(function()
-            Mini.WindUI:Notify({
-                Title = "自动砸电视：现在没有 workspace.Misc（这个场景里没电视）",
-                Duration = 4, Icon = "warning",
-            })
-        end)
-        return false
-    end
-    -- 已经在场的电视，先一次性沉下去
-    for _, Child in ipairs(Misc:GetChildren()) do CheckNoiseTvStand(Child) end
-    -- 之后新出现的，一冒头就沉
-    NoiseTvBreaker.Conn = Misc.ChildAdded:Connect(CheckNoiseTvStand)
+    NoiseTvBreaker.Count = 0
+
+    -- ① 先把已经在场的扫一遍（★ 扫整个 workspace，不再只看 Misc）
+    local Hit = SweepTvs()
+    NoiseTvBreaker.Count = Hit
+
+    -- ② 之后新出现的，一冒头就沉（★ 同样挂 workspace 上，这才是 Sapphire 的手法和关键修正）
+    NoiseTvBreaker.Conn = Services.Workspace.DescendantAdded:Connect(function(Inst)
+        if not (Toggles.NoiseTvBreakerToggle and Toggles.NoiseTvBreakerToggle.Value) then return end
+        if SinkOneTv(Inst) then
+            NoiseTvBreaker.Count = NoiseTvBreaker.Count + 1
+        end
+    end)
+
+    -- ③ 兜底：有些实体是就地复活/改属性，不产生 DescendantAdded。
+    --    每 2 秒低扫一次（只在开关开着时跑）。
+    local Acc = 0
+    NoiseTvBreaker.Sweep = Services.RunService.Heartbeat:Connect(function(dt)
+        if not (Toggles.NoiseTvBreakerToggle and Toggles.NoiseTvBreakerToggle.Value) then return end
+        Acc = Acc + (tonumber(dt) or 0)
+        if Acc < 2 then return end
+        Acc = 0
+        local N = SweepTvs()
+        if N > 0 then NoiseTvBreaker.Count = NoiseTvBreaker.Count + N end
+    end)
+
+    -- ④ 把结果报出来 —— 这样"到底管不管用"你直接就能看到，不用猜
+    pcall(function()
+        Mini.WindUI:Notify({
+            Title = string.format("自动砸电视：已处理 %d 台（之后新出现的一律自动沉底）", NoiseTvBreaker.Count),
+            Duration = 5, Icon = (NoiseTvBreaker.Count > 0) and "check" or "warning",
+        })
+    end)
     return true
 end
 
