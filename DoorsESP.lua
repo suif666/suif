@@ -2921,7 +2921,9 @@ Connections.FovHandler = Services.RunService.RenderStepped:Connect(function()
     if not FovCamera then return end
 
     if MainGame then
-        task.wait()
+        -- ★ 原来这里有一句 task.wait()。Roblox 的事件回调里禁止 yield，
+        --   一 yield 这条 RenderStepped 连接就会报错并被断开 —— 视野从此不再更新。
+        --   MainGame 一旦加载成功就走这条路，所以表现是「以前好的、后来没效果」。
         MainGame.fovtarget = Options.FieldOfView.Value
     else
         FovCamera.FieldOfView = Options.FieldOfView.Value
@@ -3675,9 +3677,10 @@ local ReachWarned = {}
 local function ApplyPromptReach(Prompt)
     if not Prompt or not Prompt.Parent then return end
     local OldDist = Prompt:GetAttribute("MaxActivationDistance_Old")
-    local Reach = (Options.WallInteractReach and Options.WallInteractReach.Value) or 1
+    -- ★「远距离互动」已整体删除：不再有任何距离倍率。
+    --   这里只把游戏改过的距离还原回它自己的原始值，不再放大。
     if OldDist then
-        local ok, err = pcall(function() Prompt.MaxActivationDistance = OldDist * Reach end)
+        local ok, err = pcall(function() Prompt.MaxActivationDistance = OldDist end)
         if not ok then warn("[Msptds] 距离倍率写失败：" .. tostring(err)) end
     else
         -- ★ 原来这里每帧都 warn。自动互动是每帧扫全部提示的，于是控制台被刷爆 ——
@@ -4410,10 +4413,10 @@ Mini.Divider(tabChar.Page)
 
 Mini.Divider(tabChar.Page)
 
--- 隔墙互动 / 秒互动（照搬 Abysall 的互动三件套，拆成三个独立开关）
-Options.WallInteractReach = Mini.Slider(tabChar.Page, {
-    -- 数值恢复原版：Min 1 / Max 30 / Default 10 / Rounding 0（你说原版的就挺好）
-    Key = "char.wallreach", Text = "互动距离倍率", Min = 1, Max = 30, Default = 10, Rounding = 0 })
+-- 隔墙互动 / 秒互动（照搬 Abysall 的互动三件套）
+-- ★「互动距离倍率」滑条已按你的要求整体删除（远距离互动）。
+--   它默认 10、条件恒真，导致一个「全图每个提示 ×10」的循环永远在跑，
+--   把游戏提示系统的 CPU 吃干，速度绕过 / 物品环绕 / 视野 全被拖死。
 Toggles.InstantPromptsToggle = Mini.Toggle(tabChar.Page, L(
     "char.instant", "秒互动", "Instant Prompts",
     "All prompts trigger with no hold time (HoldDuration = 0).",
@@ -4422,13 +4425,6 @@ Toggles.WallInteractToggle = Mini.Toggle(tabChar.Page, L(
     "char.wall", "隔墙互动", "Interact Through Walls",
     "Prompts ignore the line-of-sight check, so you can interact through walls.",
     "关掉提示的视线检测，隔着墙也能交互，照搬 Abysall 的 Prompt Clip。"))
-
--- 距离倍率变了就重算一遍
--- ★ 原来这里被加了「两个开关都没开就跳过」的守卫 —— 那是错的：
---   Abysall 和原版都是拖滑条立刻生效，加了守卫就变成「只有开了那些开关滑条才有反应」。
-Options.WallInteractReach:OnChanged(function()
-    for _, Prompt in ipairs(PromptReach.List) do ApplyPromptReach(Prompt) end
-end)
 
 Toggles.InstantPromptsToggle:OnChanged(function(Value)
     if Value then EnsurePromptWatch() end
@@ -4459,10 +4455,15 @@ end)
 --   这里低频（10 次/秒）把已记住的提示重新写一遍，才真的生效。
 local PromptReachLoop = { Acc = 0 }
 Connections.PromptReachKeep = Services.RunService.Heartbeat:Connect(function(dt)
-    local Reach = tonumber(Options.WallInteractReach and Options.WallInteractReach.Value) or 1
     local Instant = Toggles.InstantPromptsToggle and Toggles.InstantPromptsToggle.Value
     local Clip = Toggles.WallInteractToggle and Toggles.WallInteractToggle.Value
-    if not (Instant or Clip or Reach ~= 1) then return end
+    -- ★★ 冲突的正源就在这一行：原来还带了 `or Reach ~= 1`，而距离滑条默认 10 ——
+    --    也就是「永远为真」。于是两个开关全关、滑条一动不动，这个循环照样常驻，
+    --    每 0.1 秒把全地图每个提示的 MaxActivationDistance 写一遍。
+    --    游戏的提示系统被迫同时处理上百个目标，CPU 被吃干，
+    --    速度绕过 / 物品环绕 / 视野 全部饿死 ——「开开关没效果」。
+    --    现在只有真的开了「秒互动」或「隔墙互动」才跑。
+    if not (Instant or Clip) then return end
 
     PromptReachLoop.Acc = PromptReachLoop.Acc + (tonumber(dt) or 0)
     if PromptReachLoop.Acc < 0.1 then return end
@@ -4473,7 +4474,7 @@ Connections.PromptReachKeep = Services.RunService.Heartbeat:Connect(function(dt)
         pcall(function()
             if not Prompt.Parent then return end
             local Old = Prompt:GetAttribute("MaxActivationDistance_Old")
-            if Old then Prompt.MaxActivationDistance = Old * Reach end
+            if Old then Prompt.MaxActivationDistance = Old end
             if Instant then Prompt.HoldDuration = 0 end
             if Clip then Prompt.RequiresLineOfSight = false end
         end)
