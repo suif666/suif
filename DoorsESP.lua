@@ -3078,108 +3078,264 @@ Toggles.SpeedBypassToggle:OnChanged(function(Value)
     if not Value then ResetSpeed() end
 end)
 
---────────────────────────── 无拉回穿墙：椅子法（抄 tplays 插件的反作弊绕过） ──────────────────────────
--- 插件原文：
---   CartControl:FireServer() 然后循环 fireproximityprompt(collider.SeatPrompt)
---   等 Character 出现 SeatedInSeat 属性 = 服务器认为你坐上了椅子 → 反作弊判定被顶掉
---   Heartbeat 里把椅子钉在角色身上、Collider 速度拉高
--- 我们这边把「钉椅子」放在 Heartbeat，坐椅子的判定靠持续触发 SeatPrompt。
-local ChairBypass = { Target = nil, Collider = nil }
+--────────────────────────── 反作弊绕过（照搬 tplays 插件的 AnticheatBypassAndFling） ──────────────────────────
+-- 插件原文 tplaysaddon-v2.4.0-v4 L3602-3738，逐句搬运。
+-- 之前我只搬了「CartControl:FireServer() + 每帧喷 SeatPrompt」那半截，少了最关键的几件，
+-- 所以又残又不稳：
+--   ✗ 没先「拿椅子」（chair.Attachment.CartPrompt）→ 只喷 SeatPrompt，服务器根本不认
+--   ✗ 没等 SeatedInSeat 确认就直接当成功了
+--   ✗ 没写 SetAttribute("SeatedInSeat", false)  ← ★ 这一步才是绕过的本体
+--   ✗ fling 只做了「贴到角色身上」，没做「沉到脚下 100」
+--   ✗ 没有自愈：被破坏后不会自己恢复（插件会递归 ConnectChair(..., true)）
+--   ✗ 没有 DescendantAdded 监听 → 你现场抓椅子时不会重新建立
+--   ✗ 没有 ConnectingChair 重入保护
+-- 现在按原文补齐；插件调用到的自有东西全部就地垫片（标 [垫片]）。
+local AC = {
+    Chair = nil, PromptBlock = nil, Collider = nil,
+    ChairConn = nil, GrabConn = nil, Notify = nil, SeatLoop = nil,
+    Connecting = false, Running = false,
+}
 
-local function StopChairBypass()
-    ChairBypass.Target, ChairBypass.Collider = nil, nil
+-- [垫片] isnetworkowner 是执行器函数；没有就退化成「永远算自己拥有」（和插件在能拿到时的分支一致）
+local function IsNetOwner(Part)
+    if Part == nil then return true end
+    local Fn
+    local ok, Res = pcall(function() return getgenv().isnetworkowner end)
+    if ok and type(Res) == "function" then Fn = Res end
+    if not Fn then
+        local ok2, Res2 = pcall(function() return isnetworkowner end)
+        if ok2 and type(Res2) == "function" then Fn = Res2 end
+    end
+    if not Fn then return true end
+    local ok3, R = pcall(Fn, Part)
+    return (ok3 and R == true)
 end
 
-local function FindSeatTarget()
-    local Root = Char.RootPart
-    local Rooms = Services.Workspace:FindFirstChild("CurrentRooms")
-    if not Rooms then return nil end
-    local Best, BestDist = nil, nil
-    for _, Room in ipairs(Rooms:GetChildren()) do
-        for _, Obj in ipairs(Room:GetChildren()) do
-            local Name = Obj.Name
-            if string.find(Name, "OfficeChair") or Name == "ShoppingCart" or Name == "TV_Stand" then
-                local Base = Obj:FindFirstChild("Base")
-                local Collider = Obj:FindFirstChild("Collider")
-                if Base and Collider and Collider:FindFirstChild("SeatPrompt") then
-                    local Pos = Base.Position
-                    local Dist = (Root and Pos) and (Pos - Root.Position).Magnitude or 0
-                    if not BestDist or Dist < BestDist then Best, BestDist = Obj, Dist end
-                end
+-- 插件的 FindChair（L3602-3611）：
+--   Misc:QueryDescendants(`> #{Floor}OfficeChair > #Base`) 里找带 Collider、
+--   且 (有 CartAlignPosition 或是自己网络拥有) 的那把椅子。
+-- 我们不知道 Floor 这个名字，就扫 Misc 下所有名字含 OfficeChair 的容器。
+local function ACFindChair()
+    local Misc = Services.Workspace:FindFirstChild("Misc")
+    if not Misc then return nil end
+    for _, Holder in ipairs(Misc:GetChildren()) do
+        if string.find(Holder.Name, "OfficeChair") then
+            local Base = Holder:FindFirstChild("Base")
+            local Collider = Holder:FindFirstChild("Collider")
+            if Base and Collider then
+                local Align = Base:FindFirstChild("CartAlignPosition")
+                if Align or IsNetOwner(Collider) then return Holder end
             end
         end
     end
-    return Best
+    return nil
 end
 
-local function StartChairBypass()
-    StopChairBypass()
-    if not FirePrompt then
-        pcall(function()
-            Mini.WindUI:Notify({
-                Title = "执行器没有 fireproximityprompt，椅子法用不了",
-                Duration = 5, Icon = "warning",
-            })
-        end)
-        return false
+-- [垫片] 插件用 Character:QueryDescendants("> #CollisionPart > #CartTargetAttachment") 判断
+-- 「角色身上有没有椅子」。我们直接遍历判断，等价。
+local function ACHasCartAttachment(Character)
+    for _, D in ipairs(Character:GetDescendants()) do
+        if D:IsA("Attachment") and D.Name == "CartTargetAttachment"
+            and D.Parent and D.Parent.Name == "CollisionPart" then
+            return true
+        end
     end
-    local Target = FindSeatTarget()
-    if not Target then
-        pcall(function()
-            Mini.WindUI:Notify({
-                Title = "附近没找到椅子 / 购物车，椅子法用不了",
-                Duration = 5, Icon = "warning",
-            })
-        end)
-        return false
+    return false
+end
+
+local ACConnectChair
+
+-- 插件的 ConnectChair（L3625-3698），逐句搬运
+ACConnectChair = function(Chair, PromptBlock, Restoring)
+    if AC.Connecting then return end
+    AC.Connecting = true
+
+    local Character = Char.Character
+    if not (Chair and Chair.Parent and Character and Character.Parent) then
+        AC.Connecting = false
+        return
     end
 
-    ChairBypass.Target = Target
-    ChairBypass.Collider = Target:FindFirstChild("Collider")
+    if Restoring then
+        -- 原文：一直「把椅子怼到角色正前方 + 反复触发拿椅子的提示」，
+        -- 直到角色身上重新出现 CollisionPart/CartTargetAttachment。
+        -- （原文是无限 while，这里加 120 次上限，免得卡死）
+        local T = 0
+        while (not ACHasCartAttachment(Character)) and T < 120 do
+            T = T + 1
+            pcall(function()
+                Chair:PivotTo(Character:GetPivot() + Character:GetPivot().LookVector * 5)
+            end)
+            local Att = Chair:FindFirstChild("Attachment")
+            local CartPrompt = Att and Att:FindFirstChild("CartPrompt")
+            if CartPrompt and FirePrompt then pcall(FirePrompt, CartPrompt, 0) end
+            task.wait()
+        end
+    end
 
+    local Collider = Chair:FindFirstChild("Collider")
+    if not Collider then AC.Connecting = false return end
+
+    -- 原文 L3643-3644：CartControl:FireServer() 然后等一帧
     local Remotes = GetRemotesFolder()
     local CartControl = Remotes and Remotes:FindFirstChild("CartControl")
-    if CartControl then
-        pcall(function() CartControl:FireServer() end)
+    if CartControl then pcall(function() CartControl:FireServer() end) end
+    task.wait()
+
+    -- 原文 L3646-3651：开一个循环不停触发 SeatPrompt，直到坐上去
+    local Doo = true
+    AC.SeatLoop = task.spawn(function()
+        while Doo do
+            local SeatPrompt = Collider:FindFirstChild("SeatPrompt")
+            if SeatPrompt and FirePrompt then pcall(FirePrompt, SeatPrompt, 0) end
+            task.wait()
+        end
+    end)
+
+    -- 原文 L3652：等 SeatedInSeat 属性出现（= 服务器确认你坐上了）。
+    -- 原文是 :Wait() 死等；这里加 5 秒上限，避免服务器不认时永久卡住。
+    local Waited = 0
+    while Character:GetAttribute("SeatedInSeat") == nil and Waited < 5 do
+        Waited = Waited + 0.25
+        task.wait(0.25)
+    end
+    Doo = false
+
+    -- ★★ 原文 L3654：这一步才是绕过的本体 —— 把 SeatedInSeat 强行写回 false
+    pcall(function() Character:SetAttribute("SeatedInSeat", false) end)
+    task.wait()
+
+    if AC.Notify then pcall(function() AC.Notify:Destroy() end) AC.Notify = nil end
+    pcall(function()
+        Mini.WindUI:Notify({ Title = "反作弊已被绕过！", Duration = 3, Icon = "check" })
+    end)
+
+    AC.Connecting = false
+    AC.Running = true
+
+    -- 原文 L3667-3673（ChairConnection）：
+    --   collider 往上顶 10000 → 椅子贴到角色身上 → 等一帧渲染 → 再沉到角色脚下 100
+    --   最后那一下就是「推出去」（fling），之前我漏了。
+    if AC.ChairConn then pcall(function() AC.ChairConn:Disconnect() end) end
+    AC.ChairConn = Services.RunService.Heartbeat:Connect(function()
+        pcall(function() Collider.AssemblyLinearVelocity = Vector3.new(0, 10000, 0) end)
+        local C = Char.Character
+        if not C then return end
+        pcall(function() Chair:PivotTo(C:GetPivot()) end)
+        Services.RunService.RenderStepped:Wait()   -- 原文就是在这儿等一帧（Heartbeat 里可以 yield）
+        pcall(function() Chair:PivotTo(C:GetPivot() - Vector3.new(0, -100, 0)) end)
+    end)
+
+    -- 原文 L3674-3697：等它被破坏，然后自愈
+    task.spawn(function()
+        while AC.ChairConn and Chair:IsDescendantOf(Services.Workspace)
+            and IsNetOwner(PromptBlock) and Char.Character
+            and Char.Character:GetAttribute("SeatedInSeat") ~= nil do
+            task.wait()
+        end
+
+        if AC.ChairConn and Chair:IsDescendantOf(Services.Workspace)
+            and IsNetOwner(PromptBlock) and Char.Character
+            and Char.Character:GetAttribute("DeathReason") ~= "Impact" then
+            -- ★ 原文的自愈分支：标一个假的 DeathReason，然后递归自己（restoring=true）
+            pcall(function() Char.Character:SetAttribute("DeathReason", "_Impact") end)
+            pcall(function()
+                AC.Notify = Mini.WindUI:Notify({
+                    Title = "反作弊绕过被破坏了，正在尝试恢复", Duration = 6, Icon = "warning" })
+            end)
+            ACConnectChair(Chair, PromptBlock, true)
+        else
+            pcall(function()
+                AC.Notify = Mini.WindUI:Notify({
+                    Title = "反作弊绕过被破坏了，再抓一把椅子来恢复", Duration = 8, Icon = "warning" })
+            end)
+        end
+
+        if AC.ChairConn then pcall(function() AC.ChairConn:Disconnect() end) AC.ChairConn = nil end
+        AC.Running = false
+    end)
+end
+
+local function StopACBypass()
+    if AC.GrabConn then pcall(function() AC.GrabConn:Disconnect() end) AC.GrabConn = nil end
+    if AC.ChairConn then pcall(function() AC.ChairConn:Disconnect() end) AC.ChairConn = nil end
+    if AC.Notify then pcall(function() AC.Notify:Destroy() end) AC.Notify = nil end
+    AC.Chair, AC.PromptBlock, AC.Collider = nil, nil, nil
+    AC.Running = false
+end
+
+local function StartACBypass()
+    StopACBypass()
+    if not FirePrompt then
+        pcall(function()
+            Mini.WindUI:Notify({ Title = "执行器没有 fireproximityprompt，反作弊绕过用不了",
+                Duration = 5, Icon = "warning" })
+        end)
+        return false
     end
 
-    local SeatPrompt = ChairBypass.Collider and ChairBypass.Collider:FindFirstChild("SeatPrompt")
-    if not SeatPrompt then return false end
-
+    -- 原文 L3706-3710：先挂一条常驻提示「抓一把椅子来绕过反作弊」
     pcall(function()
-        Mini.WindUI:Notify({ Title = "反作弊已被绕过（椅子法）", Duration = 3, Icon = "check" })
+        AC.Notify = Mini.WindUI:Notify({ Title = "抓一把椅子来绕过反作弊", Duration = 10, Icon = "info" })
     end)
+
+    -- 原文 L3711-3719：★ 监听角色身上出现 CartTargetAttachment ——
+    --   也就是说「你当场抓椅子」这个动作会实时被捕获，然后就地建立绕过。
+    --   之前我没有这条监听，所以必须先站在椅子旁边再开开关，非常不稳。
+    local Character = Char.Character
+    if not Character then
+        pcall(function()
+            Mini.WindUI:Notify({ Title = "反作弊绕过：角色还没加载好", Duration = 4, Icon = "warning" })
+        end)
+        return false
+    end
+
+    AC.GrabConn = Character.DescendantAdded:Connect(function(Descendant)
+        if AC.ChairConn then return end
+        if Descendant:IsA("Attachment") and Descendant.Name == "CartTargetAttachment"
+            and Descendant.Parent and Descendant.Parent.Name == "CollisionPart" then
+            local Chair = ACFindChair()
+            local PromptBlock = Chair and Chair:FindFirstChild("PromptBlocker")
+            if Chair and PromptBlock then
+                AC.Chair, AC.PromptBlock = Chair, PromptBlock
+                AC.Collider = Chair:FindFirstChild("Collider")
+                task.spawn(function() ACConnectChair(Chair, PromptBlock) end)
+            end
+        end
+    end)
+
+    -- 已经抓在手上的话，直接建立一次（原文靠监听，这里补一次即时尝试，等价且更快）
+    if ACHasCartAttachment(Character) then
+        local Chair = ACFindChair()
+        local PromptBlock = Chair and Chair:FindFirstChild("PromptBlocker")
+        if Chair and PromptBlock then
+            AC.Chair, AC.PromptBlock = Chair, PromptBlock
+            AC.Collider = Chair:FindFirstChild("Collider")
+            task.spawn(function() ACConnectChair(Chair, PromptBlock) end)
+        end
+    end
     return true
 end
 
--- 每帧做三件事（插件的 task.wait 循环就是这个节奏，这里挂 Heartbeat 更省一个线程）：
---   ① 朝椅子的 SeatPrompt 触发一次，让服务器持续认为你坐着
---   ② 把 Collider 速度拉高
---   ③ 把椅子钉在角色身上
-Connections.NoPullbackChair = Services.RunService.Heartbeat:Connect(function()
-    if not Toggles.NoPullbackNoclipToggle.Value then return end
-    local Target, Character = ChairBypass.Target, Char.Character
-    if not (Target and Character and Target.Parent) then return end
-
-    local Collider = ChairBypass.Collider
-    local SeatPrompt = Collider and Collider:FindFirstChild("SeatPrompt")
-    if SeatPrompt and FirePrompt then
-        pcall(FirePrompt, SeatPrompt, 0)
-    end
-    if Collider then
-        pcall(function() Collider.AssemblyLinearVelocity = Vector3.new(0, 10000, 0) end)
-    end
-    pcall(function() Target:PivotTo(Character:GetPivot()) end)
+Toggles.ACBypassToggle = Mini.Toggle(tabBypass.Page, L(
+    "by.ac", "反作弊绕过", "Anticheat Bypass",
+    "Tplays' AnticheatBypassAndFling: grab a chair/cart, the plugin drives the seat handshake, "
+    .. "flings, and restores itself if broken.",
+    "照搬 tplays 插件的『反作弊绕过』（AnticheatBypassAndFling）：抓住椅子/购物车后自动完成座位握手、"
+    .. "把 SeatedInSeat 写回 false（这就是绕过本体）、再做一次位移推出，并且被破坏时会自动尝试恢复。"))
+Toggles.ACBypassToggle:OnChanged(function(Value)
+    if Value then StartACBypass() else StopACBypass() end
 end)
 
-Toggles.NoPullbackNoclipToggle:OnChanged(function(Value)
-    if Value then
-        StartChairBypass()
-    else
-        StopChairBypass()
+-- 原文 L3733-3738 的 NotificationFix：开关关掉时把常驻提示销掉
+Connections.NotificationFix = Services.RunService.RenderStepped:Connect(function()
+    if Toggles.ACBypassToggle and not Toggles.ACBypassToggle.Value and AC.Notify then
+        pcall(function() AC.Notify:Destroy() end)
+        AC.Notify = nil
     end
 end)
 
+-- 「无拉回穿墙」原来兼着椅子法，现在反作弊绕过独立出去了，这个开关只管穿墙那部分。
 --────────────────────────── 反作弊操作替代（tplays 插件同名功能，来源 Abysall） ──────────
 -- ★ 这跟上面的「无拉回穿墙」（椅子法）和「速度绕过」是**三个不同的功能**，不要混：
 --     无拉回穿墙      = 抓一把椅子/购物车，靠椅子把反作弊顶掉（t 的『反作弊绕过』）
@@ -4805,7 +4961,7 @@ function Module.Unload()
 
     DisconnectScene()
     DestroyHud()
-    StopChairBypass()
+    StopACBypass()
 
     if ManipulateBody then
         pcall(function() ManipulateBody:Destroy() end)
