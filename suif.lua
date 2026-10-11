@@ -1,5 +1,107 @@
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【静默层】加载期一个字节都不往控制台输出
+--
+-- 为什么必须做：执行器里 print / warn 的内容会进 LogService.MessageOut，
+-- 游戏只要连一条监听就能在你按下执行、UI 还没画出来的时候抓到脚本特征串；
+-- 未捕获的报错还会进 ScriptContext.Error（带调用栈）并被判定为外来脚本。
+-- 所以本文件内的 print / warn 被整体替换为写内存缓冲，控制台完全静默。
+--
+-- 想看日志：控制台执行  =getgenv().SutureLog(true)  会返回整段日志
+--           执行  getgenv().SutureLog()           会返回条数
+-- ══════════════════════════════════════════════════════════════════════════════
+local __LOG, __LOGCAP = {}, 300
+local function __lg(...)
+    local cnt, parts = select("#", ...), {}
+    for i = 1, cnt do parts[i] = tostring((select(i, ...))) end
+    __LOG[#__LOG + 1] = table.concat(parts, " ")
+    if #__LOG > __LOGCAP then table.remove(__LOG, 1) end
+end
+local print, warn = __lg, __lg      -- ★ 本文件内彻底静音（含所有嵌套函数）
+pcall(function()
+    local g = (getgenv and getgenv()) or _G
+    if g then
+        g.SutureLog = function(full)
+            if full == true then return table.concat(__LOG, "\n") end
+            return #__LOG
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【远程脚本沙箱】loadstring 出来的代码默认在全局环境里跑，它自己的 print/warn
+-- 会绕过上面的本地静默层、直接进 LogService.MessageOut。
+-- 实测：WindUI-Boreal 本体有 20 处 warn，其中 L17 的 "[Boreal] GetIcons 获取失败"
+-- 在加载阶段就会触发，L20121 是 "[ WindUI ] Unknown theme"，L5234 是
+-- "[ WindUI.ConfigManager ]" —— 全是公开库名，正好是游戏黑名单会匹配的东西。
+--
+-- 做法：给每个远程 chunk 套一个独立环境，只把 print/warn 换成静默器，
+-- 其余键全部落回 _G。★ 不修改任何全局 —— 所以反作弊查
+-- "print 还是不是原生 C 函数"（tostring(print) 是不是 builtin）也查不出来，
+-- 而且你自己其他脚本的控制台输出完全不受影响。
+--
+-- 万一执行器没有 setfenv，退化成"过滤版全局"：只在内容命中特征串时吞掉
+-- （仍然记进缓冲，不丢日志），其他输出照常放行 —— 不会破坏任何东西。
+-- ══════════════════════════════════════════════════════════════════════════════
+local __SAFEENV = setmetatable({ print = __lg, warn = __lg }, { __index = _G })
+local __hasSetfenv = (type(setfenv) == "function")
+local __filtered = false
+
+local function __quietGlobals()
+    if __hasSetfenv or __filtered then return end
+    __filtered = true
+    local rp, rw = rawget(_G, "print"), rawget(_G, "warn")
+    local pats = { "windui", "boreal", "suture", "msptds", "doorsesp" }
+    local function filt(real)
+        return function(...)
+            local parts = {}
+            for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
+            local joined = table.concat(parts, " ")
+            local line = joined:lower()
+            for _, p in ipairs(pats) do
+                if string.find(line, p, 1, true) then
+                    __lg(joined)          -- ★ 吞掉，但记进缓冲，别丢
+                    return
+                end
+            end
+            return real(...)
+        end
+    end
+    pcall(function() rawset(_G, "print", filt(rp)) end)
+    pcall(function() rawset(_G, "warn", filt(rw)) end)
+end
+
+local function __sandbox(fn)
+    if type(fn) ~= "function" then return fn end
+    if __hasSetfenv and pcall(setfenv, fn, __SAFEENV) then return fn end
+    __quietGlobals()
+    return fn
+end
+
+-- ★ 多源加载：raw.githubusercontent 在某些网络下会被掐，jsDelivr 更稳。
+--   两条都是通用 CDN 域名，交替重试，避免单点失效导致整个脚本加载不出来。
+local __WINDUI_SRC = {
+    "https://cdn.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua?v=expand8",
+    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
+}
 local ok, WindUI = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8"))()
+    local lastErr
+    for _, u in ipairs(__WINDUI_SRC) do
+        local got, src = pcall(function() return game:HttpGet(u) end)
+        if got and type(src) == "string" and #src > 0 then
+            local fn, cerr = loadstring(src)
+            __sandbox(fn)                      -- ★ 静默 WindUI 自己的 20 处 warn
+            if fn then
+                local ran, mod = pcall(fn)
+                if ran and mod then return mod end
+                lastErr = mod
+            else
+                lastErr = cerr
+            end
+        else
+            lastErr = src
+        end
+    end
+    error(lastErr)
 end)
 
 if not ok or not WindUI then
@@ -13,6 +115,34 @@ if not ok or not WindUI then
 end
 
 local lp = game:GetService("Players").LocalPlayer
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【隐藏容器】ScreenGui 只有挂在 PlayerGui 或 CoreGui 下才会渲染。
+-- 但 PlayerGui 是游戏自己的 LocalScript 能枚举到的地方 ——
+-- 「PlayerGui.DescendantAdded 监听 + ScreenGui 名字黑名单」是游戏抓脚本 UI
+-- 最常用的一招：UI 一挂上去就上报，你还没开任何功能，封禁已经下来了。
+-- CoreGui 游戏读不到，所以优先 gethui()，退化到 CoreGui；
+-- 两条路都拿不到才退回 PlayerGui（那种情况下名字也随机，尽量降低被匹配概率）。
+-- ══════════════════════════════════════════════════════════════════════════════
+local __rnd = function(len)
+    local out = {}
+    for i = 1, (len or 12) do out[i] = ("%x"):format(math.random(0, 15)) end
+    return table.concat(out)
+end
+
+local HIDDEN = (function()
+    local ok, h = pcall(function() return gethui and gethui() end)
+    if ok and h then return h end
+    local okc, cg = pcall(function() return game:GetService("CoreGui") end)
+    if okc and cg then return cg end
+    return lp:WaitForChild("PlayerGui")     -- 最后退路
+end)()
+
+-- 拿到就顺手保护起来（有些执行器靠这个把容器从游戏的可见范围里摘出去）
+pcall(function()
+    if protect_gui then protect_gui(HIDDEN)
+    elseif syn and syn.protect_gui then syn.protect_gui(HIDDEN) end
+end)
 
 -- 【视觉体积优化版】全局通知函数
 local function notify(title, content, icon, duration)
@@ -35,6 +165,7 @@ local function run(url, name)
         local ok, err = pcall(function()
             local source = game:HttpGet(url)
             local fn, compileErr = loadstring(source)
+            __sandbox(fn)                      -- ★ 远程脚本静默
             if not fn then
                 error(compileErr)
             end
@@ -57,6 +188,7 @@ local function loadRemote(url, desc, onSuccess, onFail)
             ok, err = pcall(function()
                 local src = game:HttpGet(url)
                 local fn, compileErr = loadstring(src)
+                __sandbox(fn)                  -- ★ 远程脚本静默
                 if not fn then
                     error(compileErr)
                 end
@@ -127,7 +259,10 @@ end
 local function initMainScript()
 
 -- 全局通用防爆杀 (Adonis Bypass)
-getgenv().bypass_adonis = true
+-- ★ 说明：这个键名是[公开约定]，游戏侧的反作弊理论上可以直接读它来判定在用第三方。
+--   但 Adonis 的绕过依赖它，删了会失去这层保护，所以保留 —— 这是本脚本仅剩的
+--   一处"约定名暴露"。不想留就把下面一行注释掉。
+pcall(function() getgenv().bypass_adonis = true end)
 
 local uiSet = { Theme = "Dark", Transparent = true, HideSearchBar = false, SideBarWidth = 180 }
 
@@ -144,10 +279,10 @@ local win = WindUI:CreateWindow({
 -- ============ 最小化方式：小圆圈（可选，替代胶囊栏）============
 local minimizeMode = "capsule"  -- capsule=胶囊栏(默认) / ball=小圆圈
 local sgBall = Instance.new("ScreenGui")
-sgBall.Name = "SutureBall"
+sgBall.Name = __rnd(12)      -- ★ 原名 "SutureBall" 是特征串，改成随机 hex
 sgBall.ResetOnSpawn = false
 sgBall.Enabled = false
-sgBall.Parent = lp:WaitForChild("PlayerGui")
+sgBall.Parent = HIDDEN       -- ★ 原来挂 PlayerGui（游戏可枚举），改挂隐藏容器
 
 -- 自定义样式（加载前可用 getgenv() 覆盖）：
 --   getgenv().SutureBallImage = "rbxassetid://xxx"
@@ -401,6 +536,7 @@ task.spawn(function()
     local ok, err = pcall(function()
         local src = game:HttpGet(FeedbackURL)
         local fn, loadErr = loadstring(src)
+        __sandbox(fn)                          -- ★ 反馈模块静默
 
         if not fn then
             error(loadErr)
@@ -563,11 +699,11 @@ do
         if rsGui and rsGui.Parent then return end
 
         rsGui = Instance.new("ScreenGui")
-        rsGui.Name = "SutureRscripts"
+        rsGui.Name = __rnd(12)       -- ★ 原名 "SutureRscripts" 同上
         rsGui.ResetOnSpawn = false
         rsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         rsGui.DisplayOrder = 100
-        rsGui.Parent = lp:WaitForChild("PlayerGui")
+        rsGui.Parent = HIDDEN        -- ★ 原来挂 PlayerGui，改挂隐藏容器
 
         rsPanel = Instance.new("Frame", rsGui)
         rsPanel.Name = "Panel"
