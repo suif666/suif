@@ -75,26 +75,19 @@ end)
 local task = __taskSafe                    -- ★ 本文件内所有 task.* 都走安全版
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 【服务引用脱钩】游戏可以把某个服务换成代理元表，记录每一次外来索引/调用，
--- 再配合 debug.info(2,"s") 判断"这行代码不是游戏自己写的"。cloneref 返回的引用
--- 不经过那层代理，陷阱就失效。
---
--- ★ 踩过的坑：cloneref(game) 在有些执行器上会返回 nil，那样 game 就变成 nil、
---   整个脚本立刻崩。所以这里逐个校验：拿不到有效引用就原样用回去，绝不冒险。
+-- 【关于服务引用脱钩 —— 结论：不做】
+-- 本来想用 local game = cloneref(game) 来废掉"代理元表记录外来索引"这套陷阱，
+-- 实测证明这条路会把脚本弄坏，原因很简单：
+--   cloneref 返回的是"干净克隆"，执行器给 game 加的扩展方法全部消失 ——
+--   game.HttpGet / game.HttpGetAsync / game.HttpGetAsync 之类当场变 nil。
+--   而 WindUI-Boreal 自己就在用它拉两个东西：
+--     L386  图标集        l = loadstring(game.HttpGetAsync and game:HttpGetAsync(j) or h:GetAsync(j))()
+--     L1938 Luarmor 卡密库 loadstring(game.HttpGetAsync and game:HttpGetAsync(ad) or HttpService:GetAsync(ad))()
+--   game.HttpGetAsync 一没，就退到 HttpService:GetAsync（客户端没这个权限）→ 拿到 nil
+--   → loadstring(nil)() → "attempt to call a nil value" → 界面报 "Boreal加载失败"。
+-- 所以这里彻底不做 game/workspace 脱钩：原样保留执行器包装的 game。
+-- 代理元表那类检测的收益，远不值"把 WindUI 弄坏"这个代价。
 -- ══════════════════════════════════════════════════════════════════════════════
-local __origGame, __origWorkspace = game, workspace
-local game = (function()
-    if type(cloneref) ~= "function" then return __origGame end
-    local ok, c = pcall(cloneref, __origGame)
-    if ok and c ~= nil and c.GetService ~= nil then return c end
-    return __origGame
-end)()
-local workspace = (function()
-    if type(cloneref) ~= "function" then return __origWorkspace end
-    local ok, c = pcall(cloneref, __origWorkspace)
-    if ok and c ~= nil and c.GetChildren ~= nil then return c end
-    return __origWorkspace
-end)()
 
 pcall(function()
     local g = (getgenv and getgenv()) or _G
@@ -107,38 +100,42 @@ pcall(function()
 end)
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 【远程脚本沙箱】loadstring 出来的代码默认在全局环境里跑，它自己的 print/warn
+-- 【远程脚本静音】loadstring 出来的代码默认在全局环境里跑，它自己的 print/warn
 -- 会绕过上面的本地静默层、直接进 LogService.MessageOut。
--- 实测：WindUI-Boreal 本体有 20 处 warn，其中 L17 的 "[Boreal] GetIcons 获取失败"
+-- 实测：WindUI-Boreal 本体有 20 处 warn，L17 的 "[Boreal] GetIcons 获取失败"
 -- 在加载阶段就会触发，L20121 是 "[ WindUI ] Unknown theme"，L5234 是
 -- "[ WindUI.ConfigManager ]" —— 全是公开库名，正好是游戏黑名单会匹配的东西。
 --
--- 做法：给每个远程 chunk 套一个独立环境，只把 print/warn 换成静默器，
--- 其余键全部落回 _G。★ 不修改任何全局 —— 所以反作弊查
--- "print 还是不是原生 C 函数"（tostring(print) 是不是 builtin）也查不出来，
--- 而且你自己其他脚本的控制台输出完全不受影响。
+-- ★★ 这里绝对不能用 setfenv / 换环境（踩过大坑，2025 修了一轮）：
+--    WindUI-Boreal 里有一段 "tick","assert","shared","loadstring","tonumber",...
+--    的全局名清单 —— 它会【枚举当前环境】来给它内部 loadstring 出来的子 chunk
+--    拼一个新环境。一旦我们把它的 chunk env 换成只有几个键的表，它枚举出来的
+--    环境里就没有 loadstring / tick / assert，内部子 chunk 一调用就报
+--    "attempt to call a nil value"，表现就是界面上写着 "Boreal加载失败"。
+--    所以：不碰任何 chunk 的环境，只把全局 print/warn 换一层过滤 ——
+--    命中特征串的吞掉（仍然记进日志，不丢），其余原样放行。
+--    对任何库都是零侵入，不可能改坏它的内部逻辑。
 --
--- 万一执行器没有 setfenv，退化成"过滤版全局"：只在内容命中特征串时吞掉
--- （仍然记进缓冲，不丢日志），其他输出照常放行 —— 不会破坏任何东西。
+-- 代价：print 从原生 C 函数变成一个闭包，理论上 tostring(print) 查得出来。
+-- 但"改坏 WindUI"比"理论上的可检测性"严重得多，所以选了这条路。
 -- ══════════════════════════════════════════════════════════════════════════════
-local __SAFEENV = setmetatable({ print = __lg, warn = __lg, task = __taskSafe, game = game, workspace = workspace },
-    { __index = _G })
-local __hasSetfenv = (type(setfenv) == "function")
-local __filtered = false
+local __SIG = {
+    "windui", "boreal", "expand", "configmanager", "window.background",
+    "addicons", "suture", "msptds", "doorsesp", "suif",
+}
+local __installed = false
 
-local function __quietGlobals()
-    if __hasSetfenv or __filtered then return end
-    __filtered = true
-    local rp, rw = rawget(_G, "print"), rawget(_G, "warn")
-    local pats = { "windui", "boreal", "suture", "msptds", "doorsesp" }
-    local function filt(real)
+local function __installFilter()
+    if __installed then return end
+    __installed = true
+    local function makeFilt(real)
         return function(...)
-            local parts = {}
-            for i = 1, select("#", ...) do parts[i] = tostring((select(i, ...))) end
+            local cnt, parts = select("#", ...), {}
+            for i = 1, cnt do parts[i] = tostring((select(i, ...))) end
             local joined = table.concat(parts, " ")
-            local line = joined:lower()
-            for _, p in ipairs(pats) do
-                if string.find(line, p, 1, true) then
+            local lower = joined:lower()
+            for _, pat in ipairs(__SIG) do
+                if string.find(lower, pat, 1, true) then
                     __lg(joined)          -- ★ 吞掉，但记进缓冲，别丢
                     return
                 end
@@ -146,22 +143,40 @@ local function __quietGlobals()
             return real(...)
         end
     end
-    pcall(function() rawset(_G, "print", filt(rp)) end)
-    pcall(function() rawset(_G, "warn", filt(rw)) end)
+    -- ★ 必须"一定装上"，不能"环境有才装"：
+    --   旧版用 setfenv 时是显式把 print/warn 塞进沙箱环境的，所以沙箱 chunk 一定有 warn；
+    --   改成全局过滤后如果写成"只在 _G.warn 存在时才替换"，那些 _G.warn 恰好缺失的
+    --   环境里，远程脚本的 warn(...) 就会直接 "attempt to call a nil value"。
+    --   所以这里 print/warn 一律给出可用实现：优先包住原生的，没有就用转发的。
+    local rp = rawget(_G, "print")
+    if type(rp) ~= "function" then rp = print end
+    local rw = rawget(_G, "warn")
+    if type(rw) ~= "function" then
+        -- 没有原生 warn 就用 print 转发一份（Roblox 里 warn 一定存在，这里只是兜底）
+        rw = function(...) return rp(...) end
+    end
+    pcall(function() rawset(_G, "print", makeFilt(rp)) end)
+    pcall(function() rawset(_G, "warn", makeFilt(rw)) end)
 end
 
+-- 兼容旧调用点：仍然写 __sandbox(fn)，但它只负责装过滤，绝不动环境
 local function __sandbox(fn)
-    if type(fn) ~= "function" then return fn end
-    if __hasSetfenv and pcall(setfenv, fn, __SAFEENV) then return fn end
-    __quietGlobals()
+    __installFilter()
     return fn
 end
+
+pcall(__installFilter)
 
 -- ★ 多源加载：raw.githubusercontent 在某些网络下会被掐，jsDelivr 更稳。
 --   两条都是通用 CDN 域名，交替重试，避免单点失效导致整个脚本加载不出来。
 local __WINDUI_SRC = {
-    "https://cdn.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua?v=expand8",
+    -- ★ 原版路径放第一位：原版就是拉这个，能正常加载，不要把它换掉。
+    --   （上一轮我把它换成 jsDelivr 打头，偏离了原本可用的路径，已退回。）
     "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
+    -- 下面是兜底：raw 被墙/被掐时才有用
+    "https://cdn.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua?v=expand8",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
+    "https://gcore.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua?v=expand8",
 }
 local ok, WindUI = pcall(function()
     local lastErr
