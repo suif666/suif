@@ -10,55 +10,91 @@
 --           执行  getgenv().SutureLog()           会返回条数
 -- ══════════════════════════════════════════════════════════════════════════════
 local __LOG, __LOGCAP = {}, 300
+-- ★ 排障开关：加载前执行  getgenv().SutureVerbose = true
+--   日志就会同时打到控制台（默认全静默）。出了"公告不出来"这类问题先开它。
+local __VERBOSE = false
+pcall(function()
+    local g = getgenv and getgenv()
+    if g and g.SutureVerbose then __VERBOSE = true end
+end)
+local __realPrint = print          -- ★ 在 shadow 之前抓住原生的
 local function __lg(...)
     local cnt, parts = select("#", ...), {}
     for i = 1, cnt do parts[i] = tostring((select(i, ...))) end
-    __LOG[#__LOG + 1] = table.concat(parts, " ")
+    local joined = table.concat(parts, " ")
+    __LOG[#__LOG + 1] = joined
     if #__LOG > __LOGCAP then table.remove(__LOG, 1) end
+    if __VERBOSE then pcall(__realPrint, "[Suture] " .. joined) end
 end
 local print, warn = __lg, __lg      -- ★ 本文件内彻底静音（含所有嵌套函数）
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- 【任务包装层】task.spawn / task.delay / task.defer 一律包一层 xpcall。
--- 本文件里有 6 处 task.spawn 没被 pcall 保护，其中两个是 while true 常驻循环 ——
--- 里面一旦抛错，就会以"未捕获错误"的形式进控制台，同时进
--- LogService.MessageOut 和 ScriptContext.Error（带调用栈），
--- 等于主动告诉游戏"有个外来脚本在我这儿崩了"。包住之后错误只进内存缓冲。
--- task.wait / task.cancel 等原样透传，行为不变。
+-- 【任务包装层】task.spawn / task.delay / task.defer 包一层 xpcall。
+-- 本文件里原本有 6 处 task.spawn 没被 pcall 保护，其中两个是 while true 常驻循环 ——
+-- 里面一旦抛错就会以"未捕获错误"的形式进控制台，同时进 LogService.MessageOut
+-- 和 ScriptContext.Error（带调用栈），等于主动告诉游戏"有个外来脚本在我这儿崩了"。
+--
+-- ★ 写法上的两个硬要求（踩过坑）：
+--   1. 绝对不能遍历 task 表去拷贝 —— 有些执行器的 task 是代理，pairs 拿不到键，
+--      拷贝出来就是空表，task.spawn 变 nil，本文件末尾拉公告那句会直接报错，
+--      表现就是"公告加载不出来"。这里改成 __index 代理，其余键全部落回原生 task。
+--   2. 必须自检：万一代理不可用，就原样用回原生 task，宁可少一层保护也不能把脚本弄崩。
 -- ══════════════════════════════════════════════════════════════════════════════
-local __taskSafe = {}
-for __k, __v in pairs(task) do __taskSafe[__k] = __v end
-local function __wrapTask(fn)
-    if type(fn) ~= "function" then return fn end
-    return function(...)
-        local ok, err = xpcall(fn, function(e) return tostring(e) end, ...)
-        if not ok then __lg("task 内未捕获错误（已吞）：" .. tostring(err)) end
-    end
-end
-do
-    local rawSpawn = __taskSafe.spawn
-    if type(rawSpawn) == "function" then
-        __taskSafe.spawn = function(fn, ...) return rawSpawn(__wrapTask(fn), ...) end
-    end
-    for _, name in ipairs({ "delay", "defer" }) do
-        local raw = __taskSafe[name]
-        if type(raw) == "function" then
-            __taskSafe[name] = function(a, fn, ...) return raw(a, __wrapTask(fn), ...) end
+local __taskSafe = task                    -- 默认就是原生 task：任何一步出问题都不改行为
+pcall(function()
+    local t = task
+    if type(t) ~= "table" and type(t) ~= "userdata" then return end
+    local rawSpawn, rawDelay, rawDefer = t.spawn, t.delay, t.defer
+    local __unpack = table.unpack or unpack
+    local function wrap(fn)
+        if type(fn) ~= "function" then return fn end
+        return function(...)
+            -- ★ 不依赖 xpcall 转发额外参数（老环境不支持），自己收好再传
+            local n = select("#", ...)
+            local args = { ... }
+            local ok, err = xpcall(function() return fn(__unpack(args, 1, n)) end,
+                                   function(e) return tostring(e) end)
+            if not ok then __lg("task 内未捕获错误（已吞）：" .. tostring(err)) end
         end
     end
-end
-local task = __taskSafe            -- ★ 本文件内所有 task.* 都走安全版
+    local proxy = setmetatable({}, { __index = t })    -- ★ 不遍历，其余键透传
+    if type(rawSpawn) == "function" then
+        rawset(proxy, "spawn", function(fn, ...) return rawSpawn(wrap(fn), ...) end)
+    end
+    if type(rawDelay) == "function" then
+        rawset(proxy, "delay", function(a, fn, ...) return rawDelay(a, wrap(fn), ...) end)
+    end
+    if type(rawDefer) == "function" then
+        rawset(proxy, "defer", function(fn, ...) return rawDefer(wrap(fn), ...) end)
+    end
+    -- ★ 自检：wait / spawn 都拿得到才启用
+    if type(proxy.wait) == "function" and type(proxy.spawn) == "function" then
+        __taskSafe = proxy
+    end
+end)
+local task = __taskSafe                    -- ★ 本文件内所有 task.* 都走安全版
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 【服务引用脱钩】游戏可以把某个服务换成代理元表，记录每一次外来索引/调用，
--- 再配合 debug.info(2,"s") 判断"这行代码不是游戏自己写的" —— 这种陷阱对
--- 任何脚本都有效。cloneref 返回的引用不经过那层代理，陷阱就失效了。
--- 这里把 game 和 workspace 整体脱钩，后面所有 game:GetService / game.PlaceId /
--- workspace.* 都自动走干净引用，不用逐个改。
+-- 再配合 debug.info(2,"s") 判断"这行代码不是游戏自己写的"。cloneref 返回的引用
+-- 不经过那层代理，陷阱就失效。
+--
+-- ★ 踩过的坑：cloneref(game) 在有些执行器上会返回 nil，那样 game 就变成 nil、
+--   整个脚本立刻崩。所以这里逐个校验：拿不到有效引用就原样用回去，绝不冒险。
 -- ══════════════════════════════════════════════════════════════════════════════
-local __cref = (type(cloneref) == "function") and cloneref or function(o) return o end
-local game = __cref(game)
-local workspace = __cref(workspace)
+local __origGame, __origWorkspace = game, workspace
+local game = (function()
+    if type(cloneref) ~= "function" then return __origGame end
+    local ok, c = pcall(cloneref, __origGame)
+    if ok and c ~= nil and c.GetService ~= nil then return c end
+    return __origGame
+end)()
+local workspace = (function()
+    if type(cloneref) ~= "function" then return __origWorkspace end
+    local ok, c = pcall(cloneref, __origWorkspace)
+    if ok and c ~= nil and c.GetChildren ~= nil then return c end
+    return __origWorkspace
+end)()
 
 pcall(function()
     local g = (getgenv and getgenv()) or _G
