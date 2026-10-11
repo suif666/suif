@@ -3671,6 +3671,7 @@ local function RememberPrompt(Prompt)
     PromptReach.List[#PromptReach.List + 1] = Prompt
 end
 
+local ReachWarned = {}
 local function ApplyPromptReach(Prompt)
     if not Prompt or not Prompt.Parent then return end
     local OldDist = Prompt:GetAttribute("MaxActivationDistance_Old")
@@ -3679,7 +3680,12 @@ local function ApplyPromptReach(Prompt)
         local ok, err = pcall(function() Prompt.MaxActivationDistance = OldDist * Reach end)
         if not ok then warn("[Msptds] 距离倍率写失败：" .. tostring(err)) end
     else
-        warn("[Msptds] 这个提示没记住原距离：" .. tostring(Prompt.Name))
+        -- ★ 原来这里每帧都 warn。自动互动是每帧扫全部提示的，于是控制台被刷爆 ——
+        --   每个提示只提醒一次就够了。
+        if not ReachWarned[Prompt] then
+            ReachWarned[Prompt] = true
+            warn("[Msptds] 这个提示没记住原距离（只报一次）：" .. tostring(Prompt.Name))
+        end
     end
 end
 
@@ -3747,7 +3753,7 @@ end
 --   Heartbeat 里遍历已收集的提示，距离进入触发范围就 fire，节流 1/60 秒；
 --   同房间判断用提示的 ParentRoom 属性对玩家的 CurrentRoom。
 -- 这边没有 Aby 那套忽略名单 / 藏身点数据结构，所以只做「附近的提示自动触发」。
-local AutoInteract = { Last = 0, Conn = nil }
+local AutoInteract = { Last = 0, Conn = nil, Cooldown = {} }
 
 -- 收集提示的常驻监听。原来只在「隔墙互动」打开时才建，导致单独开自动互动时列表是空的。
 local function EnsurePromptWatch()
@@ -3770,28 +3776,64 @@ local function PromptInSameRoom(Prompt)
     return tonumber(Room) == tonumber(Cur)
 end
 
-local function AutoFirePrompt(Prompt)
-    if not Prompt or not Prompt.Parent or not Prompt.Enabled then return end
-    if not PromptInSameRoom(Prompt) then return end
-    local LP = Players.LocalPlayer
-    if not LP then return end
-
+-- 取一个提示的世界坐标。
+-- ★ 原来只认 BasePart / Model，其它一律放弃 —— 而 Doors 里大量提示是挂在
+--   Attachment 上的（ProximityPrompt 可以挂 Attachment），于是这些提示
+--   永远走不到触发那一步，表现就是「部分物品无法互动」。
+--   现在：能取到就取；实在取不到返回 nil 表示"位置未知"，由调用方放行。
+local function PromptPosition(Prompt)
     local Parent = Prompt.Parent
-    local Position
-    if Parent:IsA("BasePart") then
-        Position = Parent.Position
-    elseif Parent:IsA("Model") then
+    if not Parent then return nil end
+    if Parent:IsA("BasePart") then return Parent.Position end
+    if Parent:IsA("Attachment") then
+        local ok, Pos = pcall(function() return Parent.WorldPosition end)
+        if ok and Pos then return Pos end
+    end
+    if Parent:IsA("Model") then
         local ok, Pivot = pcall(function() return Parent:GetPivot().Position end)
-        if not ok then return end
-        Position = Pivot
-    else
-        return
+        if ok then return Pivot end
+    end
+    -- 兜底：往上找一层（提示常挂在某个零件下的小零件里）
+    local Grand = Parent.Parent
+    if Grand and Grand:IsA("Model") then
+        local ok, Pivot = pcall(function() return Grand:GetPivot().Position end)
+        if ok then return Pivot end
+    end
+    return nil
+end
+
+local function AutoFirePrompt(Prompt)
+    if not Prompt or not Prompt.Parent then return end
+    if not Prompt:IsA("ProximityPrompt") then return end
+
+    -- 单提示节流（aby 原文里的 PromptCooldown，之前漏了）：
+    -- 不然每帧重复触发同一个提示，既卡又可能触发奇怪的行为。
+    local Now = os.clock()
+    if (AutoInteract.Cooldown[Prompt] or 0) > Now then return end
+    AutoInteract.Cooldown[Prompt] = Now + 0.5
+
+    if not PromptInSameRoom(Prompt) then return end
+
+    -- ★ 先放宽，再判距离。顺序反过来就是用「没放宽的原始距离」判定，
+    --   滑条调多大都没用，稍微远一点的东西就互动不了。
+    ReachPrompt(Prompt)
+
+    local LP = Players.LocalPlayer
+    local Position = PromptPosition(Prompt)
+    if Position and LP then
+        -- 位置未知时放行：别因为认不出挂载方式就放弃
+        local Allow = tonumber(Prompt.MaxActivationDistance) or 0
+        if Allow < 30 then Allow = 30 end      -- 近距离的一律允许
+        if LP:DistanceFromCharacter(Position) > Allow then return end
     end
 
-    if LP:DistanceFromCharacter(Position) > Prompt.MaxActivationDistance then return end
+    -- ★ 不再因为 Prompt.Enabled == false 就直接放弃。
+    --   Doors 里不少提示离远了是 disabled 的，临时打开、fire 完再还原。
+    local WasEnabled = Prompt.Enabled
+    if not WasEnabled then
+        if not pcall(function() Prompt.Enabled = true end) then return end
+    end
 
-    -- 触发前先放宽（和隔墙互动同一套），触发后 ApplyPrompt 会维持
-    ReachPrompt(Prompt)
     local Fire = getgenv().fireproximityprompt
     if type(Fire) ~= "function" then
         local ok, Global = pcall(function() return fireproximityprompt end)
@@ -3799,6 +3841,12 @@ local function AutoFirePrompt(Prompt)
     end
     if type(Fire) == "function" then
         pcall(Fire, Prompt)
+    end
+
+    if not WasEnabled then
+        task.delay(0.2, function()
+            pcall(function() Prompt.Enabled = false end)
+        end)
     end
 end
 
@@ -3810,8 +3858,16 @@ local function StartAutoInteract()
         local Now = tick()
         if Now - AutoInteract.Last < 1 / 60 then return end
         AutoInteract.Last = Now
-        for _, Prompt in ipairs(PromptReach.List) do
-            task.spawn(AutoFirePrompt, Prompt)
+        -- 顺手摘掉已经销毁的提示（不摘的话列表和 Cooldown 表会一直涨，越跑越慢）
+        for I = #PromptReach.List, 1, -1 do
+            local Prompt = PromptReach.List[I]
+            if not Prompt or not Prompt.Parent then
+                table.remove(PromptReach.List, I)
+                AutoInteract.Cooldown[Prompt] = nil
+                ReachWarned[Prompt] = nil
+            else
+                task.spawn(AutoFirePrompt, Prompt)
+            end
         end
     end)
 end
