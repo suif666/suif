@@ -1664,7 +1664,14 @@ Functions.AddESP = function(ESPOptions, RoomBased)
         local CurrentRoom = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
         local ObjectRoom = tonumber(Object:GetAttribute("ParentRoom"))
 
-        if ObjectRoom == CurrentRoom
+        -- ★ 原来这里只有严格相等判断：属性还没同步好的那一瞬（ParentRoom 或 CurrentRoom
+        --   是 nil）会直接判不成立、跳过，而重试只发生在「CurrentRoom 变化」的那一刻 ——
+        --   于是有些物体永远等不到第二次机会。表现就是「有时候 ESP 加载不出来」。
+        --   现在把「房间信息缺失」当放行：先显示出来；等属性到齐，下面那条
+        --   CurrentRoomChanged 回调会把不该显示的移除掉，不会留错。
+        local RoomUnknown = (ObjectRoom == nil) or (CurrentRoom == nil)
+        if RoomUnknown
+            or ObjectRoom == CurrentRoom
             or (table.find(Objects.Doors, Object) and ObjectRoom == CurrentRoom + 1) then
             ESPLibrary:AddESP(ESPOptions)
         end
@@ -1677,7 +1684,10 @@ Functions.AddESP = function(ESPOptions, RoomBased)
             local NewCurrentRoom = tonumber(LocalPlayer:GetAttribute("CurrentRoom"))
             local ObjRoom = tonumber(Object:GetAttribute("ParentRoom"))
 
-            if ObjRoom == NewCurrentRoom
+            -- 同上：房间信息缺失时保留，别误删
+            local StillUnknown = (ObjRoom == nil) or (NewCurrentRoom == nil)
+            if StillUnknown
+                or ObjRoom == NewCurrentRoom
                 or (table.find(Objects.Doors, Object) and ObjRoom == NewCurrentRoom + 1) then
                 ESPLibrary:AddESP(ESPOptions)
             else
@@ -2182,10 +2192,31 @@ Functions.QueueObject = function(Object)
     table.insert(Globals.ObjectQueue, Object)
 end
 
+-- ★★ 这里踩了两个坑，合起来就是「ESP 有时候加载不出来」：
+--   ① 原来「每帧只从队列里取 1 个」。而上面那句初始扫描会把 workspace 里所有实例
+--      一次性推进队列 —— 上千个对象就要上千帧（几十秒）才轮得到，
+--      而且期间还有新对象一直进队插到后面。表现就是：ESP 迟迟不出现，像没加载出来。
+--      → 改成每帧按时间预算批量处理：至少 32 个，之后看耗时，最多 400 个。
+--   ② 回调里直接调 HandleObject，一旦某个对象处理抛错，Roblox 会**断开这个连接**——
+--      整条 ESP 队列从此永久停摆（而且不会有任何提示）。
+--      → 每个对象单独 pcall，坏一个不影响后面的。
+local ESP_QUEUE_BUDGET = 0.003   -- 每帧最多花 3 毫秒在处理队列上
+local ESP_QUEUE_MIN, ESP_QUEUE_MAX = 32, 400
 Connections.QueueConnection = Services.RunService.RenderStepped:Connect(function()
-    local Object = table.remove(Globals.ObjectQueue, 1)
-    if Object then
-        Functions.HandleObject(Object)
+    local Deadline = os.clock() + ESP_QUEUE_BUDGET
+    local Handled = 0
+    while true do
+        local Object = table.remove(Globals.ObjectQueue, 1)
+        if not Object then break end
+
+        local ok, err = pcall(Functions.HandleObject, Object)
+        if not ok then
+            warn("[Msptds] ESP 处理对象出错（已跳过，队列继续）：" .. tostring(err))
+        end
+
+        Handled = Handled + 1
+        if Handled >= ESP_QUEUE_MAX then break end
+        if Handled >= ESP_QUEUE_MIN and os.clock() >= Deadline then break end
     end
 end)
 
@@ -3680,11 +3711,17 @@ local function ScanPrompts(Apply)
     end
 end
 
--- 开门/触发用一个「临时拉长」的版本：把范围拉大、按住归零，然后让游戏自己交互
+-- 让一个提示变得够得着。
+-- ★ 这里原来硬写 Prompt.MaxActivationDistance = 1000，会和界面上的「互动距离倍率」
+--   互相打架：自动楼层改成每帧调用之后，等于每帧都强写 1000，滑条怎么拖都没用 ——
+--   这就是「远距离互动有问题」的原因。
+--   现在改回原版/Abysall 那套语义：先把提示记下来（保留它自己的原始距离），
+--   再按滑条倍率算 MaxActivationDistance = 原值 × 倍率。滑条重新可控。
 local function ReachPrompt(Prompt)
     if not Prompt then return false end
+    RememberPrompt(Prompt)
+    ApplyPromptReach(Prompt)
     return pcall(function()
-        Prompt.MaxActivationDistance = 1000
         Prompt.HoldDuration = 0
         Prompt.RequiresLineOfSight = false
     end)
@@ -4304,9 +4341,8 @@ Mini.Divider(tabChar.Page)
 
 -- 隔墙互动 / 秒互动（照搬 Abysall 的互动三件套，拆成三个独立开关）
 Options.WallInteractReach = Mini.Slider(tabChar.Page, {
-    -- 数值照 Abysall 原版：Min 1 / Max 2 / Default 1 / Rounding 1
-    -- 原来写的 1~30、默认 10 太大，游戏不认（ProximityPrompt 的实际生效范围有上限）
-    Key = "char.wallreach", Text = "互动距离倍率", Min = 1, Max = 2, Default = 1, Rounding = 1 })
+    -- 数值恢复原版：Min 1 / Max 30 / Default 10 / Rounding 0（你说原版的就挺好）
+    Key = "char.wallreach", Text = "互动距离倍率", Min = 1, Max = 30, Default = 10, Rounding = 0 })
 Toggles.InstantPromptsToggle = Mini.Toggle(tabChar.Page, L(
     "char.instant", "秒互动", "Instant Prompts",
     "All prompts trigger with no hold time (HoldDuration = 0).",
@@ -4316,9 +4352,10 @@ Toggles.WallInteractToggle = Mini.Toggle(tabChar.Page, L(
     "Prompts ignore the line-of-sight check, so you can interact through walls.",
     "关掉提示的视线检测，隔着墙也能交互，照搬 Abysall 的 Prompt Clip。"))
 
--- 距离倍率变了就重算一遍（不用每帧扫）
+-- 距离倍率变了就重算一遍
+-- ★ 原来这里被加了「两个开关都没开就跳过」的守卫 —— 那是错的：
+--   Abysall 和原版都是拖滑条立刻生效，加了守卫就变成「只有开了那些开关滑条才有反应」。
 Options.WallInteractReach:OnChanged(function()
-    if not (Toggles.WallInteractToggle.Value or Toggles.InstantPromptsToggle.Value) then return end
     for _, Prompt in ipairs(PromptReach.List) do ApplyPromptReach(Prompt) end
 end)
 
@@ -4372,6 +4409,141 @@ Connections.PromptReachKeep = Services.RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
+--────────────────────────── 自动 200 门（水坝阀门） ──────────────────────────
+-- 对应 Abysall 原版 Main.luau 5841-5904 行的「Auto Complete Dam Seek」按钮。
+-- 第 200 门是 The Mines 的水坝那段：要按从高到低的顺序开一堆水泵阀门。
+-- 原文结构：
+--     local function GetNextPump()    -- 找 Name == "WaterPump" 且未完成的，取 Y 最高那个
+--     local function HandlePump(Pump) -- 每 0.1 秒：PivotTo(泵) → 触发 ValvePrompt → 直到完成
+--     while task.wait(0.1) do Pump = GetNextPump(); if Pump then HandlePump(Pump) else break end end
+-- [垫片] aby 的 Objects.Objectives 是它自己维护的表，这边没有 → 直接在 workspace 里递归找 WaterPump
+-- [垫片] aby 用 Pump:GetAttribute("Abysall_Completed") 判断完成 —— 那是它自己写的属性，
+--        对我们不存在 → 改用本地表记录 + 「阀门消失/泵被销毁」也算完成
+-- [垫片] aby 的 Functions.ForceFirePrompt 见下面 ForceFirePrompt，逻辑逐行照抄
+local DamSeek = { Running = false, Done = {}, Busy = {} }
+
+local function FindPumps()
+    local Found = {}
+    for _, Inst in ipairs(Services.Workspace:GetDescendants()) do
+        if Inst.Name == "WaterPump" then Found[#Found + 1] = Inst end
+    end
+    return Found
+end
+
+local function GetNextPump()
+    local Best = { Height = -1 / 0, Object = nil }
+    for _, Pump in ipairs(FindPumps()) do
+        if not DamSeek.Done[Pump] and Pump.PrimaryPart then
+            local Y = Pump.PrimaryPart.Position.Y
+            if Y > Best.Height then Best.Object, Best.Height = Pump, Y end
+        end
+    end
+    return Best.Object
+end
+
+-- ★ 隔空触发任意提示的可靠做法 —— 逐行照抄 aby 的 Functions.FirePrompt（原版 L7655-7720）：
+--   造一个「相机前 0.1 格」的极小部件，把提示临时挂上去 —— 提示就等于长在你脸上，
+--   再把距离/按住/视线全部放开，用 InputHoldBegin/InputHoldEnd 触发，最后原样还原。
+--   好处：不依赖执行器的 fireproximityprompt，隔着多远、隔着墙都能开。
+local function ForceFirePrompt(Prompt)
+    if not Prompt or not Prompt:IsA("ProximityPrompt") then return false end
+    local Camera = Services.Workspace.CurrentCamera
+    if not Camera then return false end
+
+    local OldDist, OldEnable, OldParent = Prompt.MaxActivationDistance, Prompt.Enabled, Prompt.Parent
+    local OldHold, OldLOS = Prompt.HoldDuration, Prompt.RequiresLineOfSight
+
+    local TempPart = Instance.new("Part")
+    TempPart.Anchored = true
+    TempPart.CanCollide, TempPart.CanQuery, TempPart.CanTouch = false, false, false
+    TempPart.Transparency = 1
+    TempPart.Size = Vector3.new(0.001, 0.001, 0.001)
+    TempPart.Position = Camera.CFrame:ToWorldSpace(CFrame.new(0, 0, -0.1)).Position
+    TempPart.Parent = Services.Workspace
+
+    local ok = pcall(function()
+        Prompt.MaxActivationDistance = 99999
+        Prompt.Enabled = true
+        Prompt.HoldDuration = 0
+        Prompt.RequiresLineOfSight = false
+        Prompt.Parent = TempPart
+
+        local Fired = false
+        local Conn = Prompt.Triggered:Connect(function() Fired = true end)
+        local T = 0
+        while not Fired and T < 30 and DamSeek.Running do
+            pcall(function()
+                Prompt:InputHoldBegin()
+                Prompt:InputHoldEnd()
+            end)
+            T = T + 1
+            task.wait()
+        end
+        pcall(function() Conn:Disconnect() end)
+    end)
+
+    -- 原样还原，别把游戏自己的提示改坏
+    pcall(function()
+        Prompt.MaxActivationDistance = OldDist
+        Prompt.Enabled = OldEnable
+        Prompt.HoldDuration = OldHold
+        Prompt.RequiresLineOfSight = OldLOS
+    end)
+    if OldParent then pcall(function() Prompt.Parent = OldParent end) end
+    pcall(function() TempPart:Destroy() end)
+    return ok
+end
+
+local function HandlePump(Pump)
+    DamSeek.Busy[Pump] = true
+    local T = 0
+    while DamSeek.Running and T < 60 do
+        T = T + 1
+        local Character = Char.Character
+        if Character then pcall(function() Character:PivotTo(Pump:GetPivot()) end) end
+        local Prompt = Pump:FindFirstChild("ValvePrompt", true)
+        if Prompt then ForceFirePrompt(Prompt) end
+        -- 阀门没了 / 泵被销毁 = 这个泵开好了
+        if not Pump.Parent then break end
+        if not Pump:FindFirstChild("ValvePrompt", true) then break end
+        task.wait(0.1)
+    end
+    DamSeek.Busy[Pump] = nil
+    DamSeek.Done[Pump] = true
+end
+
+local function StartDamSeek()
+    if DamSeek.Running then return end
+    local LatestRoom = GetLatestRoom()
+    if not LatestRoom or (tonumber(LatestRoom.Value) or 0) < 100 then
+        AFNotify("自动 200 门：要在第 200 门（水坝）附近才能用", nil, 5)
+        return
+    end
+    if #FindPumps() == 0 then
+        AFNotify("自动 200 门：附近没找到水泵", nil, 5)
+        return
+    end
+    DamSeek.Running = true
+    AFNotify("自动 200 门：开始开阀门…", nil, 4)
+    task.spawn(function()
+        while DamSeek.Running do
+            local Pump = GetNextPump()
+            if not Pump then break end
+            HandlePump(Pump)
+        end
+        local WasRunning = DamSeek.Running
+        DamSeek.Running = false
+        if Toggles.DamSeekToggle then Toggles.DamSeekToggle:SetValue(false) end
+        if WasRunning then AFNotify("自动 200 门：阀门全部开完！", nil, 6) end
+    end)
+end
+
+local function StopDamSeek()
+    if not DamSeek.Running then return end
+    DamSeek.Running = false
+    AFNotify("自动 200 门：已停止", nil, 3)
+end
+
 -- 自动互动（照搬 Abysall 的 Auto Interact）
 Toggles.AutoInteractToggle = Mini.Toggle(tabAuto.Page, L(
     "auto.interact", "自动互动", "Auto Interact",
@@ -4379,6 +4551,15 @@ Toggles.AutoInteractToggle = Mini.Toggle(tabAuto.Page, L(
     "自动触发附近的提示，照搬 Abysall 的 Auto Interact。"))
 Toggles.AutoInteractToggle:OnChanged(function(Value)
     if Value then StartAutoInteract() else StopAutoInteract() end
+end)
+
+-- 自动 200 门（照搬 Abysall 的 Auto Complete Dam Seek）
+Toggles.DamSeekToggle = Mini.Toggle(tabAuto.Page, L(
+    "auto.damseek", "自动 200 门（水坝阀门）", "Auto Complete Dam Seek",
+    "Abysall's Auto Complete Dam Seek: opens every water pump valve in room 200 for you.",
+    "第 200 门（The Mines 水坝）那段，自动跑过去把每个水泵阀门开完，照搬 Abysall 的 Auto Complete Dam Seek。"))
+Toggles.DamSeekToggle:OnChanged(function(Value)
+    if Value then StartDamSeek() else StopDamSeek() end
 end)
 
 -- 自动楼层（楼梯间）
