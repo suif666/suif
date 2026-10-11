@@ -608,6 +608,7 @@ local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked =
 local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
+local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2819,6 +2820,14 @@ xzTab:Button({
     Title = "[🔑]小猪", Desc = "只找到这一个 功能很多 很齐全", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E5%B0%8F%E7%8C%AA.lua", "小猪")
+    end
+})
+
+zqzcTab:Button({
+    Title = "[🔑][未汉化]最强战场刷人头", Desc = "字面意思 应该没啥反作弊", Icon = "shell",
+    Callback = function()
+		getgenv().DoServerHop = true
+        run("https://gitlab.com/zkay404-group/ProjectYielding/-/raw/main/ZKSuryuFarm", "最强战场刷人头")
     end
 })
 
