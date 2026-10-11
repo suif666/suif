@@ -3327,6 +3327,18 @@ Toggles.ACBypassToggle:OnChanged(function(Value)
     if Value then StartACBypass() else StopACBypass() end
 end)
 
+-- 梯子绕过（Sapphire 的 AnticheatBypass）：梯子在旅馆/Archives 都有，比椅子法适用范围广
+local StartLadderBypass, StopLadderBypass
+Toggles.LadderBypassToggle = Mini.Toggle(tabBypass.Page, L(
+    "by.ladder", "梯子绕过", "Anticheat Bypass (Ladder)",
+    "Sapphire's AnticheatBypass: climb a ladder, then the Climbing attribute is written back "
+    .. "to false 0.4s later. Ladders exist on every floor, unlike chairs.",
+    "照搬 Sapphire 的『绕过反作弊』（梯子法）：爬梯子后等 0.4 秒把 Climbing 写回 false。"
+    .. "梯子在旅馆/Archives 都有，比 t 的椅子法适用范围广。开着自己会去找梯子爬。"))
+Toggles.LadderBypassToggle:OnChanged(function(Value)
+    if Value then StartLadderBypass() else StopLadderBypass() end
+end)
+
 -- 原文 L3733-3738 的 NotificationFix：开关关掉时把常驻提示销掉
 Connections.NotificationFix = Services.RunService.RenderStepped:Connect(function()
     if Toggles.ACBypassToggle and not Toggles.ACBypassToggle.Value and AC.Notify then
@@ -3336,7 +3348,143 @@ Connections.NotificationFix = Services.RunService.RenderStepped:Connect(function
 end)
 
 -- 「无拉回穿墙」原来兼着椅子法，现在反作弊绕过独立出去了，这个开关只管穿墙那部分。
---────────────────────────── 反作弊操作替代（tplays 插件同名功能，来源 Abysall） ──────────
+--────────────────────────── 梯子绕过（照搬 Sapphire.lua 的 AnticheatBypass） ──────────────────────────
+-- Sapphire.lua L5275-5295 原文：
+--     Toggles.AnticheatBypass:OnChanged(function(Value)
+--         if not Value then RemoteFolder.ClimbLadder:FireServer() end
+--         if Value then Library:Notify("爬上梯子绕过反作弊", 9) end
+--     end)
+--     LocalPlayer.Character:GetAttributeChangedSignal("Climbing"):Connect(function()
+--         if LocalPlayer.Character:GetAttribute("Climbing") == true then
+--             if Toggles.AnticheatBypass.Value then
+--                 task.wait(0.4)
+--                 LocalPlayer.Character:SetAttribute("Climbing", false)   -- ★ 绕过本体
+--                 Library:Notify("绕过成功，过场动画和Halt会破坏绕过", 7)
+--             end
+--         end
+--     end)
+-- 机理和 t 的椅子法完全同源：都是「让服务器以为你在某个交互里，然后把那个状态写回 false」。
+-- 梯子法的好处是梯子在旅馆/Archives 都有，不像椅子只出现在特定楼层。
+--
+-- 「怎么好用怎么来」这里多做了两件 Sapphire 没做的事：
+--   ① 自动找梯子并触发它的攀爬提示 —— 不用你自己跑过去爬
+--   ② 触发后 1 秒内 Climbing 还没变 true 就传送到梯子旁边再触发一次（自愈）
+local LadderBypass = { AttrConn = nil, AutoConn = nil, Busy = false, Tried = {} }
+
+local function FindLadderModel()
+    -- 优先用 ESP 那边已经维护好的梯子列表（Name == "Ladder" 的 Model）
+    if Objects and Objects.Ladders then
+        for _, L in ipairs(Objects.Ladders) do
+            if L and L.Parent then return L end
+        end
+    end
+    -- 兜底：现场扫（梯子在 CurrentRooms 下）
+    local Rooms = Services.Workspace:FindFirstChild("CurrentRooms")
+    local Root = Rooms or Services.Workspace
+    for _, Inst in ipairs(Root:GetDescendants()) do
+        if Inst.Name == "Ladder" and Inst:IsA("Model") then return Inst end
+    end
+    return nil
+end
+
+local function FireLadderPrompt(Ladder)
+    if not (Ladder and Ladder.Parent) then return false end
+    for _, D in ipairs(Ladder:GetDescendants()) do
+        if D:IsA("ProximityPrompt") then
+            if FirePrompt then pcall(FirePrompt, D, 0) end
+            return true
+        end
+    end
+    return false
+end
+
+function StopLadderBypass()
+    -- 原文 L5280-5282：关掉开关时 RemoteFolder.ClimbLadder:FireServer()（把攀爬状态还回去）
+    if Char.Character then
+        local Remotes = GetRemotesFolder()
+        local ClimbLadder = Remotes and Remotes:FindFirstChild("ClimbLadder")
+        if ClimbLadder then pcall(function() ClimbLadder:FireServer() end) end
+    end
+    if LadderBypass.AttrConn then
+        pcall(function() LadderBypass.AttrConn:Disconnect() end)
+        LadderBypass.AttrConn = nil
+    end
+    if LadderBypass.AutoConn then
+        pcall(function() LadderBypass.AutoConn:Disconnect() end)
+        LadderBypass.AutoConn = nil
+    end
+    LadderBypass.Busy = false
+    LadderBypass.Tried = {}
+end
+
+function StartLadderBypass()
+    StopLadderBypass()
+    local Character = Char.Character
+    if not Character then
+        pcall(function()
+            Mini.WindUI:Notify({ Title = "梯子绕过：角色还没加载好", Duration = 4, Icon = "warning" })
+        end)
+        return false
+    end
+
+    -- ① 原文的核心：等服务器把 Climbing 置 true，再等 0.4 秒把它写回 false
+    LadderBypass.AttrConn = Character:GetAttributeChangedSignal("Climbing"):Connect(function()
+        if not (Toggles.LadderBypassToggle and Toggles.LadderBypassToggle.Value) then return end
+        if Character:GetAttribute("Climbing") ~= true then return end
+        task.spawn(function()
+            task.wait(0.4)                       -- 原文就是这个数值
+            if not (Toggles.LadderBypassToggle and Toggles.LadderBypassToggle.Value) then return end
+            pcall(function() Character:SetAttribute("Climbing", false) end)
+            pcall(function()
+                Mini.WindUI:Notify({
+                    Title = "梯子绕过成功（过场动画和 Halt 会破坏绕过）",
+                    Duration = 6, Icon = "check" })
+            end)
+        end)
+    end)
+
+    -- ② 自动爬梯：每 2 秒看一次，没在爬就找一座梯子触发它的攀爬提示；
+    --    触发后 1 秒还没 Climbing，就传送到梯子旁边再触发一次（自愈）
+    local Acc = 0
+    LadderBypass.AutoConn = Services.RunService.Heartbeat:Connect(function(dt)
+        if not (Toggles.LadderBypassToggle and Toggles.LadderBypassToggle.Value) then return end
+        Acc = Acc + (tonumber(dt) or 0)
+        if Acc < 2 then return end
+        Acc = 0
+        if LadderBypass.Busy then return end
+
+        local C = Char.Character
+        if not C or not C.Parent then return end
+        if C:GetAttribute("Climbing") == true then return end     -- 已经在爬了
+        if C:GetAttribute("DeathReason") ~= nil then return end   -- 死了就不折腾
+
+        local Ladder = FindLadderModel()
+        if not Ladder then return end
+
+        LadderBypass.Busy = true
+        task.spawn(function()
+            FireLadderPrompt(Ladder)
+            task.wait(1)
+            if Toggles.LadderBypassToggle and Toggles.LadderBypassToggle.Value
+                and Char.Character and Char.Character:GetAttribute("Climbing") ~= true then
+                -- 自愈：贴到梯子边上再来一次
+                pcall(function() Char.Character:PivotTo(Ladder:GetPivot()) end)
+                task.wait(0.2)
+                FireLadderPrompt(Ladder)
+            end
+            LadderBypass.Busy = false
+        end)
+    end)
+
+    pcall(function()
+        Mini.WindUI:Notify({
+            Title = "梯子绕过已启动：自动找梯子爬上去，爬上去就绕过",
+            Duration = 5, Icon = "info" })
+    end)
+    return true
+end
+
+
 -- ★ 这跟上面的「无拉回穿墙」（椅子法）和「速度绕过」是**三个不同的功能**，不要混：
 --     无拉回穿墙      = 抓一把椅子/购物车，靠椅子把反作弊顶掉（t 的『反作弊绕过』）
 --     速度绕过        = 改 WalkSpeed / 滑行（t 的『速度绕过』）
@@ -3961,9 +4109,28 @@ local function PromptPosition(Prompt)
     return nil
 end
 
+-- ★ 照搬 Sapphire 的 AutoInteract 忽略名单（L680-692）。
+--   它不自动触发这些提示，因为触发它们等于替你做决定：
+--     钻柜子(HidePrompt) / 复活(RevivePrompt) / 假门(FakePrompt) / 推(PushPrompt)…
+--   ClimbPrompt 也在名单里 —— 因为爬梯子是留给「梯子绕过」用的，不能被自动互动抢掉。
+local AutoInteractIgnore = {
+    HidePrompt = true,
+    RiftPrompt = true,
+    StarRiftPrompt = true,
+    InteractPrompt = true,
+    FakePrompt = true,
+    PushPrompt = true,
+    ClimbPrompt = true,
+    RevivePrompt = true,
+    PropPrompt = true,
+    NoHidingLilBro = true,
+    DonatePrompt = true,
+}
+
 local function AutoFirePrompt(Prompt)
     if not Prompt or not Prompt.Parent then return end
     if not Prompt:IsA("ProximityPrompt") then return end
+    if AutoInteractIgnore[Prompt.Name] then return end
 
     -- 单提示节流（aby 原文里的 PromptCooldown，之前漏了）：
     -- 不然每帧重复触发同一个提示，既卡又可能触发奇怪的行为。
