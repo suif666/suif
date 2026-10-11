@@ -17,6 +17,49 @@ local function __lg(...)
     if #__LOG > __LOGCAP then table.remove(__LOG, 1) end
 end
 local print, warn = __lg, __lg      -- ★ 本文件内彻底静音（含所有嵌套函数）
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【任务包装层】task.spawn / task.delay / task.defer 一律包一层 xpcall。
+-- 本文件里有 6 处 task.spawn 没被 pcall 保护，其中两个是 while true 常驻循环 ——
+-- 里面一旦抛错，就会以"未捕获错误"的形式进控制台，同时进
+-- LogService.MessageOut 和 ScriptContext.Error（带调用栈），
+-- 等于主动告诉游戏"有个外来脚本在我这儿崩了"。包住之后错误只进内存缓冲。
+-- task.wait / task.cancel 等原样透传，行为不变。
+-- ══════════════════════════════════════════════════════════════════════════════
+local __taskSafe = {}
+for __k, __v in pairs(task) do __taskSafe[__k] = __v end
+local function __wrapTask(fn)
+    if type(fn) ~= "function" then return fn end
+    return function(...)
+        local ok, err = xpcall(fn, function(e) return tostring(e) end, ...)
+        if not ok then __lg("task 内未捕获错误（已吞）：" .. tostring(err)) end
+    end
+end
+do
+    local rawSpawn = __taskSafe.spawn
+    if type(rawSpawn) == "function" then
+        __taskSafe.spawn = function(fn, ...) return rawSpawn(__wrapTask(fn), ...) end
+    end
+    for _, name in ipairs({ "delay", "defer" }) do
+        local raw = __taskSafe[name]
+        if type(raw) == "function" then
+            __taskSafe[name] = function(a, fn, ...) return raw(a, __wrapTask(fn), ...) end
+        end
+    end
+end
+local task = __taskSafe            -- ★ 本文件内所有 task.* 都走安全版
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【服务引用脱钩】游戏可以把某个服务换成代理元表，记录每一次外来索引/调用，
+-- 再配合 debug.info(2,"s") 判断"这行代码不是游戏自己写的" —— 这种陷阱对
+-- 任何脚本都有效。cloneref 返回的引用不经过那层代理，陷阱就失效了。
+-- 这里把 game 和 workspace 整体脱钩，后面所有 game:GetService / game.PlaceId /
+-- workspace.* 都自动走干净引用，不用逐个改。
+-- ══════════════════════════════════════════════════════════════════════════════
+local __cref = (type(cloneref) == "function") and cloneref or function(o) return o end
+local game = __cref(game)
+local workspace = __cref(workspace)
+
 pcall(function()
     local g = (getgenv and getgenv()) or _G
     if g then
@@ -42,7 +85,8 @@ end)
 -- 万一执行器没有 setfenv，退化成"过滤版全局"：只在内容命中特征串时吞掉
 -- （仍然记进缓冲，不丢日志），其他输出照常放行 —— 不会破坏任何东西。
 -- ══════════════════════════════════════════════════════════════════════════════
-local __SAFEENV = setmetatable({ print = __lg, warn = __lg }, { __index = _G })
+local __SAFEENV = setmetatable({ print = __lg, warn = __lg, task = __taskSafe, game = game, workspace = workspace },
+    { __index = _G })
 local __hasSetfenv = (type(setfenv) == "function")
 local __filtered = false
 
