@@ -2565,6 +2565,16 @@ Toggles.ACMABypassToggle:OnChanged(function(Value)
     if Value then StartACMA() else StopACMA() end
 end)
 
+-- 自动砸电视（aby：Noise Tv Breaker）—— 把 TV_Stand 沉到 y = -120，Noise 就附不上
+local StartNoiseTvBreaker, StopNoiseTvBreaker
+Toggles.NoiseTvBreakerToggle = Mini.Toggle(tabBypass.Page, L(
+    "by.noisetv", "自动砸电视", "Noise Tv Breaker",
+    "Abysall's Noise Tv Breaker: sinks every TV_Stand below the map so Noise cannot use it.",
+    "照搬 Abysall 的 Noise Tv Breaker：一出现 TV_Stand 就把它沉到 y = -120（地板以下），Noise 实体就附不上去了。"))
+Toggles.NoiseTvBreakerToggle:OnChanged(function(Value)
+    if Value then StartNoiseTvBreaker() else StopNoiseTvBreaker() end
+end)
+
 --────────────────────────── Creak 愤怒值（右下角） ──────────────────────────
 Toggles.CreakAggressionMeter = Mini.Toggle(tabCreak.Page, L(
     "creak.meter", "Creak 愤怒值（右下角）", "Creak Aggression Meter (bottom-right)",
@@ -4413,6 +4423,64 @@ Connections.PromptReachKeep = Services.RunService.Heartbeat:Connect(function(dt)
         end)
     end
 end)
+
+--────────────────────────── 自动砸电视（aby：Noise Tv Breaker） ──────────────────────────
+-- 对应 Abysall 原版 Main.luau 3495 行的开关 "Noise Tv Breaker"（内部名 BypassNoise），
+-- 逻辑在 L4288-4314，逐行照搬：
+--     local function checkBypassNoiseTvStand(targetTvStand)
+--         if not targetTvStand:IsA("Model") then return end
+--         if targetTvStand.Name ~= "TV_Stand" then return end
+--         local tvStandCurrentCFrame = targetTvStand:GetPivot()
+--         if tvStandCurrentCFrame.Position.Y > -119 then
+--             targetTvStand:PivotTo(CFrame.new(
+--                 tvStandCurrentCFrame.Position.X, -120, tvStandCurrentCFrame.Position.Z))
+--         end
+--     end
+--     local Misc = workspace:FindFirstChild("Misc")
+--     Misc.ChildAdded:Connect(checkBypassNoiseTvStand)
+--     for _, child in ipairs(Misc:GetChildren()) do checkBypassNoiseTvStand(child) end
+-- ★ 所谓「砸」不是真打碎：是把电视整台沉到 y = -120（地图地板以下），
+--   Noise 实体就附不上去了 —— 所以原名叫 Breaker 不叫 Smasher。
+local NoiseTvBreaker = { Conn = nil }
+
+local function CheckNoiseTvStand(Inst)
+    if not Inst or not Inst:IsA("Model") then return end
+    if Inst.Name ~= "TV_Stand" then return end
+    local Pivot = Inst:GetPivot()
+    if Pivot.Position.Y > -119 then
+        pcall(function()
+            Inst:PivotTo(CFrame.new(Pivot.Position.X, -120, Pivot.Position.Z))
+        end)
+    end
+end
+
+function StopNoiseTvBreaker()
+    if NoiseTvBreaker.Conn then
+        pcall(function() NoiseTvBreaker.Conn:Disconnect() end)
+        NoiseTvBreaker.Conn = nil
+    end
+end
+
+function StartNoiseTvBreaker()
+    StopNoiseTvBreaker()
+    local Misc = Services.Workspace:FindFirstChild("Misc")
+    if not Misc then
+        -- 原版这里是直接 return（不在对应场景就没电视）。我们补一句提示，
+        -- 免得开关亮着却没有任何反应、看着像坏了。
+        pcall(function()
+            Mini.WindUI:Notify({
+                Title = "自动砸电视：现在没有 workspace.Misc（这个场景里没电视）",
+                Duration = 4, Icon = "warning",
+            })
+        end)
+        return false
+    end
+    -- 已经在场的电视，先一次性沉下去
+    for _, Child in ipairs(Misc:GetChildren()) do CheckNoiseTvStand(Child) end
+    -- 之后新出现的，一冒头就沉
+    NoiseTvBreaker.Conn = Misc.ChildAdded:Connect(CheckNoiseTvStand)
+    return true
+end
 
 --────────────────────────── 自动 200 门（水坝阀门） ──────────────────────────
 -- 对应 Abysall 原版 Main.luau 5841-5904 行的「Auto Complete Dam Seek」按钮。
