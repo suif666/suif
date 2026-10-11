@@ -17,6 +17,17 @@ pcall(function()
     local g = getgenv and getgenv()
     if g and g.SutureVerbose then __VERBOSE = true end
 end)
+-- ★★ 总开关：加载前执行  getgenv().SutureNoHarden = true
+--    则下面所有加固逐条失效，脚本回到"原版行为"：
+--      不搬容器（GUI 挂回 PlayerGui）、不改名（用回 SutureBall/SutureRscripts）、
+--      任务直通（不包 xpcall）、不过滤全局 print/warn、不调 protect_gui。
+--    用途：出任何怪问题时先开这个开关，一眼分辨"是不是加固引起的"。
+--    日常用不着，默认关闭。
+local __HARD = true
+pcall(function()
+    local g = getgenv and getgenv()
+    if g and g.SutureNoHarden then __HARD = false end
+end)
 local __realPrint = print          -- ★ 在 shadow 之前抓住原生的
 local function __lg(...)
     local cnt, parts = select("#", ...), {}
@@ -40,7 +51,8 @@ local print, warn = __lg, __lg      -- ★ 本文件内彻底静音（含所有�
 --      表现就是"公告加载不出来"。这里改成 __index 代理，其余键全部落回原生 task。
 --   2. 必须自检：万一代理不可用，就原样用回原生 task，宁可少一层保护也不能把脚本弄崩。
 -- ══════════════════════════════════════════════════════════════════════════════
-local __taskSafe = task                    -- 默认就是原生 task：任何一步出问题都不改行为
+local __taskRaw = task                     -- ★ 原生引用留一份，开关关掉时用回它
+local __taskSafe = __taskRaw               -- 默认就是原生 task：任何一步出问题都不改行为
 pcall(function()
     local t = task
     if type(t) ~= "table" and type(t) ~= "userdata" then return end
@@ -72,7 +84,7 @@ pcall(function()
         __taskSafe = proxy
     end
 end)
-local task = __taskSafe                    -- ★ 本文件内所有 task.* 都走安全版
+local task = (__HARD and __taskSafe) or __taskRaw   -- ★ 开关决定走安全版还是原生版
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 【关于服务引用脱钩 —— 结论：不做】
@@ -161,11 +173,11 @@ end
 
 -- 兼容旧调用点：仍然写 __sandbox(fn)，但它只负责装过滤，绝不动环境
 local function __sandbox(fn)
-    __installFilter()
+    if __HARD then __installFilter() end
     return fn
 end
 
-pcall(__installFilter)
+if __HARD then pcall(__installFilter) end
 
 -- ★ 多源加载：raw.githubusercontent 在某些网络下会被掐，jsDelivr 更稳。
 --   两条都是通用 CDN 域名，交替重试，避免单点失效导致整个脚本加载不出来。
@@ -226,6 +238,7 @@ local __rnd = function(len)
 end
 
 local HIDDEN = (function()
+    if not __HARD then return lp:WaitForChild("PlayerGui") end   -- ★ 开关关掉就挂回原处
     local ok, h = pcall(function() return gethui and gethui() end)
     if ok and h then return h end
     local okc, cg = pcall(function() return game:GetService("CoreGui") end)
@@ -235,6 +248,7 @@ end)()
 
 -- 拿到就顺手保护起来（有些执行器靠这个把容器从游戏的可见范围里摘出去）
 pcall(function()
+    if not __HARD then return end
     if protect_gui then protect_gui(HIDDEN)
     elseif syn and syn.protect_gui then syn.protect_gui(HIDDEN) end
 end)
@@ -374,7 +388,7 @@ local win = WindUI:CreateWindow({
 -- ============ 最小化方式：小圆圈（可选，替代胶囊栏）============
 local minimizeMode = "capsule"  -- capsule=胶囊栏(默认) / ball=小圆圈
 local sgBall = Instance.new("ScreenGui")
-sgBall.Name = __rnd(12)      -- ★ 原名 "SutureBall" 是特征串，改成随机 hex
+sgBall.Name = __HARD and __rnd(12) or "SutureBall"   -- ★ 开关关掉就用回原名
 sgBall.ResetOnSpawn = false
 sgBall.Enabled = false
 sgBall.Parent = HIDDEN       -- ★ 原来挂 PlayerGui（游戏可枚举），改挂隐藏容器
@@ -794,7 +808,7 @@ do
         if rsGui and rsGui.Parent then return end
 
         rsGui = Instance.new("ScreenGui")
-        rsGui.Name = __rnd(12)       -- ★ 原名 "SutureRscripts" 同上
+        rsGui.Name = __HARD and __rnd(12) or "SutureRscripts"  -- ★ 开关关掉就用回原名
         rsGui.ResetOnSpawn = false
         rsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         rsGui.DisplayOrder = 100
