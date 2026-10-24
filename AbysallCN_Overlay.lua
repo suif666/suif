@@ -27,11 +27,16 @@
 --   cdn.jsdelivr.net          → Connection reset (http 000)
 -- 全是 0 字节，overlay 会在最后一行直接 error。所以这里按顺序兜底，
 -- 4 条实测可用的线路打头，原来的 cdn.jsdelivr.net 留到最后当兜底。
+-- 顺序按【新鲜度】排，不是按速度排：
+--   jsDelivr 的 @main 会缓存，实测 purge.jsdelivr.net 返回 finished 之后
+--   边缘节点仍然在吐旧内容（等过 3 秒也一样）。对"检测更新"这种场景
+--   缓存是致命的 —— 会拿旧文件算指纹 → 永远显示"无变化"。
+--   所以把无缓存的 gh-proxy 放第一，jsDelivr 只当它挂了之后的兜底。
 local OFFICIAL_URLS = {
+	"https://gh-proxy.com/https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau",
 	"https://testingcf.jsdelivr.net/gh/therealcookiemonsterof1966/AbysallContinued@main/Games/Doors/Main.luau",
 	"https://gcore.jsdelivr.net/gh/therealcookiemonsterof1966/AbysallContinued@main/Games/Doors/Main.luau",
 	"https://fastly.jsdelivr.net/gh/therealcookiemonsterof1966/AbysallContinued@main/Games/Doors/Main.luau",
-	"https://gh-proxy.com/https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau",
 	"https://cdn.jsdelivr.net/gh/therealcookiemonsterof1966/AbysallContinued@main/Games/Doors/Main.luau",
 }
 
