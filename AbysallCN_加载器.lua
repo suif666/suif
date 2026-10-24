@@ -29,11 +29,13 @@
 --   ① 只走 cdn.jsdelivr.net —— 本机实测 Connection reset（http 000）
 --   ② @43ed6b2… 把 commit 钉死了 —— 仓库以后更新也永远拉不到
 -- 现在改成 @main（跟仓库最新）+ 多线路兜底，顺序按实测速度排。
+-- 顺序按【新鲜度】排：gh-proxy 无缓存，永远拿最新；
+-- jsDelivr 的 @main 会缓存，实测 purge 之后边缘仍在吐旧内容。
 local RemoteList = {
+	"https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/main/AbysallCN_Overlay.lua",
 	"https://testingcf.jsdelivr.net/gh/suif666/suif@main/AbysallCN_Overlay.lua",
 	"https://gcore.jsdelivr.net/gh/suif666/suif@main/AbysallCN_Overlay.lua",
 	"https://fastly.jsdelivr.net/gh/suif666/suif@main/AbysallCN_Overlay.lua",
-	"https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/main/AbysallCN_Overlay.lua",
 	"https://cdn.jsdelivr.net/gh/suif666/suif@main/AbysallCN_Overlay.lua",
 }
 local Local  = "abycn/overlay.lua"
