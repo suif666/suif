@@ -8366,22 +8366,37 @@ do
 end
 
 -- ══════════════════════════════════════════════════════════════════════
---  汉化版更新检测 / CNL Update Check
---  作用：把上游源脚本（AbysallContinued / Games/Doors/Main.luau）的功能
---        结构指纹，与「本汉化所依据的版本」做比对。一旦上游变了，说明
---        汉化版可能已经落后，就用 Aby 自带的通知提醒执行者。
---  特点：算指纹前会剥掉注释、压平空白，所以原作者只改注释或改缩进不会误报；
---        一旦增删了实际代码，指纹必然变化。
+--  汉化版更新检测 / CNL Update Check · v2（多线路）
+--
+--  v1 的致命问题：
+--    源文件只从 raw.githubusercontent.com 取。国内这个域名是
+--    Connection reset，HttpGet 直接抛错 → pcall 吃掉 → 只剩一行 warn。
+--    结果就是「永远检测不出更新，也永远不说为什么」。
+--
+--  v2 改动：
+--    ① 源文件走多线路兜底：jsDelivr 三节点 → gh-proxy → raw 原域名
+--       （实测 1.5s / 2.9s / 3.1s / 3.8s，最后一个基本连不上）
+--    ② 额外用 api.github.com 拿上游提交 sha —— 国内可直连，
+--       比下载整个 300KB 文件更快，还能顺带拿到提交日期和标题
+--    ③ 「上游无变化」和「全线路连不上」都会明确打印，不再静默
 -- ══════════════════════════════════════════════════════════════════════
 do
-	-- 上游源脚本地址（即汉化对象）
-	local CNL_SOURCE_URL = "https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau"
+	local CNL_REPO = "therealcookiemonsterof1966/AbysallContinued"
+	local CNL_PATH = "Games/Doors/Main.luau"
 
-	-- ★ 本汉化所依据的源脚本指纹。以后同步完汉化，把这里改成最新指纹即可。
+	-- 本汉化所依据的上游版本：2026-10-05「Remove AntiNoise toggle」
+	local CNL_SOURCE_COMMIT = "dffe73ecec64cd461b5466d264ea9ac7cd9e8010"
 	local CNL_SOURCE_FP = "f9aeac98-294342"
-
-	-- 汉化所依据的源脚本体积（仅用于提示信息）
 	local CNL_SOURCE_BYTES = 316104
+
+	-- 源文件线路，按实测速度排
+	local CNL_MIRRORS = {
+		"https://testingcf.jsdelivr.net/gh/%s@main/%s",
+		"https://gcore.jsdelivr.net/gh/%s@main/%s",
+		"https://fastly.jsdelivr.net/gh/%s@main/%s",
+		"https://gh-proxy.com/https://raw.githubusercontent.com/%s/main/%s",
+		"https://raw.githubusercontent.com/%s/main/%s",
+	}
 
 	local HEX_DIGITS = {}
 	for Char in ("0123456789abcdef"):gmatch(".") do
@@ -8460,7 +8475,9 @@ do
 		return string.reverse(table.concat(Out))
 	end
 
-	-- 指纹 = 滚动哈希(压平空白后的源码) + "-" + 归一化后的字节长度
+	-- 指纹 = 滚动哈希(压平空白后的源码) + "-" + 字节长度
+	-- 注意：#s 在 Lua 里是字节数，中文/emoji 一个字占 3~4 字节，
+	-- 所以这里的长度不可和「字符数」混用。
 	local function CNL_Fingerprint(Source)
 		local s = CNL_StripComments(Source)
 		s = s:gsub("[ \t\n\v\f\r]+", " ")
@@ -8475,38 +8492,102 @@ do
 		return CNL_Hex8(h) .. "-" .. #s
 	end
 
+	-- 拿去源文件：多线路依次尝试，任一条拿到像样的内容就返回
+	local function CNL_FetchSource()
+		local Failed = {}
+		for _, Pattern in ipairs(CNL_MIRRORS) do
+			local Url = string.format(Pattern, CNL_REPO, CNL_PATH)
+			local Ok, Data = pcall(function()
+				return game:HttpGet(Url, true)
+			end)
+			-- 316104 是正常体积；门槛设 50000 是为了挡掉错误页/限流页
+			if Ok and type(Data) == "string" and #Data > 50000 then
+				return Data, Url
+			end
+			Failed[#Failed + 1] = Url:match("^https://([^/]+)") or Url
+		end
+		return nil, table.concat(Failed, ", ")
+	end
+
+	-- 拿上游最近一次改 Main.luau 的提交（api.github.com 国内可直连）
+	local function CNL_FetchCommit()
+		local Url = "https://api.github.com/repos/" .. CNL_REPO
+			.. "/commits?path=" .. CNL_PATH .. "&per_page=1"
+		local Ok, Body = pcall(function()
+			return game:HttpGet(Url, true)
+		end)
+		if not Ok or type(Body) ~= "string" then
+			return nil
+		end
+		local Sha = Body:match('"sha"%s*:%s*"(%x+)"')
+		if not Sha then
+			return nil
+		end
+		local Date = Body:match('"date"%s*:%s*"([^"]+)"')
+		local Title = Body:match('"message"%s*:%s*"([^"\\]+)')
+		return Sha, Date, Title
+	end
+
 	-- 放到后台跑，绝不阻塞主脚本加载
 	task.spawn(function()
-		local Ok, Result = pcall(function()
-			return CNL_Fingerprint(game:HttpGet(CNL_SOURCE_URL, true))
-		end)
+		local Reasons = {}
+		local Sha, Date, CommitTitle = CNL_FetchCommit()
 
-		if not Ok then
-			warn("[CNL] 更新检测失败: " .. tostring(Result))
+		if Sha and Sha ~= CNL_SOURCE_COMMIT then
+			local Line = "上游提交已变：" .. Sha:sub(1, 12)
+			if Date then
+				Line = Line .. " · " .. Date
+			end
+			if CommitTitle then
+				Line = Line .. " · 「" .. CommitTitle .. "」"
+			end
+			Reasons[#Reasons + 1] = Line
+		end
+
+		local Data, Err = CNL_FetchSource()
+		if Data then
+			local Fp = CNL_Fingerprint(Data)
+			if Fp ~= CNL_SOURCE_FP then
+				Reasons[#Reasons + 1] = "代码指纹已变：" .. CNL_SOURCE_FP
+					.. " → " .. Fp
+					.. "  (" .. CNL_SOURCE_BYTES .. " → " .. #Data .. " 字节)"
+			end
+		end
+
+		-- 两条路都断了：明确说是网络问题，不是「没更新」
+		if not Sha and not Data then
+			warn("[CNL] 更新检测：所有线路都连不上（" .. tostring(Err) .. "）")
+			warn("[CNL] 这不是「没更新」，是网络问题；开代理后重跑即可恢复检测。")
 			return
 		end
 
-		if Result ~= CNL_SOURCE_FP then
-			local Message = table.concat({
-				"检测到 Aby 源脚本已更新，当前汉化可能已经落后。",
-				"",
-				"汉化所依据: " .. CNL_SOURCE_FP .. "  (" .. tostring(CNL_SOURCE_BYTES) .. " 字节)",
-				"上游现状  : " .. tostring(Result),
-				"",
-				"请提醒作者更新汉化版。",
-			}, "\n")
+		if #Reasons == 0 then
+			print("[CNL] 更新检测：上游无变化，汉化是最新的 ✓  ("
+				.. CNL_SOURCE_FP .. " / " .. CNL_SOURCE_BYTES .. " 字节)")
+			return
+		end
 
-			local Ok2 = pcall(function()
-				Functions.Notify({
-					Title = "汉化版可能需要更新",
-					Body = Message,
-					Time = 12,
-				})
-			end)
+		local Message = table.concat({
+			"检测到 Aby 源脚本已更新，当前汉化可能已经落后。",
+			"",
+			"汉化所依据：" .. CNL_SOURCE_COMMIT:sub(1, 12)
+				.. "  (指纹 " .. CNL_SOURCE_FP
+				.. " / " .. tostring(CNL_SOURCE_BYTES) .. " 字节)",
+			table.concat(Reasons, "\n"),
+			"",
+			"请提醒作者更新汉化版。",
+		}, "\n")
 
-			if not Ok2 then
-				warn("[CNL] " .. Message)
-			end
+		local Ok2 = pcall(function()
+			Functions.Notify({
+				Title = "汉化版可能需要更新",
+				Body = Message,
+				Time = 12,
+			})
+		end)
+
+		if not Ok2 then
+			warn("[CNL] " .. Message)
 		end
 	end)
 end
