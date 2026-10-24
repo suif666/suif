@@ -1,29 +1,28 @@
 --[[
-	无限物品 · DOORS  (v3 / 完整复刻)
-	从 Abysall Hub 提取：InfiniteItemsToggle + 它依赖的假 prompt 系统
+	无限物品 · DOORS  (v4)
+	从 Abysall Hub 提取：InfiniteItemsToggle + 假 prompt 系统 + 可靠的 prompt 触发内核
 	无 UI，执行即用。
 
-	════════════════ 为什么 v1、v2 都不能用 ════════════════
-	不是白名单写错，也不是事件挂错，是【时序上不可能对】：
+	═══════════ 为什么前三版都不行 ═══════════
+	v1/v2：在真 prompt 的 PromptTriggered 里丢工具
+	       → 服务器在你按下的那一刻就扣了，手里已经空 ✗
+	v3    ：补了假 prompt，但触发真 prompt 用的是 fireproximityprompt
+	       → 真 prompt 在 gethui() 里，mcd 只有 60，大概率直接失败 ✗
+	v4    ：触发内核换成原版 7750-7773 的办法——
+	       把 prompt 临时挂到相机前 0.1 studs 的透明 Part 上，
+	       用 Roblox 原生 Prompt:InputHoldBegin() / InputHoldEnd()。
+	       这是纯 Roblox API，不依赖执行器有没有 fireproximityprompt。
 
-	  你按下真 prompt 的那一刻，服务器就已经把工具扣掉了。
-	  等客户端收到 PromptTriggered 再去丢，手里已经空了。
+	═══════════ 三段式（对应原版行号）═══════════
+	A. 藏真 prompt、原位置放客户端克隆        7486-7545
+	B. 假货被按：先挂 Drops.ChildAdded → 丢工具  7991-8006
+	C. 掉落物出现：点它的 ModulePrompt 捡回 → 触发真货开锁  7993-7998
 
-	原版之所以能用，是因为它先把真 prompt 藏进 gethui()，
-	在原位置放一个**客户端克隆**，让你按到的永远是假货 ——
-	假货服务器收不到，脚本这时才有时间「先丢工具、再手动触发真的」。
-
-	所以这一版把三步全做了：
-	  A. 藏真 prompt、放假 prompt        （原版 7486-7545）
-	  B. 假 prompt 被按时：先挂监听 → 丢工具 （原版 7991-8006）
-	  C. 掉落物出现 → 点它的 ModulePrompt 捡回，同时触发真的 → 开锁（原版 7993-7998）
-
-	════════════════ 必须满足 ════════════════
-	· 工具拿在手上（Character:FindFirstChildOfClass("Tool")）
-	· 执行器有 fireproximityprompt（Delta 有）
-	· 白名单默认 4 个：Lockpick / SkeletonKey / Shears / Multitool
-
-	停止 / 还原：getgenv().AbyInfItemsStop()
+	═══════════ 先跑一次看诊断 ═══════════
+	执行后会立刻打印 4 行状态。如果哪一行是「没有 / 0 个」，那就是卡点：
+	  · fireproximityprompt / InputHoldBegin 都没有 → 执行器不支持
+	  · workspace.Drops 还没有                      → 正常，有人丢过东西才有
+	  · 已接管 0 个锁类 prompt                      → prompt 名字变了，见 CONFIG
 ]]
 
 if getgenv().AbyInfItemsStop then
@@ -37,11 +36,9 @@ local CONFIG = {
 		SkeletonKey = true,
 		Shears = true,
 		Multitool = true,
-		-- Key = true, KeyElectrical = true, KeyBackdoor = true,
-		-- KeyIron = true, GeneratorFuse = true,
 	},
 
-	-- 会被替换成假 prompt 的提示名（原版 LockPromptNames + 剪藤蔓那几个）
+	-- 会被换成假 prompt 的提示名
 	ConsumingPrompts = {
 		UnlockPrompt = true,
 		SkullPrompt = true,
@@ -57,11 +54,11 @@ local CONFIG = {
 		ActivateEventPrompt = true,
 	},
 
-	InstantPrompts = true, -- 假 prompt 按住时间归零（点一下就触发）
-	PromptReach = 60, -- 真/假 prompt 的触发距离（studs）
+	InstantPrompts = true, -- 假 prompt 按住时长归零
+	PromptReach = 60, -- 假 prompt 的可按距离（studs）
 	PickupTries = 15,
 	PickupDelay = 0.05,
-	WatchTimeout = 1.5,
+	WatchTimeout = 2,
 	Verbose = true,
 }
 
@@ -69,14 +66,13 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProximityPromptService = game:GetService("ProximityPromptService")
-local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local running = true
 
-local FakeOf = {} -- 假 prompt → 真 prompt
-local Fakes = {} -- 全部假 prompt（停止时清理）
-local SavedParent = {} -- 真 prompt → 它原来的父级
+local FakeOf = {} -- 假 → 真
+local Fakes = {} -- 所有假货，停止时清掉
+local SavedParent = {} -- 真 → 原父级
 
 local function log(...)
 	if CONFIG.Verbose then
@@ -85,7 +81,7 @@ local function log(...)
 end
 
 ----------------------------------------------------------------------
--- 藏真 prompt 用的容器
+-- 藏真 prompt 的容器
 ----------------------------------------------------------------------
 
 local function getHiddenContainer()
@@ -104,12 +100,112 @@ local function getHiddenContainer()
 	return LocalPlayer:FindFirstChildOfClass("PlayerGui")
 end
 
-local Container
-do
-	local parent = getHiddenContainer()
-	Container = Instance.new("Folder")
-	Container.Name = "AbyInfItemsPrompts"
-	Container.Parent = parent
+local Container = Instance.new("Folder")
+Container.Name = "AbyInfItemsPrompts"
+Container.Parent = getHiddenContainer()
+
+----------------------------------------------------------------------
+-- ★ 可靠触发内核（原版 7750-7773）
+----------------------------------------------------------------------
+-- 优先用执行器的 fireproximityprompt；不行就把 prompt 临时挂到相机前，
+-- 用纯 Roblox 的 InputHoldBegin/InputHoldEnd 打。两条路都失败才返回 false。
+
+local fireStats = { executor = 0, native = 0, failed = 0 }
+
+local function firePromptNative(prompt)
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return false
+	end
+
+	local saved = {}
+	saved.Parent = prompt.Parent
+	saved.Distance = prompt.MaxActivationDistance
+	saved.Enabled = prompt.Enabled
+	saved.Hold = prompt.HoldDuration
+	saved.LOS = prompt.RequiresLineOfSight
+
+	local part = Instance.new("Part")
+	part.Name = "AbyInfTempPromptPart"
+	part.Size = Vector3.new(0.001, 0.001, 0.001)
+	part.Transparency = 1
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Anchored = true
+	part.Position = camera.CFrame:ToWorldSpace(CFrame.new(0, 0, -0.1)).Position
+	part.Parent = Workspace
+
+	prompt.MaxActivationDistance = 99999
+	prompt.Enabled = true
+	prompt.HoldDuration = 0
+	prompt.RequiresLineOfSight = false
+	pcall(function()
+		prompt.Parent = part
+	end)
+
+	local fired = false
+	local conn = prompt.Triggered:Connect(function()
+		fired = true
+	end)
+
+	for _ = 1, 5 do
+		if fired then
+			break
+		end
+		pcall(function()
+			prompt:InputHoldBegin()
+		end)
+		pcall(function()
+			prompt:InputHoldEnd()
+		end)
+		task.wait()
+	end
+
+	pcall(function()
+		conn:Disconnect()
+	end)
+
+	pcall(function()
+		prompt.MaxActivationDistance = saved.Distance
+		prompt.Enabled = saved.Enabled
+		prompt.HoldDuration = saved.Hold
+		prompt.RequiresLineOfSight = saved.LOS
+		if saved.Parent and saved.Parent.Parent then
+			prompt.Parent = saved.Parent
+		end
+	end)
+
+	pcall(function()
+		part:Destroy()
+	end)
+
+	return fired
+end
+
+local function firePrompt(prompt)
+	if not prompt or not prompt.Parent then
+		return false
+	end
+	if type(prompt) ~= "userdata" and type(prompt) ~= "table" then
+		return false
+	end
+
+	if type(fireproximityprompt) == "function" then
+		local ok, result = pcall(fireproximityprompt, prompt)
+		if ok then
+			fireStats.executor = fireStats.executor + 1
+			return true
+		end
+	end
+
+	if firePromptNative(prompt) then
+		fireStats.native = fireStats.native + 1
+		return true
+	end
+
+	fireStats.failed = fireStats.failed + 1
+	return false
 end
 
 ----------------------------------------------------------------------
@@ -140,17 +236,6 @@ local function getDropItemRemote()
 	return remotes and remotes:FindFirstChild("DropItem")
 end
 
-local function firePrompt(prompt)
-	if not prompt or not prompt.Parent then
-		return false
-	end
-	if type(fireproximityprompt) ~= "function" then
-		return false
-	end
-	local ok = pcall(fireproximityprompt, prompt)
-	return ok
-end
-
 local function isLockPrompt(prompt)
 	if CONFIG.ConsumingPrompts[prompt.Name] then
 		return true
@@ -168,20 +253,16 @@ local function isLockPrompt(prompt)
 end
 
 ----------------------------------------------------------------------
--- A. 把真 prompt 换成一个客户端克隆
+-- A. 假 prompt
 ----------------------------------------------------------------------
 
+local fakedCount = 0
+
 local function installFake(prompt)
-	if not running then
+	if not running or not prompt or not prompt.Parent then
 		return false
 	end
-	if not prompt or not prompt.Parent then
-		return false
-	end
-	if prompt:GetAttribute("FakePrompt") then
-		return false
-	end
-	if prompt:GetAttribute("AbyInfFaked") then
+	if prompt:GetAttribute("FakePrompt") or prompt:GetAttribute("AbyInfFaked") then
 		return false
 	end
 	if not isLockPrompt(prompt) then
@@ -189,13 +270,9 @@ local function installFake(prompt)
 	end
 
 	prompt:SetAttribute("AbyInfFaked", true)
-
-	local savedHold = prompt.HoldDuration
-	local savedReach = prompt.MaxActivationDistance
-	local savedLOS = prompt.RequiresLineOfSight
-	prompt:SetAttribute("AbyInfHold", savedHold)
-	prompt:SetAttribute("AbyInfReach", savedReach)
-	prompt:SetAttribute("AbyInfLOS", savedLOS)
+	prompt:SetAttribute("AbyInfHold", prompt.HoldDuration)
+	prompt:SetAttribute("AbyInfReach", prompt.MaxActivationDistance)
+	prompt:SetAttribute("AbyInfLOS", prompt.RequiresLineOfSight)
 
 	local okFake, fake = pcall(function()
 		return prompt:Clone()
@@ -205,32 +282,30 @@ local function installFake(prompt)
 	end
 
 	fake:SetAttribute("FakePrompt", true)
-	fake.Name = prompt.Name
 	task.wait()
-	fake.Parent = prompt.Parent
 
-	fake.HoldDuration = CONFIG.InstantPrompts and 0 or savedHold
+	local originalParent = prompt.Parent
+	SavedParent[prompt] = originalParent
+	fake.Parent = originalParent
+
+	fake.HoldDuration = CONFIG.InstantPrompts and 0 or prompt.HoldDuration
 	fake.RequiresLineOfSight = false
 	fake.MaxActivationDistance = CONFIG.PromptReach
 
 	FakeOf[fake] = prompt
 	Fakes[#Fakes + 1] = fake
-	SavedParent[prompt] = prompt.Parent
 
-	-- 真 prompt 的可用状态同步给假货
 	local enabledConn = prompt:GetPropertyChangedSignal("Enabled"):Connect(function()
 		if fake and fake.Parent then
 			fake.Enabled = prompt.Enabled
 		end
 	end)
 
-	-- 真 prompt 被搬进 gethui()，玩家再也按不到它
-	local okMove = pcall(function()
+	prompt.MaxActivationDistance = 99999
+	pcall(function()
 		prompt.Parent = Container
 	end)
-	prompt.MaxActivationDistance = CONFIG.PromptReach
 
-	-- 真的没了就把假的也清掉
 	prompt.Destroying:Once(function()
 		pcall(function()
 			enabledConn:Disconnect()
@@ -241,40 +316,35 @@ local function installFake(prompt)
 		end
 	end)
 
-	-- 假的先关一下再开，逼客户端重建提示
 	fake.Enabled = false
 	task.wait()
 	fake.Enabled = prompt.Enabled
 
-	return okMove
+	return true
 end
 
-local fakedCount = 0
-
-local function scanForPrompts(root)
+local function scanPrompts(root)
 	if not running then
 		return
 	end
-	local ok, descendants = pcall(function()
+	local ok, list = pcall(function()
 		return root:GetDescendants()
 	end)
-	if not ok or not descendants then
+	if not ok or not list then
 		return
 	end
-	for _, object in ipairs(descendants) do
-		if object:IsA("ProximityPrompt") then
-			if installFake(object) then
-				fakedCount = fakedCount + 1
-			end
+	for _, object in ipairs(list) do
+		if object:IsA("ProximityPrompt") and installFake(object) then
+			fakedCount = fakedCount + 1
 		end
 	end
 end
 
 ----------------------------------------------------------------------
--- C. 掉落物出现 → 捡回 + 触发真 prompt
+-- C. 掉落物 → 捡回 + 开锁
 ----------------------------------------------------------------------
 
-local function pickUpDropped(model, realPrompt)
+local function handleDropped(model, realPrompt)
 	task.spawn(function()
 		local prompt
 		for _ = 1, CONFIG.PickupTries do
@@ -289,34 +359,33 @@ local function pickUpDropped(model, realPrompt)
 		end
 
 		if prompt then
-			local ok = firePrompt(prompt)
-			if ok then
-				log(("已把 %s 捡回"):format(tostring(model.Name)))
+			if firePrompt(prompt) then
+				log(("已把 %s 捡回背包"):format(tostring(model.Name)))
 			else
-				warn("[无限物品] 捡回时 fireproximityprompt 失败")
+				warn("[无限物品] 捡回失败（触发内核两种办法都失败）")
 			end
 		else
-			warn(("[无限物品] 掉落物上没有 ModulePrompt（%s）—— 这次要自己手动捡")
+			warn(("[无限物品] %s 上没有 ModulePrompt —— 这份要自己手动捡")
 				:format(tostring(model and model.Name)))
 		end
 
-		-- 不管有没有捡回来，真 prompt 都要触发，否则锁打不开
 		if realPrompt then
 			task.wait(0.05)
-			firePrompt(realPrompt)
+			if firePrompt(realPrompt) then
+				log("已补触发真 prompt（开锁）")
+			else
+				warn("[无限物品] 开锁那一下触发失败 —— 这就是你看到「没用」的原因")
+			end
 		end
 	end)
 end
 
 ----------------------------------------------------------------------
--- B. 假 prompt 被按下的处理
+-- B. 假货被按
 ----------------------------------------------------------------------
 
 local function onPromptTriggered(triggered, player)
-	if not running then
-		return
-	end
-	if player ~= LocalPlayer then
+	if not running or player ~= LocalPlayer then
 		return
 	end
 	if not triggered:GetAttribute("FakePrompt") then
@@ -330,7 +399,6 @@ local function onPromptTriggered(triggered, player)
 
 	local tool = getWhitelistedTool()
 	if not tool then
-		-- 没拿白名单工具：直接补触发真的，等于正常操作
 		firePrompt(realPrompt)
 		return
 	end
@@ -338,13 +406,11 @@ local function onPromptTriggered(triggered, player)
 	local drops = getDropsFolder()
 	local remote = getDropItemRemote()
 	if not drops or not remote then
-		warn("[无限物品] 缺少 " .. (not drops and "workspace.Drops" or "RemotesFolder.DropItem")
-			.. "，这次直接走正常流程")
+		warn("[无限物品] 缺 " .. (not drops and "workspace.Drops" or "RemotesFolder.DropItem") .. "，走正常流程")
 		firePrompt(realPrompt)
 		return
 	end
 
-	-- ① 先挂监听（顺序不能反）
 	local connection
 	local settled = false
 	local function finish()
@@ -363,57 +429,75 @@ local function onPromptTriggered(triggered, player)
 		end
 		finish()
 		if newChild then
-			pickUpDropped(newChild, realPrompt)
+			handleDropped(newChild, realPrompt)
 		end
 	end)
 
 	task.delay(CONFIG.WatchTimeout, function()
 		if not settled then
 			finish()
-			warn("[无限物品] 丢出去后没等到掉落物，直接补触发真 prompt")
+			warn("[无限物品] 丢出去后 " .. CONFIG.WatchTimeout .. " 秒没等到掉落物 —— 补触发真 prompt")
 			firePrompt(realPrompt)
 		end
 	end)
 
-	-- ② 把工具丢出去（服务器这边手里就空了）
 	local ok, err = pcall(function()
 		remote:FireServer(tool)
 	end)
 	if not ok then
 		finish()
-		warn("[无限物品] DropItem 调用失败：" .. tostring(err))
+		warn("[无限物品] DropItem 失败：" .. tostring(err))
 		firePrompt(realPrompt)
 		return
 	end
 
-	log(("按下 %s → 丢出 %s"):format(triggered.Name, tool.Name))
+	log(("按下 %s → 已丢出 %s"):format(triggered.Name, tool.Name))
 end
 
 ----------------------------------------------------------------------
--- 启动
+-- 启动 + 诊断
 ----------------------------------------------------------------------
-
-if type(fireproximityprompt) ~= "function" then
-	warn("[无限物品] 执行器没有 fireproximityprompt，这个功能用不了")
-	return
-end
 
 getgenv().AbyInfItemsConn = ProximityPromptService.PromptTriggered:Connect(onPromptTriggered)
 
--- 先扫当前房间，再盯着后续生成的
 task.spawn(function()
-	scanForPrompts(Workspace)
-	log(("已接管 %d 个锁类 prompt"):format(fakedCount))
-	if fakedCount == 0 then
-		warn("[无限物品] 当前场景没有找到锁类 prompt —— 走到有门/锁的地方会自动接管")
+	scanPrompts(Workspace)
+
+	local samplePrompt
+	for _, v in ipairs(Workspace:GetDescendants()) do
+		if v:IsA("ProximityPrompt") then
+			samplePrompt = v
+			break
+		end
 	end
+	log(("诊断  触发内核: fireproximityprompt=%s  原生InputHoldBegin=%s")
+		:format(
+			type(fireproximityprompt) == "function" and "有" or "没有",
+			(samplePrompt and type(samplePrompt.InputHoldBegin) == "function") and "有" or "没有"
+		))
+	log(("诊断  workspace.Drops=%s   DropItem=%s")
+		:format(getDropsFolder() and "有" or "还没有", getDropItemRemote() and "有" or "没有"))
+	log(("诊断  已接管 %d 个锁类 prompt"):format(fakedCount))
+
+	if fakedCount == 0 then
+		warn("[无限物品] 没找到任何锁类 prompt。请走到有门/锁的地方。若那时仍然是 0，说明 prompt 名字变了——")
+		warn("[无限物品] 在控制台跑这一行把名字发我：")
+		warn([[for _,v in ipairs(game.Workspace:GetDescendants()) do if v:IsA("ProximityPrompt") then print(v.Name, v.Parent and v.Parent.Name) end end]])
+	end
+
+	log("用法：拿着 Lockpick / SkeletonKey / Shears / Multitool 去按锁，工具不消耗。")
+	log("关掉：getgenv().AbyInfItemsStop()")
 end)
 
 local scanConn = Workspace.DescendantAdded:Connect(function(object)
+	if not running then
+		return
+	end
 	if object:IsA("ProximityPrompt") then
 		task.defer(function()
 			if installFake(object) then
 				fakedCount = fakedCount + 1
+				log(("新接管 %s（累计 %d）"):format(object.Name, fakedCount))
 			end
 		end)
 	end
@@ -421,7 +505,6 @@ end)
 
 getgenv().AbyInfItemsStop = function()
 	running = false
-
 	if getgenv().AbyInfItemsConn then
 		pcall(function()
 			getgenv().AbyInfItemsConn:Disconnect()
@@ -432,7 +515,6 @@ getgenv().AbyInfItemsStop = function()
 		scanConn:Disconnect()
 	end)
 
-	-- 把真 prompt 放回原位，删掉假的
 	for fake, real in pairs(FakeOf) do
 		if real then
 			local originalParent = SavedParent[real]
@@ -456,14 +538,6 @@ getgenv().AbyInfItemsStop = function()
 		Container:Destroy()
 	end)
 
-	print("[无限物品] 已停止并把 prompt 全部还原")
+	log(("已停止并还原。触发统计：执行器 %d 次 / 原生 %d 次 / 失败 %d 次")
+		:format(fireStats.executor, fireStats.native, fireStats.failed))
 end
-
-log(("执行器 fireproximityprompt: %s；workspace.Drops: %s；DropItem remote: %s")
-	:format(
-		type(fireproximityprompt) == "function" and "有" or "没有",
-		getDropsFolder() and "有" or "还没有",
-		getDropItemRemote() and "有" or "没有"
-	))
-log("用法：拿着 Lockpick / SkeletonKey / Shears / Multitool 去按锁，工具不会消耗。")
-log("关掉：getgenv().AbyInfItemsStop()")
