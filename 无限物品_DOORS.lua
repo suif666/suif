@@ -1,522 +1,262 @@
 --[[
 	无限物品 · DOORS
-	从 Abysall Hub 的 "Infinite Items" 单独提取：无 UI，执行即用。
+	从 Abysall Hub 提取：InfiniteItemsToggle（Exploits / Bypass 页，第 8 个）
+	无 UI，执行即用。
 
-	原理（与 Abysall 一致）：
-	  1. 锁类 Prompt 出现时，克隆一个「假 Prompt」放到世界里，把真 Prompt 挪进隐藏容器。
-	  2. 你点的是假 Prompt；触发时脚本读取你手上正拿着的工具。
-	  3. 用 ReplicatedStorage.RemotesFolder.DropItem 把手上的工具丢一份出去（进 workspace.Drops）。
-	  4. 对丢出去的那一份补发它自己的 ModulePrompt + 真 Prompt →
-	     游戏消费的是「丢出去的副本」，背包里那把不动，于是可以一直用。
-	  5. 不满足条件（没对应道具 / 拿的是剪刀点非藤蔓门）就照常放行真 Prompt，不会出现死按钮。
+	════════════════ 原理 ════════════════
+	不是"复制物品"，是"用了不消耗"。
 
-	支持：Lockpicks / Skeleton Key / Shears / Multitool
---]]
+	你触发开锁/使用类 prompt 的那一刻：
+	  ① 先挂一个 Drops.ChildAdded 监听
+	  ② 把手里那把工具丢出去（DropItem）
+	  ③ 掉出来的那份出现的瞬间，立刻点它的 ModulePrompt —— 捡回背包
+	→ 锁开了，工具一件没少。
 
--- 重复执行时先卸掉上一份
-if getgenv().AbysallInfiniteItemsUnload then
-	pcall(getgenv().AbysallInfiniteItemsUnload)
-	getgenv().AbysallInfiniteItemsUnload = nil
+	白名单默认只有原版下拉框里那 4 个：
+	    Lockpick / SkeletonKey / Shears / Multitool
+	要加别的自己往 CONFIG.Items 里添。
+
+	════════════════ 必须满足 ════════════════
+	· 工具要拿在手上（Character:FindFirstChildOfClass("Tool")）
+	· 执行器要有 fireproximityprompt（Delta 有）
+
+	停止：getgenv().AbyInfItemsStop()
+]]
+
+if getgenv().AbyInfItemsStop then
+	pcall(getgenv().AbyInfItemsStop)
+	getgenv().AbyInfItemsStop = nil
 end
 
 local CONFIG = {
-	-- 想无限哪个就把哪个改成 true / false
+	-- 会走"丢→捡"流程的工具（按 Character 里 Tool 的 Name 判断）
 	Items = {
-		Lockpicks = true,
-		["Skeleton Key"] = true,
+		Lockpick = true,
+		SkeletonKey = true,
 		Shears = true,
 		Multitool = true,
+		-- 想扩展就打开下面这些：
+		-- Key = true,
+		-- KeyElectrical = true,
+		-- KeyBackdoor = true,
+		-- KeyIron = true,
+		-- GeneratorFuse = true,
 	},
-	InstantPrompts = false, -- true = 假 Prompt 改成 0 秒长按
-	ReachMultiplier = 1, -- >1 = 加交互距离倍数，1 = 与原版一致
+
+	-- 判定为「消耗型」的 prompt 名字。不在名单里的 prompt 不会触发丢工具。
+	ConsumingPrompts = {
+		UnlockPrompt = true,
+		SkullPrompt = true,
+		LockPrompt = true,
+		ThingToEnable = true,
+		FusesPrompt = true,
+		CuttableVines = true,
+		Chest_Vine = true,
+		Cellar = true,
+		SkullLock = true,
+		Lock1 = true,
+		Lock2 = true,
+		ActivateEventPrompt = true,
+	},
+
+	PickupTries = 15, -- 找 ModulePrompt 的重试次数
+	PickupDelay = 0.05, -- 每次重试间隔（秒）
+	WatchTimeout = 1.5, -- 挂上去等掉落物最多等多久（秒），超时自动解除监听
+	Verbose = true, -- 打印每次成功/失败
 }
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local LocalPlayer = Players.LocalPlayer
+local running = true
 
-----------------------------------------------------------------------
--- 基础工具
-----------------------------------------------------------------------
-
-local function getChar()
-	return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+getgenv().AbyInfItemsStop = function()
+	running = false
+	if getgenv().AbyInfItemsConn then
+		pcall(function()
+			getgenv().AbyInfItemsConn:Disconnect()
+		end)
+		getgenv().AbyInfItemsConn = nil
+	end
+	print("[无限物品] 已停止")
 end
 
--- 物品实例名 → 界面上的显示名（只保留本脚本关心的四个）
-local ITEM_NAMES = {
-	Lockpick = "Lockpicks",
-	SkeletonKey = "Skeleton Key",
-	Shears = "Shears",
-	Multitool = "Multitool",
-}
+----------------------------------------------------------------------
+-- 小工具
+----------------------------------------------------------------------
 
-local KEY_ITEMS = {
-	"Key", "GeneratorFuse", "KeyBackdoor", "KeyElectrical",
-	"KeyIron", "Lockpick", "SkeletonKey", "Shears", "Multitool",
-}
+local function log(...)
+	if CONFIG.Verbose then
+		print("[无限物品] " .. table.concat({ ... }, " "))
+	end
+end
 
-local OFFHAND_KEY_ITEMS = { "Key", "GeneratorFuse", "KeyElectrical", "KeyIron" }
-
--- 背包 + 角色身上找道具（OnlyCharacter = 只看角色，不看背包）
-local function hasItem(name, onlyCharacter)
+-- 手里拿着的、且在白名单里的工具
+local function getWhitelistedEquippedTool()
 	local char = LocalPlayer.Character
-	if char then
-		local onChar = char:FindFirstChild(name)
-		if onChar then
-			return onChar
-		end
+	if not char then
+		return nil
 	end
-	if not onlyCharacter then
-		local bag = LocalPlayer:FindFirstChildOfClass("Backpack")
-		if bag then
-			return bag:FindFirstChild(name)
-		end
+	local tool = char:FindFirstChildOfClass("Tool")
+	if not tool then
+		return nil
 	end
-	return nil
+	if not CONFIG.Items[tool.Name] then
+		return nil
+	end
+	return tool
 end
 
-local LOCK_PROMPT_NAMES = {
-	UnlockPrompt = true,
-	SkullPrompt = true,
-	LockPrompt = true,
-	ThingToEnable = true,
-	FusesPrompt = true,
-}
+-- 这个 prompt 会不会消耗物品
+local function isConsumingPrompt(prompt)
+	if CONFIG.ConsumingPrompts[prompt.Name] then
+		return true
+	end
 
-local function isLockPrompt(prompt)
-	if LOCK_PROMPT_NAMES[prompt.Name] then
-		return true
-	end
 	local parent = prompt.Parent
-	if parent and parent:GetAttribute("Locked") == true then
-		return true
+	if parent then
+		-- 原版的两个兜底判定
+		if parent:GetAttribute("Locked") == true then
+			return true
+		end
+		if parent.Parent and parent.Parent.Name == "Locker_Small_Locked" then
+			return true
+		end
 	end
-	if parent and parent.Parent and parent.Parent.Name == "Locker_Small_Locked" and prompt.Name == "ActivateEventPrompt" then
-		return true
-	end
+
 	return false
 end
 
-----------------------------------------------------------------------
--- 隐藏容器（放真 Prompt）
-----------------------------------------------------------------------
-
-local function getHiddenContainer()
-	if typeof(gethui) == "function" then
-		local ok, hui = pcall(gethui)
-		if ok and hui then
-			return hui
-		end
-	end
-	return game:GetService("CoreGui")
+local function getDropsFolder()
+	return Workspace:FindFirstChild("Drops")
 end
 
-local PromptContainer = Instance.new("Folder")
-PromptContainer.Name = "AbysallInfItems_Prompts"
-
--- 真 Prompt 必须能被 fireproximityprompt 触发，所以容器一定要挂上；
--- gethui() → CoreGui → PlayerGui 逐级兜底（挂 PlayerGui 不会渲染出提示）。
-for _, fallback in ipairs({
-	function()
-		return getHiddenContainer()
-	end,
-	function()
-		return LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	end,
-}) do
-	if PromptContainer.Parent then
-		break
-	end
-	local ok, target = pcall(fallback)
-	if ok and target then
-		pcall(function()
-			PromptContainer.Parent = target
-		end)
-	end
+local function getDropItemRemote()
+	local remotes = ReplicatedStorage:FindFirstChild("RemotesFolder")
+	return remotes and remotes:FindFirstChild("DropItem")
 end
 
-if not PromptContainer.Parent then
-	warn("[无限物品] 找不到可用的隐藏容器，脚本不启动（避免让你丢道具）")
-	return
-end
-
-----------------------------------------------------------------------
--- 触发 Prompt（优先用执行器的 fireproximityprompt）
-----------------------------------------------------------------------
-
-local executorFire
-pcall(function()
-	if typeof(fireproximityprompt) == "function" then
-		executorFire = fireproximityprompt
-	end
-end)
-if not executorFire then
-	pcall(function()
-		if typeof(getgenv().fireproximityprompt) == "function" then
-			executorFire = getgenv().fireproximityprompt
-		end
-	end)
-end
-
-local firePrompt
-
-if executorFire then
-	firePrompt = function(prompt)
-		if not prompt or not prompt.Parent then
-			return
-		end
-		pcall(executorFire, prompt)
-	end
-else
-	-- 兜底：把 Prompt 临时挪到镜头前的小零件上，模拟长按
-	local pending, cooldown = {}, {}
-
-	firePrompt = function(prompt)
-		if not prompt or cooldown[prompt] or table.find(pending, prompt) then
-			return
-		end
-		table.insert(pending, prompt)
-	end
-
+-- 找到掉落物上的 ModulePrompt 并点它，把工具捡回背包
+local function pickUpDropped(model)
 	task.spawn(function()
-		while true do
-			task.wait()
-			local prompt = table.remove(pending, 1)
-			if prompt then
-				cooldown[prompt] = true
-				task.spawn(function()
-					local oldDist, oldEnabled = prompt.MaxActivationDistance, prompt.Enabled
-					local oldParent, oldHold, oldLOS = prompt.Parent, prompt.HoldDuration, prompt.RequiresLineOfSight
-
-					local carrier = Instance.new("Part")
-					carrier.Size = Vector3.new(0.001, 0.001, 0.001)
-					carrier.Transparency = 1
-					carrier.CanCollide = false
-					carrier.CanQuery = false
-					carrier.CanTouch = false
-					carrier.Anchored = true
-					carrier.Parent = Workspace
-					pcall(function()
-						carrier.Position = Workspace.CurrentCamera.CFrame.Position
-					end)
-
-					prompt.MaxActivationDistance = 99999
-					prompt.Enabled = true
-					prompt.HoldDuration = 0
-					prompt.RequiresLineOfSight = false
-					pcall(function()
-						prompt.Parent = carrier
-					end)
-
-					local fired = false
-					local conn = prompt.Triggered:Connect(function()
-						fired = true
-					end)
-					for _ = 1, 10 do
-						if fired then
-							break
-						end
-						pcall(function()
-							prompt:InputHoldBegin()
-							prompt:InputHoldEnd()
-						end)
-						task.wait()
-					end
-					conn:Disconnect()
-
-					pcall(function()
-						prompt.MaxActivationDistance = oldDist
-						prompt.Enabled = oldEnabled
-						prompt.HoldDuration = oldHold
-						prompt.RequiresLineOfSight = oldLOS
-						prompt.Parent = oldParent
-					end)
-					carrier:Destroy()
-					cooldown[prompt] = nil
-				end)
+		local prompt
+		for attempt = 1, CONFIG.PickupTries do
+			if not model or not model.Parent then
+				break
 			end
+			prompt = model:FindFirstChild("ModulePrompt", true)
+			if prompt then
+				break
+			end
+			task.wait(CONFIG.PickupDelay)
 		end
-	end)
-end
 
-----------------------------------------------------------------------
--- 假 Prompt
-----------------------------------------------------------------------
-
-local FakePrompts = {}
-
-local function installFake(real)
-	if not real or not real.Parent then
-		return
-	end
-	if real.ClassName ~= "ProximityPrompt" then
-		return
-	end
-	if real:GetAttribute("FakePrompt") or real:GetAttribute("InfItemsDone") then
-		return
-	end
-	if real:IsDescendantOf(PromptContainer) then
-		return
-	end
-	if not isLockPrompt(real) then
-		return
-	end
-
-	real:SetAttribute("InfItemsDone", true)
-	real:SetAttribute("HoldDuration_Old", real.HoldDuration)
-	real:SetAttribute("RequiresLineOfSight_Old", real.RequiresLineOfSight)
-	real:SetAttribute("MaxActivationDistance_Old", real.MaxActivationDistance)
-
-	if CONFIG.InstantPrompts then
-		real.HoldDuration = 0
-	end
-
-	local originalParent = real.Parent
-
-	local fake = real:Clone()
-	fake:SetAttribute("FakePrompt", true)
-	fake:SetAttribute("InfItemsFake", true)
-	task.wait()
-	fake.Parent = originalParent
-
-	fake.HoldDuration = real.HoldDuration
-	fake.RequiresLineOfSight = real.RequiresLineOfSight
-	fake.MaxActivationDistance = real.MaxActivationDistance
-	if CONFIG.ReachMultiplier ~= 1 then
-		fake.MaxActivationDistance = real:GetAttribute("MaxActivationDistance_Old") * CONFIG.ReachMultiplier
-	end
-
-	FakePrompts[fake] = real
-	pcall(function()
-		real.Parent = PromptContainer
-	end)
-
-	local enabledConn = real:GetPropertyChangedSignal("Enabled"):Connect(function()
-		if fake and fake.Parent then
-			fake.Enabled = real.Enabled
-		end
-	end)
-
-	local restored = false
-	local function restore()
-		if restored then
+		if not prompt then
+			warn(("[无限物品] 掉落物上找不到 ModulePrompt（%s，第 %d 次重试后）—— 这次的东西要自己捡")
+				:format(tostring(model and model.Name), CONFIG.PickupTries))
 			return
 		end
-		restored = true
-		if enabledConn then
-			enabledConn:Disconnect()
-			enabledConn = nil
-		end
-		if real and real.Parent == PromptContainer and originalParent then
-			pcall(function()
-				real.Parent = originalParent
-			end)
-		end
-		FakePrompts[fake] = nil
-		if fake and fake.Parent then
-			fake:Destroy()
-		end
-	end
 
-	real:GetPropertyChangedSignal("ActionText"):Once(restore)
-	real.Destroying:Once(restore)
+		local ok, err = pcall(function()
+			fireproximityprompt(prompt)
+		end)
+		if ok then
+			log(("已把 %s 捡回背包"):format(tostring(model.Name)))
+		else
+			warn("[无限物品] 捡回失败：" .. tostring(err))
+		end
+	end)
 end
 
 ----------------------------------------------------------------------
 -- 主逻辑
 ----------------------------------------------------------------------
 
-local function getDropRemote()
-	local rf = ReplicatedStorage:FindFirstChild("RemotesFolder")
-	if not rf then
-		return nil
+local function onPromptTriggered(prompt, player)
+	if not running then
+		return
 	end
-	local remote = rf:FindFirstChild("DropItem")
-	if remote and remote:IsA("RemoteEvent") then
-		return remote
+	if player ~= LocalPlayer then
+		return
 	end
-	return nil
-end
 
--- 丢出去的那份进 Drops 后，补发它自己的 ModulePrompt + 真 Prompt
--- 返回 false = 没挂上钩子，此时绝对不能丢道具，否则道具就白丢了
-local function armDropsHandler(realPrompt)
-	local drops = Workspace:FindFirstChild("Drops")
+	local tool = getWhitelistedEquippedTool()
+	if not tool then
+		return
+	end
+
+	if not isConsumingPrompt(prompt) then
+		return
+	end
+
+	local drops = getDropsFolder()
 	if not drops then
-		return false
-	end
-	local conn
-	conn = drops.ChildAdded:Connect(function(newTool)
-		if conn then
-			conn:Disconnect()
-			conn = nil
-		end
-		local modulePrompt = newTool:FindFirstChild("ModulePrompt")
-		if not modulePrompt then
-			modulePrompt = newTool:FindFirstChild("ModulePrompt", true)
-		end
-		if modulePrompt then
-			firePrompt(modulePrompt)
-		end
-		if realPrompt and realPrompt.Parent then
-			firePrompt(realPrompt)
-		end
-	end)
-	task.delay(3, function()
-		if conn then
-			conn:Disconnect()
-			conn = nil
-		end
-	end)
-	return true
-end
-
-local triggerConn = ProximityPromptService.PromptTriggered:Connect(function(prompt)
-	if not prompt:GetAttribute("FakePrompt") then
-		return
-	end
-	local real = FakePrompts[prompt]
-	if not real or not real.Parent then
+		warn("[无限物品] 现在还没有 workspace.Drops（要有人丢过东西才会创建），这次跳过")
 		return
 	end
 
-	local function passthrough()
-		firePrompt(real)
+	local remote = getDropItemRemote()
+	if not remote then
+		warn("[无限物品] 找不到 ReplicatedStorage.RemotesFolder.DropItem，这次跳过")
+		return
 	end
 
-	-- 假 Prompt 只在锁类上才会被创建，所以走到这里一定是锁
+	-- ① 先挂监听（顺序不能反，否则掉落物可能已经出现过了）
+	local connection
+	local settled = false
 
-	-- 手上/背包里连钥匙类道具都没有 → 按普通交互放行
-	local hasKey = false
-	for _, name in ipairs(KEY_ITEMS) do
-		if hasItem(name, true) then
-			hasKey = true
-			break
+	local function finish()
+		settled = true
+		if connection then
+			pcall(function()
+				connection:Disconnect()
+			end)
+			connection = nil
 		end
 	end
-	if not hasKey then
-		for _, name in ipairs(OFFHAND_KEY_ITEMS) do
-			if hasItem(name) then
-				hasKey = true
-				break
-			end
+
+	connection = drops.ChildAdded:Connect(function(newChild)
+		if settled then
+			return
 		end
-	end
-	if not hasKey then
-		return passthrough()
-	end
-
-	local parentName = prompt.Parent and prompt.Parent.Name or ""
-	local isVineLike = parentName == "CuttableVines" or parentName == "Chest_Vine" or parentName == "Cellar"
-	local hasShears = hasItem("Shears", true) ~= nil
-	local hasMultitool = hasItem("Multitool", true) ~= nil
-
-	if isVineLike and not hasShears and not hasMultitool then
-		return passthrough()
-	end
-	if parentName == "SkullLock" and not hasItem("SkeletonKey", true) then
-		return passthrough()
-	end
-	if (parentName == "Lock1" or parentName == "Lock2") and not hasItem("Lockpick", true) and not hasMultitool then
-		return passthrough()
-	end
-	-- 拿着剪刀时不要拿去开普通锁（剪刀是给藤蔓的）
-	if hasShears and not isVineLike then
-		return passthrough()
-	end
-
-	local char = getChar()
-	local heldTool = char and char:FindFirstChildOfClass("Tool")
-	local displayName = heldTool and ITEM_NAMES[heldTool.Name]
-	if not heldTool or not displayName or not CONFIG.Items[displayName] then
-		return passthrough()
-	end
-
-	local dropRemote = getDropRemote()
-	if not dropRemote then
-		return passthrough()
-	end
-
-	if not armDropsHandler(real) then
-		return passthrough()
-	end
-
-	-- 剪刀用完的音效（纯装饰，失败无所谓）
-	char.ChildAdded:Once(function(newTool)
-		if newTool.Name == "Shears" then
-			local handle = newTool:FindFirstChild("Handle")
-			local sound = handle and handle:FindFirstChild("sound_promptend")
-			if sound and sound.Play then
-				pcall(function()
-					sound:Play()
-				end)
-			end
+		finish()
+		if newChild then
+			pickUpDropped(newChild)
 		end
 	end)
 
-	local ok = pcall(function()
-		dropRemote:FireServer(heldTool)
+	-- 等不到掉落物就自动放手，避免监听泄漏
+	task.delay(CONFIG.WatchTimeout, function()
+		if not settled then
+			finish()
+			warn("[无限物品] 丢出去之后 " .. CONFIG.WatchTimeout .. " 秒没等到掉落物，已解除监听")
+		end
+	end)
+
+	-- ② 把工具丢出去
+	local ok, err = pcall(function()
+		remote:FireServer(tool)
 	end)
 	if not ok then
-		pcall(function()
-			firePrompt(real)
-		end)
+		finish()
+		warn("[无限物品] DropItem 调用失败：" .. tostring(err))
+		return
 	end
-end)
 
-----------------------------------------------------------------------
--- 监听 Prompt
-----------------------------------------------------------------------
-
-local function onInstance(instance)
-	if instance and instance.ClassName == "ProximityPrompt" then
-		task.spawn(installFake, instance)
-	end
+	log(("触发 %s → 已丢出 %s，等它出现后捡回"):format(prompt.Name, tool.Name))
 end
 
-for _, object in ipairs(Workspace:GetDescendants()) do
-	onInstance(object)
-end
+getgenv().AbyInfItemsConn = ProximityPromptService.PromptTriggered:Connect(onPromptTriggered)
 
-local descendantConn = Workspace.DescendantAdded:Connect(onInstance)
-
-----------------------------------------------------------------------
--- 卸载句柄（重跑脚本时自动清掉上一份）
-----------------------------------------------------------------------
-
-getgenv().AbysallInfiniteItemsUnload = function()
-	if triggerConn then
-		triggerConn:Disconnect()
-		triggerConn = nil
+log("已启用。白名单：" .. (function()
+	local names = {}
+	for name in pairs(CONFIG.Items) do
+		names[#names + 1] = name
 	end
-	if descendantConn then
-		descendantConn:Disconnect()
-		descendantConn = nil
-	end
-
-	for fake, real in pairs(FakePrompts) do
-		if real and real.Parent == PromptContainer then
-			pcall(function()
-				real.Parent = fake.Parent
-			end)
-		end
-		if fake and fake.Parent then
-			pcall(function()
-				fake:Destroy()
-			end)
-		end
-	end
-	FakePrompts = {}
-
-	if PromptContainer then
-		pcall(function()
-			PromptContainer:Destroy()
-		end)
-	end
-end
-
-print("[无限物品] 已加载 —— 拿着 Lockpick / Skeleton Key / Shears / Multitool 去点锁即可，不消耗次数。")
+	table.sort(names)
+	return table.concat(names, ", ")
+end)())
+log("提示：工具要拿在手上才会触发。用 getgenv().AbyInfItemsStop() 关闭。")
