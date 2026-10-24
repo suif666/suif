@@ -1,3 +1,18 @@
+-- ═══════════════════════════════════════════════════════════
+--  这是 mspaint 的【插件】，不能直接 loadstring 运行。
+--  直接运行会报：attempt to index nil with 'AddonInfo'
+--  因为 mspaint 本体没加载，mspaint 这个全局是 nil。
+--  正确装法：执行 DoorsDataViewer_安装器.lua，然后重载 mspaint。
+-- ═══════════════════════════════════════════════════════════
+do
+	local ok, host = pcall(function() return mspaint end)
+	if not ok or type(host) ~= "table" then
+		warn("[Doors 数据查看器] 这是 mspaint 插件，必须由 mspaint 加载，不能直接 loadstring 运行。")
+		warn("[Doors 数据查看器] 先跑 DoorsDataViewer_安装器.lua，它会自动找 mspaint 的插件目录并装好。")
+		return
+	end
+end
+
 mspaint.AddonInfo = {
     Name = "DoorsDataViewer",
     Title = "Doors 数据查看器",
