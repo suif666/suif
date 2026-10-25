@@ -1091,7 +1091,7 @@ function vape:LoadGUI()
 			if shared.VapeDeveloper then
 				loadstring(readfile('newvape/loader.lua'), 'loader')()
 			else
-				loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/'..readfile('newvape/profiles/commit.txt')..'/loader.lua', true))()
+				loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/zh1/'loader.lua', true))()
 			end
 		end,
 		Tooltip = '这会把你的配置恢复为 Vape 默认设置'
@@ -1112,7 +1112,7 @@ function vape:LoadGUI()
 			if shared.VapeDeveloper then
 				loadstring(readfile('newvape/loader.lua'), 'loader')()
 			else
-				loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/'..readfile('newvape/profiles/commit.txt')..'/loader.lua', true))()
+				loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/zh1/'loader.lua', true))()
 			end
 		end,
 		Tooltip = '为调试目的重新加载 Vape'
@@ -1245,7 +1245,7 @@ function vape:LoadGUI()
 				if shared.VapeDeveloper then
 					loadstring(readfile('newvape/loader.lua'), 'loader')()
 				else
-					loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/'..readfile('newvape/profiles/commit.txt')..'/loader.lua', true))()
+					loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/zh1/'loader.lua', true))()
 				end
 			end
 		end,
