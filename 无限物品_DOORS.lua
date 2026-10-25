@@ -21,9 +21,16 @@
 	脚本会接管所有锁类 prompt；按下去后工具不会消耗。
 
 	═══════════ 关于互动距离 ═══════════
-	已去掉距离加成：假 prompt 的互动距离与原 prompt 完全一致，
-	不会因为你开了无限物品就能从更远的地方按到锁。
-	目前只保留了「0 秒按住」和「不需要视线」两项便利（不需要的话和我说）。
+	已去掉距离加成：假 prompt 的互动距离与原 prompt 完全一致。
+	保留了两项可开关的便利：
+	  · InstantPrompts = true  （0 秒按住）
+	  · RequiresLineOfSight = false （不需要视线）
+	如果还想要更原版的交互，把 CONFIG.InstantPrompts 改成 false。
+
+	═══════════ 如果还消耗道具 ═══════════
+	默认 FireOrder = "pickup-first"（按 Abysall 原版顺序：先捡回再开锁）。
+	如果仍然消耗，改成 FireOrder = "real-first"（先开锁再捡回），
+	让服务器在试图消耗时工具还在地上。
 
 	停止：getgenv().AbyInfItemsStop()
 ]]
@@ -41,7 +48,8 @@ local CONFIG = {
 		Shears = true,
 		Multitool = true,
 	},
-	InstantPrompts = true, -- 假 prompt 是否 0 秒按住
+	InstantPrompts = true, -- 是否把按住时长改成 0（true = 与 Abysall 默认一致）
+	FireOrder = "pickup-first", -- "pickup-first" 按 Abysall 顺序；如果还消耗，改成 "real-first" 试
 	Verbose = true,
 }
 
@@ -308,12 +316,27 @@ local function onPromptTriggered(object, player)
 		end
 
 		drops.ChildAdded:Once(function(newTool)
+			log("掉落物出现:", newTool.Name)
 			local prompt = newTool:FindFirstChild("ModulePrompt")
-			if prompt then
-				firePrompt(prompt)
+			if CONFIG.FireOrder == "real-first" then
+				firePrompt(realPrompt)
+				log("已触发真 prompt 开锁（real-first）")
+				if prompt then
+					firePrompt(prompt)
+					log("已触发 ModulePrompt 捡回", newTool.Name)
+				else
+					warn("[无限物品] 掉落物", newTool.Name, "上找不到 ModulePrompt")
+				end
+			else
+				if prompt then
+					firePrompt(prompt)
+					log("已触发 ModulePrompt 捡回", newTool.Name)
+				else
+					warn("[无限物品] 掉落物", newTool.Name, "上找不到 ModulePrompt")
+				end
+				firePrompt(realPrompt)
+				log("已触发真 prompt 开锁（pickup-first）")
 			end
-			task.wait(0.05)
-			firePrompt(realPrompt)
 		end)
 
 		Character.ChildAdded:Once(function(newTool)
@@ -398,7 +421,9 @@ task.spawn(function()
 	log("诊断  DropItem:", DropItem and "有" or "没有")
 	log("诊断  workspace.Drops:", getDrops() and "有" or "还没有")
 	log("诊断  已接管锁类 prompt:", FakeCount)
+	log("诊断  InstantPrompts:", CONFIG.InstantPrompts, "FireOrder:", CONFIG.FireOrder)
 	log("用法：手里拿 Lockpick / SkeletonKey / Shears / Multitool，走到锁前按 E。")
 	log("注意：工具必须拿在手里；在背包里不会被无限。")
+	log("如果还消耗，改 CONFIG.FireOrder = \"real-first\" 再试一次。")
 	log("停止：getgenv().AbyInfItemsStop()")
 end)
