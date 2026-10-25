@@ -56,7 +56,7 @@ local function finishLoading()
 				if shared.VapeDeveloper then
 					loadstring(readfile('newvape/loader.lua'), 'loader')()
 				else
-					loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/zh1/'loader.lua', true), 'loader')()
+					loadstring(game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/zh1/loader.lua', true), 'loader')()
 				end
 			]]
 
