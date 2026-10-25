@@ -11,7 +11,7 @@ end
 local function downloadFile(path, func)
 	if not isfile(path) then
 		local suc, res = pcall(function()
-			return game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/zh2/'..select(1, path:gsub('newvape/', '')), true)
+			return game:HttpGet('https://raw.githubusercontent.com/suif666/suif/main/vapebuild/zh3/'..select(1, path:gsub('newvape/', '')), true)
 		end)
 		if not suc or res == '404: Not Found' then
 			error(res)
@@ -43,7 +43,7 @@ end
 if not shared.VapeDeveloper then
 	local assetVer = '1'
 	-- 汉化版自托管：版本号固定；改这个值会触发一次缓存清空重下
-	local commit = 'zh2'
+	local commit = 'zh3'
 
 	if commit == 'main' or (isfile('newvape/profiles/commit.txt') and readfile('newvape/profiles/commit.txt') or '') ~= commit then
 		-- 清掉早期汉化补丁写入的文件（它们不带水印，wipeFolder 删不掉）
