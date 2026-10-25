@@ -609,6 +609,7 @@ local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked =
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
 local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
+local sjpvpTab = scriptSec:Tab({ Title = "RoFront[世界pvp]", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2845,6 +2846,15 @@ gTab:Button({
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E7%8B%97.lua", "狗")
     end
 })
+
+sjpvpTab:Button({
+    Title = "[🔑]世界pvp", Desc = "自动游玩 自动援助等等...", Icon = "shell",
+    Callback = function()
+		getgenv().DoServerHop = true
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E4%B8%96%E7%95%8Cpvp.lua", "世界pvp")
+    end
+})
+
 
 
 -- UI设置
