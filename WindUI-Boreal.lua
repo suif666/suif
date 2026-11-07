@@ -9521,6 +9521,25 @@ Canvas.Size=UDim2.new(0,(type(am.MenuWidth)=="number"and am.MenuWidth>0)and am.M
 local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
 if UISC then UISC.MaxSize=Vector2.new(300,400) end
 end
+-- 恢复普通竖排布局
+local SF=am.UIElements.Menu.Frame.ScrollingFrame
+local Layout=SF and SF:FindFirstChildOfClass("UIListLayout")
+if Layout then
+Layout.FillDirection=Enum.FillDirection.Vertical
+Layout.Wraps=false
+Layout.HorizontalAlignment=Enum.HorizontalAlignment.Center
+Layout.VerticalAlignment=Enum.VerticalAlignment.Top
+Layout.Padding=UDim.new(0,an.MenuPadding/1.5)
+Layout.SortOrder=Enum.SortOrder.LayoutOrder
+end
+if am.Tabs then
+for _,t in next,am.Tabs do
+local item=t.UIElements and t.UIElements.TabItem
+if item then
+item.Size=UDim2.new(1,0,0,36)
+end
+end
+end
 end)
 end
 
@@ -9549,14 +9568,35 @@ ar.Position=UDim2.new(0,0,0,0)
 ar.Name="SearchBar"
 end
 end
--- 放大画布并居中
+-- 放大画布并居中（适配视口：移动端不超出屏幕）
 local Canvas=am.UIElements.MenuCanvas
 if not Canvas then return end
 local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
-if UISC then UISC.MaxSize=Vector2.new(560,720) end
+local V=af.ViewportSize
+local BigW=math.max(220,math.min(420,(V and V.X or 420)-24))
+local BigH=math.max(200,math.min(480,(V and V.Y or 480)-100))
+if UISC then UISC.MaxSize=Vector2.new(BigW+20,BigH+40) end
 Canvas.AnchorPoint=Vector2.new(0.5,0.5)
 Canvas.Position=UDim2.new(0.5,0,0.5,0)
-Canvas.Size=UDim2.new(0,420,0,480)
+Canvas.Size=UDim2.new(0,BigW,0,BigH)
+-- 横排按钮网格：选项按按钮格式横向排列（自动换行，移动端友好）
+local SF=am.UIElements.Menu.Frame.ScrollingFrame
+local Layout=SF and SF:FindFirstChildOfClass("UIListLayout")
+if Layout then
+Layout.FillDirection=Enum.FillDirection.Horizontal
+Layout.Wraps=true
+Layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
+Layout.VerticalAlignment=Enum.VerticalAlignment.Top
+Layout.Padding=UDim.new(0,8)
+Layout.SortOrder=Enum.SortOrder.LayoutOrder
+end
+local colW=math.max(96,math.floor((BigW-(an.MenuPadding*2)-8)/2))
+for _,t in next,am.Tabs do
+local item=t.UIElements and t.UIElements.TabItem
+if item and item.Parent then
+item.Size=UDim2.new(0,colW,0,t.Desc and 48 or 34)
+end
+end
 -- 打开（复用 Open 的展开动画）
 am.Opened=true
 if am.SpecialType and am.SpecialType~="None"and am.RefreshSpecialValues then
@@ -9565,6 +9605,8 @@ end
 am.UIElements.Menu.Visible=true
 Canvas.Visible=true
 Canvas.Active=true
+RecalculateListSize()
+RecalculateCanvasSize()
 am.UIElements.Menu.Size=UDim2.new(1,0,0,0)
 ak(am.UIElements.Menu,0.1,{
 Size=UDim2.new(1,0,1,0),
