@@ -1,5 +1,5 @@
 -- WindUI Boreal
--- Version: v0.1.1 [suture]（滑条移除/Expand WinUI/Slider超限/放大菜单居中+横排+标题栏）
+-- Version: v0.2.0 [suture]（滑条移除/Expand WinUI/Slider超限/放大菜单居中+横排+标题栏）
 -- BuildDate: 2026-05-31
 -- Description: Roblox UI Library for scripts
 -- Repository: https://github.com/orialdev/windui-boreal
@@ -9598,7 +9598,7 @@ end)
 end
 am.__CloseBig=CloseBig
 
--- 全屏点击捕获层（菜单下方，点外部关闭）
+-- 全屏点击捕获层（菜单外点击关闭）
 local Catcher=aj("Frame",{
 Name="WindUIBigDropdownCatcher",
 Size=UDim2.new(1,0,1,0),
@@ -9712,7 +9712,7 @@ ClearTextOnFocus=false,
 Parent=SearchBg,
 })
 
--- 选项滚动区（横排网格）
+-- 选项滚动区（横排网格，克隆原版选项）
 local Scroll=aj("ScrollingFrame",{
 Name="OptionScroll",
 Size=UDim2.new(1,-16,1,-96),
@@ -9721,69 +9721,51 @@ BackgroundTransparency=1,
 BorderSizePixel=0,
 ScrollBarThickness=4,
 ScrollingDirection="Y",
-AutomaticCanvasSize="Y",
 CanvasSize=UDim2.new(0,0,0,0),
 ScrollBarImageTransparency=0.6,
 Parent=BigFrame,
 })
-local Grid=aj("UIGridLayout",{
-CellSize=UDim2.new(0,math.max(96,math.floor((BigW-32)/2)),0,36),
-CellPadding=UDim.new(0,8),
-FillDirection="Horizontal",
-HorizontalAlignment="Center",
-SortOrder="LayoutOrder",
+local Grid=aj("UIListLayout",{
+FillDirection=Enum.FillDirection.Horizontal,
+Wraps=true,
+Padding=UDim.new(0,8),
+HorizontalAlignment=Enum.HorizontalAlignment.Left,
+VerticalAlignment=Enum.VerticalAlignment.Top,
+SortOrder=Enum.SortOrder.LayoutOrder,
 Parent=Scroll,
 })
+local colW=math.max(96,math.floor((BigW-32)/2))
 
--- 选项按钮
-local BigButtons={}
+-- 克隆原版 TabItem 作为放大菜单按钮（视觉 100% 一致）
+local Clones={}
 for idx,tab in ipairs(am.Tabs) do
-local Btn=ai.NewRoundFrame(an.MenuCorner-4,"Squircle",{
-Size=UDim2.new(1,0,1,0),
-ThemeTag={
-ImageColor3="Background",
-},
-ImageTransparency=tab.Selected and 0.95 or 1,
-LayoutOrder=idx,
-Active=not tab.Locked,
-Parent=Scroll,
-},{
-ai.NewRoundFrame(an.MenuCorner-4,"Glass-1.4",{
-Name="Highlight",
-Size=UDim2.new(1,0,1,0),
-ThemeTag={
-ImageColor3="DropdownTabBorder",
-},
-ImageTransparency=tab.Selected and 0.75 or 1,
-}),
-aj("TextLabel",{
-Name="Title",
-Size=UDim2.new(1,-12,1,0),
-Position=UDim2.new(0,6,0,0),
-BackgroundTransparency=1,
-Text=tostring(tab.Name or""),
-TextSize=14,
-FontFace=Font.new(ai.Font,Enum.FontWeight.Medium),
-ThemeTag={
-TextColor3="Text",
-},
-TextTransparency=tab.Selected and 0 or 0.4,
-TextXAlignment="Left",
-}),
-},true)
-BigButtons[tab]=Btn
-
-local function UpdateButtonVisuals()
-for t,b in next,BigButtons do
-local Sel=t.Selected
-ak(b,0.1,{ImageTransparency=Sel and 0.95 or 1}):Play()
-ak(b.Highlight,0.1,{ImageTransparency=Sel and 0.75 or 1}):Play()
-ak(b.Title,0.1,{TextTransparency=Sel and 0 or 0.4}):Play()
+local src=tab.UIElements and tab.UIElements.TabItem
+if src then
+local clone=src:Clone()
+clone.Name="BigTabItem"
+clone.Size=UDim2.new(0,colW,0,tab.Desc and 48 or 34)
+clone.AutomaticSize=Enum.AutomaticSize.None
+clone.LayoutOrder=idx
+clone.Parent=Scroll
+local HL=clone:FindFirstChild("Highlight")
+local TitleLbl=clone:FindFirstChild("Frame")and clone.Frame:FindFirstChild("Title")and clone.Frame.Title:FindFirstChild("TextLabel")
+local Icon=clone:FindFirstChild("TabIcon")
+-- 初始选中态
+if tab.Selected and not tab.Locked then
+clone.ImageTransparency=.95
+if HL then HL.ImageTransparency=.75 end
+if TitleLbl then TitleLbl.TextTransparency=0 end
+if Icon then Icon.ImageLabel.ImageTransparency=0 end
+else
+clone.ImageTransparency=1
+if HL then HL.ImageTransparency=1 end
+if TitleLbl then TitleLbl.TextTransparency=.4 end
+if Icon then Icon.ImageLabel.ImageTransparency=.2 end
 end
-end
+Clones[tab]=clone
 
 if not tab.Locked then
-ai.AddSignal(Btn.MouseButton1Click,function()
+ai.AddSignal(clone.MouseButton1Click,function()
 if tab.Locked then return end
 if am.Multi then
 if not tab.Selected then
@@ -9810,32 +9792,52 @@ tab.Selected=true
 am.Value=tab.Original
 end
 Callback()
-UpdateButtonVisuals()
+-- 同步原菜单选中态 + 放大菜单选中态
+for t,b in next,Clones do
+local Sel=t.Selected
+local bHL=b:FindFirstChild("Highlight")
+local bTitle=b:FindFirstChild("Frame")and b.Frame:FindFirstChild("Title")and b.Frame.Title:FindFirstChild("TextLabel")
+local bIcon=b:FindFirstChild("TabIcon")
+if t.UIElements and t.UIElements.TabItem then
+ak(t.UIElements.TabItem,0.1,{ImageTransparency=Sel and .95 or 1}):Play()
+local sHL=t.UIElements.TabItem:FindFirstChild("Highlight")
+local sTitle=t.UIElements.TabItem:FindFirstChild("Frame")and t.UIElements.TabItem.Frame:FindFirstChild("Title")and t.UIElements.TabItem.Frame.Title:FindFirstChild("TextLabel")
+local sIcon=t.UIElements.TabItem:FindFirstChild("TabIcon")
+if sHL then ak(sHL,0.1,{ImageTransparency=Sel and .75 or 1}):Play() end
+if sTitle then ak(sTitle,0.1,{TextTransparency=Sel and 0 or .4}):Play() end
+if sIcon then ak(sIcon.ImageLabel,0.1,{ImageTransparency=Sel and 0 or .2}):Play() end
+end
+ak(b,0.1,{ImageTransparency=Sel and .95 or 1}):Play()
+if bHL then ak(bHL,0.1,{ImageTransparency=Sel and .75 or 1}):Play() end
+if bTitle then ak(bTitle,0.1,{TextTransparency=Sel and 0 or .4}):Play() end
+if bIcon then ak(bIcon.ImageLabel,0.1,{ImageTransparency=Sel and 0 or .2}):Play() end
+end
 if not am.Multi then
 CloseBig()
 end
 end)
 end
 end
+end
 
--- 搜索过滤
+-- 搜索过滤（按名字）
 ai.AddSignal(SearchBox:GetPropertyChangedSignal("Text"),function()
 local txt=string.lower(SearchBox.Text or"")
-for tab,btn in next,BigButtons do
+for tab,clone in next,Clones do
 local match=txt==""or string.find(string.lower(tostring(tab.Name or"")),txt,1,true)
-btn.Visible=match
+clone.Visible=match
 end
 task.defer(function()
 if Scroll and Scroll.Parent then
-Scroll.CanvasSize=UDim2.new(0,Grid.AbsoluteContentSize.X,0,Grid.AbsoluteContentSize.Y)
+Scroll.CanvasSize=UDim2.fromOffset(0,Grid.AbsoluteContentSize.Y)
 end
 end)
 end)
 
--- 初始滚动范围
+-- 初始滚动范围（等布局重排）
 task.defer(function()
 if Scroll and Scroll.Parent then
-Scroll.CanvasSize=UDim2.new(0,Grid.AbsoluteContentSize.X,0,Grid.AbsoluteContentSize.Y)
+Scroll.CanvasSize=UDim2.fromOffset(0,Grid.AbsoluteContentSize.Y)
 end
 end)
 
