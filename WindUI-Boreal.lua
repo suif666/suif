@@ -9496,6 +9496,10 @@ function aq.Close(as)
 if not am.Opened and not am.UIElements.MenuCanvas.Visible then
 return
 end
+-- [suture] 同步释放点击拦截：菜单一关立即恢复窗口可点（不等动画结束）
+if am.UIElements.MenuCanvas then
+am.UIElements.MenuCanvas.Active=false
+end
 
 am.Opened=false
 
