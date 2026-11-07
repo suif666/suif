@@ -1,5 +1,5 @@
 -- WindUI Boreal
--- Version: v0.0.1
+-- Version: v0.0.7 [suture]（滑条移除/Expand WinUI/Slider超限/放大菜单居中+横排+标题栏）
 -- BuildDate: 2026-05-31
 -- Description: Roblox UI Library for scripts
 -- Repository: https://github.com/orialdev/windui-boreal
