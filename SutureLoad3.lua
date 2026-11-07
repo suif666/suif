@@ -1,5 +1,5 @@
 --[[
-  SutureLoad3 v1.1 —— Suture Hub 一键启动（加载器内联版，Snowflakes 懒初始化修复）
+  SutureLoad3 v1.2 —— Suture Hub 一键启动（加载器内联 + task 多级兼容包装）
 ]]
 local Loader = (function()
 --[[
@@ -31,6 +31,46 @@ local Player = Players.LocalPlayer
 local PlayerGui = Player and Player:WaitForChild("PlayerGui")
 
 local Font = Enum.Font.Gotham
+
+local TASK = (type(task) == "table" or type(task) == "userdata") and task or {}
+local HAS_WAIT = type(TASK.wait) == "function"
+local HAS_SPAWN = type(TASK.spawn) == "function"
+local HAS_DELAY = type(TASK.delay) == "function"
+local HAS_DEFER = type(TASK.defer) == "function"
+
+local function Wait(t)
+	if HAS_WAIT then
+		return TASK.wait(t)
+	end
+	if wait then
+		return wait(t)
+	end
+	return nil
+end
+local function Spawn(fn, ...)
+	if HAS_SPAWN then
+		return TASK.spawn(fn, ...)
+	end
+	if spawn then
+		return spawn(fn, ...)
+	end
+	return coroutine.resume(coroutine.create(function() fn(...) end))
+end
+local function Delay(t, fn, ...)
+	if HAS_DELAY then
+		return TASK.delay(t, fn, ...)
+	end
+	if delay then
+		return delay(t, fn, ...)
+	end
+	Spawn(function() Wait(t); fn(...) end)
+end
+local function Defer(fn, ...)
+	if HAS_DEFER then
+		return TASK.defer(fn, ...)
+	end
+	return Spawn(fn, ...)
+end
 
 local function New(className, props, children)
 	local obj = Instance.new(className)
@@ -237,7 +277,7 @@ function Loader:StartSnow(gui)
 			Parent = gui,
 		})
 		table.insert(self.Snowflakes, flake)
-		task.spawn(function()
+		Spawn(function()
 			while self.Running and flake.Parent do
 				local dur = math.random(6, 10)
 				local targetX = math.random() * 1
@@ -286,7 +326,7 @@ function Loader:Start(cb)
 		end
 		return self
 	end
-	task.spawn(function()
+	Spawn(function()
 		for i, task in ipairs(self.Tasks) do
 			if self.TaskLbl then
 				self.TaskLbl.Text = task.Name
@@ -296,10 +336,10 @@ function Loader:Start(cb)
 				warn("[SutureLoader] 任务失败: " .. tostring(task.Name) .. " - " .. tostring(err))
 			end
 			self:SetProgress((i / n) * 100)
-			task.wait(0.06)
+			Wait(0.06)
 		end
 		self:SetProgress(100, "加载完成")
-		task.wait(0.4)
+		Wait(0.4)
 		if cb then
 			pcall(cb)
 		end
@@ -319,7 +359,7 @@ function Loader:FlushUI(Window)
 			warn("[SutureLoader] UI 附加失败: " .. tostring(item.Name) .. " - " .. tostring(err))
 		end
 		if i < n then
-			task.wait(0.03)
+			Wait(0.03)
 		end
 	end
 	table.clear(self.UIQueue)
@@ -334,7 +374,7 @@ function Loader:Finish()
 	self.Finished = true
 	self.Running = false
 	local gui = self.Gui
-	task.spawn(function()
+	Spawn(function()
 		if not gui then
 			return
 		end
@@ -362,7 +402,7 @@ function Loader:Finish()
 				Tween(flake, fade, { TextTransparency = 1 })
 			end
 		end
-		task.wait(0.55)
+		Wait(0.55)
 		if gui and gui.Parent then
 			gui:Destroy()
 		end
@@ -394,6 +434,25 @@ local function tryLoad(url)
 		return mod
 	end
 	return nil
+end
+-- task 兼容包装（task.wait/spawn 可能缺失的执行器）
+local TASK2 = (type(task) == "table" or type(task) == "userdata") and task or {}
+local H2W = type(TASK2.wait) == "function"
+local H2S = type(TASK2.spawn) == "function"
+local function W2(t)
+	if H2W then return TASK2.wait(t) end
+	if wait then return wait(t) end
+	return nil
+end
+local function S2(fn, ...)
+	if H2S then return TASK2.spawn(fn, ...) end
+	if spawn then return spawn(fn, ...) end
+	return coroutine.resume(coroutine.create(function() fn(...) end))
+end
+local function D2(t, fn, ...)
+	if type(TASK2.delay) == "function" then return TASK2.delay(t, fn, ...) end
+	if delay then return delay(t, fn, ...) end
+	S2(function() W2(t); fn(...) end)
 end
 if not Loader then
 	warn("[SutureLoad3] 加载器内联失败，直接启动 suif")
@@ -431,7 +490,7 @@ Loader:Start(function()
 			pcall(function() Loader:Finish() end)
 		end
 	end
-	task.delay(10, function()
+	D2(10, function()
 		pcall(function() Loader:Finish() end)
 	end)
 end)
