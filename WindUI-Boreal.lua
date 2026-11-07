@@ -9513,11 +9513,17 @@ ImageTransparency=1,
 
 task.spawn(function()
 task.wait(.1)
+if am.__BigMode then
+return
+end
 am.UIElements.Menu.Visible=false
 end)
 
 task.spawn(function()
 task.wait(.25)
+if am.__BigMode then
+return
+end
 am.UIElements.MenuCanvas.Visible=false
 am.UIElements.MenuCanvas.Active=false
 local Canvas=am.UIElements.MenuCanvas
@@ -9586,6 +9592,7 @@ end
 -- 放大画布：居中弹出（视口适配：移动端不超出屏幕）
 local Canvas=am.UIElements.MenuCanvas
 if not Canvas then return end
+am.__BigMode=true
 local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
 local V=af.ViewportSize
 local BigW=math.max(220,math.min(420,(V and V.X or 420)-24))
@@ -9618,25 +9625,10 @@ local finalH=math.max(180,math.min(40+39+rows*48+16,BigH))
 Canvas.AnchorPoint=Vector2.new(0.5,0.5)
 Canvas.Size=UDim2.new(0,BigW,0,finalH)
 Canvas.Position=UDim2.new(0.5,0,0.5,0)
--- 点菜单空白（或菜单盖住的区域）自动关闭：点选项/搜索框/✕ 不关，点其他先关菜单
-if not Canvas:GetAttribute("WindUIDropdownBigCloseBound") then
-Canvas:SetAttribute("WindUIDropdownBigCloseBound",true)
-ai.AddSignal(Canvas.InputBegan,function(inp)
-if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
-local hits=game:GetService("GuiService"):GetGuiObjectsAtPosition(inp.Position.X,inp.Position.Y)
-local interactive=false
-for _,h in next,hits do
-if h:IsDescendantOf(Canvas)and(h:IsA("ImageButton")or h:IsA("TextButton")or h:IsA("TextBox"))then
-interactive=true
-break
-end
-end
-if not interactive then
-aq:Close()
-end
-end
-end)
-end
+-- 确保菜单可见可交互（显式状态，不依赖残留）
+am.UIElements.Menu.Visible=true
+Canvas.Visible=true
+Canvas.Active=true
 -- WinUI 风格标题栏 + ✕ 关闭
 local BigBar=Canvas:FindFirstChild("WindUIDropdownBigTitleBar")
 if not BigBar then
@@ -9692,7 +9684,8 @@ end
 -- 菜单内容下移避开标题栏
 am.__BigMode=true
 am.UIElements.Menu.Position=UDim2.new(0,0,0,40)
-RecalculateCanvasSize()
+-- 等一帧让横排布局重排后再更新滚动范围（否则用竖排旧值，选项显示/点击错位）
+task.defer(RecalculateCanvasSize)
 am.UIElements.Menu.Size=UDim2.new(1,0,0,0)
 ak(am.UIElements.Menu,0.1,{
 Size=UDim2.new(1,0,1,-40),
