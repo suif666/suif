@@ -15638,8 +15638,10 @@ end
   pcall(Config.OnCollapse,Holder,as)
   end
   end
-  Arrow.MouseButton1Click:Connect(function()
+  Arrow.InputBegan:Connect(function(Input)
+  if Input.UserInputType==Enum.UserInputType.MouseButton1 or Input.UserInputType==Enum.UserInputType.Touch then
   SetExpanded(not Expanded)
+  end
   end)
   if getgenv then
   local Env=getgenv()
