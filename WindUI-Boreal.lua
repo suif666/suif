@@ -9583,7 +9583,7 @@ ar.Position=UDim2.new(0,0,0,0)
 ar.Name="SearchBar"
 end
 end
--- 放大画布：锚定下拉框右下方（不覆盖窗口其他按钮），视口适配（移动端不超屏）
+-- 放大画布：居中弹出（视口适配：移动端不超出屏幕）
 local Canvas=am.UIElements.MenuCanvas
 if not Canvas then return end
 local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
@@ -9615,17 +9615,9 @@ for _ in next,am.Tabs do nTabs=nTabs+1 end
 local cols=math.max(1,math.floor((BigW-(an.MenuPadding*2)-8)/colW))
 local rows=math.max(1,math.ceil(nTabs/cols))
 local finalH=math.max(180,math.min(40+39+rows*48+16,BigH))
-Canvas.AnchorPoint=Vector2.new(0,0)
+Canvas.AnchorPoint=Vector2.new(0.5,0.5)
 Canvas.Size=UDim2.new(0,BigW,0,finalH)
--- 锚定下拉框右下方；越界则平移回视口内
-local dd=am.UIElements.Dropdown or am.DropdownFrame.UIElements.Main
-local dp=dd and dd.AbsolutePosition
-local ds=dd and dd.AbsoluteSize
-local px=(dp and ds)and(dp.X+ds.X+8)or 8
-local py=(dp and ds)and(dp.Y+ds.Y-8)or 8
-if px+BigW>((V and V.X or 480)-8)then px=math.max(4,(V and V.X or 480)-BigW-4) end
-if py+finalH>((V and V.Y or 640)-8)then py=math.max(4,(V and V.Y or 640)-finalH-4) end
-Canvas.Position=UDim2.fromOffset(px,py)
+Canvas.Position=UDim2.new(0.5,0,0.5,0)
 -- 点菜单空白（或菜单盖住的区域）自动关闭：点选项/搜索框/✕ 不关，点其他先关菜单
 if not Canvas:GetAttribute("WindUIDropdownBigCloseBound") then
 Canvas:SetAttribute("WindUIDropdownBigCloseBound",true)
