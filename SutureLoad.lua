@@ -10,12 +10,12 @@
 ]]
 
 -- ═══════════ 链接配置 ═══════════
-local LOADER_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/SutureLoader.lua"
-local SUIF_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif.lua"
+local LOADER_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/SutureLoader.lua?v=loader101"
+local SUIF_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif.lua?v=suif102"
 
 -- WindUI-Boreal（suif 主脚本同源 4 镜像）
 local WINDUI_SRC = {
-	"https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand11",
+	"https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand21",
 	"https://cdn.jsdelivr.net/gh/suif666/suif@2f7140bc37b525d1cdd154db7cb0b05c0379de01/WindUI-Boreal.lua",
 	"https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand11",
 	"https://gcore.jsdelivr.net/gh/suif666/suif@2f7140bc37b525d1cdd154db7cb0b05c0379de01/WindUI-Boreal.lua",
