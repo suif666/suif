@@ -10,7 +10,7 @@
 ]]
 
 -- ═══════════ 链接配置 ═══════════
-local LOADER_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/SutureLoader.lua?v=loader101"
+local LOADER_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/SutureLoader.lua?v=loader102"
 local SUIF_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif.lua?v=suif102"
 
 -- WindUI-Boreal（suif 主脚本同源 4 镜像）
