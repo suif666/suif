@@ -182,15 +182,23 @@ if __HARD then pcall(__installFilter) end
 -- ★ 多源加载：raw.githubusercontent 在某些网络下会被掐，jsDelivr 更稳。
 --   两条都是通用 CDN 域名，交替重试，避免单点失效导致整个脚本加载不出来。
 local __WINDUI_SRC = {
-    -- ★ 原版路径放第一位：原版就是拉这个，能正常加载，不要把它换掉。
-    --   （上一轮我把它换成 jsDelivr 打头，偏离了原本可用的路径，已退回。）
-    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
-    -- 下面是兜底：raw 被墙/被掐时才有用
-    "https://cdn.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua?v=expand8",
-    "https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand8",
-    "https://gcore.jsdelivr.net/gh/suif666/suif@main/WindUI-Boreal.lua?v=expand8",
+    -- ★ WindUI-Boreal.lua 主文件已直接覆盖为 v0.0.3 [suture] 改造版：
+    --   v0.2.1：滑条移除 / Expand WinUI / Slider 输入超限 / Dropdown 放大菜单（克隆+内部点击修复+hover）
+    --   cdn/gcore 用 @commit 锁定版本（零缓存问题）；下次改库上传后必须同步更新下面两个 commit！
+    --   当前锁定 commit: 2f7140bc37b525d1cdd154db7cb0b05c0379de01
+    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand11",
+    "https://cdn.jsdelivr.net/gh/suif666/suif@2f7140bc37b525d1cdd154db7cb0b05c0379de01/WindUI-Boreal.lua",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand11",
+    "https://gcore.jsdelivr.net/gh/suif666/suif@2f7140bc37b525d1cdd154db7cb0b05c0379de01/WindUI-Boreal.lua",
 }
+local __LoadedVersion = "未知"
 local ok, WindUI = pcall(function()
+    -- [suture] 加载器预载模式：_G.WindUI 已存在则直接使用，避免重复加载双实例
+    local g = (getgenv and getgenv()) or _G
+    if g and g.WindUI then
+        __LoadedVersion = "WindUI（由加载器预载）✓"
+        return g.WindUI
+    end
     local lastErr
     for _, u in ipairs(__WINDUI_SRC) do
         local got, src = pcall(function() return game:HttpGet(u) end)
@@ -199,7 +207,17 @@ local ok, WindUI = pcall(function()
             __sandbox(fn)                      -- ★ 静默 WindUI 自己的 20 处 warn
             if fn then
                 local ran, mod = pcall(fn)
-                if ran and mod then return mod end
+                if ran and mod then
+                    -- ★ 加载版本检测：[suture] 标记 = v0.0.2 改造版
+                    if src:find("Version: v0.0.7", 1, true) then
+                        __LoadedVersion = "WindUI v0.0.7 [suture 改造版] ✓（居中放大菜单+横排+标题栏）"
+                    elseif src:find("-- [suture]", 1, true) then
+                        __LoadedVersion = "WindUI 旧改造版 ⚠（非 v0.0.7，需清缓存重载）"
+                    else
+                        __LoadedVersion = "WindUI 原版 ⚠（改造版未加载成功，已回退）"
+                    end
+                    return mod
+                end
                 lastErr = mod
             else
                 lastErr = cerr
@@ -210,6 +228,11 @@ local ok, WindUI = pcall(function()
     end
     error(lastErr)
 end)
+if ok and WindUI then
+    -- 执行器控制台可见提示（部分执行器支持 rconsoleprint）
+    pcall(function() if rconsoleprint then rconsoleprint("[" .. __LoadedVersion .. "] 加载源列表见 SutureLog(true)") end end)
+    print("[suture] " .. __LoadedVersion)      -- 走静默层内存日志，SutureLog(true) 可查
+end
 
 if not ok or not WindUI then
     warn("WindUI(Boreal) 加载失败:", WindUI)
@@ -380,7 +403,7 @@ local win = WindUI:CreateWindow({
     Size = UDim2.fromOffset(620, 460), MinSize = Vector2.new(560, 350), MaxSize = Vector2.new(900, 600),
     ToggleKey = Enum.KeyCode.RightShift, Transparent = uiSet.Transparent, Theme = uiSet.Theme,
     Resizable = true, SideBarWidth = uiSet.SideBarWidth, HideSearchBar = uiSet.HideSearchBar,
-    ScrollBarEnabled = true,
+    -- [suture] ScrollBarEnabled 已移除：v0.0.2 库强制关掉右侧滑条（防误触）
     User = { Enabled = true, Anonymous = false, Callback = function() print("当前用户:", lp.Name) end },
     OpenButton = { Scale = 0.85, OnlyIcon = false }
 })
@@ -608,8 +631,6 @@ local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked =
 local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
-local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
-local sjpvpTab = scriptSec:Tab({ Title = "RoFront[世界pvp]", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2824,14 +2845,6 @@ xzTab:Button({
     end
 })
 
-zqzcTab:Button({
-    Title = "[🔑][未汉化]最强战场刷人头", Desc = "字面意思 应该没啥反作弊", Icon = "shell",
-    Callback = function()
-		getgenv().DoServerHop = true
-        run("https://gitlab.com/zkay404-group/ProjectYielding/-/raw/main/ZKSuryuFarm", "最强战场刷人头")
-    end
-})
-
 gTab:Button({
     Title = "[🔑]HollyScriptX",
     Desc = "总共没几个 把最好用的拿上来了",
@@ -2846,15 +2859,6 @@ gTab:Button({
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E7%8B%97.lua", "狗")
     end
 })
-
-sjpvpTab:Button({
-    Title = "[🔑]世界pvp", Desc = "自动游玩 自动援助等等...", Icon = "shell",
-    Callback = function()
-		getgenv().DoServerHop = true
-        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E4%B8%96%E7%95%8Cpvp.lua", "世界pvp")
-    end
-})
-
 
 
 -- UI设置
@@ -2985,6 +2989,14 @@ task.spawn(function()
             startLoad(item)
         end
         task.wait(AUTO_LOAD_DELAY)
+    end
+end)
+
+-- [suture] 通知加载器：主界面已全部构建完成（存在回调才调用，单独执行本脚本时无副作用）
+pcall(function()
+    local g = (getgenv and getgenv()) or _G
+    if g and g.__SUIF_READY then
+        g.__SUIF_READY()
     end
 end)
 
