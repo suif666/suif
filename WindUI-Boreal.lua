@@ -1,5 +1,5 @@
 -- WindUI Boreal
--- Version: v0.0.7 [suture]（滑条移除/Expand WinUI/Slider超限/放大菜单居中+横排+标题栏）
+-- Version: v0.1.1 [suture]（滑条移除/Expand WinUI/Slider超限/放大菜单居中+横排+标题栏）
 -- BuildDate: 2026-05-31
 -- Description: Roblox UI Library for scripts
 -- Repository: https://github.com/orialdev/windui-boreal
@@ -9493,6 +9493,9 @@ UpdatePosition()
 end
 
 function aq.Close(as)
+if am.__BigOpen then
+return
+end
 if not am.Opened and not am.UIElements.MenuCanvas.Visible then
 return
 end
@@ -9570,79 +9573,76 @@ function aq.OpenBig(as)
 if not ao or am.Opened then
 return
 end
--- 强制开启搜索条（单独创建，不重建选项列表，避免误触发用户回调）
-if not am.SearchBarEnabled then
-am.SearchBarEnabled=true
-if not ar then
-ar=ah("Search...","search",am.UIElements.Menu,nil,function(av)
-for aw,ax in next,am.Tabs do
-if string.find(string.lower(ax.Name),string.lower(av),1,true)then
-ax.UIElements.TabItem.Visible=true
-else
-ax.UIElements.TabItem.Visible=false
-end
-RecalculateListSize()
-RecalculateCanvasSize()
-end
-end,true)
-ar.Size=UDim2.new(1,0,0,an.SearchBarHeight)
-ar.Position=UDim2.new(0,0,0,0)
-ar.Name="SearchBar"
-end
-end
--- 放大画布：居中弹出（视口适配：移动端不超出屏幕）
-local Canvas=am.UIElements.MenuCanvas
-if not Canvas then return end
-am.__BigMode=true
-am.__openSeq=(am.__openSeq or 0)+1
-local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
+am.Opened=true
+am.__BigOpen=true
+
 local V=af.ViewportSize
-local BigW=math.max(220,math.min(420,(V and V.X or 420)-24))
-local BigH=math.max(200,math.min(480,(V and V.Y or 480)-100))
-if UISC then UISC.MaxSize=Vector2.new(BigW+20,BigH+40) end
--- 横排按钮网格：选项按按钮格式横向排列（自动换行，移动端友好）
-local SF=am.UIElements.Menu.Frame.ScrollingFrame
-local Layout=SF and SF:FindFirstChildOfClass("UIListLayout")
-if Layout then
-Layout.FillDirection=Enum.FillDirection.Horizontal
-Layout.Wraps=true
-Layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
-Layout.VerticalAlignment=Enum.VerticalAlignment.Top
-Layout.Padding=UDim.new(0,8)
-Layout.SortOrder=Enum.SortOrder.LayoutOrder
+local BigW=math.max(240,math.min(420,(V and V.X or 420)-24))
+local BigH=math.max(220,math.min(480,(V and V.Y or 480)-100))
+
+local function CloseBig()
+if not am.__BigFrame then return end
+am.__BigOpen=false
+am.Opened=false
+local Frame=am.__BigFrame
+local Catcher=am.__BigCatcher
+am.__BigFrame=nil
+am.__BigCatcher=nil
+if Frame then
+ak(Frame,0.12,{Size=UDim2.new(0,0,0,0)}):Play()
 end
-local colW=math.max(96,math.floor((BigW-(an.MenuPadding*2)-8)/2))
-for _,t in next,am.Tabs do
-local item=t.UIElements and t.UIElements.TabItem
-if item and item.Parent then
-item.Size=UDim2.new(0,colW,0,t.Desc and 48 or 34)
+task.delay(0.15,function()
+if Frame and Frame.Parent then Frame:Destroy() end
+if Catcher and Catcher.Parent then Catcher:Destroy() end
+end)
 end
-end
--- 高度内容驱动：标题栏40 + 搜索条39 + 内容行数 + 边距（不依赖 RecList，避免高度被覆盖）
-local nTabs=0
-for _ in next,am.Tabs do nTabs=nTabs+1 end
-local cols=math.max(1,math.floor((BigW-(an.MenuPadding*2)-8)/colW))
-local rows=math.max(1,math.ceil(nTabs/cols))
-local finalH=math.max(180,math.min(40+39+rows*48+16,BigH))
-Canvas.AnchorPoint=Vector2.new(0.5,0.5)
-Canvas.Size=UDim2.new(0,BigW,0,finalH)
-Canvas.Position=UDim2.new(0.5,0,0.5,0)
--- 确保菜单可见可交互（显式状态，不依赖残留）
-am.UIElements.Menu.Visible=true
-Canvas.Visible=true
-Canvas.Active=true
--- WinUI 风格标题栏 + ✕ 关闭
-local BigBar=Canvas:FindFirstChild("WindUIDropdownBigTitleBar")
-if not BigBar then
-BigBar=aj("Frame",{
-Name="WindUIDropdownBigTitleBar",
-Size=UDim2.new(1,0,0,40),
-Position=UDim2.new(0,0,0,0),
+am.__CloseBig=CloseBig
+
+-- 全屏点击捕获层（菜单下方，点外部关闭）
+local Catcher=aj("Frame",{
+Name="WindUIBigDropdownCatcher",
+Size=UDim2.new(1,0,1,0),
 BackgroundTransparency=1,
-Active=false,
-ZIndex=8,
-Parent=Canvas,
-},{
+Active=true,
+ZIndex=90,
+Parent=al.WindUI.DropdownGui,
+})
+ai.AddSignal(Catcher.InputBegan,function(inp)
+if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+CloseBig()
+end
+end)
+
+-- 主容器
+local BigFrame=aj("Frame",{
+Name="WindUIBigDropdown",
+Size=UDim2.new(0,BigW,0,BigH),
+Position=UDim2.new(0.5,0,0.5,0),
+AnchorPoint=Vector2.new(0.5,0.5),
+BackgroundTransparency=1,
+Active=true,
+ZIndex=100,
+Parent=al.WindUI.DropdownGui,
+})
+am.__BigFrame=BigFrame
+am.__BigCatcher=Catcher
+
+-- WindUI 原生圆角背景
+ai.NewRoundFrame(an.MenuCorner,"Squircle",{
+Size=UDim2.new(1,0,1,0),
+ThemeTag={
+ImageColor3="Background",
+},
+Parent=BigFrame,
+})
+
+-- 标题栏 + ✕
+local TitleBar=aj("Frame",{
+Name="TitleBar",
+Size=UDim2.new(1,0,0,40),
+BackgroundTransparency=1,
+Parent=BigFrame,
+})
 aj("TextLabel",{
 Name="Title",
 Size=UDim2.new(1,-70,0,40),
@@ -9653,10 +9653,11 @@ TextXAlignment="Left",
 TextSize=16,
 FontFace=Font.new(ai.Font,Enum.FontWeight.SemiBold),
 ThemeTag={
-TextColor3="Text"
+TextColor3="Text",
 },
-}),
-aj("TextButton",{
+Parent=TitleBar,
+})
+local CloseBtn=aj("TextButton",{
 Name="Close",
 Size=UDim2.new(0,32,0,32),
 Position=UDim2.new(1,-8,0.5,0),
@@ -9667,32 +9668,180 @@ Text="✕",
 TextSize=18,
 FontFace=Font.new(ai.Font,Enum.FontWeight.Medium),
 TextColor3=Color3.fromRGB(160,160,160),
-ZIndex=9,
-}),
+Parent=TitleBar,
 })
-local CloseBtn=BigBar:FindFirstChild("Close")
-if CloseBtn then
 ai.AddSignal(CloseBtn.MouseEnter,function()
 ak(CloseBtn,0.1,{TextColor3=Color3.fromRGB(230,230,230)}):Play()
 end)
 ai.AddSignal(CloseBtn.MouseLeave,function()
 ak(CloseBtn,0.1,{TextColor3=Color3.fromRGB(160,160,160)}):Play()
 end)
-ai.AddSignal(CloseBtn.MouseButton1Click,function()
-aq:Close()
+ai.AddSignal(CloseBtn.MouseButton1Click,CloseBig)
+
+-- 搜索框
+local SearchBg=aj("Frame",{
+Name="SearchBg",
+Size=UDim2.new(1,-20,0,34),
+Position=UDim2.new(0.5,0,0,46),
+AnchorPoint=Vector2.new(0.5,0),
+BackgroundTransparency=0.85,
+ThemeTag={
+BackgroundColor3="DropdownTabBorder",
+},
+Parent=BigFrame,
+})
+aj("UICorner",{
+CornerRadius=UDim.new(0,8),
+Parent=SearchBg,
+})
+local SearchBox=aj("TextBox",{
+Name="SearchBox",
+Size=UDim2.new(1,-28,1,0),
+Position=UDim2.new(0.5,0,0.5,0),
+AnchorPoint=Vector2.new(0.5,0.5),
+BackgroundTransparency=1,
+Text="",
+PlaceholderText="搜索...",
+TextSize=14,
+FontFace=Font.new(ai.Font,Enum.FontWeight.Regular),
+ThemeTag={
+TextColor3="Text",
+},
+PlaceholderColor3=Color3.fromRGB(150,150,150),
+ClearTextOnFocus=false,
+Parent=SearchBg,
+})
+
+-- 选项滚动区（横排网格）
+local Scroll=aj("ScrollingFrame",{
+Name="OptionScroll",
+Size=UDim2.new(1,-16,1,-96),
+Position=UDim2.new(0,8,0,88),
+BackgroundTransparency=1,
+BorderSizePixel=0,
+ScrollBarThickness=4,
+ScrollingDirection="Y",
+AutomaticCanvasSize="Y",
+CanvasSize=UDim2.new(0,0,0,0),
+ScrollBarImageTransparency=0.6,
+Parent=BigFrame,
+})
+local Grid=aj("UIGridLayout",{
+CellSize=UDim2.new(0,math.max(96,math.floor((BigW-32)/2)),0,36),
+CellPadding=UDim.new(0,8),
+FillDirection="Horizontal",
+HorizontalAlignment="Center",
+SortOrder="LayoutOrder",
+Parent=Scroll,
+})
+
+-- 选项按钮
+local BigButtons={}
+for idx,tab in ipairs(am.Tabs) do
+local Btn=ai.NewRoundFrame(an.MenuCorner-4,"Squircle",{
+Size=UDim2.new(1,0,1,0),
+ThemeTag={
+ImageColor3="Background",
+},
+ImageTransparency=tab.Selected and 0.95 or 1,
+LayoutOrder=idx,
+Active=not tab.Locked,
+Parent=Scroll,
+},{
+ai.NewRoundFrame(an.MenuCorner-4,"Glass-1.4",{
+Name="Highlight",
+Size=UDim2.new(1,0,1,0),
+ThemeTag={
+ImageColor3="DropdownTabBorder",
+},
+ImageTransparency=tab.Selected and 0.75 or 1,
+}),
+aj("TextLabel",{
+Name="Title",
+Size=UDim2.new(1,-12,1,0),
+Position=UDim2.new(0,6,0,0),
+BackgroundTransparency=1,
+Text=tostring(tab.Name or""),
+TextSize=14,
+FontFace=Font.new(ai.Font,Enum.FontWeight.Medium),
+ThemeTag={
+TextColor3="Text",
+},
+TextTransparency=tab.Selected and 0 or 0.4,
+TextXAlignment="Left",
+}),
+},true)
+BigButtons[tab]=Btn
+
+local function UpdateButtonVisuals()
+for t,b in next,BigButtons do
+local Sel=t.Selected
+ak(b,0.1,{ImageTransparency=Sel and 0.95 or 1}):Play()
+ak(b.Highlight,0.1,{ImageTransparency=Sel and 0.75 or 1}):Play()
+ak(b.Title,0.1,{TextTransparency=Sel and 0 or 0.4}):Play()
+end
+end
+
+if not tab.Locked then
+ai.AddSignal(Btn.MouseButton1Click,function()
+if tab.Locked then return end
+if am.Multi then
+if not tab.Selected then
+tab.Selected=true
+table.insert(am.Value,tab.Original)
+else
+if not am.AllowNone and#am.Value==1 then
+return
+end
+tab.Selected=false
+for i,v in ipairs(am.Value) do
+local key=typeof(v)=="table"and v.Title or v
+if key==tab.Name then
+table.remove(am.Value,i)
+break
+end
+end
+end
+else
+for _,t in next,am.Tabs do
+t.Selected=false
+end
+tab.Selected=true
+am.Value=tab.Original
+end
+Callback()
+UpdateButtonVisuals()
+if not am.Multi then
+CloseBig()
+end
 end)
 end
 end
--- 菜单内容下移避开标题栏
-am.__BigMode=true
-am.UIElements.Menu.Position=UDim2.new(0,0,0,40)
--- 等一帧让横排布局重排后再更新滚动范围（否则用竖排旧值，选项显示/点击错位）
-task.defer(RecalculateCanvasSize)
-am.UIElements.Menu.Size=UDim2.new(1,0,0,0)
-ak(am.UIElements.Menu,0.1,{
-Size=UDim2.new(1,0,1,-40),
-ImageTransparency=0.05
-},Enum.EasingStyle.Quart,Enum.EasingDirection.Out):Play()
+
+-- 搜索过滤
+ai.AddSignal(SearchBox:GetPropertyChangedSignal("Text"),function()
+local txt=string.lower(SearchBox.Text or"")
+for tab,btn in next,BigButtons do
+local match=txt==""or string.find(string.lower(tostring(tab.Name or"")),txt,1,true)
+btn.Visible=match
+end
+task.defer(function()
+if Scroll and Scroll.Parent then
+Scroll.CanvasSize=UDim2.new(0,Grid.AbsoluteContentSize.X,0,Grid.AbsoluteContentSize.Y)
+end
+end)
+end)
+
+-- 初始滚动范围
+task.defer(function()
+if Scroll and Scroll.Parent then
+Scroll.CanvasSize=UDim2.new(0,Grid.AbsoluteContentSize.X,0,Grid.AbsoluteContentSize.Y)
+end
+end)
+
+-- 弹出动画
+BigFrame.Size=UDim2.new(0,0,0,0)
+ak(BigFrame,0.12,{Size=UDim2.new(0,BigW,0,BigH)},Enum.EasingStyle.Quart,Enum.EasingDirection.Out):Play()
 end
 
 ai.AddSignal((am.UIElements.Dropdown and am.UIElements.Dropdown.MouseButton1Click or am.DropdownFrame.UIElements.Main.MouseButton1Click),function()
@@ -9725,7 +9874,11 @@ ae.Y>=au.Y and
 ae.Y<=au.Y+av.Y
 
 if al.Window.CanDropdown and am.Opened and not az and not aA then
+if am.__BigOpen and am.__CloseBig then
+am.__CloseBig()
+else
 aq:Close()
+end
 end
 end
 end)
