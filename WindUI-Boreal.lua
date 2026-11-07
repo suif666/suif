@@ -9500,6 +9500,7 @@ end
 if am.UIElements.MenuCanvas then
 am.UIElements.MenuCanvas.Active=false
 end
+local mySeq=am.__openSeq or 0
 
 am.Opened=false
 
@@ -9513,7 +9514,7 @@ ImageTransparency=1,
 
 task.spawn(function()
 task.wait(.1)
-if am.__BigMode then
+if(am.__openSeq or 0)~=mySeq then
 return
 end
 am.UIElements.Menu.Visible=false
@@ -9521,7 +9522,7 @@ end)
 
 task.spawn(function()
 task.wait(.25)
-if am.__BigMode then
+if(am.__openSeq or 0)~=mySeq then
 return
 end
 am.UIElements.MenuCanvas.Visible=false
@@ -9593,6 +9594,7 @@ end
 local Canvas=am.UIElements.MenuCanvas
 if not Canvas then return end
 am.__BigMode=true
+am.__openSeq=(am.__openSeq or 0)+1
 local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
 local V=af.ViewportSize
 local BigW=math.max(220,math.min(420,(V and V.X or 420)-24))
@@ -10082,10 +10084,10 @@ Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFra
 -- [suture] 放大按钮：点击打开 WinUI 风格二级大菜单（全部选项 + 搜索）
 local BigBtn=ag("ImageButton",{
 Name="WindUIDropdownBigBtn",
-Size=UDim2.new(0,30,0,30),
+Size=UDim2.new(0,26,0,26),
 Position=UDim2.new(
 1,
-ap.UIElements.Dropdown and-44 or-32,
+ap.UIElements.Dropdown and-40 or-28,
 0.5,
 0
 ),
