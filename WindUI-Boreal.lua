@@ -8990,6 +8990,9 @@ am.UIElements.Menu.Frame.ScrollingFrame.CanvasSize=UDim2.fromOffset(0,am.UIEleme
 end
 
 local function RecalculateListSize()
+if am.__BigMode then
+return
+end
 local ar=ag.ViewportSize.Y*0.6
 
 local as=am.UIElements.UIListLayout.AbsoluteContentSize.Y
@@ -9543,6 +9546,7 @@ end
 if am.UIElements.Menu then
 am.UIElements.Menu.Position=UDim2.new(0,0,0,0)
 end
+am.__BigMode=false
 local BigBar=am.UIElements.MenuCanvas and am.UIElements.MenuCanvas:FindFirstChild("WindUIDropdownBigTitleBar")
 if BigBar then
 pcall(function() BigBar:Destroy() end)
@@ -9575,7 +9579,7 @@ ar.Position=UDim2.new(0,0,0,0)
 ar.Name="SearchBar"
 end
 end
--- 放大画布并居中（适配视口：移动端不超出屏幕）
+-- 放大画布：锚定下拉框右下方（不覆盖窗口其他按钮），视口适配（移动端不超屏）
 local Canvas=am.UIElements.MenuCanvas
 if not Canvas then return end
 local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
@@ -9583,9 +9587,6 @@ local V=af.ViewportSize
 local BigW=math.max(220,math.min(420,(V and V.X or 420)-24))
 local BigH=math.max(200,math.min(480,(V and V.Y or 480)-100))
 if UISC then UISC.MaxSize=Vector2.new(BigW+20,BigH+40) end
-Canvas.AnchorPoint=Vector2.new(0.5,0.5)
-Canvas.Position=UDim2.new(0.5,0,0.5,0)
-Canvas.Size=UDim2.new(0,BigW,0,BigH)
 -- 横排按钮网格：选项按按钮格式横向排列（自动换行，移动端友好）
 local SF=am.UIElements.Menu.Frame.ScrollingFrame
 local Layout=SF and SF:FindFirstChildOfClass("UIListLayout")
@@ -9604,15 +9605,43 @@ if item and item.Parent then
 item.Size=UDim2.new(0,colW,0,t.Desc and 48 or 34)
 end
 end
--- 打开（复用 Open 的展开动画）
-am.Opened=true
-if am.SpecialType and am.SpecialType~="None"and am.RefreshSpecialValues then
-am:RefreshSpecialValues(true)
+-- 高度内容驱动：标题栏40 + 搜索条39 + 内容行数 + 边距（不依赖 RecList，避免高度被覆盖）
+local nTabs=0
+for _ in next,am.Tabs do nTabs=nTabs+1 end
+local cols=math.max(1,math.floor((BigW-(an.MenuPadding*2)-8)/colW))
+local rows=math.max(1,math.ceil(nTabs/cols))
+local finalH=math.max(180,math.min(40+39+rows*48+16,BigH))
+Canvas.AnchorPoint=Vector2.new(0,0)
+Canvas.Size=UDim2.new(0,BigW,0,finalH)
+-- 锚定下拉框右下方；越界则平移回视口内
+local dd=am.UIElements.Dropdown or am.DropdownFrame.UIElements.Main
+local dp=dd and dd.AbsolutePosition
+local ds=dd and dd.AbsoluteSize
+local px=(dp and ds)and(dp.X+ds.X+8)or 8
+local py=(dp and ds)and(dp.Y+ds.Y-8)or 8
+if px+BigW>((V and V.X or 480)-8)then px=math.max(4,(V and V.X or 480)-BigW-4) end
+if py+finalH>((V and V.Y or 640)-8)then py=math.max(4,(V and V.Y or 640)-finalH-4) end
+Canvas.Position=UDim2.fromOffset(px,py)
+-- 点菜单空白（或菜单盖住的区域）自动关闭：点选项/搜索框/✕ 不关，点其他先关菜单
+if not Canvas:GetAttribute("WindUIDropdownBigCloseBound") then
+Canvas:SetAttribute("WindUIDropdownBigCloseBound",true)
+ai.AddSignal(Canvas.InputBegan,function(inp)
+if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+local hits=game:GetService("GuiService"):GetGuiObjectsAtPosition(inp.Position.X,inp.Position.Y)
+local interactive=false
+for _,h in next,hits do
+if h:IsDescendantOf(Canvas)and(h:IsA("ImageButton")or h:IsA("TextButton")or h:IsA("TextBox"))then
+interactive=true
+break
 end
-am.UIElements.Menu.Visible=true
-Canvas.Visible=true
-Canvas.Active=true
--- WinUI 风格标题栏 + ✕ 关闭（移动端随时可关，不再被大面板挡住其他按钮）
+end
+if not interactive then
+aq:Close()
+end
+end
+end)
+end
+-- WinUI 风格标题栏 + ✕ 关闭
 local BigBar=Canvas:FindFirstChild("WindUIDropdownBigTitleBar")
 if not BigBar then
 BigBar=aj("Frame",{
@@ -9620,6 +9649,7 @@ Name="WindUIDropdownBigTitleBar",
 Size=UDim2.new(1,0,0,40),
 Position=UDim2.new(0,0,0,0),
 BackgroundTransparency=1,
+Active=false,
 ZIndex=8,
 Parent=Canvas,
 },{
@@ -9664,8 +9694,8 @@ end)
 end
 end
 -- 菜单内容下移避开标题栏
+am.__BigMode=true
 am.UIElements.Menu.Position=UDim2.new(0,0,0,40)
-RecalculateListSize()
 RecalculateCanvasSize()
 am.UIElements.Menu.Size=UDim2.new(1,0,0,0)
 ak(am.UIElements.Menu,0.1,{
