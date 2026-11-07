@@ -107,7 +107,7 @@ function Loader:Show()
 		Text = self.Title,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		TextSize = 36,
-		FontFace = Font.new(Enum.Font.Gotham, Enum.FontWeight.Bold),
+		Font = Enum.Font.GothamBold,
 		TextTransparency = 1,
 		TextStrokeTransparency = 0.5,
 		Parent = gui,
@@ -175,7 +175,7 @@ function Loader:Show()
 		Text = "0%",
 		TextColor3 = Color3.fromRGB(140, 200, 255),
 		TextSize = 15,
-		FontFace = Font.new(Enum.Font.Gotham, Enum.FontWeight.SemiBold),
+		Font = Enum.Font.GothamSemibold,
 		TextTransparency = 1,
 		Parent = BarBg,
 	})
