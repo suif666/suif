@@ -1,5 +1,5 @@
 -- WindUI Boreal
--- Version: v0.2.0 [suture]（滑条移除/Expand WinUI/Slider超限/放大菜单居中+横排+标题栏）
+-- Version: v0.2.1 [suture]（滑条移除/Expand WinUI/Slider超限/放大菜单居中+横排+标题栏）
 -- BuildDate: 2026-05-31
 -- Description: Roblox UI Library for scripts
 -- Repository: https://github.com/orialdev/windui-boreal
@@ -9588,12 +9588,14 @@ local Frame=am.__BigFrame
 local Catcher=am.__BigCatcher
 am.__BigFrame=nil
 am.__BigCatcher=nil
+if Catcher and Catcher.Parent then
+Catcher:Destroy()
+end
 if Frame then
 ak(Frame,0.12,{Size=UDim2.new(0,0,0,0)}):Play()
 end
 task.delay(0.15,function()
 if Frame and Frame.Parent then Frame:Destroy() end
-if Catcher and Catcher.Parent then Catcher:Destroy() end
 end)
 end
 am.__CloseBig=CloseBig
@@ -9642,6 +9644,16 @@ Name="TitleBar",
 Size=UDim2.new(1,0,0,40),
 BackgroundTransparency=1,
 Parent=BigFrame,
+})
+aj("Frame",{
+Name="Divider",
+Size=UDim2.new(1,-20,0,1),
+Position=UDim2.new(0,10,0,39),
+BackgroundTransparency=.75,
+ThemeTag={
+BackgroundColor3="Text",
+},
+Parent=TitleBar,
 })
 aj("TextLabel",{
 Name="Title",
@@ -9765,6 +9777,16 @@ end
 Clones[tab]=clone
 
 if not tab.Locked then
+ai.AddSignal(clone.MouseEnter,function()
+if not tab.Selected then
+ak(clone,0.08,{ImageTransparency=.95}):Play()
+end
+end)
+ai.AddSignal(clone.InputEnded,function()
+if not tab.Selected then
+ak(clone,0.08,{ImageTransparency=1}):Play()
+end
+end)
 ai.AddSignal(clone.MouseButton1Click,function()
 if tab.Locked then return end
 if am.Multi then
@@ -9870,10 +9892,15 @@ ae.Y>=ax.Y and
 ae.Y<=ax.Y+ay.Y
 
 local aA=
-ae.X>=au.X and
+(ae.X>=au.X and
 ae.X<=au.X+av.X and
 ae.Y>=au.Y and
-ae.Y<=au.Y+av.Y
+ae.Y<=au.Y+av.Y)or
+(am.__BigFrame and
+ae.X>=am.__BigFrame.AbsolutePosition.X and
+ae.X<=am.__BigFrame.AbsolutePosition.X+am.__BigFrame.AbsoluteSize.X and
+ae.Y>=am.__BigFrame.AbsolutePosition.Y and
+ae.Y<=am.__BigFrame.AbsolutePosition.Y+am.__BigFrame.AbsoluteSize.Y)
 
 if al.Window.CanDropdown and am.Opened and not az and not aA then
 if am.__BigOpen and am.__CloseBig then
