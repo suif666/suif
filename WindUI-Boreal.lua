@@ -10123,11 +10123,11 @@ end
 end)
 af.AddSignal(BigBtn.MouseEnter,function()
 local ic=BigBtn:FindFirstChild("Icon")
-if ic then af(ic,0.12,{ImageTransparency=0.35}):Play() end
+if ic then ah(ic,0.12,{ImageTransparency=0.35}):Play() end
 end)
 af.AddSignal(BigBtn.MouseLeave,function()
 local ic=BigBtn:FindFirstChild("Icon")
-if ic then af(ic,0.12,{ImageTransparency=0}):Play() end
+if ic then ah(ic,0.12,{ImageTransparency=0}):Play() end
 end)
 
 function ap.Lock(au)
