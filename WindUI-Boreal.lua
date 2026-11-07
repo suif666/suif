@@ -8071,12 +8071,11 @@ if aw then aw:Close(false)end
 end
 end)
 else
+-- [suture] 手动输入分支：允许超越 Min/Max（Min/Max 只限制拖动，不限制输入）
 local aB,b=GetMinMax()
-az=math.clamp(az,aB,b)
-
 local d=GetDelta(az)
-az=CalculateValue(aB+d*(b-aB))
-az=math.clamp(az,aB,b)
+
+az=CalculateValue(az)
 
 if az~=ap then
 af(ak.UIElements.SliderIcon.Frame,0.05,{Size=UDim2.new(d,0,1,0)}):Play()
@@ -8115,7 +8114,19 @@ af(ak.UIElements.SliderIcon.Frame,0.1,{Size=UDim2.new(aB,0,1,0)}):Play()
 end
 end
 
+ad.AddSignal(ak.UIElements.SliderContainer.TextBox.Focused,function()
+ak.IsFocusing=true
+end)
+ad.AddSignal(ak.UIElements.SliderContainer.TextBox.InputBegan,function(ay)
+if ay.UserInputType==Enum.UserInputType.MouseButton1 or ay.UserInputType==Enum.UserInputType.Touch then
+ak.IsFocusing=true
+pcall(function()
+ak.UIElements.SliderContainer.TextBox:CaptureFocus()
+end)
+end
+end)
 ad.AddSignal(ak.UIElements.SliderContainer.TextBox.FocusLost,function(ay)
+ak.IsFocusing=false
 if ay then
 local az=tonumber(ak.UIElements.SliderContainer.TextBox.Text)
 if az then
@@ -9502,7 +9513,63 @@ task.spawn(function()
 task.wait(.25)
 am.UIElements.MenuCanvas.Visible=false
 am.UIElements.MenuCanvas.Active=false
+local Canvas=am.UIElements.MenuCanvas
+if Canvas then
+Canvas.AnchorPoint=Vector2.new(1,0)
+Canvas.Position=UDim2.new(-10,0,-10,0)
+Canvas.Size=UDim2.new(0,(type(am.MenuWidth)=="number"and am.MenuWidth>0)and am.MenuWidth or 200,0,300)
+local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
+if UISC then UISC.MaxSize=Vector2.new(300,400) end
+end
 end)
+end
+
+-- [suture] 放大二级菜单：WinUI 风格大面板 + 搜索，处理大量选项的场景
+function aq.OpenBig(as)
+if not ao or am.Opened then
+return
+end
+-- 强制开启搜索条（单独创建，不重建选项列表，避免误触发用户回调）
+if not am.SearchBarEnabled then
+am.SearchBarEnabled=true
+if not ar then
+ar=ah("Search...","search",am.UIElements.Menu,nil,function(av)
+for aw,ax in next,am.Tabs do
+if string.find(string.lower(ax.Name),string.lower(av),1,true)then
+ax.UIElements.TabItem.Visible=true
+else
+ax.UIElements.TabItem.Visible=false
+end
+RecalculateListSize()
+RecalculateCanvasSize()
+end
+end,true)
+ar.Size=UDim2.new(1,0,0,an.SearchBarHeight)
+ar.Position=UDim2.new(0,0,0,0)
+ar.Name="SearchBar"
+end
+end
+-- 放大画布并居中
+local Canvas=am.UIElements.MenuCanvas
+if not Canvas then return end
+local UISC=Canvas:FindFirstChildOfClass("UISizeConstraint")
+if UISC then UISC.MaxSize=Vector2.new(560,720) end
+Canvas.AnchorPoint=Vector2.new(0.5,0.5)
+Canvas.Position=UDim2.new(0.5,0,0.5,0)
+Canvas.Size=UDim2.new(0,420,0,480)
+-- 打开（复用 Open 的展开动画）
+am.Opened=true
+if am.SpecialType and am.SpecialType~="None"and am.RefreshSpecialValues then
+am:RefreshSpecialValues(true)
+end
+am.UIElements.Menu.Visible=true
+Canvas.Visible=true
+Canvas.Active=true
+am.UIElements.Menu.Size=UDim2.new(1,0,0,0)
+ak(am.UIElements.Menu,0.1,{
+Size=UDim2.new(1,0,1,0),
+ImageTransparency=0.05
+},Enum.EasingStyle.Quart,Enum.EasingDirection.Out):Play()
 end
 
 ai.AddSignal((am.UIElements.Dropdown and am.UIElements.Dropdown.MouseButton1Click or am.DropdownFrame.UIElements.Main.MouseButton1Click),function()
@@ -9609,7 +9676,7 @@ AutoRefreshSpecialValues=ao.AutoRefreshSpecialValues~=false,
 MenuWidth=ao.MenuWidth,
 Value=ao.Value,
 AllowNone=ao.AllowNone,
-SearchBarEnabled=ao.SearchBarEnabled or false,
+SearchBarEnabled=ao.SearchBarEnabled or true, -- [suture] 默认开启搜索（原: or false）
 Multi=ao.Multi,
 Callback=ao.Callback or nil,
 
@@ -9891,8 +9958,39 @@ ImageColor3="Icon"
 AnchorPoint=Vector2.new(1,0.5),
 Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFrame.UIElements.Main
 })
-
-
+-- [suture] 放大按钮：点击打开 WinUI 风格二级大菜单（全部选项 + 搜索）
+local BigBtn=ag("ImageButton",{
+Name="WindUIDropdownBigBtn",
+Size=UDim2.new(0,20,0,20),
+Position=UDim2.new(
+1,
+ap.UIElements.Dropdown and-34 or-22,
+0.5,
+0
+),
+AnchorPoint=Vector2.new(1,0.5),
+BackgroundTransparency=1,
+AutoButtonColor=false,
+Image=af.Icon"search"[1],
+ImageRectOffset=af.Icon"search"[2].ImageRectPosition,
+ImageRectSize=af.Icon"search"[2].ImageRectSize,
+ThemeTag={
+ImageColor3="Icon"
+},
+ZIndex=4,
+Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFrame.UIElements.Main
+})
+af.AddSignal(BigBtn.MouseButton1Click,function()
+if ap.DropdownMenu and ap.DropdownMenu.OpenBig then
+ap.DropdownMenu:OpenBig()
+end
+end)
+af.AddSignal(BigBtn.MouseEnter,function()
+af(BigBtn,0.12,{ImageTransparency=0.35}):Play()
+end)
+af.AddSignal(BigBtn.MouseLeave,function()
+af(BigBtn,0.12,{ImageTransparency=0}):Play()
+end)
 
 function ap.Lock(au)
 ap.Locked=true
@@ -15063,6 +15161,14 @@ end
   AutoButtonColor=false,
   ZIndex=6,
   },{
+  Wind.NewRoundFrame(ArrowSize/2,"Squircle",{
+  Name="WindUIExpandArrowBG",
+  Size=UDim2.new(1,0,1,0),
+  ImageTransparency=0.9,
+  ThemeTag={
+  ImageColor3="Text",
+  },
+  }),
   New("ImageLabel",{
   Name="WindUIExpandArrowIcon",
   Size=UDim2.new(1,0,1,0),
@@ -15076,6 +15182,13 @@ end
   local ArrowIcon=Arrow:FindFirstChild("WindUIExpandArrowIcon")
   local function SetArrowIcon(Name)
   local UI=aq.WindUI or aa
+  if typeof(Name)=="string"and Name:match"^rbxassetid://"then
+  Arrow.Text=""
+  ArrowIcon.Image=Name
+  ArrowIcon.ImageRectSize=Vector2.new(0,0)
+  ArrowIcon.ImageRectOffset=Vector2.new(0,0)
+  return
+  end
   local Icon=UI.Icon and UI.Icon(Name)
   if Icon and Icon[1] and Icon[2] then
   Arrow.Text=""
@@ -15090,6 +15203,15 @@ end
   end
   SetArrowIcon(Open)
   Arrow.Parent=Main
+  local ArrowBG=Arrow:FindFirstChild("WindUIExpandArrowBG")
+  if ArrowBG then
+  Wind.AddSignal(Arrow.MouseEnter,function()
+  if ArrowBG then Wind.Tween(ArrowBG,0.12,{ImageTransparency=0.7},Enum.EasingStyle.Quint,Enum.EasingDirection.Out):Play() end
+  end)
+  Wind.AddSignal(Arrow.MouseLeave,function()
+  if ArrowBG then Wind.Tween(ArrowBG,0.12,{ImageTransparency=0.9},Enum.EasingStyle.Quint,Enum.EasingDirection.Out):Play() end
+  end)
+  end
   local Shifted={}
   for _,Child in next,Main:GetChildren()do
   if Child~=Arrow and Child:IsA("GuiObject")and Child.AnchorPoint.X==1 and Child.Position.X.Scale==1 and not Child:GetAttribute("WindUIExpandShifted")then
@@ -17234,7 +17356,7 @@ ElementsRadius=au.ElementsRadius,
 Radius=au.Radius or 16,
 Transparent=au.Transparent or false,
 HideSearchBar=au.HideSearchBar~=false,
-ScrollBarEnabled=au.ScrollBarEnabled or false,
+ScrollBarEnabled=false, -- [suture] 滑条已按需求强制移除（原: au.ScrollBarEnabled or false）
 SideBarWidth=au.SideBarWidth or 200,
 Acrylic=au.Acrylic or false,
 ModernLayout=au.ModernLayout or false,
