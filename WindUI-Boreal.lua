@@ -9540,6 +9540,13 @@ item.Size=UDim2.new(1,0,0,36)
 end
 end
 end
+if am.UIElements.Menu then
+am.UIElements.Menu.Position=UDim2.new(0,0,0,0)
+end
+local BigBar=am.UIElements.MenuCanvas and am.UIElements.MenuCanvas:FindFirstChild("WindUIDropdownBigTitleBar")
+if BigBar then
+pcall(function() BigBar:Destroy() end)
+end
 end)
 end
 
@@ -9605,11 +9612,64 @@ end
 am.UIElements.Menu.Visible=true
 Canvas.Visible=true
 Canvas.Active=true
+-- WinUI 风格标题栏 + ✕ 关闭（移动端随时可关，不再被大面板挡住其他按钮）
+local BigBar=Canvas:FindFirstChild("WindUIDropdownBigTitleBar")
+if not BigBar then
+BigBar=aj("Frame",{
+Name="WindUIDropdownBigTitleBar",
+Size=UDim2.new(1,0,0,40),
+Position=UDim2.new(0,0,0,0),
+BackgroundTransparency=1,
+ZIndex=8,
+Parent=Canvas,
+},{
+aj("TextLabel",{
+Name="Title",
+Size=UDim2.new(1,-70,0,40),
+Position=UDim2.new(0,16,0,0),
+BackgroundTransparency=1,
+Text=tostring(am.Title or"选择"),
+TextXAlignment="Left",
+TextSize=16,
+FontFace=Font.new(ai.Font,Enum.FontWeight.SemiBold),
+ThemeTag={
+TextColor3="Text"
+},
+}),
+aj("TextButton",{
+Name="Close",
+Size=UDim2.new(0,32,0,32),
+Position=UDim2.new(1,-8,0.5,0),
+AnchorPoint=Vector2.new(1,0.5),
+BackgroundTransparency=1,
+AutoButtonColor=false,
+Text="✕",
+TextSize=18,
+FontFace=Font.new(ai.Font,Enum.FontWeight.Medium),
+TextColor3=Color3.fromRGB(160,160,160),
+ZIndex=9,
+}),
+})
+local CloseBtn=BigBar:FindFirstChild("Close")
+if CloseBtn then
+ai.AddSignal(CloseBtn.MouseEnter,function()
+ak(CloseBtn,0.1,{TextColor3=Color3.fromRGB(230,230,230)}):Play()
+end)
+ai.AddSignal(CloseBtn.MouseLeave,function()
+ak(CloseBtn,0.1,{TextColor3=Color3.fromRGB(160,160,160)}):Play()
+end)
+ai.AddSignal(CloseBtn.MouseButton1Click,function()
+aq:Close()
+end)
+end
+end
+-- 菜单内容下移避开标题栏
+am.UIElements.Menu.Position=UDim2.new(0,0,0,40)
 RecalculateListSize()
 RecalculateCanvasSize()
 am.UIElements.Menu.Size=UDim2.new(1,0,0,0)
 ak(am.UIElements.Menu,0.1,{
-Size=UDim2.new(1,0,1,0),
+Size=UDim2.new(1,0,1,-40),
 ImageTransparency=0.05
 },Enum.EasingStyle.Quart,Enum.EasingDirection.Out):Play()
 end
@@ -10003,24 +10063,32 @@ Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFra
 -- [suture] 放大按钮：点击打开 WinUI 风格二级大菜单（全部选项 + 搜索）
 local BigBtn=ag("ImageButton",{
 Name="WindUIDropdownBigBtn",
-Size=UDim2.new(0,20,0,20),
+Size=UDim2.new(0,30,0,30),
 Position=UDim2.new(
 1,
-ap.UIElements.Dropdown and-34 or-22,
+ap.UIElements.Dropdown and-44 or-32,
 0.5,
 0
 ),
 AnchorPoint=Vector2.new(1,0.5),
 BackgroundTransparency=1,
 AutoButtonColor=false,
+ZIndex=4,
+Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFrame.UIElements.Main
+},{
+ag("ImageLabel",{
+Name="Icon",
+Size=UDim2.new(0,18,0,18),
+AnchorPoint=Vector2.new(0.5,0.5),
+Position=UDim2.new(0.5,0,0.5,0),
+BackgroundTransparency=1,
 Image=af.Icon"search"[1],
 ImageRectOffset=af.Icon"search"[2].ImageRectPosition,
 ImageRectSize=af.Icon"search"[2].ImageRectSize,
 ThemeTag={
 ImageColor3="Icon"
 },
-ZIndex=4,
-Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFrame.UIElements.Main
+})
 })
 af.AddSignal(BigBtn.MouseButton1Click,function()
 if ap.DropdownMenu and ap.DropdownMenu.OpenBig then
@@ -10028,10 +10096,12 @@ ap.DropdownMenu:OpenBig()
 end
 end)
 af.AddSignal(BigBtn.MouseEnter,function()
-af(BigBtn,0.12,{ImageTransparency=0.35}):Play()
+local ic=BigBtn:FindFirstChild("Icon")
+if ic then af(ic,0.12,{ImageTransparency=0.35}):Play() end
 end)
 af.AddSignal(BigBtn.MouseLeave,function()
-af(BigBtn,0.12,{ImageTransparency=0}):Play()
+local ic=BigBtn:FindFirstChild("Icon")
+if ic then af(ic,0.12,{ImageTransparency=0}):Play() end
 end)
 
 function ap.Lock(au)
@@ -15181,7 +15251,7 @@ end
   local BaseColor=Config.BackgroundColor3 or PickRowColor()
   local Dark=(BaseColor.R+BaseColor.G+BaseColor.B)/3<0.5
   local InnerColor=Config.BackgroundColor3 or BaseColor:Lerp(Dark and Color3.new(1,1,1)or Color3.new(0,0,0),Dark and 0.07 or 0.05)
-  local ArrowSize=Config.ArrowSize or 28
+  local ArrowSize=Config.ArrowSize or 30
   local Pad=Config.Padding or 0
   local Ratio=tonumber(Config.Width)or 0.9
   if Ratio>1 then
@@ -15213,7 +15283,9 @@ end
   }),
   New("ImageLabel",{
   Name="WindUIExpandArrowIcon",
-  Size=UDim2.new(1,0,1,0),
+  Size=UDim2.new(0,18,0,18),
+  AnchorPoint=Vector2.new(0.5,0.5),
+  Position=UDim2.new(0.5,0,0.5,0),
   BackgroundTransparency=1,
   ImageTransparency=0,
   ThemeTag={
