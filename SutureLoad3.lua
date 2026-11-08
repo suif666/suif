@@ -1,4 +1,10 @@
--- SutureLoad3 v1.3 [suture] - Suture Hub one-click launcher (flat, ASCII, compatible)
+-- SutureLoad3 v1.3.1 [suture] - Suture Hub one-click launcher (flat, ASCII, compatible)
+pcall(function()
+    if rconsoleprint then
+        rconsoleprint("[SutureLoad] boot v1.3.1 - entry script is running\n")
+    end
+end)
+warn("[SutureLoad] boot v1.3.1 - entry script is running")
 -- Single file: loader UI + WindUI preload + suif main script.
 -- Run: loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/SutureLoad3.lua"))()
 
@@ -397,11 +403,11 @@ end
 -----------------------------------------------------------------------
 -- [4] Entry logic: URLs
 -----------------------------------------------------------------------
-local SUIF_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif.lua?v=suif104"
+local SUIF_URL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif.lua"
 local WINDUI_SRC = {
-    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand22",
+    "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua",
     "https://cdn.jsdelivr.net/gh/suif666/suif@2f7140bc37b525d1cdd154db7cb0b05c0379de01/WindUI-Boreal.lua",
-    "https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua?v=expand22",
+    "https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/refs/heads/main/WindUI-Boreal.lua",
     "https://gcore.jsdelivr.net/gh/suif666/suif@2f7140bc37b525d1cdd154db7cb0b05c0379de01/WindUI-Boreal.lua",
 }
 
