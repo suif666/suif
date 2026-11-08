@@ -26,29 +26,27 @@ local function Wait(t)
     return nil
 end
 
-local function Spawn(fn, ...)
+local function Spawn(fn)
     if HAS_SPAWN then
-        return TASK.spawn(fn, ...)
+        return TASK.spawn(fn)
     end
     if spawn then
-        return spawn(fn, ...)
+        return spawn(fn)
     end
-    local co = coroutine.create(function()
-        fn(...)
-    end)
+    local co = coroutine.create(fn)
     return coroutine.resume(co)
 end
 
-local function Delay(t, fn, ...)
+local function Delay(t, fn)
     if HAS_DELAY then
-        return TASK.delay(t, fn, ...)
+        return TASK.delay(t, fn)
     end
     if delay then
-        return delay(t, fn, ...)
+        return delay(t, fn)
     end
     Spawn(function()
         Wait(t)
-        fn(...)
+        fn()
     end)
 end
 
