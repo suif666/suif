@@ -645,10 +645,16 @@ function Loader:Finish()
         if not gui then
             return
         end
-        -- 停雪花/粒子
+        -- 停雪花/粒子（雪花是 TextLabel，粒子是 Frame，属性不同分开 tween）
         for _, flake in ipairs(self.Snowflakes) do
             if flake and flake.Parent then
-                Tween(flake, 0.4, { TextTransparency = 1, BackgroundTransparency = 1 })
+                pcall(function()
+                    if flake:IsA("TextLabel") then
+                        Tween(flake, 0.4, { TextTransparency = 1 })
+                    else
+                        Tween(flake, 0.4, { BackgroundTransparency = 1 })
+                    end
+                end)
             end
         end
         -- 卡片下坠+淡出
@@ -695,6 +701,14 @@ function Loader:Finish()
         if gui and gui.Parent then
             gui:Destroy()
         end
+    end)
+    -- 绝对兜底：动画协程任何一步崩了，2 秒后也强制销毁 GUI
+    Delay(2, function()
+        pcall(function()
+            if gui and gui.Parent then
+                gui:Destroy()
+            end
+        end)
     end)
     return self
 end
