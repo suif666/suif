@@ -2998,24 +2998,27 @@ task.spawn(function()
         end
         task.wait(AUTO_LOAD_DELAY)
     end
-end)
-
--- [suture] 一次性批量挂载：加载器预编译的远程脚本队列（窗口已建好，全部立即挂载，不再逐个加载）
-pcall(function()
-    local g = (getgenv and getgenv()) or _G
-    if g and g.__SUIF_PENDING then
-        local pending = g.__SUIF_PENDING
-        g.__SUIF_PENDING = {}
-        for _, fn in ipairs(pending) do
-            pcall(fn)
+    -- [suture] 预编译模式：全部远程脚本下载完成后，一次性批量挂载（窗口已建好），再通知加载器淡出
+    pcall(function()
+        local g = (getgenv and getgenv()) or _G
+        if g and g.__SUIF_PRELOAD and g.__SUIF_PENDING then
+            local pending = g.__SUIF_PENDING
+            g.__SUIF_PENDING = {}
+            for _, fn in ipairs(pending) do
+                pcall(fn)
+            end
+            if g.__SUIF_READY then
+                g.__SUIF_READY()
+            end
         end
-    end
+    end)
 end)
 
--- [suture] 通知加载器：主界面已全部构建完成（存在回调才调用，单独执行本脚本时无副作用）
+-- [suture] 批量挂载已移至上方「全量自动加载」循环末尾（下载完成后执行，时机正确）
+-- [suture] READY 通知：预编译模式下由全量加载末尾统一触发；非预编译模式（独立执行）立即触发
 pcall(function()
     local g = (getgenv and getgenv()) or _G
-    if g and g.__SUIF_READY then
+    if g and g.__SUIF_READY and not g.__SUIF_PRELOAD then
         g.__SUIF_READY()
     end
 end)
