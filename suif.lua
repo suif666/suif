@@ -327,9 +327,16 @@ local function loadRemote(url, desc, onSuccess, onFail)
                     error(compileErr)
                 end
                 local g2 = (getgenv and getgenv()) or _G
-                if g2 and g2.__SUIF_PRELOAD and g2.__SUIF_PENDING then
+                if g2 and g2.__SUIF_PRELOAD then
+                    -- [suture] 已由加载器预下载过的 URL 直接跳过（避免重复下载/重复挂载）
+                    if g2.__PRELOADED_URLS and g2.__PRELOADED_URLS[url] then
+                        return
+                    end
                     -- 预编译模式：排队等主窗口出现后一次性挂载
+                    g2.__SUIF_PENDING = g2.__SUIF_PENDING or {}
                     table.insert(g2.__SUIF_PENDING, fn)
+                    g2.__PRELOADED_URLS = g2.__PRELOADED_URLS or {}
+                    g2.__PRELOADED_URLS[url] = true
                 else
                     fn()
                 end
@@ -370,6 +377,11 @@ end
 local function lazyLoad(url, desc, tab, onDemand)
     if tab and tab.Index then
         local item = { url = url, desc = desc, state = "pending", onDemand = onDemand or false }
+        -- [suture] 预编译模式：URL 已被加载器预下载 → 标记 done，全量自动加载段直接跳过
+        local g2 = (getgenv and getgenv()) or _G
+        if g2 and g2.__SUIF_PRELOAD and g2.__PRELOADED_URLS and g2.__PRELOADED_URLS[url] then
+            item.state = "done"
+        end
         lazyTabs[tab.Index] = item
         lazyOrder[#lazyOrder + 1] = item
         if onDemand then
@@ -2983,6 +2995,18 @@ lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║ 【已停用】D 黑白提取远程脚本整段 结束
 -- ╚══════════════════════════════════════════════════════════════╝
+
+-- ============ [suture] 立即挂载：加载器预下载的远程脚本（窗口出现瞬间全部挂载） ============
+pcall(function()
+    local g = (getgenv and getgenv()) or _G
+    if g and g.__SUIF_PRELOAD and g.__SUIF_PENDING then
+        local pending = g.__SUIF_PENDING
+        g.__SUIF_PENDING = {}
+        for _, fn in ipairs(pending) do
+            pcall(fn)
+        end
+    end
+end)
 
 -- ============ 全量自动加载全部远程脚本 ============
 -- 位置放在所有 lazyLoad 登记点之后，确保 lazyOrder 已全部登记
