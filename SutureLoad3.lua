@@ -409,7 +409,7 @@ local WINDUI_SRC = {
     "https://gcore.jsdelivr.net/gh/suif666/suif@2f7140bc37b525d1cdd154db7cb0b05c0379de01/WindUI-Boreal.lua",
 }
 
-local function TryLoad(url)
+local function TryLoad(url, execute)
     local ok, src = pcall(function()
         return game:HttpGet(url)
     end)
@@ -420,11 +420,16 @@ local function TryLoad(url)
     if not fn then
         return nil
     end
-    local ran, mod = pcall(fn)
-    if ran and mod then
-        return mod
+    if execute then
+        -- 模块类（WindUI）：执行并返回模块
+        local ran, mod = pcall(fn)
+        if ran and mod then
+            return mod
+        end
+        return nil
     end
-    return nil
+    -- 脚本类（远程脚本）：只编译不执行，等窗口出现后统一挂载
+    return fn
 end
 
 -----------------------------------------------------------------------
@@ -466,7 +471,7 @@ local function PreloadRemotes(inst)
     local total = #REMOTE_SPECS
     local done = 0
     for _, spec in ipairs(REMOTE_SPECS) do
-        local fn = TryLoad(spec.url)
+        local fn = TryLoad(spec.url, false)
         if fn then
             table.insert(g.__SUIF_PENDING, fn)
             g.__PRELOADED_URLS[spec.url] = true
@@ -481,7 +486,7 @@ end
 inst:AddTask("正在加载 UI 库", function()
     local g = (getgenv and getgenv()) or _G
     for _, u in ipairs(WINDUI_SRC) do
-        local mod = TryLoad(u)
+        local mod = TryLoad(u, true)
         if mod then
             g.WindUI = mod
             return
