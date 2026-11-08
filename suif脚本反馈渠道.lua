@@ -1,8 +1,17 @@
---// Suture Hub Feedback | WindUI 原生顶栏版
+--// Suture Hub Feedback | WindUI 原生顶栏版（防滥用版 v2）
+--// 改动：
+--//   1. 新增 ip 参数：HttpService:GetIPAddress() 获取反馈人 IP（服务器侧另有 CF-Connecting-IP 交叉验证）
+--//   2. 新增 token 参数：防完全裸请求（与 Worker 端 AUTH_TOKEN 一致）
+--//   3. 新增 timestamp + nonce：防重放（Worker 端校验时间新鲜度）
+--//   4. 客户端频率限制：两次发送间隔 >= 20 秒
+--//   5. 反馈内容首尾去空格后再校验（防纯空白刷屏）
 local cfg = getgenv().SutureHubFeedback or {}
 
 local WindUI = cfg.WindUI
 local Window = cfg.Window
+
+-- ★ 客户端令牌（与 Worker 环境变量 AUTH_TOKEN 保持一致；换令牌时两边一起换）
+local AUTH_TOKEN = cfg.Token or "suture_fb_2025_zh"
 
 local function notify(t, c, i, d)
     if cfg.Notify then
@@ -54,6 +63,27 @@ local busy = false
 local FeedbackTab = nil
 local FeedbackText = ""
 
+-- ★ 客户端频率限制（秒）
+local RATE_LIMIT_SECONDS = 20
+local lastSentAt = 0
+
+-- ★ 获取反馈人 IP（pcall 兜底：executor 屏蔽时返回空串，Worker 端仍会记录真实 IP）
+local function getIP()
+    local ok, ip = pcall(function()
+        return HttpService:GetIPAddress()
+    end)
+    return ok and tostring(ip or "") or ""
+end
+
+local function rateLimited()
+    local now = os.time()
+    if now - lastSentAt < RATE_LIMIT_SECONDS then
+        return true, (RATE_LIMIT_SECONDS - (now - lastSentAt))
+    end
+    lastSentAt = now
+    return false, 0
+end
+
 local function requestFunc()
     return (syn and syn.request)
         or (http and http.request)
@@ -65,17 +95,38 @@ local function enc(v)
     return HttpService:UrlEncode(tostring(v or ""))
 end
 
-local function getUrl(msg)
+-- ★ 组装带防滥用参数的数据表（POST body 与 GET query 共用）
+local function buildPayload(msg)
+    return {
+        message = msg,
+        username = lp.Name,
+        displayName = lp.DisplayName,
+        userId = lp.UserId,
+        placeId = game.PlaceId,
+        jobId = game.JobId,
+        gameName = game.Name,
+        ip = getIP(),
+        timestamp = os.time(),
+        nonce = HttpService:GenerateGUID(false),
+        token = AUTH_TOKEN
+    }
+end
+
+local function getUrl(p)
     local sep = API:find("?", 1, true) and "&" or "?"
 
     return API .. sep
-        .. "message=" .. enc(msg)
-        .. "&username=" .. enc(lp.Name)
-        .. "&displayName=" .. enc(lp.DisplayName)
-        .. "&userId=" .. enc(lp.UserId)
-        .. "&placeId=" .. enc(game.PlaceId)
-        .. "&jobId=" .. enc(game.JobId)
-        .. "&gameName=" .. enc(game.Name)
+        .. "message=" .. enc(p.message)
+        .. "&username=" .. enc(p.username)
+        .. "&displayName=" .. enc(p.displayName)
+        .. "&userId=" .. enc(p.userId)
+        .. "&placeId=" .. enc(p.placeId)
+        .. "&jobId=" .. enc(p.jobId)
+        .. "&gameName=" .. enc(p.gameName)
+        .. "&ip=" .. enc(p.ip)
+        .. "&timestamp=" .. enc(p.timestamp)
+        .. "&nonce=" .. enc(p.nonce)
+        .. "&token=" .. enc(p.token)
 end
 
 local function okStatus(res)
@@ -123,20 +174,16 @@ local function callRequest(method, url, body)
 end
 
 local function sendFeedback(msg)
-    local body = HttpService:JSONEncode({
-        message = msg,
-        username = lp.Name,
-        displayName = lp.DisplayName,
-        userId = lp.UserId,
-        placeId = game.PlaceId,
-        jobId = game.JobId,
-        gameName = game.Name
-    })
+    local p = buildPayload(msg)
+
+    -- POST 优先（JSON body，含 ip/timestamp/nonce/token）
+    local body = HttpService:JSONEncode(p)
 
     local ok1 = callRequest("POST", API, body)
     if ok1 then return true end
 
-    local url = getUrl(msg)
+    -- GET 降级（query 同样携带全部防滥用参数）
+    local url = getUrl(p)
 
     local ok2 = callRequest("GET", url)
     if ok2 then return true end
@@ -207,12 +254,21 @@ local function createFeedbackTab()
                 return notify("反馈", "正在发送中", "loader", 2)
             end
 
-            if #FeedbackText < 2 then
+            -- ★ 内容去首尾空格后再校验（防纯空白刷屏）
+            local text = tostring(FeedbackText or ""):gsub("^%s+", ""):gsub("%s+$", "")
+
+            if #text < 2 then
                 return notify("反馈失败", "请先输入内容", "triangle-alert", 3)
             end
 
+            -- ★ 客户端频率限制
+            local limited, waitSec = rateLimited()
+            if limited then
+                return notify("反馈", ("发送过于频繁，请 %d 秒后再试"):format(waitSec), "triangle-alert", 3)
+            end
+
             busy = true
-            local ok, err = sendFeedback(FeedbackText)
+            local ok, err = sendFeedback(text)
             busy = false
 
             if ok then
