@@ -3017,6 +3017,11 @@ pcall(function()
                     task.wait()
                     mountBatch()
                 end)
+            else
+                -- 全部挂载完成 → 立即通知加载器关闭（不再等全量段循环走完）
+                if g.__SUIF_READY then
+                    g.__SUIF_READY()
+                end
             end
         end
         mountBatch()
