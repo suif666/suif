@@ -433,6 +433,51 @@ end
 local inst = Loader.new({ Title = "Suture Hub" })
 inst:Show()
 
+local REMOTE_SPECS = {
+    { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", desc = "范围" },
+    { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua", desc = "甩飞" },
+    { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua", desc = "ping/fps显示" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", desc = "雷达" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", desc = "玩家类" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", desc = "自瞄类" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua", desc = "发言类" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", desc = "ESP" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", desc = "服务器类" },
+    { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BC%A0%E9%80%81.lua", desc = "坐标传送" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/animation.lua", desc = "动作动画" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/actionpack.lua", desc = "动作包" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/animpack.lua", desc = "动画包" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/disguise.lua", desc = "伪装玩家" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/slowrun.lua", desc = "缓慢的快速跑" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/clicker.lua", desc = "自动连点器" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/npc.lua", desc = "NPC交互" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/trigger.lua", desc = "触发类" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/object.lua", desc = "控制物体" },
+}
+
+-- 预下载远程脚本：加载器阶段全部下载+编译排队，窗口出现瞬间一次性挂载
+local function PreloadRemotes(inst)
+    local g = (getgenv and getgenv()) or _G
+    if not g then
+        return
+    end
+    g.__SUIF_PENDING = g.__SUIF_PENDING or {}
+    g.__PRELOADED_URLS = g.__PRELOADED_URLS or {}
+    local total = #REMOTE_SPECS
+    local done = 0
+    for _, spec in ipairs(REMOTE_SPECS) do
+        local fn = TryLoad(spec.url)
+        if fn then
+            table.insert(g.__SUIF_PENDING, fn)
+            g.__PRELOADED_URLS[spec.url] = true
+        end
+        done = done + 1
+        if inst.TaskLbl then
+            inst.TaskLbl.Text = "正在加载远程脚本 " .. done .. "/" .. total
+        end
+    end
+end
+
 inst:AddTask("正在加载 UI 库", function()
     local g = (getgenv and getgenv()) or _G
     for _, u in ipairs(WINDUI_SRC) do
@@ -464,6 +509,10 @@ inst:AddTask("正在加载 Suture Hub", function()
         error(cerr)
     end
     fn()
+end)
+
+inst:AddTask("正在加载远程脚本 0/0", function()
+    PreloadRemotes(inst)
 end)
 
 inst:Start(function()
