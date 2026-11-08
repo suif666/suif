@@ -2996,15 +2996,30 @@ lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
 -- ║ 【已停用】D 黑白提取远程脚本整段 结束
 -- ╚══════════════════════════════════════════════════════════════╝
 
--- ============ [suture] 立即挂载：加载器预下载的远程脚本（窗口出现瞬间全部挂载） ============
+-- ============ [suture] 分帧挂载：加载器预下载的远程脚本 ============
+-- 每帧只挂 2 个，任务间让出一帧，避免 19 个脚本同步执行卡住主界面
 pcall(function()
     local g = (getgenv and getgenv()) or _G
     if g and g.__SUIF_PRELOAD and g.__SUIF_PENDING then
         local pending = g.__SUIF_PENDING
         g.__SUIF_PENDING = {}
-        for _, fn in ipairs(pending) do
-            pcall(fn)
+        local function mountBatch()
+            local mounted = 0
+            while #pending > 0 and mounted < 2 do
+                local fn = table.remove(pending, 1)
+                if fn then
+                    pcall(fn)
+                end
+                mounted = mounted + 1
+            end
+            if #pending > 0 then
+                task.spawn(function()
+                    task.wait()
+                    mountBatch()
+                end)
+            end
         end
+        mountBatch()
     end
 end)
 
