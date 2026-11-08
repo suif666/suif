@@ -122,21 +122,32 @@ function Loader:Show()
     self.Snowflakes = self.Snowflakes or {}
     self.Running = true
 
-    -- 隐蔽宿主：优先嵌套进游戏自带的 ScreenGui（深藏层级+伪装名），
-    -- 找不到就用 PlayerGui 顶层（名称伪装成常见 LoadingScreen）
+    -- 隐蔽宿主：优先挂到执行器隐藏容器（gethui），其次 CoreGui（游戏读不到），
+    -- 都拿不到才退回 PlayerGui（名称伪装成常见 LoadingScreen）
     local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-    local host = pg
-    for _, hv in ipairs(pg:GetChildren()) do
-        if hv:IsA("ScreenGui") and hv.Enabled and hv.Name ~= "LoadingScreen" then
-            host = hv
-            break
-        end
+    local okH, h = pcall(function()
+        return gethui and gethui()
+    end)
+    local host = (okH and h) or nil
+    if not host then
+        local okC, cg = pcall(function()
+            return game:GetService("CoreGui")
+        end)
+        host = (okC and cg) or pg
     end
+    -- 顺手保护容器（有些执行器靠这个把容器从游戏可见范围摘出去）
+    pcall(function()
+        if protect_gui then
+            protect_gui(host)
+        elseif syn and syn.protect_gui then
+            syn.protect_gui(host)
+        end
+    end)
     local gui = New("ScreenGui", {
         Name = "LoadingScreen",
         IgnoreGuiInset = true,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        Parent = host or pg,
+        Parent = host,
     })
     self.Gui = gui
 
