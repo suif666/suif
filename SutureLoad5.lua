@@ -93,6 +93,7 @@ function Loader.new(opts)
     self.Title = opts.Title or "Suture Hub"
     self.Subtitle = opts.Subtitle or ""
     self.Version = opts.Version or ""
+    self.LogoImage = opts.LogoImage or ""
     self.Tasks = {}
     self.UIQueue = {}
     self.Running = false
@@ -121,11 +122,21 @@ function Loader:Show()
     self.Snowflakes = self.Snowflakes or {}
     self.Running = true
 
+    -- 隐蔽宿主：优先嵌套进游戏自带的 ScreenGui（深藏层级+伪装名），
+    -- 找不到就用 PlayerGui 顶层（名称伪装成常见 LoadingScreen）
+    local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+    local host = pg
+    for _, hv in ipairs(pg:GetChildren()) do
+        if hv:IsA("ScreenGui") and hv.Enabled and hv.Name ~= "LoadingScreen" then
+            host = hv
+            break
+        end
+    end
     local gui = New("ScreenGui", {
-        Name = "SutureLoader",
+        Name = "LoadingScreen",
         IgnoreGuiInset = true,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        Parent = PlayerGui,
+        Parent = host or pg,
     })
     self.Gui = gui
 
@@ -254,18 +265,36 @@ function Loader:Show()
         }),
     })
     self.Logo = Logo
-    local LogoText = New("TextLabel", {
-        Name = "LogoText",
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Text = "S",
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextSize = 34,
-        Font = Enum.Font.GothamBold,
-        TextTransparency = 1,
-        Parent = Logo,
-    })
-    self.LogoText = LogoText
+    if self.LogoImage and self.LogoImage ~= "" then
+        -- 自定义图片 Logo
+        local LogoImg = New("ImageLabel", {
+            Name = "LogoImg",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Image = self.LogoImage,
+            ScaleType = Enum.ScaleType.Crop,
+            ImageTransparency = 1,
+            Parent = Logo,
+        })
+        self.LogoImg = LogoImg
+        Tween(LogoImg, 0.6, { ImageTransparency = 0 })
+    else
+        -- 默认渐变圆 + 小号字母
+        local LogoText = New("TextLabel", {
+            Name = "LogoText",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "S",
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 26,
+            Font = Enum.Font.GothamBold,
+            TextStrokeTransparency = 0.3,
+            TextTransparency = 1,
+            Parent = Logo,
+        })
+        self.LogoText = LogoText
+        Tween(LogoText, 0.6, { TextTransparency = 0 })
+    end
 
     -- ═══ 版本徽章 ═══
     local VerTag = New("Frame", {
@@ -333,7 +362,7 @@ function Loader:Show()
     -- ═══ 进度条 ═══
     local BarBg = New("Frame", {
         Name = "BarBg",
-        Size = UDim2.new(0, 300, 0, 8),
+        Size = UDim2.new(0, 270, 0, 8),
         Position = UDim2.new(0.5, 0, 0, 196),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(40, 46, 60),
@@ -380,13 +409,13 @@ function Loader:Show()
     -- ═══ 百分比（大数字） ═══
     local Pct = New("TextLabel", {
         Name = "Pct",
-        Size = UDim2.new(0, 90, 0, 32),
-        Position = UDim2.new(1, 10, 0.5, 0),
+        Size = UDim2.new(0, 64, 0, 26),
+        Position = UDim2.new(1, 6, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundTransparency = 1,
         Text = "0%",
         TextColor3 = Color3.fromRGB(140, 200, 255),
-        TextSize = 24,
+        TextSize = 20,
         Font = Enum.Font.GothamBold,
         TextTransparency = 1,
         ZIndex = 2,
@@ -397,8 +426,8 @@ function Loader:Show()
     -- ═══ 任务文字 + 状态点 ═══
     local TaskRow = New("Frame", {
         Name = "TaskRow",
-        Size = UDim2.new(1, -140, 0, 24),
-        Position = UDim2.new(0.5, -50, 0, 220),
+        Size = UDim2.new(1, -170, 0, 24),
+        Position = UDim2.new(0.5, 0, 0, 220),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         ZIndex = 2,
@@ -435,7 +464,6 @@ function Loader:Show()
     -- ═══ 入场动画 ═══
     Tween(Card, 0.7, { Position = UDim2.new(0.5, 0, 0.5, 0) })
     Tween(Card, 0.7, { BackgroundTransparency = 0.12 })
-    Tween(LogoText, 0.6, { TextTransparency = 0 })
     Tween(VerLbl, 0.6, { TextTransparency = 0 })
     Tween(Title, 0.8, { TextTransparency = 0 })
     if self.SubLbl then
@@ -460,17 +488,17 @@ function Loader:Show()
 end
 
 function Loader:StartSnow(gui)
-    -- 雪花
-    for _ = 1, 12 do
+    -- 雪花（22 片，初始散布在可见区，循环下落）
+    for _ = 1, 22 do
         local size = math.random(8, 14)
         local flake = New("TextLabel", {
             Name = "Snow",
             Size = UDim2.new(0, size, 0, size),
-            Position = UDim2.new(math.random() * 1, 0, math.random() * -0.3, 0),
+            Position = UDim2.new(math.random() * 1, 0, math.random() * 0.6, 0),
             BackgroundTransparency = 1,
             Text = "*",
             TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextTransparency = math.random() * 0.5 + 0.3,
+            TextTransparency = math.random() * 0.5 + 0.2,
             TextSize = size,
             Font = FONT_DEFAULT,
             Parent = gui,
@@ -478,10 +506,10 @@ function Loader:StartSnow(gui)
         table.insert(self.Snowflakes, flake)
         Spawn(function()
             while self.Running and flake.Parent do
-                local dur = math.random(7, 12)
+                local dur = math.random(6, 11)
                 local targetX = math.random() * 1
                 local tw = TweenService:Create(flake, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
-                    Position = UDim2.new(targetX, 0, 1.05, 0),
+                    Position = UDim2.new(targetX, 0, 1.1, 0),
                 })
                 tw:Play()
                 tw.Completed:Wait()
@@ -489,19 +517,19 @@ function Loader:StartSnow(gui)
                     break
                 end
                 flake.Position = UDim2.new(math.random() * 1, 0, -0.15, 0)
-                flake.TextTransparency = math.random() * 0.5 + 0.3
+                flake.TextTransparency = math.random() * 0.5 + 0.2
             end
         end)
     end
-    -- 光点粒子（缓慢上升）
-    for _ = 1, 8 do
+    -- 光点粒子（16 颗，初始散布在可见区，循环上浮）
+    for _ = 1, 16 do
         local size = math.random(3, 6)
         local p = New("Frame", {
             Name = "Particle",
             Size = UDim2.fromOffset(size, size),
-            Position = UDim2.new(math.random() * 1, 0, math.random() * 1.1, 0),
+            Position = UDim2.new(math.random() * 1, 0, math.random() * 0.9 + 0.1, 0),
             BackgroundColor3 = Color3.fromRGB(160, 210, 255),
-            BackgroundTransparency = math.random() * 0.5 + 0.3,
+            BackgroundTransparency = math.random() * 0.5 + 0.25,
             Parent = gui,
         }, {
             New("UICorner", { CornerRadius = UDim.new(1, 0) }),
@@ -509,7 +537,7 @@ function Loader:StartSnow(gui)
         table.insert(self.Snowflakes, p)
         Spawn(function()
             while self.Running and p.Parent do
-                local dur = math.random(8, 14)
+                local dur = math.random(7, 12)
                 local tw = TweenService:Create(p, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
                     Position = UDim2.new(math.random() * 1, 0, -0.15, 0),
                 })
@@ -518,7 +546,7 @@ function Loader:StartSnow(gui)
                 if not self.Running or not p.Parent then
                     break
                 end
-                p.Position = UDim2.new(math.random() * 1, 0, 1.1, 0)
+                p.Position = UDim2.new(math.random() * 1, 0, 1.15, 0)
             end
         end)
     end
@@ -644,6 +672,9 @@ function Loader:Finish()
         if self.LogoText then
             Tween(self.LogoText, 0.4, { TextTransparency = 1 })
         end
+        if self.LogoImg then
+            Tween(self.LogoImg, 0.4, { ImageTransparency = 1 })
+        end
         for _, g in ipairs(self.Glows or {}) do
             if g and g.Parent then
                 Tween(g, 0.5, { BackgroundTransparency = 1 })
@@ -729,17 +760,32 @@ local function PreloadRemotes(inst)
     g.__PRELOADED_URLS = g.__PRELOADED_URLS or {}
     local total = #REMOTE_SPECS
     local done = 0
+    local queue = {}
     for _, spec in ipairs(REMOTE_SPECS) do
-        local fn = TryLoad(spec.url, false)
-        if fn then
-            table.insert(g.__SUIF_PENDING, fn)
-            g.__PRELOADED_URLS[spec.url] = true
-        end
-        done = done + 1
-        if inst.TaskLbl then
-            inst.TaskLbl.Text = "正在加载远程脚本 " .. done .. "/" .. total
+        table.insert(queue, spec)
+    end
+    -- 4 路并发下载（比顺序快约 4 倍），进度实时刷新
+    local function worker()
+        while #queue > 0 do
+            local spec = table.remove(queue, 1)
+            local fn = TryLoad(spec.url, false)
+            if fn then
+                table.insert(g.__SUIF_PENDING, fn)
+                g.__PRELOADED_URLS[spec.url] = true
+            end
+            done = done + 1
+            if inst.TaskLbl then
+                inst.TaskLbl.Text = "正在加载远程脚本 " .. done .. "/" .. total
+            end
         end
     end
+    for _ = 1, 4 do
+        Spawn(worker)
+    end
+    -- 任务链是同步的：等全部下载完成再返回
+    repeat
+        Wait(0.1)
+    until done >= total
 end
 
 inst:AddTask("正在加载 UI 库", function()
