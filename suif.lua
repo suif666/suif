@@ -313,6 +313,8 @@ local function run(url, name)
 end
 
 -- 后台异步加载远程模块：失败自动重试 3 次，成功回调 onSuccess，仍失败时给出可见提示并回调 onFail
+-- ★ [suture] 预编译模式：加载器驱动时（getgenv().__SUIF_PRELOAD=true）远程脚本只下载+编译
+--   不立即执行，存入 __SUIF_PENDING 队列；等主窗口创建完成后由 initMainScript 一次性批量挂载
 local function loadRemote(url, desc, onSuccess, onFail)
     task.spawn(function()
         local ok, err
@@ -324,7 +326,13 @@ local function loadRemote(url, desc, onSuccess, onFail)
                 if not fn then
                     error(compileErr)
                 end
-                fn()
+                local g2 = (getgenv and getgenv()) or _G
+                if g2 and g2.__SUIF_PRELOAD and g2.__SUIF_PENDING then
+                    -- 预编译模式：排队等主窗口出现后一次性挂载
+                    table.insert(g2.__SUIF_PENDING, fn)
+                else
+                    fn()
+                end
             end)
             if ok then
                 if onSuccess then
@@ -2989,6 +2997,18 @@ task.spawn(function()
             startLoad(item)
         end
         task.wait(AUTO_LOAD_DELAY)
+    end
+end)
+
+-- [suture] 一次性批量挂载：加载器预编译的远程脚本队列（窗口已建好，全部立即挂载，不再逐个加载）
+pcall(function()
+    local g = (getgenv and getgenv()) or _G
+    if g and g.__SUIF_PENDING then
+        local pending = g.__SUIF_PENDING
+        g.__SUIF_PENDING = {}
+        for _, fn in ipairs(pending) do
+            pcall(fn)
+        end
     end
 end)
 
