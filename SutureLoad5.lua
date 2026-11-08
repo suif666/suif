@@ -92,6 +92,7 @@ function Loader.new(opts)
     local self = setmetatable({}, Loader)
     self.Title = opts.Title or "Suture Hub"
     self.Subtitle = opts.Subtitle or ""
+    self.Version = opts.Version or ""
     self.Tasks = {}
     self.UIQueue = {}
     self.Running = false
@@ -128,71 +129,229 @@ function Loader:Show()
     })
     self.Gui = gui
 
-    -- dim background
+    -- ═══ 背景：渐变遮罩 ═══
     local Bg = New("Frame", {
         Name = "Bg",
         Size = UDim2.new(1, 0, 1, 0),
-        BackgroundColor3 = Color3.fromRGB(8, 10, 16),
-        BackgroundTransparency = 0.32,
+        BackgroundColor3 = Color3.fromRGB(6, 8, 14),
+        BackgroundTransparency = 0.42,
         Parent = gui,
+    }, {
+        New("UIGradient", {
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(12, 16, 28)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(8, 10, 18)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 12, 28)),
+            }),
+            Rotation = 90,
+        }),
     })
     self.Bg = Bg
 
-    -- title
+    -- ═══ 装饰光晕（缓慢漂浮） ═══
+    local GlowData = {
+        { Size = 340, X = 0.18, Y = 0.26, C = Color3.fromRGB(70, 150, 255), T = 0.93 },
+        { Size = 260, X = 0.83, Y = 0.64, C = Color3.fromRGB(130, 90, 255), T = 0.94 },
+        { Size = 190, X = 0.74, Y = 0.18, C = Color3.fromRGB(60, 210, 255), T = 0.95 },
+    }
+    self.Glows = {}
+    for i, gd0 in ipairs(GlowData) do
+        local gd = gd0
+        local g = New("Frame", {
+            Name = "Glow" .. i,
+            Size = UDim2.fromOffset(gd.Size, gd.Size),
+            Position = UDim2.new(gd.X, 0, gd.Y, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = gd.C,
+            BackgroundTransparency = gd.T,
+            Parent = gui,
+        }, {
+            New("UICorner", { CornerRadius = UDim.new(1, 0) }),
+        })
+        table.insert(self.Glows, g)
+        Spawn(function()
+            while self.Running and g.Parent do
+                Tween(g, 3 + math.random() * 3, {
+                    Position = UDim2.new(gd.X + (math.random() * 0.06 - 0.03), 0, gd.Y + (math.random() * 0.08 - 0.04), 0),
+                })
+                Wait(3 + math.random() * 3)
+            end
+        end)
+    end
+
+    -- ═══ 卡片阴影（双层） ═══
+    local Shade2 = New("Frame", {
+        Name = "Shade2",
+        Size = UDim2.new(1, 26, 1, 26),
+        Position = UDim2.new(0.5, 0, 0.5, 26),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.85,
+        ZIndex = 1,
+        Parent = gui,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 22) }),
+    })
+    local Shade1 = New("Frame", {
+        Name = "Shade1",
+        Size = UDim2.new(1, 14, 1, 14),
+        Position = UDim2.new(0.5, 0, 0.5, 14),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.72,
+        ZIndex = 1,
+        Parent = gui,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 22) }),
+    })
+
+    -- ═══ 中央卡片 ═══
+    local Card = New("Frame", {
+        Name = "Card",
+        Size = UDim2.fromOffset(420, 330),
+        Position = UDim2.new(0.5, 0, 0.5, 10),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Color3.fromRGB(24, 28, 38),
+        BackgroundTransparency = 0.35,
+        ZIndex = 2,
+        Parent = gui,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 22) }),
+        New("UIGradient", {
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 38, 52)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(19, 23, 33)),
+            }),
+            Rotation = 0,
+        }),
+    })
+    self.Card = Card
+    pcall(function()
+        local st = Instance.new("UIStroke")
+        st.Color = Color3.fromRGB(130, 170, 255)
+        st.Transparency = 0.8
+        st.Thickness = 1
+        st.Parent = Card
+    end)
+
+    -- ═══ Logo 圆标 ═══
+    local Logo = New("Frame", {
+        Name = "Logo",
+        Size = UDim2.fromOffset(64, 64),
+        Position = UDim2.new(0.5, 0, 0, 30),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(70, 130, 255),
+        ZIndex = 2,
+        Parent = Card,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 18) }),
+        New("UIGradient", {
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 200, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(95, 100, 255)),
+            }),
+            Rotation = 90,
+        }),
+    })
+    self.Logo = Logo
+    local LogoText = New("TextLabel", {
+        Name = "LogoText",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "S",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 34,
+        Font = Enum.Font.GothamBold,
+        TextTransparency = 1,
+        Parent = Logo,
+    })
+    self.LogoText = LogoText
+
+    -- ═══ 版本徽章 ═══
+    local VerTag = New("Frame", {
+        Name = "VerTag",
+        Size = UDim2.fromOffset(76, 26),
+        Position = UDim2.new(1, -16, 0, 14),
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = Color3.fromRGB(38, 66, 118),
+        ZIndex = 2,
+        Parent = Card,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(1, 0) }),
+    })
+    self.VerTag = VerTag
+    local VerLbl = New("TextLabel", {
+        Name = "VerLbl",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = self.Version or "",
+        TextColor3 = Color3.fromRGB(150, 200, 255),
+        TextSize = 12,
+        Font = Enum.Font.GothamBold,
+        TextTransparency = 1,
+        Parent = VerTag,
+    })
+    self.VerLbl = VerLbl
+
+    -- ═══ 标题 ═══
     local Title = New("TextLabel", {
         Name = "Title",
-        Size = UDim2.new(1, 0, 0, 52),
-        Position = UDim2.new(0.5, 0, 0.42, 0),
-        AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.new(1, 0, 0, 44),
+        Position = UDim2.new(0.5, 0, 0, 112),
+        AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         Text = self.Title,
         TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextSize = 36,
+        TextSize = 32,
         Font = Enum.Font.GothamBold,
         TextTransparency = 1,
-        TextStrokeTransparency = 0.5,
-        Parent = gui,
+        TextStrokeTransparency = 0.4,
+        ZIndex = 2,
+        Parent = Card,
     })
     self.TitleLbl = Title
 
-    -- subtitle
+    -- ═══ 副标题 ═══
     if self.Subtitle ~= "" then
         local Sub = New("TextLabel", {
             Name = "Subtitle",
-            Size = UDim2.new(1, 0, 0, 22),
-            Position = UDim2.new(0.5, 0, 0.42, 60),
+            Size = UDim2.new(1, 0, 0, 20),
+            Position = UDim2.new(0.5, 0, 0, 158),
             AnchorPoint = Vector2.new(0.5, 0),
             BackgroundTransparency = 1,
             Text = self.Subtitle,
-            TextColor3 = Color3.fromRGB(170, 180, 200),
-            TextSize = 15,
+            TextColor3 = Color3.fromRGB(150, 160, 180),
+            TextSize = 13,
             Font = FONT_DEFAULT,
             TextTransparency = 1,
-            Parent = gui,
+            ZIndex = 2,
+            Parent = Card,
         })
         self.SubLbl = Sub
     end
 
-    -- progress bar bg
+    -- ═══ 进度条 ═══
     local BarBg = New("Frame", {
         Name = "BarBg",
-        Size = UDim2.new(0, 340, 0, 14),
-        Position = UDim2.new(0.5, 0, 0.42, 96),
+        Size = UDim2.new(0, 300, 0, 8),
+        Position = UDim2.new(0.5, 0, 0, 196),
         AnchorPoint = Vector2.new(0.5, 0),
-        BackgroundColor3 = Color3.fromRGB(28, 32, 40),
-        BackgroundTransparency = 0.25,
-        Parent = gui,
+        BackgroundColor3 = Color3.fromRGB(40, 46, 60),
+        BackgroundTransparency = 0.35,
+        ZIndex = 2,
+        Parent = Card,
     }, {
         New("UICorner", { CornerRadius = UDim.new(1, 0) }),
     })
     self.BarBg = BarBg
 
-    -- progress bar fill
     local Bar = New("Frame", {
         Name = "Bar",
         Size = UDim2.new(0, 0, 1, 0),
         BackgroundColor3 = Color3.fromRGB(70, 150, 255),
         BackgroundTransparency = 0,
+        ClipsDescendants = true,
+        ZIndex = 2,
         Parent = BarBg,
     }, {
         New("UICorner", { CornerRadius = UDim.new(1, 0) }),
@@ -205,56 +364,105 @@ function Loader:Show()
         }),
     })
     self.Bar = Bar
+    -- 前端流动高光
+    local BarShine = New("Frame", {
+        Name = "BarShine",
+        Size = UDim2.fromOffset(90, 8),
+        Position = UDim2.new(0, -90, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 0.78,
+        Parent = Bar,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(1, 0) }),
+    })
+    self.BarShine = BarShine
 
-    -- percent label (right of bar)
+    -- ═══ 百分比（大数字） ═══
     local Pct = New("TextLabel", {
         Name = "Pct",
-        Size = UDim2.new(0, 60, 0, 24),
-        Position = UDim2.new(1, 12, 0.5, 0),
+        Size = UDim2.new(0, 90, 0, 32),
+        Position = UDim2.new(1, 10, 0.5, 0),
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundTransparency = 1,
         Text = "0%",
         TextColor3 = Color3.fromRGB(140, 200, 255),
-        TextSize = 15,
-        Font = Enum.Font.GothamSemibold,
+        TextSize = 24,
+        Font = Enum.Font.GothamBold,
         TextTransparency = 1,
+        ZIndex = 2,
         Parent = BarBg,
     })
     self.PctLbl = Pct
 
-    -- task label (below bar)
-    local TaskLbl = New("TextLabel", {
-        Name = "Task",
-        Size = UDim2.new(1, 0, 0, 22),
-        Position = UDim2.new(0.5, 0, 0.42, 122),
+    -- ═══ 任务文字 + 状态点 ═══
+    local TaskRow = New("Frame", {
+        Name = "TaskRow",
+        Size = UDim2.new(1, -140, 0, 24),
+        Position = UDim2.new(0.5, -50, 0, 220),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
+        ZIndex = 2,
+        Parent = Card,
+    })
+    local Dot = New("Frame", {
+        Name = "Dot",
+        Size = UDim2.fromOffset(8, 8),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = Color3.fromRGB(80, 220, 120),
+        ZIndex = 2,
+        Parent = TaskRow,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(1, 0) }),
+    })
+    self.Dot = Dot
+    local TaskLbl = New("TextLabel", {
+        Name = "Task",
+        Size = UDim2.new(1, -20, 1, 0),
+        Position = UDim2.new(0, 18, 0, 0),
+        BackgroundTransparency = 1,
         Text = "",
-        TextColor3 = Color3.fromRGB(220, 226, 235),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3 = Color3.fromRGB(200, 208, 220),
         TextSize = 14,
         Font = FONT_DEFAULT,
         TextTransparency = 1,
-        Parent = gui,
+        ZIndex = 2,
+        Parent = TaskRow,
     })
     self.TaskLbl = TaskLbl
 
-    -- fade-in
-    Tween(Title, 0.9, { TextTransparency = 0 })
+    -- ═══ 入场动画 ═══
+    Tween(Card, 0.7, { Position = UDim2.new(0.5, 0, 0.5, 0) })
+    Tween(Card, 0.7, { BackgroundTransparency = 0.12 })
+    Tween(LogoText, 0.6, { TextTransparency = 0 })
+    Tween(VerLbl, 0.6, { TextTransparency = 0 })
+    Tween(Title, 0.8, { TextTransparency = 0 })
     if self.SubLbl then
-        Tween(self.SubLbl, 0.9, { TextTransparency = 0 })
+        Tween(self.SubLbl, 0.8, { TextTransparency = 0 })
     end
-    Tween(Pct, 0.9, { TextTransparency = 0 })
-    Tween(TaskLbl, 0.9, { TextTransparency = 0 })
+    Tween(Pct, 0.8, { TextTransparency = 0 })
+    Tween(TaskLbl, 0.8, { TextTransparency = 0 })
 
-    -- snow effect
+    -- ═══ 高光流动循环 ═══
+    Spawn(function()
+        while self.Running and BarShine.Parent do
+            Tween(BarShine, 1.1, { Position = UDim2.new(1, 90, 0, 0) })
+            Wait(1.1)
+            BarShine.Position = UDim2.new(0, -90, 0, 0)
+        end
+    end)
+
+    -- snow + particles
     self:StartSnow(gui)
 
     return self
 end
 
 function Loader:StartSnow(gui)
-    for _ = 1, 14 do
-        local size = math.random(10, 16)
+    -- 雪花
+    for _ = 1, 12 do
+        local size = math.random(8, 14)
         local flake = New("TextLabel", {
             Name = "Snow",
             Size = UDim2.new(0, size, 0, size),
@@ -262,7 +470,7 @@ function Loader:StartSnow(gui)
             BackgroundTransparency = 1,
             Text = "*",
             TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextTransparency = math.random() * 0.4 + 0.2,
+            TextTransparency = math.random() * 0.5 + 0.3,
             TextSize = size,
             Font = FONT_DEFAULT,
             Parent = gui,
@@ -270,7 +478,7 @@ function Loader:StartSnow(gui)
         table.insert(self.Snowflakes, flake)
         Spawn(function()
             while self.Running and flake.Parent do
-                local dur = math.random(6, 10)
+                local dur = math.random(7, 12)
                 local targetX = math.random() * 1
                 local tw = TweenService:Create(flake, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
                     Position = UDim2.new(targetX, 0, 1.05, 0),
@@ -281,11 +489,41 @@ function Loader:StartSnow(gui)
                     break
                 end
                 flake.Position = UDim2.new(math.random() * 1, 0, -0.15, 0)
-                flake.TextTransparency = math.random() * 0.4 + 0.2
+                flake.TextTransparency = math.random() * 0.5 + 0.3
+            end
+        end)
+    end
+    -- 光点粒子（缓慢上升）
+    for _ = 1, 8 do
+        local size = math.random(3, 6)
+        local p = New("Frame", {
+            Name = "Particle",
+            Size = UDim2.fromOffset(size, size),
+            Position = UDim2.new(math.random() * 1, 0, math.random() * 1.1, 0),
+            BackgroundColor3 = Color3.fromRGB(160, 210, 255),
+            BackgroundTransparency = math.random() * 0.5 + 0.3,
+            Parent = gui,
+        }, {
+            New("UICorner", { CornerRadius = UDim.new(1, 0) }),
+        })
+        table.insert(self.Snowflakes, p)
+        Spawn(function()
+            while self.Running and p.Parent do
+                local dur = math.random(8, 14)
+                local tw = TweenService:Create(p, TweenInfo.new(dur, Enum.EasingStyle.Linear), {
+                    Position = UDim2.new(math.random() * 1, 0, -0.15, 0),
+                })
+                tw:Play()
+                tw.Completed:Wait()
+                if not self.Running or not p.Parent then
+                    break
+                end
+                p.Position = UDim2.new(math.random() * 1, 0, 1.1, 0)
             end
         end)
     end
 end
+
 
 function Loader:SetProgress(p, label)
     if not self.Running or not self.BarBg then
@@ -320,6 +558,8 @@ function Loader:Start(cb)
         for i, task in ipairs(self.Tasks) do
             if self.TaskLbl then
                 self.TaskLbl.Text = task.Name
+                self.TaskLbl.TextTransparency = 0.55
+                Tween(self.TaskLbl, 0.25, { TextTransparency = 0 })
             end
             local ok, err = pcall(task.Fn)
             if not ok and err then
@@ -366,28 +606,47 @@ function Loader:Finish()
         if not gui then
             return
         end
-        local fade = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        -- 停雪花/粒子
+        for _, flake in ipairs(self.Snowflakes) do
+            if flake and flake.Parent then
+                Tween(flake, 0.4, { TextTransparency = 1, BackgroundTransparency = 1 })
+            end
+        end
+        -- 卡片下坠+淡出
+        if self.Card then
+            Tween(self.Card, 0.4, { Position = UDim2.new(0.5, 0, 0.5, 14) })
+            Tween(self.Card, 0.5, { BackgroundTransparency = 1 })
+        end
         if self.Bg then
             Tween(self.Bg, 0.5, { BackgroundTransparency = 1 })
         end
         if self.TitleLbl then
-            Tween(self.TitleLbl, 0.5, { TextTransparency = 1 })
+            Tween(self.TitleLbl, 0.4, { TextTransparency = 1 })
         end
         if self.SubLbl then
-            Tween(self.SubLbl, 0.5, { TextTransparency = 1 })
+            Tween(self.SubLbl, 0.4, { TextTransparency = 1 })
         end
         if self.BarBg then
-            Tween(self.BarBg, 0.5, { BackgroundTransparency = 1 })
+            Tween(self.BarBg, 0.4, { BackgroundTransparency = 1 })
         end
         if self.PctLbl then
-            Tween(self.PctLbl, 0.5, { TextTransparency = 1 })
+            Tween(self.PctLbl, 0.4, { TextTransparency = 1 })
         end
         if self.TaskLbl then
-            Tween(self.TaskLbl, 0.5, { TextTransparency = 1 })
+            Tween(self.TaskLbl, 0.4, { TextTransparency = 1 })
         end
-        for _, flake in ipairs(self.Snowflakes) do
-            if flake and flake.Parent then
-                Tween(flake, 0.5, { TextTransparency = 1 })
+        if self.VerLbl then
+            Tween(self.VerLbl, 0.4, { TextTransparency = 1 })
+        end
+        if self.Logo then
+            Tween(self.Logo, 0.4, { BackgroundTransparency = 1 })
+        end
+        if self.LogoText then
+            Tween(self.LogoText, 0.4, { TextTransparency = 1 })
+        end
+        for _, g in ipairs(self.Glows or {}) do
+            if g and g.Parent then
+                Tween(g, 0.5, { BackgroundTransparency = 1 })
             end
         end
         Wait(0.55)
@@ -435,7 +694,7 @@ end
 -----------------------------------------------------------------------
 -- [5] Boot
 -----------------------------------------------------------------------
-local inst = Loader.new({ Title = "Suture Hub" })
+local inst = Loader.new({ Title = "Suture Hub", Subtitle = "现代加载器 · 分帧挂载", Version = "v1.9" })
 inst:Show()
 
 local REMOTE_SPECS = {
