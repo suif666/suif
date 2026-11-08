@@ -446,6 +446,13 @@ inst:AddTask("正在加载 UI 库", function()
 end)
 
 inst:AddTask("正在加载 Suture Hub", function()
+    -- ★ [suture] 开启预编译模式：suif 主脚本内的远程脚本只下载+编译排队，
+    --   等主窗口创建完成后由 suif 一次性批量挂载（不再逐个加载）
+    local g = (getgenv and getgenv()) or _G
+    if g then
+        g.__SUIF_PRELOAD = true
+        g.__SUIF_PENDING = g.__SUIF_PENDING or {}
+    end
     local okSrc, src = pcall(function()
         return game:HttpGet(SUIF_URL)
     end)
