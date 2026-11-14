@@ -444,6 +444,66 @@ local win = WindUI:CreateWindow({
     OpenButton = { Scale = 0.85, OnlyIcon = false }
 })
 
+-- ══════════════════════════════════════════════════════════════════
+-- [suture] 控件分批创建：避免一次性创建上百控件触发 UIListLayout 重排卡死界面
+-- 原理：hook Section:Tab -> tab 的控件方法，把创建调用排进队列，每帧只建 4 个
+-- ══════════════════════════════════════════════════════════════════
+do
+    local UI_BATCH_QUEUE, UI_BATCH_BUSY = {}, false
+    local UI_BATCH_PER_FRAME = 4
+    local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label" }
+    local function UIBatchFlush()
+        if UI_BATCH_BUSY then return end
+        UI_BATCH_BUSY = true
+        task.spawn(function()
+            while #UI_BATCH_QUEUE > 0 do
+                local n = 0
+                while #UI_BATCH_QUEUE > 0 and n < UI_BATCH_PER_FRAME do
+                    local job = table.remove(UI_BATCH_QUEUE, 1)
+                    pcall(job)
+                    n = n + 1
+                end
+                task.wait(0.03)
+            end
+            UI_BATCH_BUSY = false
+        end)
+    end
+    local function BatchizeTab(tabObj)
+        if type(tabObj) ~= "table" then return end
+        for _, m in ipairs(UI_CTRL_METHODS) do
+            local orig = tabObj[m]
+            if type(orig) == "function" then
+                tabObj[m] = function(self, cfg)
+                    table.insert(UI_BATCH_QUEUE, function()
+                        orig(self, cfg)
+                    end)
+                    UIBatchFlush()
+                    return self
+                end
+            end
+        end
+    end
+    local function BatchizeSection(secObj)
+        if type(secObj) ~= "table" then return end
+        local origTab = secObj.Tab
+        if type(origTab) == "function" then
+            secObj.Tab = function(self, cfg)
+                local t = origTab(self, cfg)
+                BatchizeTab(t)
+                return t
+            end
+        end
+    end
+    local origWinSection = win.Section
+    if type(origWinSection) == "function" then
+        win.Section = function(self, cfg)
+            local s = origWinSection(self, cfg)
+            BatchizeSection(s)
+            return s
+        end
+    end
+end
+
 -- ============ 最小化方式：小圆圈（可选，替代胶囊栏）============
 local minimizeMode = "capsule"  -- capsule=胶囊栏(默认) / ball=小圆圈
 local sgBall = Instance.new("ScreenGui")
