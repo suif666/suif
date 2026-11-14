@@ -3138,7 +3138,9 @@ pcall(function()
                 end
                 g.__SUIF_MOUNT.done = g.__SUIF_MOUNT.done + 1
                 task.spawn(function()
-                    task.wait(0.06)
+                    -- 0.12s 让帧：部分脚本（黑白功能）直接 Instance.new 自建 GUI，
+                    -- 同步创建几十个实例，需要更长的帧间恢复时间
+                    task.wait(0.12)
                     mountBatch()
                 end)
             else
