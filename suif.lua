@@ -463,7 +463,9 @@ local win = WindUI:CreateWindow({
 -- ══════════════════════════════════════════════════════════════════
 do
     local UI_BATCH_QUEUE, UI_BATCH_BUSY = {}, false
-    local UI_BATCH_PER_FRAME = 2
+    -- 布局冻结已消除 UIListLayout 全量重排（O(n²)→O(n)），
+    -- 实例创建本身很轻：每帧批量 16 个控件（约 500 实例），挂载不再龟速
+    local UI_BATCH_PER_FRAME = 16
     local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label" }
     -- ★ 源头优化：WindUI 每个控件加入容器都会触发 UIListLayout 全量重排（O(n²)）。
     --   创建期间冻结布局（摘掉 UIListLayout + 隐藏容器），全部创建完成一次性恢复（O(n)）。
@@ -498,7 +500,7 @@ do
                     pcall(job)
                     n = n + 1
                 end
-                task.wait(0.04)
+                task.wait(0.03)
             end
             ThawContainers()
             UI_BATCH_BUSY = false
@@ -3128,9 +3130,9 @@ pcall(function()
                 end
                 g.__SUIF_MOUNT.done = g.__SUIF_MOUNT.done + 1
                 task.spawn(function()
-                    -- 0.12s 让帧：部分脚本（黑白功能）直接 Instance.new 自建 GUI，
-                    -- 同步创建几十个实例，需要更长的帧间恢复时间
-                    task.wait(0.12)
+                    -- fn 内控件创建全部走分批队列（每帧 16 个），fn 执行本身很轻，
+                    -- 0.05s 间隔足够让帧
+                    task.wait(0.05)
                     mountBatch()
                 end)
             else
