@@ -1091,10 +1091,30 @@ local function PreloadRemotes(inst)
     end
     g.__SUIF_PENDING = g.__SUIF_PENDING or {}
     g.__PRELOADED_URLS = g.__PRELOADED_URLS or {}
-    local total = #REMOTE_SPECS
+    -- ★ 动态并集：内置列表兜底 + 自动提取主脚本 lazyLoad 远程脚本
+    --   主脚本里新增 lazyLoad("URL","名称",tab) → 这里自动跟进，无需手动适配
+    local specs, seen = {}, {}
+    for _, s in ipairs(REMOTE_SPECS) do
+        seen[s.url] = true
+        table.insert(specs, s)
+    end
+    pcall(function()
+        local dynSrc = game:HttpGet(SUIF_URL, true)
+        if type(dynSrc) == "string" and #dynSrc > 200 then
+            for url, name, rest in dynSrc:gmatch('lazyLoad%s*%(%s*"([^"]+)"%s*,%s*"([^"]+)"%s*,%s*([^%)]+)%)') do
+                -- 跳过 onDemand=true 的（游戏专属懒加载，点了才拉）
+                local onDemand = (string.find(rest, "true", 1, true) ~= nil)
+                if not onDemand and not seen[url] then
+                    seen[url] = true
+                    table.insert(specs, { url = url, desc = name })
+                end
+            end
+        end
+    end)
+    local total = #specs
     local done = 0
     local queue = {}
-    for _, spec in ipairs(REMOTE_SPECS) do
+    for _, spec in ipairs(specs) do
         table.insert(queue, spec)
     end
     -- 4 路并发下载（比顺序快约 4 倍），进度实时刷新
