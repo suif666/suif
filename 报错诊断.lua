@@ -33,14 +33,18 @@ do
     end
 end
 
--- 报错信息里出现这些关键词才算"加载相关"（过滤游戏内其他脚本的噪音报错）
-local LOAD_KEYWORDS = {
-    "SutureLoad", "SutureLoader", "suif", "WindUI", "Boreal", "加载", "预载",
-    "HttpGet", "Http", "timeout", "Timeout", "connect", "GET", "POST",
-    "loadstring", "attempt to", "unexpected symbol", "malformed", "attempt to index",
+-- 只弹"重大报错"：命中致命词才弹；命中忽略词（小问题）不弹
+local FATAL_KEYWORDS = {
+    "timeout", "超时", "HttpGet", "HttpError", "Http", "连接失败", "connect",
+    "loadstring", "unexpected symbol", "malformed", "attempt to index", "attempt to call",
     "nil value", "invalid", "denied", "429", "rate limited", "refused", "SSL",
     "certificate", "JSON", "decode", "404", "500", "memory", "stack overflow",
-    "kick", "Teleport", "spawn", "xpcall",
+    "kick", "WindUI", "Boreal", "加载失败", "下载失败", "资源不存在", "获取失败",
+    "error", "Error", "failed", "Failed",
+}
+local IGNORE_KEYWORDS = {
+    "未找到页签", "未找到 Tab", "未找到tab", "未赋值", "没有赋值", "挂载完成",
+    "已挂载", "已加载", "跳过", "提示", "未找到", "not found",
 }
 
 -- 报错诊断规则：按关键词匹配，给出人工建议
@@ -158,34 +162,34 @@ local DiagnoseGui = nil
 local function MakeCard(parent, title, body)
     local card = New("Frame", {
         Name = "DiagCard",
-        Size = UDim2.new(1, 0, 0, 66),
+        Size = UDim2.new(1, 0, 0, 50),
         BackgroundColor3 = Color3.fromRGB(20, 24, 34),
         BackgroundTransparency = 0.5,
         Parent = parent,
     }, {
-        New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+        New("UICorner", { CornerRadius = UDim.new(0, 7) }),
         New("UIStroke", { Color = Color3.fromRGB(70, 84, 118), Transparency = 0.7, Thickness = 1 }),
     })
     New("TextLabel", {
         Name = "Title",
-        Size = UDim2.new(1, -16, 0, 18),
-        Position = UDim2.new(0, 8, 0, 5),
+        Size = UDim2.new(1, -14, 0, 15),
+        Position = UDim2.new(0, 7, 0, 4),
         BackgroundTransparency = 1,
         Text = title,
         TextColor3 = Color3.fromRGB(255, 200, 120),
-        TextSize = 12,
+        TextSize = 11,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = card,
     })
     New("TextLabel", {
         Name = "Body",
-        Size = UDim2.new(1, -16, 0, 36),
-        Position = UDim2.new(0, 8, 0, 25),
+        Size = UDim2.new(1, -14, 0, 28),
+        Position = UDim2.new(0, 7, 0, 20),
         BackgroundTransparency = 1,
         Text = body,
         TextColor3 = Color3.fromRGB(200, 208, 222),
-        TextSize = 12,
+        TextSize = 10,
         Font = Enum.Font.Gotham,
         TextWrapped = true,
         TextXAlignment = Enum.TextXAlignment.Left,
@@ -228,17 +232,17 @@ local function ShowDiagnoseUI(errorText, manual)
         Parent = gui,
     })
 
-    -- 主卡片
+    -- 主卡片（移动设备适配：按屏幕比例）
     local Card = New("Frame", {
         Name = "Card",
-        Size = UDim2.fromOffset(500, 600),
+        Size = UDim2.new(0.92, 0, 0.88, 0),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.fromRGB(17, 20, 29),
         BackgroundTransparency = 0.12,
         Parent = gui,
     }, {
-        New("UICorner", { CornerRadius = UDim.new(0, 16) }),
+        New("UICorner", { CornerRadius = UDim.new(0, 14) }),
         New("UIStroke", { Color = Color3.fromRGB(255, 90, 90), Transparency = 0.55, Thickness = 1 }),
         New("UIGradient", {
             Color = ColorSequence.new({
@@ -252,34 +256,34 @@ local function ShowDiagnoseUI(errorText, manual)
     -- 标题
     New("TextLabel", {
         Name = "Title",
-        Size = UDim2.new(1, 0, 0, 40),
-        Position = UDim2.new(0, 0, 0, 8),
+        Size = UDim2.new(1, 0, 0, 34),
+        Position = UDim2.new(0, 0, 0, 6),
         BackgroundTransparency = 1,
         Text = "⚠️  报错诊断",
         TextColor3 = Color3.fromRGB(255, 120, 120),
-        TextSize = 20,
+        TextSize = 17,
         Font = Enum.Font.GothamBold,
         Parent = Card,
     })
     -- 副标题（说明触发原因）
     New("TextLabel", {
         Name = "Sub",
-        Size = UDim2.new(1, -32, 0, 18),
-        Position = UDim2.new(0, 16, 0, 48),
+        Size = UDim2.new(1, -28, 0, 16),
+        Position = UDim2.new(0, 14, 0, 40),
         BackgroundTransparency = 1,
-        Text = manual and "手动触发的诊断" or "检测到加载器/主脚本加载出错",
+        Text = manual and "手动运行诊断（独立入口）" or "检测到加载器/主脚本加载出错",
         TextColor3 = Color3.fromRGB(150, 160, 180),
-        TextSize = 11,
+        TextSize = 10,
         Font = Enum.Font.Gotham,
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = Card,
     })
 
-    -- 信息区容器（从 y=72 开始）
+    -- 信息区容器（比例定位）
     local InfoArea = New("Frame", {
         Name = "InfoArea",
-        Size = UDim2.new(1, -32, 0, 320),
-        Position = UDim2.new(0, 16, 0, 74),
+        Size = UDim2.new(1, -28, 0, 0.58),
+        Position = UDim2.new(0, 14, 0, 58),
         BackgroundTransparency = 1,
         Parent = Card,
     })
@@ -290,26 +294,26 @@ local function ShowDiagnoseUI(errorText, manual)
 
     -- 区块 2：当前游戏
     local GameCard = MakeCard(InfoArea, "🎮  当前游戏", GameName .. "（PlaceId: " .. tostring(game.PlaceId) .. "）")
-    GameCard.Position = UDim2.new(0, 0, 0, 72)
+    GameCard.Position = UDim2.new(0, 0, 0, 56)
 
     -- 区块 3：报错信息（摘录控制台报错）
     local ErrCard = MakeCard(InfoArea, "❌  报错信息", LastErrorText)
-    ErrCard.Position = UDim2.new(0, 0, 0, 144)
-    ErrCard.Size = UDim2.new(1, 0, 0, 96)
+    ErrCard.Position = UDim2.new(0, 0, 0, 112)
+    ErrCard.Size = UDim2.new(1, 0, 0, 80)
 
     -- 区块 4：报错诊断
     local DiagCard = MakeCard(InfoArea, "🔍  报错诊断", diagnose(LastErrorText))
-    DiagCard.Position = UDim2.new(0, 0, 0, 246)
+    DiagCard.Position = UDim2.new(0, 0, 0, 192)
 
-    -- 按钮行（y=410 起）
+    -- 按钮行（比例定位）
     local BtnArea = New("Frame", {
         Name = "BtnArea",
-        Size = UDim2.new(1, -32, 0, 46),
-        Position = UDim2.new(0, 16, 0, 404),
+        Size = UDim2.new(1, -28, 0, 42),
+        Position = UDim2.new(0, 14, 0, 0.68),
         BackgroundTransparency = 1,
         Parent = Card,
     })
-    local BtnNames = { "复制信息", "发送信息", "重新加载", "关闭脚本" }
+    local BtnNames = { "复制信息", "发送信息", "重新加载", "关闭面板" }
     local BtnColors = {
         Color3.fromRGB(70, 90, 130),
         Color3.fromRGB(60, 130, 90),
@@ -320,8 +324,8 @@ local function ShowDiagnoseUI(errorText, manual)
     for i = 1, 4 do
         local b = New("TextButton", {
             Name = "Btn" .. i,
-            Size = UDim2.new(0, 108, 0, 40),
-            Position = UDim2.new(0, (i - 1) * 114, 0, 3),
+            Size = UDim2.new(0, 88, 0, 36),
+            Position = UDim2.new(0, (i - 1) * 94, 0, 3),
             BackgroundColor3 = BtnColors[i],
             BackgroundTransparency = 0.3,
             Text = BtnNames[i],
@@ -339,8 +343,8 @@ local function ShowDiagnoseUI(errorText, manual)
     -- 底部状态提示（复制/发送结果）
     local Status = New("TextLabel", {
         Name = "Status",
-        Size = UDim2.new(1, -32, 0, 20),
-        Position = UDim2.new(0, 16, 0, 462),
+        Size = UDim2.new(1, -28, 0, 18),
+        Position = UDim2.new(0, 14, 0, 0.74),
         BackgroundTransparency = 1,
         Text = "",
         TextColor3 = Color3.fromRGB(150, 200, 150),
@@ -415,8 +419,12 @@ end
         end)
     end)
 
-    -- 按钮 3：重新加载（重新执行加载器）
+    -- 按钮 3：重新加载（重新执行加载器；点击时自动关闭诊断面板）
     buttons[3].MouseButton1Click:Connect(function()
+        if DiagnoseGui then
+            pcall(function() DiagnoseGui:Destroy() end)
+            DiagnoseGui = nil
+        end
         Status.Text = "⏳ 正在重新加载…"
         Spawn(function()
             local ok, res = pcall(function()
@@ -437,12 +445,16 @@ end
         end)
     end)
 
-    -- 按钮 4：关闭脚本（销毁诊断 UI 并停止监控）
+    -- 按钮 4：关闭面板 / 关闭脚本
+    -- 手动模式（工具Tab打开）：只关面板，不停监控；自动模式：关面板+停监控
+    buttons[4].Text = manual and "关闭面板" or "关闭脚本"
     buttons[4].MouseButton1Click:Connect(function()
-        MonitorActive = false
         if DiagnoseGui then
             pcall(function() DiagnoseGui:Destroy() end)
             DiagnoseGui = nil
+        end
+        if not manual then
+            MonitorActive = false
         end
     end)
 
@@ -475,9 +487,16 @@ end
 -----------------------------------------------------------------------
 -- 常驻监控：轮询 LogService，出现加载相关报错 → 自动弹出诊断
 -----------------------------------------------------------------------
-local function IsLoaderRelated(msg)
+local function ShouldPopup(msg)
     local low = string.lower(tostring(msg or ""))
-    for _, kw in ipairs(LOAD_KEYWORDS) do
+    -- 小问题（如"未找到页签"）不弹
+    for _, kw in ipairs(IGNORE_KEYWORDS) do
+        if string.find(low, string.lower(kw), 1, true) then
+            return false
+        end
+    end
+    -- 重大报错（加载失败/网络/资源问题）才弹
+    for _, kw in ipairs(FATAL_KEYWORDS) do
         if string.find(low, string.lower(kw), 1, true) then
             return true
         end
@@ -501,7 +520,7 @@ Spawn(function()
                     local m = tostring(entry and entry.message or "")
                     local mt = entry and entry.messageType
                     local isErr = (mt == Enum.MessageType.MessageError) or (mt == Enum.MessageType.MessageWarning)
-                    if isErr and IsLoaderRelated(m) then
+                    if isErr and ShouldPopup(m) then
                         table.insert(hits, m)
                         if #hits >= 3 then
                             break
