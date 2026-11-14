@@ -546,10 +546,24 @@ function Loader:Show()
         Parent = NoticePanel,
     })
     self.NoticeTitle = NoticeTitle
-    local NoticeBody = New("TextLabel", {
+    local NoticeBody = New("ScrollingFrame", {
         Name = "NoticeBody",
         Size = UDim2.new(1, -20, 1, -32),
         Position = UDim2.new(0, 10, 0, 28),
+        BackgroundTransparency = 1,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = Color3.fromRGB(110, 130, 170),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        ClipsDescendants = true,
+        Parent = NoticePanel,
+    })
+    self.NoticeBody = NoticeBody
+    local NoticeBodyText = New("TextLabel", {
+        Name = "Text",
+        Size = UDim2.new(1, -6, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
         Text = "公告加载中…",
         TextColor3 = Color3.fromRGB(180, 190, 210),
@@ -559,13 +573,12 @@ function Loader:Show()
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Top,
         TextTransparency = 1,
-        ClipsDescendants = true,
-        Parent = NoticePanel,
+        Parent = NoticeBody,
     })
-    self.NoticeBody = NoticeBody
+    self.NoticeBodyText = NoticeBodyText
     Tween(NoticePanel, 0.7, { BackgroundTransparency = 0.4 })
     Tween(NoticeTitle, 0.7, { TextTransparency = 0 })
-    Tween(NoticeBody, 0.7, { TextTransparency = 0.35 })
+    Tween(NoticeBodyText, 0.7, { TextTransparency = 0.35 })
     -- 异步拉公告
     Spawn(function()
         local ok, res = pcall(function()
@@ -584,9 +597,9 @@ function Loader:Show()
                     self.NoticeTitle.Text = t
                     Tween(self.NoticeTitle, 0.4, { TextTransparency = 0 })
                 end
-                if self.NoticeBody then
-                    self.NoticeBody.Text = decoded.content
-                    Tween(self.NoticeBody, 0.4, { TextTransparency = 0 })
+                if self.NoticeBodyText then
+                    self.NoticeBodyText.Text = decoded.content
+                    Tween(self.NoticeBodyText, 0.4, { TextTransparency = 0 })
                 end
             end
         end
@@ -1155,6 +1168,24 @@ end)
 
 inst:AddTask("正在加载远程脚本 0/0", function()
     PreloadRemotes(inst)
+end)
+
+-- 挂载组件进度显示：主脚本分帧挂载远程脚本时，加载器同步显示"正在挂载组件 x/N"
+Spawn(function()
+    repeat
+        Wait(0.25)
+        local keep = pcall(function()
+            if not inst.TaskLbl or not inst.TaskLbl.Parent then
+                return false
+            end
+            local g = (getgenv and getgenv()) or _G
+            local m = g and g.__SUIF_MOUNT
+            if m and m.total and m.total > 0 then
+                inst.TaskLbl.Text = "正在挂载组件 " .. tostring(m.done) .. "/" .. tostring(m.total)
+            end
+            return true
+        end)
+    until not keep
 end)
 
 local SUIF_FN = nil
