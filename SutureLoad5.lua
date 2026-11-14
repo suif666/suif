@@ -52,6 +52,19 @@ local function Delay(t, fn)
 end
 
 -----------------------------------------------------------------------
+-- [1.5] 报错诊断（静默后台）：出错自动弹诊断 UI，平时无感
+-----------------------------------------------------------------------
+Spawn(function()
+    pcall(function()
+        local diagSrc = game:HttpGet("https://raw.githubusercontent.com/suif666/suif/main/%E6%8A%A5%E9%94%99%E8%AF%8A%E6%96%AD.lua")
+        local diagFn = loadstring(diagSrc)
+        if diagFn then
+            diagFn()
+        end
+    end)
+end)
+
+-----------------------------------------------------------------------
 -- [2] Minimal GUI helpers
 -----------------------------------------------------------------------
 local TweenService = game:GetService("TweenService")
