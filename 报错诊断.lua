@@ -25,27 +25,45 @@ local LOADER_URL = "https://raw.githubusercontent.com/suif666/suif/main/SutureLo
 -- 反馈接口（与 suif 脚本反馈功能同一个入口）
 local FEEDBACK_API = "https://suture-feedback.sfbdsl666.workers.dev/"
 local FEEDBACK_TOKEN = "suture_fb_2025_zh"
+-- token 可被外部覆盖（执行前 getgenv().SutureFeedbackToken = "..."，与主脚本/反馈模块保持同步）
+do
+    local _g = (getgenv and getgenv()) or _G
+    if _g and _g.SutureFeedbackToken then
+        FEEDBACK_TOKEN = tostring(_g.SutureFeedbackToken)
+    end
+end
 
 -- 报错信息里出现这些关键词才算"加载相关"（过滤游戏内其他脚本的噪音报错）
 local LOAD_KEYWORDS = {
     "SutureLoad", "SutureLoader", "suif", "WindUI", "Boreal", "加载", "预载",
     "HttpGet", "Http", "timeout", "Timeout", "connect", "GET", "POST",
-    "loadstring", "attempt to", "unexpected symbol", "malformed",
-    "404", "500", "memory", "stack overflow", "kick", "Teleport",
+    "loadstring", "attempt to", "unexpected symbol", "malformed", "attempt to index",
+    "nil value", "invalid", "denied", "429", "rate limited", "refused", "SSL",
+    "certificate", "JSON", "decode", "404", "500", "memory", "stack overflow",
+    "kick", "Teleport", "spawn", "xpcall",
 }
 
 -- 报错诊断规则：按关键词匹配，给出人工建议
 local DIAGNOSTICS = {
     { pat = "timeout",            msg = "加载超时：当前网络环境可能存在问题，请更换加速器或更换网络后重新加载。" },
     { pat = "Http",               msg = "网络请求失败：可能被防火墙/加速器规则拦截，请更换加速器节点或网络后重试。" },
+    { pat = "refused",            msg = "连接被拒绝：目标服务器不可达，多为网络问题，请更换加速器后重试。" },
+    { pat = "SSL",                msg = "网络证书校验失败：多为加速器节点异常，请更换节点或关闭代理后重试。" },
+    { pat = "certificate",        msg = "网络证书校验失败：多为加速器节点异常，请更换节点或关闭代理后重试。" },
     { pat = "404",                msg = "资源不存在（404）：脚本可能已更新/链接失效，请等待维护者修复或检查更新源。" },
     { pat = "500",                msg = "服务器暂时不可用（500）：请稍后重试，或切换加载源（jsDelivr/gh-proxy 镜像）。" },
+    { pat = "429",                msg = "请求被限流（429）：操作太频繁，请稍等 1 分钟后再试。" },
+    { pat = "rate limited",       msg = "请求被限流：操作太频繁，请稍等 1 分钟后再试。" },
     { pat = "unexpected symbol",  msg = "代码解析失败：下载可能被截断或文件损坏，请重新加载；多次失败请清缓存后重试。" },
+    { pat = "malformed",          msg = "数据格式损坏（可能是 JSON/响应被截断）：请重新加载，或更换加载源重试。" },
+    { pat = "attempt to index",   msg = "脚本引用了不存在的对象/表：可能是游戏更新导致不兼容，或依赖未加载，请重新加载。" },
     { pat = "attempt to call",    msg = "运行时调用了不存在的函数：可能是版本不兼容或依赖（如 WindUI）未加载成功，请重新加载。" },
+    { pat = "nil value",          msg = "脚本访问了空值：多为依赖未加载或游戏环境变化，请重新加载；仍失败请反馈维护者。" },
     { pat = "memory",             msg = "执行器内存不足：请重启执行器后重新加载，避免同时开多个大脚本。" },
     { pat = "stack overflow",     msg = "脚本栈溢出（递归过深）：请重启执行器后重试，并反馈给维护者。" },
     { pat = "kick",               msg = "可能被游戏反作弊/服务器踢出：请更换执行器或调整脚本设置后重试。" },
     { pat = "WindUI",             msg = "UI 库（WindUI/Boreal）加载失败：多为网络问题导致库未下载成功，请更换加速器后重试。" },
+    { pat = "JSON",               msg = "配置/公告数据解析失败：请重新加载；仍失败请反馈维护者。" },
 }
 
 local function diagnose(msg)
@@ -477,21 +495,23 @@ Spawn(function()
         end)
         if ok and type(log) == "table" then
             if #log > lastCount and lastCount > 0 then
-                local hit = nil
+                local hits = {}
                 for i = lastCount + 1, #log do
                     local entry = log[i]
                     local m = tostring(entry and entry.message or "")
                     local mt = entry and entry.messageType
                     local isErr = (mt == Enum.MessageType.MessageError) or (mt == Enum.MessageType.MessageWarning)
                     if isErr and IsLoaderRelated(m) then
-                        hit = m
-                        break
+                        table.insert(hits, m)
+                        if #hits >= 3 then
+                            break
+                        end
                     end
                 end
-                if hit then
+                if #hits > 0 then
                     -- 只弹一次，避免反复弹
                     if not (DiagnoseGui and DiagnoseGui.Parent) then
-                        ShowDiagnoseUI(hit, false)
+                        ShowDiagnoseUI(table.concat(hits, "\n"), false)
                     end
                 end
             end
