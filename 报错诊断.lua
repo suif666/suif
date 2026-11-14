@@ -34,13 +34,12 @@ do
 end
 
 -- 只弹"重大报错"：命中致命词才弹；命中忽略词（小问题）不弹
+-- 只弹"脚本加载不出来"类（404/超时/下载失败等）；运行时小警告一律不弹
 local FATAL_KEYWORDS = {
-    "timeout", "超时", "HttpGet", "HttpError", "Http", "连接失败", "connect",
-    "loadstring", "unexpected symbol", "malformed", "attempt to index", "attempt to call",
-    "nil value", "invalid", "denied", "429", "rate limited", "refused", "SSL",
-    "certificate", "JSON", "decode", "404", "500", "memory", "stack overflow",
-    "kick", "WindUI", "Boreal", "加载失败", "下载失败", "资源不存在", "获取失败",
-    "error", "Error", "failed", "Failed",
+    "timeout", "超时", "HttpGet", "HttpError", "404", "500", "429", "rate limited",
+    "refused", "SSL", "certificate", "连接失败", "connect", "加载失败", "下载失败",
+    "无法加载", "无法下载", "资源不存在", "获取失败", "WindUI", "Boreal",
+    "memory", "stack overflow",
 }
 local IGNORE_KEYWORDS = {
     "未找到页签", "未找到 Tab", "未找到tab", "未赋值", "没有赋值", "挂载完成",
