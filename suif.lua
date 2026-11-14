@@ -452,6 +452,28 @@ do
     local UI_BATCH_QUEUE, UI_BATCH_BUSY = {}, false
     local UI_BATCH_PER_FRAME = 2
     local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label" }
+    -- ★ 源头优化：WindUI 每个控件加入容器都会触发 UIListLayout 全量重排（O(n²)）。
+    --   创建期间冻结布局（摘掉 UIListLayout + 隐藏容器），全部创建完成一次性恢复（O(n)）。
+    local UI_FROZEN = {}   -- container -> UIListLayout
+    local function FreezeContainer(tabObj)
+        local container = tabObj and tabObj.UIElements and tabObj.UIElements.Container
+        if not container or UI_FROZEN[container] then return end
+        local ll = container:FindFirstChildOfClass("UIListLayout")
+        if ll then
+            UI_FROZEN[container] = ll
+            ll.Parent = nil
+        end
+        container.Visible = false
+    end
+    local function ThawContainers()
+        for container, ll in pairs(UI_FROZEN) do
+            if ll and not ll.Parent then
+                ll.Parent = container
+            end
+            container.Visible = true
+        end
+        UI_FROZEN = {}
+    end
     local function UIBatchFlush()
         if UI_BATCH_BUSY then return end
         UI_BATCH_BUSY = true
@@ -465,6 +487,7 @@ do
                 end
                 task.wait(0.04)
             end
+            ThawContainers()
             UI_BATCH_BUSY = false
         end)
     end
@@ -474,6 +497,7 @@ do
             local orig = tabObj[m]
             if type(orig) == "function" then
                 tabObj[m] = function(self, cfg)
+                    FreezeContainer(self)
                     table.insert(UI_BATCH_QUEUE, function()
                         orig(self, cfg)
                     end)
