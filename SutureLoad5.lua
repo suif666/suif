@@ -1067,13 +1067,17 @@ local function TryLoad(url, execute)
 end
 
 -- ★ 多镜像回退：raw 被限流(503)/封锁时自动切换 jsDelivr / gh-proxy / gitcode
+local PROXY_API = "https://suture-hub-counter.sfbdsl666.workers.dev/proxy?url="
 local function RawToMirrors(rawUrl)
     if type(rawUrl) ~= "string" then
         return {}
     end
+    -- ★ worker 代理优先：加速器环境可能只有 workers.dev 可达，其他域全部失败
+    local proxyFirst = { PROXY_API .. game:GetService("HttpService"):UrlEncode(rawUrl) }
     local owner, repo, rest = rawUrl:match("^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/(.+)$")
     if not owner then
-        return { rawUrl }
+        table.insert(proxyFirst, rawUrl)
+        return proxyFirst
     end
     local branch, path
     local h = rest:match("^refs/heads/([^/]+)/(.+)$")
@@ -1083,16 +1087,21 @@ local function RawToMirrors(rawUrl)
         branch, path = rest:match("^([^/]+)/(.+)$")
     end
     if not branch or not path then
-        return { rawUrl }
+        table.insert(proxyFirst, rawUrl)
+        return proxyFirst
     end
     local base = owner .. "/" .. repo
-    return {
+    local rest2 = {
         rawUrl,
         "https://cdn.jsdelivr.net/gh/" .. base .. "@" .. branch .. "/" .. path,
         "https://gh-proxy.com/https://raw.githubusercontent.com/" .. base .. "/" .. branch .. "/" .. path,
         "https://mirror.ghproxy.com/https://raw.githubusercontent.com/" .. base .. "/" .. branch .. "/" .. path,
         "https://raw.gitcode.com/" .. base .. "/raw/" .. branch .. "/" .. path,
     }
+    for _, u in ipairs(rest2) do
+        table.insert(proxyFirst, u)
+    end
+    return proxyFirst
 end
 
 local function TryLoadAny(urls, execute)
