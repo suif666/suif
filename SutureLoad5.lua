@@ -56,8 +56,7 @@ end
 -----------------------------------------------------------------------
 Spawn(function()
     pcall(function()
-        local diagSrc = game:HttpGet("https://raw.githubusercontent.com/suif666/suif/main/%E6%8A%A5%E9%94%99%E8%AF%8A%E6%96%AD.lua")
-        local diagFn = loadstring(diagSrc)
+        local diagFn = TryLoadAny(RawToMirrors("https://raw.githubusercontent.com/suif666/suif/main/%E6%8A%A5%E9%94%99%E8%AF%8A%E6%96%AD.lua"), false)
         if diagFn then
             diagFn()
         end
@@ -1067,6 +1066,48 @@ local function TryLoad(url, execute)
     return fn
 end
 
+-- ★ 多镜像回退：raw 被限流(503)/封锁时自动切换 jsDelivr / gh-proxy / gitcode
+local function RawToMirrors(rawUrl)
+    if type(rawUrl) ~= "string" then
+        return {}
+    end
+    local owner, repo, rest = rawUrl:match("^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/(.+)$")
+    if not owner then
+        return { rawUrl }
+    end
+    local branch, path
+    local h = rest:match("^refs/heads/([^/]+)/(.+)$")
+    if h then
+        branch, path = h
+    else
+        branch, path = rest:match("^([^/]+)/(.+)$")
+    end
+    if not branch or not path then
+        return { rawUrl }
+    end
+    local base = owner .. "/" .. repo
+    return {
+        rawUrl,
+        "https://cdn.jsdelivr.net/gh/" .. base .. "@" .. branch .. "/" .. path,
+        "https://gh-proxy.com/https://raw.githubusercontent.com/" .. base .. "/" .. branch .. "/" .. path,
+        "https://mirror.ghproxy.com/https://raw.githubusercontent.com/" .. base .. "/" .. branch .. "/" .. path,
+        "https://raw.gitcode.com/" .. base .. "/raw/" .. branch .. "/" .. path,
+    }
+end
+
+local function TryLoadAny(urls, execute)
+    if type(urls) ~= "table" then
+        return nil
+    end
+    for _, u in ipairs(urls) do
+        local fn = TryLoad(u, execute)
+        if fn then
+            return fn
+        end
+    end
+    return nil
+end
+
 -----------------------------------------------------------------------
 -- [5] Boot
 -----------------------------------------------------------------------
@@ -1109,7 +1150,7 @@ local function PreloadRemotes(inst)
     local specs, seen = {}, {}
     for _, s in ipairs(REMOTE_SPECS) do
         seen[s.url] = true
-        table.insert(specs, s)
+        table.insert(specs, { url = s.url, desc = s.desc, mirrors = RawToMirrors(s.url) })
     end
     pcall(function()
         local dynSrc = game:HttpGet(SUIF_URL, true)
@@ -1119,7 +1160,7 @@ local function PreloadRemotes(inst)
                 local onDemand = (string.find(rest, "true", 1, true) ~= nil)
                 if not onDemand and not seen[url] then
                     seen[url] = true
-                    table.insert(specs, { url = url, desc = name })
+                    table.insert(specs, { url = url, desc = name, mirrors = RawToMirrors(url) })
                 end
             end
         end
@@ -1134,7 +1175,7 @@ local function PreloadRemotes(inst)
     local function worker()
         while #queue > 0 do
             local spec = table.remove(queue, 1)
-            local fn = TryLoad(spec.url, false)
+            local fn = TryLoadAny(spec.mirrors or { spec.url }, false)
             if fn then
                 table.insert(g.__SUIF_PENDING, fn)
                 g.__PRELOADED_URLS[spec.url] = true
@@ -1197,18 +1238,11 @@ inst:AddTask("正在加载 Suture Hub", function()
         g.__SUIF_PRELOAD = true
         g.__SUIF_PENDING = g.__SUIF_PENDING or {}
     end
-    local okSrc, src = pcall(function()
-        return game:HttpGet(SUIF_URL)
-    end)
-    if not okSrc or type(src) ~= "string" or #src == 0 then
-        error("suif main script fetch failed")
+    -- 多镜像回退：raw 503 时自动换 jsDelivr/gh-proxy/gitcode
+    SUIF_FN = TryLoadAny(RawToMirrors(SUIF_URL), false)
+    if not SUIF_FN then
+        error("suif main script fetch failed (all mirrors)")
     end
-    local fn, cerr = loadstring(src)
-    if not fn then
-        error(cerr)
-    end
-    -- ★ v1.4.0：只下载+编译，不立刻执行；等用户点「开始加载」再运行
-    SUIF_FN = fn
 end)
 
 inst:Start(function()
