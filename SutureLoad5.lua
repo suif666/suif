@@ -1143,7 +1143,8 @@ local REMOTE_SPECS = {
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/npc.lua", desc = "NPC交互" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/trigger.lua", desc = "触发类" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/object.lua", desc = "控制物体" },
-    { url = "https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8", desc = "黑白脚本" },
+    -- 黑白脚本加载器（tfcygvunbind/Apple）已移除：它是独立 UI 脚本，
+    -- 预载挂载会创建第二个"黑白脚本"界面且与主脚本并存；改回由主脚本按钮点击加载
 }
 
 -- 预下载远程脚本：加载器阶段全部下载+编译排队，窗口出现瞬间一次性挂载
