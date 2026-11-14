@@ -521,7 +521,7 @@ function Loader:Show()
     local NoticePanel = New("Frame", {
         Name = "NoticePanel",
         Size = UDim2.new(0, 384, 0, 100),
-        Position = UDim2.new(0.667, 0, 0, 170),
+        Position = UDim2.new(0.667, 0, 0, 236),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(18, 22, 32),
         BackgroundTransparency = 0.55,
@@ -596,7 +596,7 @@ function Loader:Show()
     local BarBg = New("Frame", {
         Name = "BarBg",
         Size = UDim2.new(0, 270, 0, 8),
-        Position = UDim2.new(0.667, 0, 0, 286),
+        Position = UDim2.new(0.667, 0, 0, 178),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(40, 46, 60),
         BackgroundTransparency = 0.35,
@@ -660,7 +660,7 @@ function Loader:Show()
     local TaskRow = New("Frame", {
         Name = "TaskRow",
         Size = UDim2.new(1, -170, 0, 24),
-        Position = UDim2.new(0.667, 0, 0, 306),
+        Position = UDim2.new(0.667, 0, 0, 202),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         ZIndex = 2,
@@ -899,7 +899,7 @@ function Loader:ShowLaunchButton(cb)
     local Btn = New("TextButton", {
         Name = "LaunchBtn",
         Size = UDim2.new(0, 190, 0, 44),
-        Position = UDim2.new(0.667, 0, 0, 282),
+        Position = UDim2.new(0.667, 0, 0, 174),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         BackgroundTransparency = 1,
@@ -1080,6 +1080,7 @@ local REMOTE_SPECS = {
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/npc.lua", desc = "NPC交互" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/trigger.lua", desc = "触发类" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/object.lua", desc = "控制物体" },
+    { url = "https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8", desc = "黑白脚本" },
 }
 
 -- 预下载远程脚本：加载器阶段全部下载+编译排队，窗口出现瞬间一次性挂载
