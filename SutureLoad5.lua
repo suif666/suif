@@ -372,7 +372,7 @@ function Loader:Show()
     end
 
     -- ═══ 左侧：贡献名单（小卡片） ═══
-    local CDN = "https://cdn.jsdelivr.net/gh/suif666/suif@main/assets/"
+    local CDN = "https://raw.githubusercontent.com/suif666/suif/main/assets/"
     local CREDITS = {
         { img = CDN .. "suif.png",      name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",         color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110) },
         { img = CDN .. "openai.png",    name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建",     color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230) },
