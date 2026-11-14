@@ -372,14 +372,15 @@ function Loader:Show()
     end
 
     -- ═══ 左侧：贡献名单（小卡片） ═══
+    local CDN = "https://cdn.jsdelivr.net/gh/suif666/suif@main/assets/"
     local CREDITS = {
-        { icon = "👑", name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",    color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110) },
-        { icon = "🚀", name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建", color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230) },
-        { icon = "✨", name = "Gemini",          role = "小帮手",   desc = "做了些小贡献",       color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
-        { icon = "🌀", name = "Grok",            role = "小帮手",   desc = "做了些小贡献",       color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
-        { icon = "🔒", name = "Claude",          role = "已封禁",   desc = "您的账号已被封禁",   color = Color3.fromRGB(40, 40, 46),  rcol = Color3.fromRGB(160, 160, 165), stroke = Color3.fromRGB(110, 110, 115) },
-        { icon = "🐋", name = "DeepSeek V4",     role = "大功臣",   desc = "绝大部分功能/优化/调整", color = Color3.fromRGB(58, 52, 34), rcol = Color3.fromRGB(255, 220, 130), stroke = Color3.fromRGB(230, 180, 80) },
-        { icon = "🫘", name = "豆包",            role = "报错猎人", desc = "提取报错信息",       color = Color3.fromRGB(44, 40, 58),  rcol = Color3.fromRGB(200, 170, 255), stroke = Color3.fromRGB(140, 110, 200) },
+        { img = CDN .. "suif.png",      name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",         color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110) },
+        { img = CDN .. "openai.png",    name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建",     color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230) },
+        { img = CDN .. "gemini.png",    name = "Gemini",          role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
+        { img = CDN .. "grok.png",      name = "Grok",            role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
+        { img = CDN .. "claude.png",    name = "Claude",          role = "已封禁",   desc = "您的账号已被封禁",       color = Color3.fromRGB(40, 40, 46),  rcol = Color3.fromRGB(160, 160, 165), stroke = Color3.fromRGB(110, 110, 115) },
+        { img = CDN .. "deepseek.png",  name = "DeepSeek V4",     role = "大功臣",   desc = "绝大部分功能/优化/调整", color = Color3.fromRGB(58, 52, 34),  rcol = Color3.fromRGB(255, 220, 130), stroke = Color3.fromRGB(230, 180, 80) },
+        { img = CDN .. "doubao.png",    name = "豆包",            role = "报错猎人", desc = "提取报错信息",           color = Color3.fromRGB(44, 40, 58),  rcol = Color3.fromRGB(200, 170, 255), stroke = Color3.fromRGB(140, 110, 200) },
     }
     local CreditsPanel = New("Frame", {
         Name = "CreditsPanel",
@@ -417,17 +418,15 @@ function Loader:Show()
             New("UIStroke", { Color = c.stroke, Transparency = 0.72, Thickness = 1 }),
         })
         table.insert(self.CreditCards, card)
-        New("TextLabel", {
+        New("ImageLabel", {
             Name = "Icon",
-            Size = UDim2.new(0, 30, 1, 0),
-            Position = UDim2.new(0, 5, 0, 0),
+            Size = UDim2.new(0, 24, 0, 24),
+            Position = UDim2.new(0, 8, 0.5, 0),
+            AnchorPoint = Vector2.new(0, 0.5),
             BackgroundTransparency = 1,
-            Text = c.icon,
-            TextSize = 14,
-            Font = FONT_DEFAULT,
-            TextTransparency = 1,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            TextYAlignment = Enum.TextYAlignment.Center,
+            Image = c.img,
+            ScaleType = Enum.ScaleType.Fit,
+            ImageTransparency = 1,
             Parent = card,
         })
         New("TextLabel", {
@@ -593,6 +592,8 @@ function Loader:Show()
                 for _, child in ipairs(cc:GetChildren()) do
                     if child:IsA("TextLabel") then
                         Tween(child, 0.4, { TextTransparency = 0 })
+                    elseif child:IsA("ImageLabel") then
+                        Tween(child, 0.4, { ImageTransparency = 0 })
                     end
                 end
             end
