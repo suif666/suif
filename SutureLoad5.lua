@@ -374,13 +374,13 @@ function Loader:Show()
     -- ═══ 左侧：贡献名单（小卡片） ═══
     local CDN = "https://raw.githubusercontent.com/suif666/suif/main/assets/"
     local CREDITS = {
-        { img = CDN .. "suif.png",      name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",         color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110) },
-        { img = CDN .. "openai.png",    name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建",     color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230) },
-        { img = CDN .. "gemini.png",    name = "Gemini",          role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
-        { img = CDN .. "grok.png",      name = "Grok",            role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
-        { img = CDN .. "claude.png",    name = "Claude",          role = "已封禁",   desc = "您的账号已被封禁",       color = Color3.fromRGB(40, 40, 46),  rcol = Color3.fromRGB(160, 160, 165), stroke = Color3.fromRGB(110, 110, 115) },
-        { img = CDN .. "deepseek.png",  name = "DeepSeek V4",     role = "大功臣",   desc = "绝大部分功能/优化/调整", color = Color3.fromRGB(58, 52, 34),  rcol = Color3.fromRGB(255, 220, 130), stroke = Color3.fromRGB(230, 180, 80) },
-        { img = CDN .. "doubao.png",    name = "豆包",            role = "报错猎人", desc = "提取报错信息",           color = Color3.fromRGB(44, 40, 58),  rcol = Color3.fromRGB(200, 170, 255), stroke = Color3.fromRGB(140, 110, 200) },
+        { img = CDN .. "suif.png",      name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",         color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110), fb = "S" },
+        { img = CDN .. "openai.png",    name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建",     color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230), fb = "G" },
+        { img = CDN .. "gemini.png",    name = "Gemini",          role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200), fb = "G" },
+        { img = CDN .. "grok.png",      name = "Grok",            role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200), fb = "G" },
+        { img = CDN .. "claude.png",    name = "Claude",          role = "已封禁",   desc = "您的账号已被封禁",       color = Color3.fromRGB(40, 40, 46),  rcol = Color3.fromRGB(160, 160, 165), stroke = Color3.fromRGB(110, 110, 115), fb = "C" },
+        { img = CDN .. "deepseek.png",  name = "DeepSeek V4",     role = "大功臣",   desc = "绝大部分功能/优化/调整", color = Color3.fromRGB(58, 52, 34),  rcol = Color3.fromRGB(255, 220, 130), stroke = Color3.fromRGB(230, 180, 80), fb = "D" },
+        { img = CDN .. "doubao.png",    name = "豆包",            role = "报错猎人", desc = "提取报错信息",           color = Color3.fromRGB(44, 40, 58),  rcol = Color3.fromRGB(200, 170, 255), stroke = Color3.fromRGB(140, 110, 200), fb = "豆" },
     }
     local CreditsPanel = New("Frame", {
         Name = "CreditsPanel",
@@ -418,16 +418,40 @@ function Loader:Show()
             New("UIStroke", { Color = c.stroke, Transparency = 0.72, Thickness = 1 }),
         })
         table.insert(self.CreditCards, card)
-        New("ImageLabel", {
+        local IconBg = New("Frame", {
             Name = "Icon",
             Size = UDim2.new(0, 24, 0, 24),
             Position = UDim2.new(0, 8, 0.5, 0),
             AnchorPoint = Vector2.new(0, 0.5),
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BackgroundTransparency = 1,
+            ZIndex = 3,
+            Parent = card,
+        }, {
+            New("UICorner", { CornerRadius = UDim.new(0.28, 0) }),
+        })
+        -- 首字母兜底：图片加载失败时可见，不会空白
+        New("TextLabel", {
+            Name = "IconFallback",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = c.fb,
+            TextColor3 = c.rcol,
+            TextSize = 11,
+            Font = Enum.Font.GothamBold,
+            TextTransparency = 1,
+            Parent = IconBg,
+        })
+        New("ImageLabel", {
+            Name = "IconImg",
+            Size = UDim2.new(1, -4, 1, -4),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
             BackgroundTransparency = 1,
             Image = c.img,
             ScaleType = Enum.ScaleType.Fit,
             ImageTransparency = 1,
-            Parent = card,
+            Parent = IconBg,
         })
         New("TextLabel", {
             Name = "Name",
@@ -480,11 +504,86 @@ function Loader:Show()
         Parent = Card,
     })
 
+    -- ═══ 右侧：公告面板（异步拉取，不阻塞加载） ═══
+    local NoticePanel = New("Frame", {
+        Name = "NoticePanel",
+        Size = UDim2.new(0, 384, 0, 100),
+        Position = UDim2.new(0.667, 0, 0, 170),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(18, 22, 32),
+        BackgroundTransparency = 0.55,
+        ZIndex = 2,
+        Parent = Card,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 10) }),
+        New("UIStroke", { Color = Color3.fromRGB(120, 140, 180), Transparency = 0.8, Thickness = 1 }),
+    })
+    self.NoticePanel = NoticePanel
+    local NoticeTitle = New("TextLabel", {
+        Name = "NoticeTitle",
+        Size = UDim2.new(1, -20, 0, 20),
+        Position = UDim2.new(0, 10, 0, 6),
+        BackgroundTransparency = 1,
+        Text = "📢 公告",
+        TextColor3 = Color3.fromRGB(255, 210, 130),
+        TextSize = 12,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTransparency = 1,
+        Parent = NoticePanel,
+    })
+    self.NoticeTitle = NoticeTitle
+    local NoticeBody = New("TextLabel", {
+        Name = "NoticeBody",
+        Size = UDim2.new(1, -20, 1, -32),
+        Position = UDim2.new(0, 10, 0, 28),
+        BackgroundTransparency = 1,
+        Text = "公告加载中…",
+        TextColor3 = Color3.fromRGB(180, 190, 210),
+        TextSize = 12,
+        Font = FONT_DEFAULT,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        TextTransparency = 1,
+        ClipsDescendants = true,
+        Parent = NoticePanel,
+    })
+    self.NoticeBody = NoticeBody
+    Tween(NoticePanel, 0.7, { BackgroundTransparency = 0.4 })
+    Tween(NoticeTitle, 0.7, { TextTransparency = 0 })
+    Tween(NoticeBody, 0.7, { TextTransparency = 0.35 })
+    -- 异步拉公告
+    Spawn(function()
+        local ok, res = pcall(function()
+            return game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/announcement", true)
+        end)
+        if ok and type(res) == "string" and #res > 0 then
+            local okD, decoded = pcall(function()
+                return game:GetService("HttpService"):JSONDecode(res)
+            end)
+            if okD and decoded and type(decoded) == "table" and decoded.content and decoded.content ~= "" and decoded.enabled ~= false then
+                if self.NoticeTitle then
+                    local t = "📢 " .. (decoded.title or "公告")
+                    if decoded.version and decoded.version ~= "" then
+                        t = t .. "  " .. decoded.version
+                    end
+                    self.NoticeTitle.Text = t
+                    Tween(self.NoticeTitle, 0.4, { TextTransparency = 0 })
+                end
+                if self.NoticeBody then
+                    self.NoticeBody.Text = decoded.content
+                    Tween(self.NoticeBody, 0.4, { TextTransparency = 0 })
+                end
+            end
+        end
+    end)
+
     -- ═══ 进度条 ═══
     local BarBg = New("Frame", {
         Name = "BarBg",
         Size = UDim2.new(0, 270, 0, 8),
-        Position = UDim2.new(0.667, 0, 0, 196),
+        Position = UDim2.new(0.667, 0, 0, 286),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(40, 46, 60),
         BackgroundTransparency = 0.35,
@@ -548,7 +647,7 @@ function Loader:Show()
     local TaskRow = New("Frame", {
         Name = "TaskRow",
         Size = UDim2.new(1, -170, 0, 24),
-        Position = UDim2.new(0.667, 0, 0, 220),
+        Position = UDim2.new(0.667, 0, 0, 306),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         ZIndex = 2,
@@ -594,6 +693,15 @@ function Loader:Show()
                         Tween(child, 0.4, { TextTransparency = 0 })
                     elseif child:IsA("ImageLabel") then
                         Tween(child, 0.4, { ImageTransparency = 0 })
+                    elseif child:IsA("Frame") then
+                        Tween(child, 0.4, { BackgroundTransparency = 0.12 })
+                        for _, sub in ipairs(child:GetChildren()) do
+                            if sub:IsA("TextLabel") then
+                                Tween(sub, 0.4, { TextTransparency = 0 })
+                            elseif sub:IsA("ImageLabel") then
+                                Tween(sub, 0.4, { ImageTransparency = 0 })
+                            end
+                        end
                     end
                 end
             end
@@ -778,7 +886,7 @@ function Loader:ShowLaunchButton(cb)
     local Btn = New("TextButton", {
         Name = "LaunchBtn",
         Size = UDim2.new(0, 190, 0, 44),
-        Position = UDim2.new(0.667, 0, 0, 196),
+        Position = UDim2.new(0.667, 0, 0, 282),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         BackgroundTransparency = 1,
