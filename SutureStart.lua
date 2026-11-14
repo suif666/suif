@@ -109,7 +109,13 @@ local function tryLoadAny(urls)
     return nil
 end
 
-local fn = tryLoadAny(rawToMirrors(MAIN_SCRIPT_URL))
+-- worker 代理优先（加速器环境可能只有 workers.dev 可达），本地镜像兜底
+local PROXY_API = "https://suture-hub-counter.sfbdsl666.workers.dev/proxy?url="
+local proxyMirrors = { PROXY_API .. HttpService:UrlEncode(MAIN_SCRIPT_URL) }
+for _, u in ipairs(rawToMirrors(MAIN_SCRIPT_URL)) do
+    table.insert(proxyMirrors, u)
+end
+local fn = tryLoadAny(proxyMirrors)
 if fn then
     pcall(fn)
 else
