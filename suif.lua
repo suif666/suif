@@ -308,10 +308,23 @@ local function notify(title, content, icon, duration)
     end
 end
 
+-- ★ worker 代理优先：加速器环境可能只有 workers.dev 可达
+local PROXY_API = "https://suture-hub-counter.sfbdsl666.workers.dev/proxy?url="
+local function httpGetWithProxy(url)
+    local HS = game:GetService("HttpService")
+    local ok, src = pcall(function()
+        return game:HttpGet(PROXY_API .. HS:UrlEncode(url))
+    end)
+    if ok and type(src) == "string" and #src > 0 then
+        return src
+    end
+    return game:HttpGet(url)  -- 代理失败回退直连
+end
+
 local function run(url, name)
     task.spawn(function()
         local ok, err = pcall(function()
-            local source = game:HttpGet(url)
+            local source = httpGetWithProxy(url)
             local fn, compileErr = loadstring(source)
             __sandbox(fn)                      -- ★ 远程脚本静默
             if not fn then
@@ -336,7 +349,7 @@ local function loadRemote(url, desc, onSuccess, onFail)
         local ok, err
         for attempt = 1, 3 do
             ok, err = pcall(function()
-                local src = game:HttpGet(url)
+                local src = httpGetWithProxy(url)
                 local fn, compileErr = loadstring(src)
                 __sandbox(fn)                  -- ★ 远程脚本静默
                 if not fn then
