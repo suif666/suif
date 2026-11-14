@@ -2054,6 +2054,18 @@ toolTab:Toggle({
 
 
 toolTab:Button({
+    Title = "运行诊断", Desc = "独立运行报错诊断面板（查看当前环境信息/手动诊断）", Icon = "activity",
+    Callback = function()
+        local _g = (getgenv and getgenv()) or _G
+        if _g and _g.ShowDiagnose then
+            _g.ShowDiagnose("手动运行诊断（查看当前环境信息）", true)
+        else
+            notify("运行诊断", "报错诊断未在运行（加载器/主脚本启动时会自动加载）", "warning", 4)
+        end
+    end
+})
+
+toolTab:Button({
     Title = "Gui文本获取v25", Desc = "自制 ai神力 感谢李藝州🙏🙏🙏", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/UI%E6%96%87%E6%9C%AC%E6%8F%90%E5%8F%96.lua", "Gui文本获取v25") end
 })
