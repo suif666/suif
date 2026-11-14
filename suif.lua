@@ -1477,6 +1477,9 @@ do
     getgenv().Tabs = getgenv().Tabs or {}
     getgenv().Tabs.RscriptsTab = rsTab
     getgenv().SutureRscriptsTab = rsTab
+    -- 自动连点器（tu/hb 提取）依赖 ToolTab 页签，主脚本工具类页签就是它
+    getgenv().Tabs.ToolTab = toolTab
+    getgenv().SutureToolTab = toolTab
     getgenv().OpenRscripts = function()
         rsBuild(); rsHookSearch(); rsGui.Enabled = true
     end
