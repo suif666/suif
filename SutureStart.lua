@@ -1,8 +1,9 @@
 -- ═══════════════════════════════════════════════════════════════
 --  Suture Hub 入口（GitHub 版，替代 pastebin 入口）
---  用法：
---    loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/main/SutureStart.lua"))()
+--  用法（★ 推荐，加速器友好，走 worker 代理不碰 raw 风控）：
+--    loadstring(game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/start"))()
 --  镜像入口（raw 被墙/限流时）：
+--    loadstring(game:HttpGet("https://raw.githubusercontent.com/suif666/suif/main/SutureStart.lua"))()
 --    loadstring(game:HttpGet("https://cdn.jsdelivr.net/gh/suif666/suif@main/SutureStart.lua"))()
 --    loadstring(game:HttpGet("https://gh-proxy.com/https://raw.githubusercontent.com/suif666/suif/main/SutureStart.lua"))()
 --  功能：游戏黑名单检测 → 账号封禁检测 → 多镜像加载 SutureLoad5 加载器
