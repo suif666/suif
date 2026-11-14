@@ -450,7 +450,7 @@ local win = WindUI:CreateWindow({
 -- ══════════════════════════════════════════════════════════════════
 do
     local UI_BATCH_QUEUE, UI_BATCH_BUSY = {}, false
-    local UI_BATCH_PER_FRAME = 4
+    local UI_BATCH_PER_FRAME = 2
     local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label" }
     local function UIBatchFlush()
         if UI_BATCH_BUSY then return end
@@ -463,7 +463,7 @@ do
                     pcall(job)
                     n = n + 1
                 end
-                task.wait(0.03)
+                task.wait(0.04)
             end
             UI_BATCH_BUSY = false
         end)
@@ -3085,27 +3085,27 @@ lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
 -- ╚══════════════════════════════════════════════════════════════╝
 
 -- ============ [suture] 分帧挂载：加载器预下载的远程脚本 ============
--- 每帧只挂 2 个，任务间让出一帧，避免 19 个脚本同步执行卡住主界面
+-- 每帧只挂 1 个，间隔 0.06 秒让帧，彻底分散挂载风暴；进度写 __SUIF_MOUNT 供加载器显示
 pcall(function()
     local g = (getgenv and getgenv()) or _G
     if g and g.__SUIF_PRELOAD and g.__SUIF_PENDING then
         local pending = g.__SUIF_PENDING
         g.__SUIF_PENDING = {}
+        local totalCount = #pending
+        g.__SUIF_MOUNT = { total = totalCount, done = 0 }
         local function mountBatch()
-            local mounted = 0
-            while #pending > 0 and mounted < 2 do
+            if #pending > 0 then
                 local fn = table.remove(pending, 1)
                 if fn then
                     pcall(fn)
                 end
-                mounted = mounted + 1
-            end
-            if #pending > 0 then
+                g.__SUIF_MOUNT.done = g.__SUIF_MOUNT.done + 1
                 task.spawn(function()
-                    task.wait()
+                    task.wait(0.06)
                     mountBatch()
                 end)
             else
+                g.__SUIF_MOUNT = nil
                 -- 全部挂载完成 → 立即通知加载器关闭（不再等全量段循环走完）
                 if g.__SUIF_READY then
                     g.__SUIF_READY()
