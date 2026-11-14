@@ -1,4 +1,5 @@
 -- SutureLoad5 v1.3.1 [suture] - Suture Hub one-click launcher (flat, ASCII, compatible)
+-- [基于加载器5的改动] 左侧贡献名单卡片 + 加载完成后「开始加载」按钮（点击才执行主脚本）
 pcall(function()
     if rconsoleprint then
         rconsoleprint("[SutureLoad] boot v1.3.1 (SutureLoad5) - entry script is running\n")
@@ -230,7 +231,7 @@ function Loader:Show()
     -- ═══ 中央卡片 ═══
     local Card = New("Frame", {
         Name = "Card",
-        Size = UDim2.fromOffset(420, 330),
+        Size = UDim2.fromOffset(660, 380),
         Position = UDim2.new(0.5, 0, 0.5, 10),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.fromRGB(24, 28, 38),
@@ -260,7 +261,7 @@ function Loader:Show()
     local Logo = New("Frame", {
         Name = "Logo",
         Size = UDim2.fromOffset(64, 64),
-        Position = UDim2.new(0.5, 0, 0, 30),
+        Position = UDim2.new(0.667, 0, 0, 30),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         ZIndex = 2,
@@ -337,7 +338,7 @@ function Loader:Show()
     local Title = New("TextLabel", {
         Name = "Title",
         Size = UDim2.new(1, 0, 0, 44),
-        Position = UDim2.new(0.5, 0, 0, 112),
+        Position = UDim2.new(0.667, 0, 0, 112),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         Text = self.Title,
@@ -356,7 +357,7 @@ function Loader:Show()
         local Sub = New("TextLabel", {
             Name = "Subtitle",
             Size = UDim2.new(1, 0, 0, 20),
-            Position = UDim2.new(0.5, 0, 0, 158),
+            Position = UDim2.new(0.667, 0, 0, 158),
             AnchorPoint = Vector2.new(0.5, 0),
             BackgroundTransparency = 1,
             Text = self.Subtitle,
@@ -370,11 +371,121 @@ function Loader:Show()
         self.SubLbl = Sub
     end
 
+    -- ═══ 左侧：贡献名单（小卡片） ═══
+    local CREDITS = {
+        { icon = "👑", name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",    color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110) },
+        { icon = "🚀", name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建", color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230) },
+        { icon = "✨", name = "Gemini",          role = "小帮手",   desc = "做了些小贡献",       color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
+        { icon = "🌀", name = "Grok",            role = "小帮手",   desc = "做了些小贡献",       color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200) },
+        { icon = "🔒", name = "Claude",          role = "已封禁",   desc = "您的账号已被封禁",   color = Color3.fromRGB(40, 40, 46),  rcol = Color3.fromRGB(160, 160, 165), stroke = Color3.fromRGB(110, 110, 115) },
+        { icon = "🐋", name = "DeepSeek V4",     role = "大功臣",   desc = "绝大部分功能/优化/调整", color = Color3.fromRGB(58, 52, 34), rcol = Color3.fromRGB(255, 220, 130), stroke = Color3.fromRGB(230, 180, 80) },
+        { icon = "🫘", name = "豆包",            role = "报错猎人", desc = "提取报错信息",       color = Color3.fromRGB(44, 40, 58),  rcol = Color3.fromRGB(200, 170, 255), stroke = Color3.fromRGB(140, 110, 200) },
+    }
+    local CreditsPanel = New("Frame", {
+        Name = "CreditsPanel",
+        Size = UDim2.new(0, 220, 1, -36),
+        Position = UDim2.new(0, 12, 0, 18),
+        BackgroundTransparency = 1,
+        ZIndex = 2,
+        Parent = Card,
+    })
+    local CreditsTitle = New("TextLabel", {
+        Name = "CreditsTitle",
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = "✨  贡献名单",
+        TextColor3 = Color3.fromRGB(190, 205, 240),
+        TextSize = 13,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTransparency = 1,
+        Parent = CreditsPanel,
+    })
+    self.CreditCards = {}
+    for i, c in ipairs(CREDITS) do
+        local y = 24 + (i - 1) * 42
+        local card = New("Frame", {
+            Name = "Credit" .. i,
+            Size = UDim2.new(1, 0, 0, 38),
+            Position = UDim2.new(0, 0, 0, y),
+            BackgroundColor3 = c.color,
+            BackgroundTransparency = 1,
+            ZIndex = 2,
+            Parent = CreditsPanel,
+        }, {
+            New("UICorner", { CornerRadius = UDim.new(0, 9) }),
+            New("UIStroke", { Color = c.stroke, Transparency = 0.72, Thickness = 1 }),
+        })
+        table.insert(self.CreditCards, card)
+        New("TextLabel", {
+            Name = "Icon",
+            Size = UDim2.new(0, 30, 1, 0),
+            Position = UDim2.new(0, 5, 0, 0),
+            BackgroundTransparency = 1,
+            Text = c.icon,
+            TextSize = 14,
+            Font = FONT_DEFAULT,
+            TextTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            Parent = card,
+        })
+        New("TextLabel", {
+            Name = "Name",
+            Size = UDim2.new(1, -92, 0, 15),
+            Position = UDim2.new(0, 36, 0, 3),
+            BackgroundTransparency = 1,
+            Text = c.name,
+            TextColor3 = Color3.fromRGB(235, 238, 245),
+            TextSize = 11,
+            Font = Enum.Font.GothamBold,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTransparency = 1,
+            Parent = card,
+        })
+        New("TextLabel", {
+            Name = "Role",
+            Size = UDim2.new(0, 74, 0, 13),
+            Position = UDim2.new(1, -80, 0, 4),
+            BackgroundTransparency = 1,
+            Text = c.role,
+            TextColor3 = c.rcol,
+            TextSize = 9,
+            Font = Enum.Font.GothamBold,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            TextTransparency = 1,
+            Parent = card,
+        })
+        New("TextLabel", {
+            Name = "Desc",
+            Size = UDim2.new(1, -92, 0, 13),
+            Position = UDim2.new(0, 36, 0, 19),
+            BackgroundTransparency = 1,
+            Text = c.desc,
+            TextColor3 = Color3.fromRGB(155, 165, 185),
+            TextSize = 9,
+            Font = FONT_DEFAULT,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextTransparency = 1,
+            Parent = card,
+        })
+    end
+    -- 分隔线
+    New("Frame", {
+        Name = "Divider",
+        Size = UDim2.new(0, 1, 1, -28),
+        Position = UDim2.new(0, 236, 0, 14),
+        BackgroundColor3 = Color3.fromRGB(70, 90, 130),
+        BackgroundTransparency = 0.55,
+        ZIndex = 2,
+        Parent = Card,
+    })
+
     -- ═══ 进度条 ═══
     local BarBg = New("Frame", {
         Name = "BarBg",
         Size = UDim2.new(0, 270, 0, 8),
-        Position = UDim2.new(0.5, 0, 0, 196),
+        Position = UDim2.new(0.667, 0, 0, 196),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(40, 46, 60),
         BackgroundTransparency = 0.35,
@@ -438,7 +549,7 @@ function Loader:Show()
     local TaskRow = New("Frame", {
         Name = "TaskRow",
         Size = UDim2.new(1, -170, 0, 24),
-        Position = UDim2.new(0.5, 0, 0, 220),
+        Position = UDim2.new(0.667, 0, 0, 220),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         ZIndex = 2,
@@ -471,6 +582,22 @@ function Loader:Show()
         Parent = TaskRow,
     })
     self.TaskLbl = TaskLbl
+
+    -- ═══ 贡献名单渐入（逐卡延迟浮现） ═══
+    Tween(CreditsTitle, 0.6, { TextTransparency = 0 })
+    for i, cc in ipairs(self.CreditCards or {}) do
+        local idx = i
+        Delay(idx * 0.07, function()
+            if cc and cc.Parent then
+                Tween(cc, 0.45, { BackgroundTransparency = 0.28 })
+                for _, child in ipairs(cc:GetChildren()) do
+                    if child:IsA("TextLabel") then
+                        Tween(child, 0.4, { TextTransparency = 0 })
+                    end
+                end
+            end
+        end)
+    end
 
     -- ═══ 入场动画 ═══
     Tween(Card, 0.7, { Position = UDim2.new(0.5, 0, 0.5, 0) })
@@ -632,6 +759,64 @@ function Loader:FlushUI(Window)
     end
     self.UIQueue = {}
     return self
+end
+
+function Loader:ShowLaunchButton(cb)
+    -- 加载完成：进度条/任务文字/百分比 渐隐，加载按钮渐渐展现
+    local hide = {
+        { "BarBg", "BackgroundTransparency" }, { "Bar", "BackgroundTransparency" },
+        { "BarShine", "BackgroundTransparency" }, { "PctLbl", "TextTransparency" },
+        { "TaskLbl", "TextTransparency" }, { "Dot", "BackgroundTransparency" },
+    }
+    for _, h in ipairs(hide) do
+        local o = self[h[1]]
+        if o and o.Parent then
+            Tween(o, 0.5, { [h[2]] = 1 })
+        end
+    end
+    local Btn = New("TextButton", {
+        Name = "LaunchBtn",
+        Size = UDim2.new(0, 190, 0, 44),
+        Position = UDim2.new(0.667, 0, 0, 196),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(70, 130, 255),
+        BackgroundTransparency = 1,
+        Text = "▶  开始加载",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 16,
+        Font = Enum.Font.GothamBold,
+        TextTransparency = 1,
+        AutoButtonColor = true,
+        ZIndex = 2,
+        Parent = self.Card,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 12) }),
+        New("UIGradient", {
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 200, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 110, 255)),
+            }),
+            Rotation = 90,
+        }),
+        New("UIStroke", { Color = Color3.fromRGB(140, 190, 255), Transparency = 0.65, Thickness = 1 }),
+    })
+    self.LaunchBtn = Btn
+    self.Launched = false
+    Tween(Btn, 0.8, { BackgroundTransparency = 0.12 })
+    Tween(Btn, 0.8, { TextTransparency = 0 })
+    Btn.MouseButton1Click:Connect(function()
+        if self.Launched then
+            return
+        end
+        self.Launched = true
+        Btn.Text = "⏳  正在启动…"
+        pcall(function()
+            if cb then
+                cb()
+            end
+        end)
+    end)
+    return Btn
 end
 
 function Loader:Finish()
@@ -829,6 +1014,7 @@ inst:AddTask("正在加载远程脚本 0/0", function()
     PreloadRemotes(inst)
 end)
 
+local SUIF_FN = nil
 inst:AddTask("正在加载 Suture Hub", function()
     -- ★ [suture] 开启预编译模式：suif 主脚本内的远程脚本只下载+编译排队，
     --   等主窗口创建完成后由 suif 一次性批量挂载（不再逐个加载）
@@ -847,21 +1033,29 @@ inst:AddTask("正在加载 Suture Hub", function()
     if not fn then
         error(cerr)
     end
-    fn()
+    -- ★ v1.4.0：只下载+编译，不立刻执行；等用户点「开始加载」再运行
+    SUIF_FN = fn
 end)
 
 inst:Start(function()
-    local g = (getgenv and getgenv()) or _G
-    if g then
-        g.__SUIF_READY = function()
+    -- ★ v1.4.0：加载完成 → 进度条渐隐 → 「开始加载」按钮渐渐展现 → 点击才执行主脚本
+    inst:ShowLaunchButton(function()
+        local g = (getgenv and getgenv()) or _G
+        if g then
+            g.__SUIF_READY = function()
+                pcall(function()
+                    inst:Finish()
+                end)
+            end
+        end
+        if SUIF_FN then
+            pcall(SUIF_FN)
+        end
+        -- 兜底：主脚本异常没调 __SUIF_READY 时，15 秒后强制关闭加载器
+        Delay(15, function()
             pcall(function()
                 inst:Finish()
             end)
-        end
-    end
-    Delay(10, function()
-        pcall(function()
-            inst:Finish()
         end)
     end)
 end)
