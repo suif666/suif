@@ -39,6 +39,22 @@ local function __lg(...)
 end
 local print, warn = __lg, __lg      -- ★ 本文件内彻底静音（含所有嵌套函数）
 
+-- ══════════════════════════════════════════════════════════════════
+-- 报错诊断（静默后台）：加载器/主脚本出错时自动弹诊断 UI，平时无感。
+-- 加载器已启动过（__SUTURE_DIAG_ACTIVE）则本处自动跳过（防重）。
+-- ══════════════════════════════════════════════════════════════════
+pcall(function()
+    if task and task.spawn then
+        task.spawn(function()
+            pcall(function()
+                local diagSrc = game:HttpGet("https://raw.githubusercontent.com/suif666/suif/main/%E6%8A%A5%E9%94%99%E8%AF%8A%E6%96%AD.lua")
+                local diagFn = loadstring(diagSrc)
+                if diagFn then diagFn() end
+            end)
+        end)
+    end
+end)
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 【任务包装层】task.spawn / task.delay / task.defer 包一层 xpcall。
 -- 本文件里原本有 6 处 task.spawn 没被 pcall 保护，其中两个是 while true 常驻循环 ——
