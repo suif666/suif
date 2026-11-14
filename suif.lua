@@ -463,10 +463,12 @@ local win = WindUI:CreateWindow({
 -- ══════════════════════════════════════════════════════════════════
 do
     local UI_BATCH_QUEUE, UI_BATCH_BUSY = {}, false
+    -- 队列排空标志：挂载循环用它等所有控件建完才宣布完成（避免窗口打开控件还在冒）
+    local UI_QUEUE_EMPTY = true
     -- 布局冻结已消除 UIListLayout 全量重排（O(n²)→O(n)），
     -- 实例创建本身很轻：每帧批量 16 个控件（约 500 实例），挂载不再龟速
     local UI_BATCH_PER_FRAME = 16
-    local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label" }
+    local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label", "Space" }
     -- ★ 源头优化：WindUI 每个控件加入容器都会触发 UIListLayout 全量重排（O(n²)）。
     --   创建期间冻结布局（摘掉 UIListLayout + 隐藏容器），全部创建完成一次性恢复（O(n)）。
     local UI_FROZEN = {}   -- container -> UIListLayout
@@ -493,6 +495,9 @@ do
         if UI_BATCH_BUSY then return end
         UI_BATCH_BUSY = true
         task.spawn(function()
+            UI_QUEUE_EMPTY = false
+            local _g = (getgenv and getgenv()) or _G
+            _g.__SUIF_UI_QUEUE_EMPTY = false
             while #UI_BATCH_QUEUE > 0 do
                 local n = 0
                 while #UI_BATCH_QUEUE > 0 and n < UI_BATCH_PER_FRAME do
@@ -504,6 +509,8 @@ do
             end
             ThawContainers()
             UI_BATCH_BUSY = false
+            UI_QUEUE_EMPTY = true
+            _g.__SUIF_UI_QUEUE_EMPTY = true
         end)
     end
     local function BatchizeTab(tabObj)
@@ -530,6 +537,20 @@ do
                 local t = origTab(self, cfg)
                 BatchizeTab(t)
                 return t
+            end
+        end
+        -- 关键：Section 的控件方法也必须排队+冻结（远程脚本几乎全用 Tab:Section + sec:Button 写法）
+        for _, m in ipairs(UI_CTRL_METHODS) do
+            local origM = secObj[m]
+            if type(origM) == "function" then
+                secObj[m] = function(self, cfg)
+                    FreezeContainer(self)
+                    table.insert(UI_BATCH_QUEUE, function()
+                        origM(self, cfg)
+                    end)
+                    UIBatchFlush()
+                    return self
+                end
             end
         end
     end
@@ -3140,10 +3161,17 @@ pcall(function()
                 end)
             else
                 g.__SUIF_MOUNT = nil
-                -- 全部挂载完成 → 立即通知加载器关闭（不再等全量段循环走完）
-                if g.__SUIF_READY then
-                    g.__SUIF_READY()
-                end
+                -- 全部 fn 执行完 → 等 UI 控件队列排空（控件全部建完、布局恢复）才宣布完成，
+                -- 避免窗口打开后控件还在分批冒出来
+                task.spawn(function()
+                    local _g = (getgenv and getgenv()) or _G
+                    while not _g.__SUIF_UI_QUEUE_EMPTY do
+                        task.wait(0.05)
+                    end
+                    if g.__SUIF_READY then
+                        g.__SUIF_READY()
+                    end
+                end)
             end
         end
         mountBatch()
