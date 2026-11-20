@@ -466,8 +466,9 @@ do
     -- 队列排空标志：挂载循环用它等所有控件建完才宣布完成（避免窗口打开控件还在冒）
     local UI_QUEUE_EMPTY = true
     -- 布局冻结已消除 UIListLayout 全量重排（O(n²)→O(n)），
-    -- 实例创建本身很轻：每帧批量 16 个控件（约 500 实例），挂载不再龟速
-    local UI_BATCH_PER_FRAME = 16
+    -- 每帧批量自适应：根据实测帧耗时在 4~32 之间动态调整（重了就减半，轻了就加倍）
+    local UI_BATCH_PER_FRAME = 12
+    local UI_BATCH_MIN, UI_BATCH_MAX = 4, 32
     local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label", "Space" }
     -- ★ 源头优化：WindUI 每个控件加入容器都会触发 UIListLayout 全量重排（O(n²)）。
     --   创建期间冻结布局（摘掉 UIListLayout + 隐藏容器），全部创建完成一次性恢复（O(n)）。
@@ -482,14 +483,33 @@ do
         end
         container.Visible = false
     end
-    local function ThawContainers()
-        for container, ll in pairs(UI_FROZEN) do
-            if ll and not ll.Parent then
-                ll.Parent = container
-            end
-            container.Visible = true
+    local function ThawContainers(onDone)
+        local list = {}
+        for c, ll in pairs(UI_FROZEN) do
+            table.insert(list, { c = c, ll = ll })
         end
         UI_FROZEN = {}
+        if #list == 0 then
+            if onDone then onDone() end
+            return
+        end
+        if #list <= 2 then
+            for _, it in ipairs(list) do
+                if it.ll and not it.ll.Parent then it.ll.Parent = it.c end
+                it.c.Visible = true
+            end
+            if onDone then onDone() end
+            return
+        end
+        -- 分批恢复：每帧最多 2 个容器，布局重排分散到多帧
+        task.spawn(function()
+            for i, it in ipairs(list) do
+                if it.ll and not it.ll.Parent then it.ll.Parent = it.c end
+                it.c.Visible = true
+                if i % 2 == 0 then task.wait(0.02) end
+            end
+            if onDone then onDone() end
+        end)
     end
     local function UIBatchFlush()
         if UI_BATCH_BUSY then return end
@@ -499,22 +519,40 @@ do
             local _g = (getgenv and getgenv()) or _G
             _g.__SUIF_UI_QUEUE_EMPTY = false
             while #UI_BATCH_QUEUE > 0 do
+                local batchT0 = os.clock()
                 local n = 0
                 while #UI_BATCH_QUEUE > 0 and n < UI_BATCH_PER_FRAME do
                     local job = table.remove(UI_BATCH_QUEUE, 1)
                     pcall(job)
                     n = n + 1
                 end
-                task.wait(0.03)
+                -- 自适应：这批太慢就减少下批数量，很快则增加（保持每帧 4~8ms 稳定开销）
+                local dt = os.clock() - batchT0
+                if dt > 0.008 then
+                    UI_BATCH_PER_FRAME = math.max(UI_BATCH_MIN, math.floor(UI_BATCH_PER_FRAME * 0.6))
+                elseif dt < 0.0035 then
+                    UI_BATCH_PER_FRAME = math.min(UI_BATCH_MAX, UI_BATCH_PER_FRAME + 2)
+                end
+                task.wait(0.02)
             end
-            ThawContainers()
+            ThawContainers(function()
+                UI_QUEUE_EMPTY = true
+                _g.__SUIF_UI_QUEUE_EMPTY = true
+            end)
             UI_BATCH_BUSY = false
-            UI_QUEUE_EMPTY = true
-            _g.__SUIF_UI_QUEUE_EMPTY = true
         end)
     end
     local function BatchizeTab(tabObj)
         if type(tabObj) ~= "table" then return end
+        -- Section 创建是同步的（返回值要立刻用），无法排队；
+        -- 但至少要冻结容器，避免 Section 加入时触发 UIListLayout 全量重排
+        local origSectionM = tabObj.Section
+        if type(origSectionM) == "function" then
+            tabObj.Section = function(self, cfg)
+                pcall(FreezeContainer, self)
+                return origSectionM(self, cfg)
+            end
+        end
         for _, m in ipairs(UI_CTRL_METHODS) do
             local orig = tabObj[m]
             if type(orig) == "function" then
@@ -3146,33 +3184,36 @@ pcall(function()
         g.__SUIF_PENDING = {}
         local totalCount = #pending
         g.__SUIF_MOUNT = { total = totalCount, done = 0 }
+        -- ★ 帧预算制挂载：每帧最多花 10ms 执行挂载 fn，剩余留到下一帧。
+        --   比"固定 1 个 + 0.05s 等待"更平滑：轻的 fn 一帧能挂多个，重的 fn 自动拆到多帧。
+        local MOUNT_FRAME_BUDGET = 0.010
         local function mountBatch()
-            if #pending > 0 then
-                local fn = table.remove(pending, 1)
-                if fn then
-                    pcall(fn)
-                end
-                g.__SUIF_MOUNT.done = g.__SUIF_MOUNT.done + 1
-                task.spawn(function()
-                    -- fn 内控件创建全部走分批队列（每帧 16 个），fn 执行本身很轻，
-                    -- 0.05s 间隔足够让帧
-                    task.wait(0.05)
-                    mountBatch()
-                end)
-            else
+            if #pending <= 0 then
                 g.__SUIF_MOUNT = nil
-                -- 全部 fn 执行完 → 等 UI 控件队列排空（控件全部建完、布局恢复）才宣布完成，
-                -- 避免窗口打开后控件还在分批冒出来
+                -- 全部 fn 执行完 → 等 UI 控件队列排空（控件全部建完、布局恢复）才宣布完成
                 task.spawn(function()
                     local _g = (getgenv and getgenv()) or _G
                     while not _g.__SUIF_UI_QUEUE_EMPTY do
-                        task.wait(0.05)
+                        task.wait(0.03)
                     end
                     if g.__SUIF_READY then
                         g.__SUIF_READY()
                     end
                 end)
+                return
             end
+            local t0 = os.clock()
+            while #pending > 0 and (os.clock() - t0) < MOUNT_FRAME_BUDGET do
+                local fn = table.remove(pending, 1)
+                if fn then
+                    pcall(fn)
+                end
+                g.__SUIF_MOUNT.done = g.__SUIF_MOUNT.done + 1
+            end
+            task.spawn(function()
+                task.wait()   -- 直接下一帧继续（不再固定等待 0.05s）
+                mountBatch()
+            end)
         end
         mountBatch()
     end
