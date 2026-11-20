@@ -1393,9 +1393,7 @@ local REMOTE_SPECS = {
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/disguise.lua", desc = "伪装玩家" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/slowrun.lua", desc = "缓慢的快速跑" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/clicker.lua", desc = "自动连点器" },
-    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/npc.lua", desc = "NPC交互" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/trigger.lua", desc = "触发类" },
-    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/object.lua", desc = "控制物体" },
     -- 黑白脚本加载器（tfcygvunbind/Apple）已移除：它是独立 UI 脚本，
     -- 预载挂载会创建第二个"黑白脚本"界面且与主脚本并存；改回由主脚本按钮点击加载
 }
