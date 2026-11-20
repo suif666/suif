@@ -1206,6 +1206,97 @@ rebuildList()
 refreshDisplay()
 resolveGameInfo()   -- 异步查询主游戏名（不阻塞界面）
 
+-- ==================== 分组4：传送玩家（从甩飞类迁移过来，独立分区） ====================
+local tpPlayerSec = tab:Section({ Title = "传送玩家", Icon = "user-check", Opened = true })
+
+local tpTargetName = nil
+local tpLoopRunning = false
+
+local function buildPlayerNames()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then
+            table.insert(list, p.Name)
+        end
+    end
+    return list
+end
+
+local function getPlayerByName(name)
+    if not name or name == "" then return nil end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Name == name or p.DisplayName == name then
+            return p
+        end
+    end
+    return nil
+end
+
+local function teleportToPlayer()
+    local target = getPlayerByName(tpTargetName)
+    if not target then
+        notify("传送玩家", "请先选择目标玩家")
+        return
+    end
+    if not target.Character then
+        notify("传送玩家", "目标角色未加载")
+        return
+    end
+    local root = target.Character:FindFirstChild("HumanoidRootPart")
+    local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if root and myRoot then
+        myRoot.CFrame = root.CFrame * CFrame.new(0, 3, 0)
+    else
+        notify("传送玩家", "找不到 HumanoidRootPart")
+    end
+end
+
+safe("传送玩家-目标选择", function()
+    tpPlayerSec:Dropdown({
+        Title = "选择目标玩家",
+        Desc = "单次传送和循环传送共用这个目标",
+        Values = buildPlayerNames(),
+        Value = nil,
+        Callback = function(v)
+            tpTargetName = v
+        end,
+    })
+end)
+
+safe("传送玩家-单次", function()
+    tpPlayerSec:Button({
+        Title = "单次传送玩家",
+        Desc = "传送到选中玩家身边（头顶上方 3 格）",
+        Callback = function()
+            teleportToPlayer()
+        end,
+    })
+end)
+
+safe("传送玩家-循环", function()
+    tpPlayerSec:Toggle({
+        Title = "循环传送",
+        Desc = "持续跟随目标玩家（33 次/秒，目标移动也能紧贴）",
+        Value = false,
+        Callback = function(v)
+            if v then
+                if tpLoopRunning then return end
+                tpLoopRunning = true
+                task.spawn(function()
+                    while tpLoopRunning do
+                        teleportToPlayer()
+                        task.wait(0.03)
+                    end
+                end)
+                notify("传送玩家", "循环传送已启动")
+            else
+                tpLoopRunning = false
+                notify("传送玩家", "循环传送已停止")
+            end
+        end,
+    })
+end)
+
 -- 实时刷新循环（默认关闭，开启后每 0.1 秒刷新）
 task.spawn(function()
     while true do
