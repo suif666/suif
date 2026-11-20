@@ -753,10 +753,8 @@ local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = 
 -- ║ 需要时把下面整段的 --[[ ]] 去掉即可恢复（内容一字未改）
 -- ╚══════════════════════════════════════════════════════════════╝
 
--- ── 黑白提取：功能类新增三个页签 ──
-local hbNpcTab     = funcSec:Tab({ Title = "NPC交互",  Icon = "server", Locked = false })
+-- ── 黑白提取：功能类页签（NPC交互 / 控制物体 已按要求移除）──
 local hbTriggerTab = funcSec:Tab({ Title = "触发类",   Icon = "zap",    Locked = false })
-local hbObjectTab  = funcSec:Tab({ Title = "控制物体", Icon = "box",    Locked = false })
 
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║ 【已恢复】A 功能类 3 个黑白页签 结束
@@ -3154,18 +3152,10 @@ lazyLoad(HB_REMOTE_BASE .. "slowrun.lua", "缓慢的快速跑", playerTab)
 -- 工具类（复用 suif.lua 已有的 toolTab）
 lazyLoad(HB_REMOTE_BASE .. "clicker.lua", "自动连点器", toolTab)
 
--- 功能类 → 三个独立页签
-getgenv().Tabs.HBNPCTab      = hbNpcTab
-getgenv().SutureHBNPCTab     = hbNpcTab
-lazyLoad(HB_REMOTE_BASE .. "npc.lua", "NPC交互", hbNpcTab)
-
+-- 功能类 → 独立页签
 getgenv().Tabs.HBTriggerTab  = hbTriggerTab
 getgenv().SutureHBTriggerTab = hbTriggerTab
 lazyLoad(HB_REMOTE_BASE .. "trigger.lua", "触发类", hbTriggerTab)
-
-getgenv().Tabs.HBObjectTab   = hbObjectTab
-getgenv().SutureHBObjectTab  = hbObjectTab
-lazyLoad(HB_REMOTE_BASE .. "object.lua", "控制物体", hbObjectTab)
 
 -- 脚本类 → 自然灾害（复用 suif.lua 已有的 zrzhTab；该页签已挂两个远程脚本，
 -- 这里跟着用 onDemand=true，点开页签时才加载）
