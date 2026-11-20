@@ -16,7 +16,6 @@ local RunService = game:GetService("RunService")
 -- ===== 状态 =====
 local FlingLoop = false
 local Flinging = false
-local TP_Loop = false
 local SelectedTargets = {}
 local AlreadyNotified = {}
 local OldPos = nil
@@ -465,37 +464,6 @@ local function stopAntiFling()
     setAllCharactersCollide(true)
 end
 
--- ===== 传送 =====
-local function TeleportToTarget()
-    local target = nil
-    if #SelectedTargets == 0 then
-        Notify("错误", "请先选择目标", 2)
-        return
-    end
-
-    if SelectedTargets[1] == "ALL" then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                target = p
-                break
-            end
-        end
-    else
-        target = SelectedTargets[1]
-    end
-
-    if not target or not target.Character then
-        Notify("错误", "目标无效或未加载", 2)
-        return
-    end
-
-    local root = target.Character:FindFirstChild("HumanoidRootPart")
-    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if root and myRoot then
-        myRoot.CFrame = root.CFrame * CFrame.new(0, 3, 0)
-    end
-end
-
 -- ===== 循环控制 =====
 local function StartFlingLoop()
     if FlingLoop then return end
@@ -578,23 +546,6 @@ Tab:Button({
 
 Tab:Space()
 
-
-local function StartTPLoop()
-    if TP_Loop then return end
-    TP_Loop = true
-    task.spawn(function()
-        while TP_Loop do
-            TeleportToTarget()
-            task.wait(0.03)  -- 33次/秒：提高跟脚性，目标移动也能紧贴
-        end
-    end)
-    Notify("传送", "循环传送已启动", 2)
-end
-
-local function StopTPLoop()
-    TP_Loop = false
-    Notify("传送", "循环传送已停止", 2)
-end
 
 -- ===== UI 控件（直接使用 Tab）=====
 local TargetDropdown = nil
@@ -704,19 +655,3 @@ Tab:Toggle({
     end
 })
 
-Tab:Button({
-    Title = "单次传送玩家",
- Desc = "和甩飞共用一个玩家表 如果你多选的话则只会传送列表靠上的选中玩家",
-    Callback = function()
-        TeleportToTarget()
-    end
-})
-
-Tab:Toggle({
-    Title = "循环传送",
- Desc = "字面意思 和上面单次传送原理一致",
-    Value = false,
-    Callback = function(v)
-        if v then StartTPLoop() else StopTPLoop() end
-    end
-})
