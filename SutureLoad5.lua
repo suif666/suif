@@ -252,6 +252,21 @@ function Loader:Show()
         Parent = gui,
     })
     self.Card = Card
+    -- ═══ 中栏独立卡片（标题 + 进度，自成一块） ═══
+    local MidPanel = New("Frame", {
+        Name = "MidPanel",
+        Size = UDim2.new(0.5, -20, 1, 0),
+        Position = UDim2.new(0.25, 10, 0, 0),
+        AnchorPoint = Vector2.new(0, 0),
+        BackgroundColor3 = Color3.fromRGB(20, 24, 34),
+        BackgroundTransparency = 0.5,
+        ZIndex = 2,
+        Parent = Card,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 12) }),
+        New("UIStroke", { Color = Color3.fromRGB(120, 140, 180), Transparency = 0.8, Thickness = 1 }),
+    })
+    self.MidPanel = MidPanel
     pcall(function()
         local st = Instance.new("UIStroke")
         st.Color = Color3.fromRGB(130, 170, 255)
@@ -489,21 +504,6 @@ function Loader:Show()
     -- 三块独立卡片自带边框，无需竖线分隔
 
     -- ═══ 右栏独立面板（公告 + 反馈各自分区，自成一块区域） ═══
-    -- ═══ 中栏独立卡片（标题 + 进度，自成一块） ═══
-    local MidPanel = New("Frame", {
-        Name = "MidPanel",
-        Size = UDim2.new(0.5, -20, 1, 0),
-        Position = UDim2.new(0.25, 10, 0, 0),
-        AnchorPoint = Vector2.new(0, 0),
-        BackgroundColor3 = Color3.fromRGB(20, 24, 34),
-        BackgroundTransparency = 0.5,
-        ZIndex = 2,
-        Parent = Card,
-    }, {
-        New("UICorner", { CornerRadius = UDim.new(0, 12) }),
-        New("UIStroke", { Color = Color3.fromRGB(120, 140, 180), Transparency = 0.8, Thickness = 1 }),
-    })
-    self.MidPanel = MidPanel
 
     -- ═══ 右侧：公告面板（异步拉取，不阻塞加载） ═══
     local NoticePanel = New("Frame", {
