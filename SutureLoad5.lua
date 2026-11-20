@@ -243,7 +243,7 @@ function Loader:Show()
     -- ═══ 中央卡片 ═══
     local Card = New("Frame", {
         Name = "Card",
-        Size = UDim2.new(0.86, 0, 0.82, 0),
+        Size = UDim2.new(1, 0, 1, 0),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.fromRGB(24, 28, 38),
@@ -251,7 +251,7 @@ function Loader:Show()
         ZIndex = 2,
         Parent = gui,
     }, {
-        New("UICorner", { CornerRadius = UDim.new(0, 22) }),
+        -- 满屏布局：去掉大圆角（悬浮窗感来源）
         New("UIGradient", {
             Color = ColorSequence.new({
                 ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 38, 52)),
@@ -264,7 +264,7 @@ function Loader:Show()
     pcall(function()
         local st = Instance.new("UIStroke")
         st.Color = Color3.fromRGB(130, 170, 255)
-        st.Transparency = 0.8
+        st.Transparency = 1
         st.Thickness = 1
         st.Parent = Card
     end)
@@ -323,8 +323,8 @@ function Loader:Show()
     -- ═══ 版本徽章 ═══
     local VerTag = New("Frame", {
         Name = "VerTag",
-        Size = UDim2.fromOffset(52, 18),
-        Position = UDim2.new(0.5, 168, 0, 124),
+        Size = UDim2.fromOffset(46, 16),
+        Position = UDim2.new(0.5, 100, 0, 146),
         AnchorPoint = Vector2.new(0, 0),
         BackgroundColor3 = Color3.fromRGB(38, 66, 118),
         ZIndex = 2,
@@ -652,6 +652,28 @@ function Loader:Show()
         local ok, res = pcall(function()
             return game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/update", true)
         end)
+        -- 备用源：worker 拿不到时直连 GitHub（部分网络下 worker 可达但 GitHub 反而不通，反之亦然）
+        if not (ok and type(res) == "string" and tonumber(res:match("%d+")) and tonumber(res:match("%d+")) > 0) then
+            local ok2, res2 = pcall(function()
+                return game:HttpGet("https://api.github.com/repos/suif666/suif/commits?per_page=1", true)
+            end)
+            if ok2 and type(res2) == "string" then
+                local iso = res2:match('"committer"%s*:%s*{[^}]-"date"%s*:%s*"([^"]+)"')
+                if iso then
+                    local y, m, d, hh, mm, ss = iso:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+):(%d+)")
+                    if y then
+                        local t = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d),
+                                            hour = tonumber(hh), min = tonumber(mm), sec = tonumber(ss), isdst = false })
+                        -- GitHub 返回 UTC，os.time 按本地时区解释，这里按 UTC 修正
+                        local utc = os.date("!*t")
+                        local localT = os.date("*t")
+                        local offset = os.difftime(os.time(localT), os.time(utc))
+                        res = tostring(t - offset)
+                        ok = true
+                    end
+                end
+            end
+        end
         local got = false
         if ok and type(res) == "string" then
             local ts = tonumber(res:match("%d+"))
