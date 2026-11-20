@@ -506,6 +506,22 @@ function Loader:Show()
         Parent = Card,
     })
 
+    -- ═══ 右栏独立面板（公告 + 反馈各自分区，自成一块区域） ═══
+    local RightPanel = New("Frame", {
+        Name = "RightPanel",
+        Size = UDim2.new(0, 330, 1, -40),
+        Position = UDim2.new(1, -20, 0, 20),
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = Color3.fromRGB(20, 24, 34),
+        BackgroundTransparency = 0.5,
+        ZIndex = 2,
+        Parent = Card,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 12) }),
+        New("UIStroke", { Color = Color3.fromRGB(120, 140, 180), Transparency = 0.8, Thickness = 1 }),
+    })
+    self.RightPanel = RightPanel
+
     -- ═══ 右栏分隔竖线 ═══
     New("Frame", {
         Name = "DividerRight",
@@ -520,13 +536,13 @@ function Loader:Show()
     -- ═══ 右侧：公告面板（异步拉取，不阻塞加载） ═══
     local NoticePanel = New("Frame", {
         Name = "NoticePanel",
-        Size = UDim2.new(0, 330, 0, 150),
-        Position = UDim2.new(1, -20, 0, 50),
-        AnchorPoint = Vector2.new(1, 0),
+        Size = UDim2.new(1, -16, 0, 150),
+        Position = UDim2.new(0, 8, 0, 8),
+        AnchorPoint = Vector2.new(0, 0),
         BackgroundColor3 = Color3.fromRGB(18, 22, 32),
-        BackgroundTransparency = 0.55,
-        ZIndex = 2,
-        Parent = Card,
+        BackgroundTransparency = 0.75,
+        ZIndex = 3,
+        Parent = RightPanel,
     }, {
         New("UICorner", { CornerRadius = UDim.new(0, 10) }),
         New("UIStroke", { Color = Color3.fromRGB(120, 140, 180), Transparency = 0.8, Thickness = 1 }),
@@ -669,13 +685,13 @@ function Loader:Show()
     local FB_TOKEN = "suture_fb_2025_zh"
     local FbPanel = New("Frame", {
         Name = "FbPanel",
-        Size = UDim2.new(0, 330, 1, -240),
-        Position = UDim2.new(1, -20, 0, 210),
-        AnchorPoint = Vector2.new(1, 0),
-        BackgroundColor3 = Color3.fromRGB(28, 34, 48),
-        BackgroundTransparency = 0.45,
-        ZIndex = 2,
-        Parent = Card,
+        Size = UDim2.new(1, -16, 1, -178),
+        Position = UDim2.new(0, 8, 0, 170),
+        AnchorPoint = Vector2.new(0, 0),
+        BackgroundColor3 = Color3.fromRGB(18, 22, 32),
+        BackgroundTransparency = 0.75,
+        ZIndex = 3,
+        Parent = RightPanel,
     }, {
         New("UICorner", { CornerRadius = UDim.new(0, 10) }),
         New("UIStroke", { Color = Color3.fromRGB(120, 150, 210), Transparency = 0.75, Thickness = 1 }),
@@ -1154,7 +1170,7 @@ function Loader:ShowLaunchButton(cb)
     local Btn = New("TextButton", {
         Name = "LaunchBtn",
         Size = UDim2.new(0, 190, 0, 44),
-        Position = UDim2.new(0.5, 0, 0, 200),
+        Position = UDim2.new(0.5, 0, 0, 250),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         BackgroundTransparency = 1,
@@ -1363,7 +1379,7 @@ end
 -----------------------------------------------------------------------
 -- [5] Boot
 -----------------------------------------------------------------------
-local inst = Loader.new({ Title = "Suture Hub", Subtitle = "现代加载器 · 分帧挂载", Version = "v1.9" })
+local inst = Loader.new({ Title = "Suture Hub", Subtitle = "现代加载器 · 分帧挂载", Version = "v5" })
 inst:Show()
 
 local REMOTE_SPECS = {
