@@ -243,22 +243,13 @@ function Loader:Show()
     -- ═══ 中央卡片 ═══
     local Card = New("Frame", {
         Name = "Card",
-        Size = UDim2.new(1, 0, 1, 0),
+        Size = UDim2.new(0.9, 0, 0.85, 0),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.fromRGB(24, 28, 38),
-        BackgroundTransparency = 0.35,
+        BackgroundTransparency = 1,
         ZIndex = 2,
         Parent = gui,
-    }, {
-        -- 满屏布局：去掉大圆角（悬浮窗感来源）
-        New("UIGradient", {
-            Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(32, 38, 52)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(19, 23, 33)),
-            }),
-            Rotation = 0,
-        }),
     })
     self.Card = Card
     pcall(function()
@@ -273,11 +264,11 @@ function Loader:Show()
     local Logo = New("Frame", {
         Name = "Logo",
         Size = UDim2.fromOffset(64, 64),
-        Position = UDim2.new(0.5, 0, 0, 30),
+        Position = UDim2.new(0.5, 0, 0, 34),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         ZIndex = 2,
-        Parent = Card,
+        Parent = MidPanel,
     }, {
         New("UICorner", { CornerRadius = UDim.new(0, 18) }),
         New("UIGradient", {
@@ -328,7 +319,7 @@ function Loader:Show()
         AnchorPoint = Vector2.new(0, 0),
         BackgroundColor3 = Color3.fromRGB(38, 66, 118),
         ZIndex = 2,
-        Parent = Card,
+        Parent = MidPanel,
     }, {
         New("UICorner", { CornerRadius = UDim.new(1, 0) }),
     })
@@ -360,7 +351,7 @@ function Loader:Show()
         TextTransparency = 1,
         TextStrokeTransparency = 0.4,
         ZIndex = 2,
-        Parent = Card,
+        Parent = MidPanel,
     })
     self.TitleLbl = Title
 
@@ -378,7 +369,7 @@ function Loader:Show()
             Font = FONT_DEFAULT,
             TextTransparency = 1,
             ZIndex = 2,
-            Parent = Card,
+            Parent = MidPanel,
         })
         self.SubLbl = Sub
     end
@@ -397,8 +388,8 @@ function Loader:Show()
     }
     local CreditsPanel = New("Frame", {
         Name = "CreditsPanel",
-        Size = UDim2.new(0, 260, 1, -40),
-        Position = UDim2.new(0, 20, 0, 20),
+        Size = UDim2.new(0.25, -10, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1,
         ZIndex = 2,
         Parent = Card,
@@ -495,23 +486,15 @@ function Loader:Show()
             Parent = card,
         })
     end
-    -- 分隔线
-    New("Frame", {
-        Name = "Divider",
-        Size = UDim2.new(0, 1, 1, -40),
-        Position = UDim2.new(0, 292, 0, 20),
-        BackgroundColor3 = Color3.fromRGB(70, 90, 130),
-        BackgroundTransparency = 0.55,
-        ZIndex = 2,
-        Parent = Card,
-    })
+    -- 三块独立卡片自带边框，无需竖线分隔
 
     -- ═══ 右栏独立面板（公告 + 反馈各自分区，自成一块区域） ═══
-    local RightPanel = New("Frame", {
-        Name = "RightPanel",
-        Size = UDim2.new(0, 330, 1, -40),
-        Position = UDim2.new(1, -20, 0, 20),
-        AnchorPoint = Vector2.new(1, 0),
+    -- ═══ 中栏独立卡片（标题 + 进度，自成一块） ═══
+    local MidPanel = New("Frame", {
+        Name = "MidPanel",
+        Size = UDim2.new(0.5, -20, 1, 0),
+        Position = UDim2.new(0.25, 10, 0, 0),
+        AnchorPoint = Vector2.new(0, 0),
         BackgroundColor3 = Color3.fromRGB(20, 24, 34),
         BackgroundTransparency = 0.5,
         ZIndex = 2,
@@ -520,31 +503,20 @@ function Loader:Show()
         New("UICorner", { CornerRadius = UDim.new(0, 12) }),
         New("UIStroke", { Color = Color3.fromRGB(120, 140, 180), Transparency = 0.8, Thickness = 1 }),
     })
-    self.RightPanel = RightPanel
-
-    -- ═══ 右栏分隔竖线 ═══
-    New("Frame", {
-        Name = "DividerRight",
-        Size = UDim2.new(0, 1, 1, -40),
-        Position = UDim2.new(1, -360, 0, 20),
-        BackgroundColor3 = Color3.fromRGB(70, 90, 130),
-        BackgroundTransparency = 0.55,
-        ZIndex = 2,
-        Parent = Card,
-    })
+    self.MidPanel = MidPanel
 
     -- ═══ 右侧：公告面板（异步拉取，不阻塞加载） ═══
     local NoticePanel = New("Frame", {
         Name = "NoticePanel",
-        Size = UDim2.new(1, -16, 0, 150),
-        Position = UDim2.new(0, 8, 0, 8),
+        Size = UDim2.new(0.25, -10, 0.42, -4),
+        Position = UDim2.new(0.75, 10, 0, 0),
         AnchorPoint = Vector2.new(0, 0),
-        BackgroundColor3 = Color3.fromRGB(18, 22, 32),
-        BackgroundTransparency = 0.75,
+        BackgroundColor3 = Color3.fromRGB(20, 24, 34),
+        BackgroundTransparency = 0.5,
         ZIndex = 3,
-        Parent = RightPanel,
+        Parent = Card,
     }, {
-        New("UICorner", { CornerRadius = UDim.new(0, 10) }),
+        New("UICorner", { CornerRadius = UDim.new(0, 12) }),
         New("UIStroke", { Color = Color3.fromRGB(120, 140, 180), Transparency = 0.8, Thickness = 1 }),
     })
     self.NoticePanel = NoticePanel
@@ -645,7 +617,7 @@ function Loader:Show()
         TextXAlignment = Enum.TextXAlignment.Center,
         TextTransparency = 0.55,
         ZIndex = 2,
-        Parent = Card,
+        Parent = MidPanel,
     })
     self.UpdateLbl = UpdateLbl
     Spawn(function()
@@ -707,15 +679,15 @@ function Loader:Show()
     local FB_TOKEN = "suture_fb_2025_zh"
     local FbPanel = New("Frame", {
         Name = "FbPanel",
-        Size = UDim2.new(1, -16, 1, -178),
-        Position = UDim2.new(0, 8, 0, 170),
+        Size = UDim2.new(0.25, -10, 0.58, -4),
+        Position = UDim2.new(0.75, 10, 0.42, 4),
         AnchorPoint = Vector2.new(0, 0),
-        BackgroundColor3 = Color3.fromRGB(18, 22, 32),
-        BackgroundTransparency = 0.75,
+        BackgroundColor3 = Color3.fromRGB(20, 24, 34),
+        BackgroundTransparency = 0.5,
         ZIndex = 3,
-        Parent = RightPanel,
+        Parent = Card,
     }, {
-        New("UICorner", { CornerRadius = UDim.new(0, 10) }),
+        New("UICorner", { CornerRadius = UDim.new(0, 12) }),
         New("UIStroke", { Color = Color3.fromRGB(120, 150, 210), Transparency = 0.75, Thickness = 1 }),
     })
     self.FbPanel = FbPanel
@@ -882,7 +854,7 @@ function Loader:Show()
         BackgroundColor3 = Color3.fromRGB(70, 90, 130),
         BackgroundTransparency = 0.6,
         ZIndex = 2,
-        Parent = Card,
+        Parent = MidPanel,
     })
 
     -- ═══ 进度条 ═══
@@ -894,7 +866,7 @@ function Loader:Show()
         BackgroundColor3 = Color3.fromRGB(40, 46, 60),
         BackgroundTransparency = 0.35,
         ZIndex = 2,
-        Parent = Card,
+        Parent = MidPanel,
     }, {
         New("UICorner", { CornerRadius = UDim.new(1, 0) }),
     })
@@ -957,7 +929,7 @@ function Loader:Show()
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         ZIndex = 2,
-        Parent = Card,
+        Parent = MidPanel,
     })
     local Dot = New("Frame", {
         Name = "Dot",
@@ -1203,7 +1175,7 @@ function Loader:ShowLaunchButton(cb)
         TextTransparency = 1,
         AutoButtonColor = true,
         ZIndex = 2,
-        Parent = self.Card,
+        Parent = self.MidPanel,
     }, {
         New("UICorner", { CornerRadius = UDim.new(0, 12) }),
         New("UIGradient", {
