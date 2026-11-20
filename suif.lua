@@ -740,13 +740,14 @@ mainTab:Select()
 -- 功能类
 local funcSec = win:Section({ Title = "功能", Icon = "folder", Opened = false })
 local playerTab = funcSec:Tab({ Title = "玩家类", Icon = "user", Locked = false })
+local fovTab = funcSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 local FwTab = funcSec:Tab({ Title = "范围类", Icon = "user", Locked = false })
 local SfTab = funcSec:Tab({ Title = "甩飞类", Icon = "user", Locked = false })
 local amTab = funcSec:Tab({ Title = "自瞄类", Icon = "user", Locked = false })
 local sayTab = funcSec:Tab({ Title = "发言类", Icon = "user", Locked = false })
 local fyTab = funcSec:Tab({ Title = "翻译类", Icon = "languages", Locked = false })
 local toolTab = funcSec:Tab({ Title = "工具类", Icon = "wrench", Locked = false })
-local coordTab = funcSec:Tab({ Title = "坐标传送", Icon = "map-pin", Locked = false })
+local coordTab = funcSec:Tab({ Title = "传送类", Icon = "map-pin", Locked = false })
 local serverTab = funcSec:Tab({ Title = "服务器类", Icon = "user", Locked = false })
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║ 【已恢复】A 功能类 3 个黑白页签
@@ -765,7 +766,6 @@ local shijueSec = win:Section({ Title = "视觉类", Icon = "palette", Locked = 
 local espTab = shijueSec:Tab({ Title = "透视类", Icon = "user", Locked = false })
 local pingfpsTab = shijueSec:Tab({ Title = "ping/fps显示", Icon = "rss", Locked = false })
 local radarTab = shijueSec:Tab({ Title = "雷达", Icon = "radar", Locked = false })
-local fovTab = shijueSec:Tab({ Title = "视野", Icon = "palette", Locked = false })
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║ 【已恢复】B 视觉类 2 个黑白页签
 -- ║ 需要时把下面整段的 --[[ ]] 去掉即可恢复（内容一字未改）
