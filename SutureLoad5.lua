@@ -243,7 +243,7 @@ function Loader:Show()
     -- ═══ 中央卡片 ═══
     local Card = New("Frame", {
         Name = "Card",
-        Size = UDim2.new(0.94, 0, 0.92, 0),
+        Size = UDim2.new(0.86, 0, 0.82, 0),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.fromRGB(24, 28, 38),
@@ -323,9 +323,9 @@ function Loader:Show()
     -- ═══ 版本徽章 ═══
     local VerTag = New("Frame", {
         Name = "VerTag",
-        Size = UDim2.fromOffset(76, 26),
-        Position = UDim2.new(1, -16, 0, 14),
-        AnchorPoint = Vector2.new(1, 0),
+        Size = UDim2.fromOffset(52, 18),
+        Position = UDim2.new(0.5, 168, 0, 124),
+        AnchorPoint = Vector2.new(0, 0),
         BackgroundColor3 = Color3.fromRGB(38, 66, 118),
         ZIndex = 2,
         Parent = Card,
@@ -339,7 +339,7 @@ function Loader:Show()
         BackgroundTransparency = 1,
         Text = self.Version or "",
         TextColor3 = Color3.fromRGB(150, 200, 255),
-        TextSize = 12,
+        TextSize = 10,
         Font = Enum.Font.GothamBold,
         TextTransparency = 1,
         Parent = VerTag,
@@ -385,14 +385,15 @@ function Loader:Show()
 
     -- ═══ 左侧：贡献名单（小卡片） ═══
     local CDN = "https://suture-hub-counter.sfbdsl666.workers.dev/asset?name="
+    -- 注：Roblox ImageLabel 不支持外部 http 图片（只能 rbxassetid），所以图标用 emoji + 品牌色
     local CREDITS = {
-        { img = CDN .. "suif.png",      name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",         color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110), fb = "S" },
-        { img = CDN .. "openai.png",    name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建",     color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230), fb = "G" },
-        { img = CDN .. "gemini.png",    name = "Gemini",          role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200), fb = "G" },
-        { img = CDN .. "grok.png",      name = "Grok",            role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200), fb = "G" },
-        { img = CDN .. "claude.png",    name = "Claude",          role = "已封禁",   desc = "您的账号已被封禁",       color = Color3.fromRGB(40, 40, 46),  rcol = Color3.fromRGB(160, 160, 165), stroke = Color3.fromRGB(110, 110, 115), fb = "C" },
-        { img = CDN .. "deepseek.png",  name = "DeepSeek V4",     role = "大功臣",   desc = "绝大部分功能/优化/调整", color = Color3.fromRGB(58, 52, 34),  rcol = Color3.fromRGB(255, 220, 130), stroke = Color3.fromRGB(230, 180, 80), fb = "D" },
-        { img = CDN .. "doubao.png",    name = "豆包",            role = "报错猎人", desc = "提取报错信息",           color = Color3.fromRGB(44, 40, 58),  rcol = Color3.fromRGB(200, 170, 255), stroke = Color3.fromRGB(140, 110, 200), fb = "豆" },
+        { emo = "🌀", name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",         color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110), fb = "S" },
+        { emo = "🤖", name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建",     color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230), fb = "G" },
+        { emo = "✨", name = "Gemini",          role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200), fb = "G" },
+        { emo = "⚡", name = "Grok",            role = "小帮手",   desc = "做了些小贡献",           color = Color3.fromRGB(34, 46, 62),  rcol = Color3.fromRGB(150, 200, 255), stroke = Color3.fromRGB(90, 140, 200), fb = "G" },
+        { emo = "🧠", name = "Claude",          role = "已封禁",   desc = "您的账号已被封禁",       color = Color3.fromRGB(40, 40, 46),  rcol = Color3.fromRGB(160, 160, 165), stroke = Color3.fromRGB(110, 110, 115), fb = "C" },
+        { emo = "🐋", name = "DeepSeek V4",     role = "大功臣",   desc = "绝大部分功能/优化/调整", color = Color3.fromRGB(58, 52, 34),  rcol = Color3.fromRGB(255, 220, 130), stroke = Color3.fromRGB(230, 180, 80), fb = "D" },
+        { emo = "🫘", name = "豆包",            role = "报错猎人", desc = "提取报错信息",           color = Color3.fromRGB(44, 40, 58),  rcol = Color3.fromRGB(200, 170, 255), stroke = Color3.fromRGB(140, 110, 200), fb = "豆" },
     }
     local CreditsPanel = New("Frame", {
         Name = "CreditsPanel",
@@ -442,27 +443,16 @@ function Loader:Show()
         }, {
             New("UICorner", { CornerRadius = UDim.new(0.28, 0) }),
         })
-        -- 首字母兜底：图片加载失败时可见，不会空白
+        -- emoji 图标（Roblox 不支持外链图片，emoji 稳定可见）
         New("TextLabel", {
-            Name = "IconFallback",
+            Name = "IconEmoji",
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Text = c.fb,
+            Text = c.emo or c.fb,
             TextColor3 = c.rcol,
-            TextSize = 11,
+            TextSize = 14,
             Font = Enum.Font.GothamBold,
             TextTransparency = 1,
-            Parent = IconBg,
-        })
-        New("ImageLabel", {
-            Name = "IconImg",
-            Size = UDim2.new(1, -4, 1, -4),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundTransparency = 1,
-            Image = c.img,
-            ScaleType = Enum.ScaleType.Fit,
-            ImageTransparency = 1,
             Parent = IconBg,
         })
         New("TextLabel", {
@@ -516,6 +506,17 @@ function Loader:Show()
         Parent = Card,
     })
 
+    -- ═══ 右栏分隔竖线 ═══
+    New("Frame", {
+        Name = "DividerRight",
+        Size = UDim2.new(0, 1, 1, -40),
+        Position = UDim2.new(1, -360, 0, 20),
+        BackgroundColor3 = Color3.fromRGB(70, 90, 130),
+        BackgroundTransparency = 0.55,
+        ZIndex = 2,
+        Parent = Card,
+    })
+
     -- ═══ 右侧：公告面板（异步拉取，不阻塞加载） ═══
     local NoticePanel = New("Frame", {
         Name = "NoticePanel",
@@ -559,6 +560,16 @@ function Loader:Show()
         Parent = NoticePanel,
     })
     self.NoticeBody = NoticeBody
+    -- 公告标题下横线（分区）
+    New("Frame", {
+        Name = "NoticeSep",
+        Size = UDim2.new(1, -20, 0, 1),
+        Position = UDim2.new(0, 10, 0, 25),
+        BackgroundColor3 = Color3.fromRGB(110, 130, 170),
+        BackgroundTransparency = 0.55,
+        ZIndex = 3,
+        Parent = NoticePanel,
+    })
     local NoticeBodyText = New("TextLabel", {
         Name = "Text",
         Size = UDim2.new(1, -6, 0, 0),
@@ -625,9 +636,11 @@ function Loader:Show()
         local ok, res = pcall(function()
             return game:HttpGet("https://suture-hub-counter.sfbdsl666.workers.dev/update", true)
         end)
+        local got = false
         if ok and type(res) == "string" then
             local ts = tonumber(res:match("%d+"))
             if ts and ts > 0 then
+                got = true
                 local diff = os.time() - ts
                 local txt
                 if diff < 60 then
@@ -644,6 +657,10 @@ function Loader:Show()
                     Tween(self.UpdateLbl, 0.5, { TextTransparency = 0.45 })
                 end
             end
+        end
+        if not got and self.UpdateLbl then
+            self.UpdateLbl.Text = "脚本更新：未知"
+            Tween(self.UpdateLbl, 0.5, { TextTransparency = 0.6 })
         end
     end)
 
@@ -664,6 +681,16 @@ function Loader:Show()
         New("UIStroke", { Color = Color3.fromRGB(120, 150, 210), Transparency = 0.75, Thickness = 1 }),
     })
     self.FbPanel = FbPanel
+    -- 反馈标题下横线（分区）
+    New("Frame", {
+        Name = "FbSep",
+        Size = UDim2.new(1, -20, 0, 1),
+        Position = UDim2.new(0, 10, 0, 25),
+        BackgroundColor3 = Color3.fromRGB(110, 130, 170),
+        BackgroundTransparency = 0.55,
+        ZIndex = 3,
+        Parent = FbPanel,
+    })
     New("TextLabel", {
         Size = UDim2.new(1, -20, 0, 20),
         Position = UDim2.new(0, 10, 0, 6),
@@ -726,6 +753,27 @@ function Loader:Show()
         Parent = FbPanel,
     })
     self.FbStatus = FbStatus
+    -- 执行器 request 函数（与主脚本反馈模块同一套取法）
+    local function _reqFn()
+        return (syn and syn.request) or (http and http.request) or http_request or request
+    end
+    local function _reqOk(res)
+        local code = res and (res.StatusCode or res.Status or res.status_code) or 0
+        return code >= 200 and code < 300
+    end
+    local function _doRequest(method, url, body)
+        local fn = _reqFn()
+        if not fn then return false, "[" .. method .. "] 执行器无 request" end
+        local hdr = { ["Content-Type"] = "application/json", ["User-Agent"] = "SutureHubLoader" }
+        local data = { Url = url, url = url, Method = method, method = method,
+                       Headers = hdr, headers = hdr, Body = body, body = body }
+        local ok, res = pcall(function() return fn(data) end)
+        if ok and _reqOk(res) then return true end
+        if ok then
+            return false, "[" .. method .. "] HTTP " .. tostring(res and (res.StatusCode or res.Status or res.status_code) or "?")
+        end
+        return false, "[" .. method .. "] " .. tostring(res)
+    end
     FbSend.MouseButton1Click:Connect(function()
         local text = (FbBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
         if #text < 2 then
@@ -736,38 +784,68 @@ function Loader:Show()
         FbSend.Text = "提交中…"
         FbSend.Active = false
         Spawn(function()
-            local ok, err = pcall(function()
-                local HS = game:GetService("HttpService")
-                local lp = game.Players.LocalPlayer
-                local ip = "unknown"
-                pcall(function() ip = HS:GetIPAddress() end)
-                local payload = HS:JSONEncode({
-                    message = text,
-                    username = lp.Name,
-                    displayName = lp.DisplayName,
-                    userId = lp.UserId,
-                    placeId = game.PlaceId,
-                    jobId = game.JobId,
-                    gameName = game.Name,
-                    ip = ip,
-                    timestamp = os.time(),
-                    nonce = HS:GenerateGUID(false),
-                    token = FB_TOKEN,
-                })
-                return HS:PostAsync(FB_API, payload, Enum.HttpContentType.ApplicationJson)
-            end)
-            FbSend.Text = "提交反馈"
-            FbSend.Active = true
-            if ok then
+            local HS = game:GetService("HttpService")
+            local lp = game.Players.LocalPlayer
+            local ip = "unknown"
+            pcall(function() ip = HS:GetIPAddress() end)
+            local p = {
+                message = text, username = lp.Name, displayName = lp.DisplayName,
+                userId = lp.UserId, placeId = game.PlaceId, jobId = game.JobId,
+                gameName = game.Name, ip = ip, timestamp = os.time(),
+                nonce = HS:GenerateGUID(false), token = FB_TOKEN,
+            }
+            local body = HS:JSONEncode(p)
+            -- ① POST JSON
+            local ok1, e1 = _doRequest("POST", FB_API, body)
+            if ok1 then
+                FbSend.Text = "提交反馈"; FbSend.Active = true
+                FbStatus.Text = "✅ 已提交，感谢反馈！"
+                FbStatus.TextColor3 = Color3.fromRGB(140, 220, 160)
+                FbBox.Text = ""
+                return
+            end
+            -- ② GET query 降级
+            local function enc(v) return HS:UrlEncode(tostring(v or "")) end
+            local q = "?message=" .. enc(p.message) .. "&username=" .. enc(p.username)
+                .. "&displayName=" .. enc(p.displayName) .. "&userId=" .. enc(p.userId)
+                .. "&placeId=" .. enc(p.placeId) .. "&jobId=" .. enc(p.jobId)
+                .. "&gameName=" .. enc(p.gameName) .. "&ip=" .. enc(p.ip)
+                .. "&timestamp=" .. enc(p.timestamp) .. "&nonce=" .. enc(p.nonce)
+                .. "&token=" .. enc(p.token)
+            local getUrl = FB_API .. (FB_API:find("?", 1, true) and "&" or "?") .. q:sub(2)
+            local ok2 = _doRequest("GET", getUrl, nil)
+            if ok2 then
+                FbSend.Text = "提交反馈"; FbSend.Active = true
+                FbStatus.Text = "✅ 已提交，感谢反馈！"
+                FbStatus.TextColor3 = Color3.fromRGB(140, 220, 160)
+                FbBox.Text = ""
+                return
+            end
+            -- ③ 执行器 HttpGet 兜底
+            local ok3 = pcall(function() return game:HttpGet(getUrl) end)
+            FbSend.Text = "提交反馈"; FbSend.Active = true
+            if ok3 then
                 FbStatus.Text = "✅ 已提交，感谢反馈！"
                 FbStatus.TextColor3 = Color3.fromRGB(140, 220, 160)
                 FbBox.Text = ""
             else
-                FbStatus.Text = "❌ 提交失败：" .. tostring(err)
+                FbStatus.Text = "❌ 提交失败：" .. tostring(e1)
                 FbStatus.TextColor3 = Color3.fromRGB(255, 150, 150)
             end
         end)
     end)
+
+    -- ═══ 中栏分隔横线（标题区 / 进度区）═══
+    New("Frame", {
+        Name = "DividerMid",
+        Size = UDim2.new(0, 300, 0, 1),
+        Position = UDim2.new(0.5, 0, 0, 206),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(70, 90, 130),
+        BackgroundTransparency = 0.6,
+        ZIndex = 2,
+        Parent = Card,
+    })
 
     -- ═══ 进度条 ═══
     local BarBg = New("Frame", {
@@ -1076,7 +1154,7 @@ function Loader:ShowLaunchButton(cb)
     local Btn = New("TextButton", {
         Name = "LaunchBtn",
         Size = UDim2.new(0, 190, 0, 44),
-        Position = UDim2.new(0.667, 0, 0, 174),
+        Position = UDim2.new(0.5, 0, 0, 200),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         BackgroundTransparency = 1,
