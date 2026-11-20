@@ -407,13 +407,43 @@ end
                 nonce = "diag" .. tostring(math.random(100000000, 999999999)),
                 token = FEEDBACK_TOKEN,
             }
-            local ok, res = pcall(function()
-                return HS:PostAsync(FEEDBACK_API, HS:JSONEncode(body), Enum.HttpContentType.ApplicationJson, false)
-            end)
-            if ok and type(res) == "string" and res:find('"ok":true', 1, true) then
+            -- 与主脚本反馈模块同一套发送方式：request() 三级降级（PostAsync 在多数执行器里不可用）
+            local function reqFn()
+                return (syn and syn.request) or (http and http.request) or http_request or request
+            end
+            local function reqOk(r)
+                local code = r and (r.StatusCode or r.Status or r.status_code) or 0
+                return code >= 200 and code < 300
+            end
+            local function doReq(method, url, payload)
+                local fn = reqFn()
+                if not fn then return false, "无 request" end
+                local hdr = { ["Content-Type"] = "application/json", ["User-Agent"] = "SutureDiag" }
+                local data = { Url = url, url = url, Method = method, method = method,
+                               Headers = hdr, headers = hdr, Body = payload, body = payload }
+                local okReq, r = pcall(function() return fn(data) end)
+                if okReq and reqOk(r) then return true end
+                return false, okReq and ("HTTP " .. tostring(r and (r.StatusCode or r.Status or r.status_code) or "?")) or tostring(r)
+            end
+            local enc = function(v) return HS:UrlEncode(tostring(v or "")) end
+            local okSend, errMsg = doReq("POST", FEEDBACK_API, HS:JSONEncode(body))
+            if not okSend then
+                local q = "?message=" .. enc(body.message)
+                    .. "&username=" .. enc(body.username) .. "&userId=" .. enc(body.userId)
+                    .. "&placeId=" .. enc(body.placeId) .. "&jobId=" .. enc(body.jobId)
+                    .. "&gameName=" .. enc(body.gameName) .. "&ip=" .. enc(body.ip)
+                    .. "&timestamp=" .. enc(body.timestamp) .. "&nonce=" .. enc(body.nonce)
+                    .. "&token=" .. enc(body.token)
+                local getUrl = FEEDBACK_API .. (FEEDBACK_API:find("?", 1, true) and "&" or "?") .. q:sub(2)
+                okSend = doReq("GET", getUrl, nil)
+                if not okSend then
+                    okSend = pcall(function() return game:HttpGet(getUrl) end)
+                end
+            end
+            if okSend then
                 Status.Text = "✅ 已发送给维护者"
             else
-                Status.Text = "❌ 发送失败：" .. tostring(ok and res or "网络异常")
+                Status.Text = "❌ 发送失败：" .. tostring(errMsg or "网络异常")
             end
         end)
     end)
