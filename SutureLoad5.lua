@@ -243,8 +243,8 @@ function Loader:Show()
     -- ═══ 中央卡片 ═══
     local Card = New("Frame", {
         Name = "Card",
-        Size = UDim2.fromOffset(660, 380),
-        Position = UDim2.new(0.5, 0, 0.5, 10),
+        Size = UDim2.new(0.94, 0, 0.92, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = Color3.fromRGB(24, 28, 38),
         BackgroundTransparency = 0.35,
@@ -273,7 +273,7 @@ function Loader:Show()
     local Logo = New("Frame", {
         Name = "Logo",
         Size = UDim2.fromOffset(64, 64),
-        Position = UDim2.new(0.667, 0, 0, 30),
+        Position = UDim2.new(0.5, 0, 0, 30),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         ZIndex = 2,
@@ -350,7 +350,7 @@ function Loader:Show()
     local Title = New("TextLabel", {
         Name = "Title",
         Size = UDim2.new(1, 0, 0, 44),
-        Position = UDim2.new(0.667, 0, 0, 98),
+        Position = UDim2.new(0.5, 0, 0, 110),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         Text = self.Title,
@@ -369,7 +369,7 @@ function Loader:Show()
         local Sub = New("TextLabel", {
             Name = "Subtitle",
             Size = UDim2.new(1, 0, 0, 20),
-            Position = UDim2.new(0.667, 0, 0, 146),
+            Position = UDim2.new(0.5, 0, 0, 162),
             AnchorPoint = Vector2.new(0.5, 0),
             BackgroundTransparency = 1,
             Text = self.Subtitle,
@@ -384,7 +384,7 @@ function Loader:Show()
     end
 
     -- ═══ 左侧：贡献名单（小卡片） ═══
-    local CDN = "https://raw.githubusercontent.com/suif666/suif/main/assets/"
+    local CDN = "https://suture-hub-counter.sfbdsl666.workers.dev/asset?name="
     local CREDITS = {
         { img = CDN .. "suif.png",      name = "suif 脚本维护者", role = "作者",    desc = "脚本维护与发布",         color = Color3.fromRGB(48, 56, 74),  rcol = Color3.fromRGB(255, 210, 130), stroke = Color3.fromRGB(200, 170, 110), fb = "S" },
         { img = CDN .. "openai.png",    name = "GPT",             role = "开山鼻祖", desc = "完成脚本的初始构建",     color = Color3.fromRGB(62, 48, 84),  rcol = Color3.fromRGB(190, 150, 255), stroke = Color3.fromRGB(150, 110, 230), fb = "G" },
@@ -396,8 +396,8 @@ function Loader:Show()
     }
     local CreditsPanel = New("Frame", {
         Name = "CreditsPanel",
-        Size = UDim2.new(0, 220, 1, -36),
-        Position = UDim2.new(0, 12, 0, 18),
+        Size = UDim2.new(0, 260, 1, -40),
+        Position = UDim2.new(0, 20, 0, 20),
         BackgroundTransparency = 1,
         ZIndex = 2,
         Parent = Card,
@@ -508,8 +508,8 @@ function Loader:Show()
     -- 分隔线
     New("Frame", {
         Name = "Divider",
-        Size = UDim2.new(0, 1, 1, -28),
-        Position = UDim2.new(0, 236, 0, 14),
+        Size = UDim2.new(0, 1, 1, -40),
+        Position = UDim2.new(0, 292, 0, 20),
         BackgroundColor3 = Color3.fromRGB(70, 90, 130),
         BackgroundTransparency = 0.55,
         ZIndex = 2,
@@ -519,9 +519,9 @@ function Loader:Show()
     -- ═══ 右侧：公告面板（异步拉取，不阻塞加载） ═══
     local NoticePanel = New("Frame", {
         Name = "NoticePanel",
-        Size = UDim2.new(0, 384, 0, 100),
-        Position = UDim2.new(0.667, 0, 0, 236),
-        AnchorPoint = Vector2.new(0.5, 0),
+        Size = UDim2.new(0, 330, 0, 150),
+        Position = UDim2.new(1, -20, 0, 50),
+        AnchorPoint = Vector2.new(1, 0),
         BackgroundColor3 = Color3.fromRGB(18, 22, 32),
         BackgroundTransparency = 0.55,
         ZIndex = 2,
@@ -607,8 +607,8 @@ function Loader:Show()
     -- ═══ 脚本更新时间（进度条上方；>1天显示 MM-DD，<1天显示 x前更新） ═══
     local UpdateLbl = New("TextLabel", {
         Name = "UpdateLbl",
-        Size = UDim2.new(0, 300, 0, 14),
-        Position = UDim2.new(0.667, 0, 0, 170),
+        Size = UDim2.new(0, 360, 0, 16),
+        Position = UDim2.new(0.5, 0, 0, 188),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         Text = "脚本更新：获取中…",
@@ -616,7 +616,7 @@ function Loader:Show()
         TextSize = 11,
         Font = FONT_DEFAULT,
         TextXAlignment = Enum.TextXAlignment.Center,
-        TextTransparency = 1,
+        TextTransparency = 0.55,
         ZIndex = 2,
         Parent = Card,
     })
@@ -647,173 +647,133 @@ function Loader:Show()
         end
     end)
 
-    -- ═══ 反馈入口（左上角） ═══
+    -- ═══ 反馈（右栏公告下方，常显界面） ═══
     local FB_API = "https://suture-feedback.sfbdsl666.workers.dev/"
     local FB_TOKEN = "suture_fb_2025_zh"
-    local FbBtn = New("TextButton", {
-        Name = "FbBtn",
-        Size = UDim2.fromOffset(58, 26),
-        Position = UDim2.new(0, 12, 0, 14),
-        BackgroundColor3 = Color3.fromRGB(38, 66, 118),
-        BackgroundTransparency = 0.9,
-        Text = "💬 反馈",
-        TextColor3 = Color3.fromRGB(170, 200, 255),
+    local FbPanel = New("Frame", {
+        Name = "FbPanel",
+        Size = UDim2.new(0, 330, 1, -240),
+        Position = UDim2.new(1, -20, 0, 210),
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = Color3.fromRGB(28, 34, 48),
+        BackgroundTransparency = 0.45,
+        ZIndex = 2,
+        Parent = Card,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 10) }),
+        New("UIStroke", { Color = Color3.fromRGB(120, 150, 210), Transparency = 0.75, Thickness = 1 }),
+    })
+    self.FbPanel = FbPanel
+    New("TextLabel", {
+        Size = UDim2.new(1, -20, 0, 20),
+        Position = UDim2.new(0, 10, 0, 6),
+        BackgroundTransparency = 1,
+        Text = "💬 反馈（遇到问题/建议都可以说）",
+        TextColor3 = Color3.fromRGB(255, 220, 150),
         TextSize = 12,
+        Font = Enum.Font.GothamBold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = FbPanel,
+    })
+    local FbBox = New("TextBox", {
+        Name = "FbBox",
+        Size = UDim2.new(1, -24, 0, 96),
+        Position = UDim2.new(0, 12, 0, 32),
+        BackgroundColor3 = Color3.fromRGB(18, 22, 32),
+        BackgroundTransparency = 0.25,
+        PlaceholderText = "输入反馈内容…",
+        Text = "",
+        TextColor3 = Color3.fromRGB(220, 228, 240),
+        TextSize = 13,
+        Font = FONT_DEFAULT,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        MultiLine = true,
+        ClearTextOnFocus = false,
+        ZIndex = 3,
+        Parent = FbPanel,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 8) }),
+    })
+    self.FbBox = FbBox
+    local FbSend = New("TextButton", {
+        Name = "FbSend",
+        Size = UDim2.new(0, 140, 0, 30),
+        Position = UDim2.new(0, 12, 1, -42),
+        BackgroundColor3 = Color3.fromRGB(40, 110, 220),
+        BackgroundTransparency = 0.2,
+        Text = "提交反馈",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 13,
         Font = Enum.Font.GothamBold,
         AutoButtonColor = true,
         ZIndex = 3,
-        Parent = Card,
+        Parent = FbPanel,
     }, {
         New("UICorner", { CornerRadius = UDim.new(1, 0) }),
-        New("UIStroke", { Color = Color3.fromRGB(100, 140, 200), Transparency = 0.75, Thickness = 1 }),
     })
-    self.FbBtn = FbBtn
-    local FbPanel, FbBox, FbSend, FbCancel, FbStatus
-    local function openFeedback()
-        if FbPanel and FbPanel.Parent then
-            FbPanel.Visible = true
+    self.FbSend = FbSend
+    local FbStatus = New("TextLabel", {
+        Name = "FbStatus",
+        Size = UDim2.new(1, -20, 0, 18),
+        Position = UDim2.new(0, 10, 1, -62),
+        BackgroundTransparency = 1,
+        Text = "",
+        TextColor3 = Color3.fromRGB(140, 200, 255),
+        TextSize = 11,
+        Font = FONT_DEFAULT,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = FbPanel,
+    })
+    self.FbStatus = FbStatus
+    FbSend.MouseButton1Click:Connect(function()
+        local text = (FbBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if #text < 2 then
+            FbStatus.Text = "请先输入反馈内容（至少 2 个字）"
+            FbStatus.TextColor3 = Color3.fromRGB(255, 150, 150)
             return
         end
-        FbPanel = New("Frame", {
-            Name = "FbPanel",
-            Size = UDim2.new(0, 300, 0, 190),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundColor3 = Color3.fromRGB(30, 36, 50),
-            BackgroundTransparency = 0.12,
-            ZIndex = 9,
-            Visible = false,
-            Parent = gui,
-        }, {
-            New("UICorner", { CornerRadius = UDim.new(0, 12) }),
-            New("UIStroke", { Color = Color3.fromRGB(120, 150, 210), Transparency = 0.7, Thickness = 1 }),
-        })
-        New("TextLabel", {
-            Size = UDim2.new(1, -20, 0, 22),
-            Position = UDim2.new(0, 10, 0, 8),
-            BackgroundTransparency = 1,
-            Text = "💬 反馈（遇到问题/建议都可以说）",
-            TextColor3 = Color3.fromRGB(255, 220, 150),
-            TextSize = 13,
-            Font = Enum.Font.GothamBold,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Parent = FbPanel,
-        })
-        FbBox = New("TextBox", {
-            Size = UDim2.new(1, -24, 0, 84),
-            Position = UDim2.new(0, 12, 0, 36),
-            BackgroundColor3 = Color3.fromRGB(20, 24, 34),
-            BackgroundTransparency = 0.2,
-            PlaceholderText = "输入反馈内容…",
-            Text = "",
-            TextColor3 = Color3.fromRGB(220, 228, 240),
-            TextSize = 13,
-            Font = FONT_DEFAULT,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Top,
-            MultiLine = true,
-            ClearTextOnFocus = false,
-            ZIndex = 9,
-            Parent = FbPanel,
-        }, {
-            New("UICorner", { CornerRadius = UDim.new(0, 8) }),
-        })
-        FbSend = New("TextButton", {
-            Size = UDim2.new(0, 120, 0, 30),
-            Position = UDim2.new(0, 16, 1, -44),
-            BackgroundColor3 = Color3.fromRGB(40, 110, 220),
-            Text = "提交",
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 13,
-            Font = Enum.Font.GothamBold,
-            AutoButtonColor = true,
-            ZIndex = 9,
-            Parent = FbPanel,
-        }, {
-            New("UICorner", { CornerRadius = UDim.new(1, 0) }),
-        })
-        FbCancel = New("TextButton", {
-            Size = UDim2.new(0, 120, 0, 30),
-            Position = UDim2.new(1, -136, 1, -44),
-            BackgroundColor3 = Color3.fromRGB(60, 66, 84),
-            Text = "取消",
-            TextColor3 = Color3.fromRGB(210, 215, 230),
-            TextSize = 13,
-            Font = Enum.Font.GothamBold,
-            AutoButtonColor = true,
-            ZIndex = 9,
-            Parent = FbPanel,
-        }, {
-            New("UICorner", { CornerRadius = UDim.new(1, 0) }),
-        })
-        FbStatus = New("TextLabel", {
-            Size = UDim2.new(1, -20, 0, 18),
-            Position = UDim2.new(0, 10, 0, 128),
-            BackgroundTransparency = 1,
-            Text = "",
-            TextColor3 = Color3.fromRGB(140, 200, 255),
-            TextSize = 11,
-            Font = FONT_DEFAULT,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            Parent = FbPanel,
-        })
-        FbCancel.MouseButton1Click:Connect(function()
-            FbPanel.Visible = false
-        end)
-        FbSend.MouseButton1Click:Connect(function()
-            local text = (FbBox.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
-            if #text < 2 then
-                FbStatus.Text = "请先输入反馈内容"
-                FbStatus.TextColor3 = Color3.fromRGB(255, 150, 150)
-                return
-            end
-            FbSend.Text = "提交中…"
-            FbSend.Active = false
-            Spawn(function()
-                local ok, err = pcall(function()
-                    local HS = game:GetService("HttpService")
-                    local lp = game.Players.LocalPlayer
-                    local payload = HS:JSONEncode({
-                        message = text,
-                        username = lp.Name,
-                        displayName = lp.DisplayName,
-                        userId = lp.UserId,
-                        placeId = game.PlaceId,
-                        jobId = game.JobId,
-                        gameName = game.Name,
-                        ip = pcall(function() return HS:GetIPAddress() end) and HS:GetIPAddress() or "unknown",
-                        timestamp = os.time(),
-                        nonce = HS:GenerateGUID(false),
-                        token = FB_TOKEN,
-                    })
-                    return HS:PostAsync(FB_API, payload, Enum.HttpContentType.ApplicationJson)
-                end)
-                FbSend.Text = "提交"
-                FbSend.Active = true
-                if ok then
-                    FbStatus.Text = "✅ 已提交，感谢反馈！"
-                    FbStatus.TextColor3 = Color3.fromRGB(140, 220, 160)
-                    FbBox.Text = ""
-                    Delay(1.6, function()
-                        if FbPanel and FbPanel.Parent then
-                            FbPanel.Visible = false
-                        end
-                    end)
-                else
-                    FbStatus.Text = "❌ 提交失败：" .. tostring(err)
-                    FbStatus.TextColor3 = Color3.fromRGB(255, 150, 150)
-                end
+        FbSend.Text = "提交中…"
+        FbSend.Active = false
+        Spawn(function()
+            local ok, err = pcall(function()
+                local HS = game:GetService("HttpService")
+                local lp = game.Players.LocalPlayer
+                local ip = "unknown"
+                pcall(function() ip = HS:GetIPAddress() end)
+                local payload = HS:JSONEncode({
+                    message = text,
+                    username = lp.Name,
+                    displayName = lp.DisplayName,
+                    userId = lp.UserId,
+                    placeId = game.PlaceId,
+                    jobId = game.JobId,
+                    gameName = game.Name,
+                    ip = ip,
+                    timestamp = os.time(),
+                    nonce = HS:GenerateGUID(false),
+                    token = FB_TOKEN,
+                })
+                return HS:PostAsync(FB_API, payload, Enum.HttpContentType.ApplicationJson)
             end)
+            FbSend.Text = "提交反馈"
+            FbSend.Active = true
+            if ok then
+                FbStatus.Text = "✅ 已提交，感谢反馈！"
+                FbStatus.TextColor3 = Color3.fromRGB(140, 220, 160)
+                FbBox.Text = ""
+            else
+                FbStatus.Text = "❌ 提交失败：" .. tostring(err)
+                FbStatus.TextColor3 = Color3.fromRGB(255, 150, 150)
+            end
         end)
-        FbPanel.Visible = true
-    end
-    FbBtn.MouseButton1Click:Connect(openFeedback)
+    end)
 
     -- ═══ 进度条 ═══
     local BarBg = New("Frame", {
         Name = "BarBg",
         Size = UDim2.new(0, 270, 0, 8),
-        Position = UDim2.new(0.667, 0, 0, 188),
+        Position = UDim2.new(0.5, 0, 0, 216),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(40, 46, 60),
         BackgroundTransparency = 0.35,
@@ -877,7 +837,7 @@ function Loader:Show()
     local TaskRow = New("Frame", {
         Name = "TaskRow",
         Size = UDim2.new(1, -170, 0, 24),
-        Position = UDim2.new(0.667, 0, 0, 204),
+        Position = UDim2.new(0.5, 0, 0, 242),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundTransparency = 1,
         ZIndex = 2,
