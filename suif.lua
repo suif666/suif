@@ -1066,6 +1066,330 @@ local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked =
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【配置保存 / 读取】
+--   · 遍历 win.AllElements 里所有带状态的控件（开关 / 拉条 / 下拉框 / 输入框 /
+--     按键绑定 / 取色器，以及任何带 Value 的自定义控件），一次性存档
+--   · 文件落在执行器工作区：suture_configs/<自定义名字>.json
+--   · 不依赖 WindUI 自带的 ConfigManager —— 那套要求控件创建时带 Flag，
+--     本脚本所有控件都没有 Flag，用它存出来是空文件。
+-- ══════════════════════════════════════════════════════════════════════════════
+do
+    local CFG_DIR = "suture_configs"
+    local hasFS = (type(writefile) == "function") and (type(readfile) == "function")
+
+    -- 各类型：怎么读出来
+    local CFG_READ = {
+        Toggle = function(el) return el.Value end,
+        Slider = function(el) return el.Value and el.Value.Default or nil end,
+        Dropdown = function(el) return el.Value end,
+        Input = function(el) return el.Value end,
+        Keybind = function(el) return el.Value end,
+        Colorpicker = function(el)
+            local c = el.Default
+            if typeof(c) == "Color3" then return c:ToHex() end
+            return nil
+        end,
+    }
+    -- 各类型：怎么写回去
+    local CFG_WRITE = {
+        Toggle = function(el, v)
+            if type(el.Set) == "function" then pcall(el.Set, el, v and true or false) end
+        end,
+        Slider = function(el, v)
+            local n = tonumber(v)
+            if n and type(el.Set) == "function" then pcall(el.Set, el, n) end
+        end,
+        Dropdown = function(el, v)
+            if type(el.Select) == "function" then pcall(el.Select, el, v) end
+        end,
+        Input = function(el, v)
+            if type(el.Set) == "function" then pcall(el.Set, el, v) end
+        end,
+        Keybind = function(el, v)
+            if type(el.Set) == "function" then pcall(el.Set, el, v) end
+        end,
+        Colorpicker = function(el, v)
+            if type(v) == "string" and type(el.Update) == "function" then
+                pcall(function() el:Update(Color3.fromHex(v)) end)
+            end
+        end,
+    }
+
+    -- 收集所有可保存控件，并生成稳定 key（类型 + 标题；重名追加序号）
+    local function cfgCollect()
+        local list, seen = {}, {}
+        local all = win.AllElements
+        if type(all) ~= "table" then return list end
+        for _, el in ipairs(all) do
+            local t = el.__type
+            if t and CFG_READ[t] then
+                local title = tostring(el.Title or "")
+                local key
+                if type(el.Flag) == "string" and el.Flag ~= "" then
+                    key = t .. "|" .. el.Flag
+                elseif title ~= "" then
+                    key = t .. "|" .. title
+                else
+                    key = t .. "|#" .. tostring(el.GlobalIndex or #list)
+                end
+                seen[key] = (seen[key] or 0) + 1
+                if seen[key] > 1 then
+                    key = key .. "|" .. tostring(seen[key])
+                end
+                table.insert(list, { key = key, el = el, type = t, title = title })
+            end
+        end
+        return list
+    end
+
+    local function cfgSanitize(name)
+        name = tostring(name or "")
+        name = name:gsub("[/\\:*?\"<>|]", "_")
+        name = name:gsub("^%s+", ""):gsub("%s+$", "")
+        return name
+    end
+
+    local function cfgEnsureDir()
+        if not hasFS then return false end
+        pcall(function()
+            if type(isfolder) == "function" and type(makefolder) == "function" then
+                if not isfolder(CFG_DIR) then makefolder(CFG_DIR) end
+            end
+        end)
+        return true
+    end
+
+    local function cfgList()
+        local out = {}
+        if not hasFS then return out end
+        pcall(function()
+            if type(listfiles) == "function" then
+                for _, p in ipairs(listfiles(CFG_DIR)) do
+                    local n = tostring(p):match("([^/\\]+)%.json$")
+                    if n then table.insert(out, n) end
+                end
+            end
+        end)
+        table.sort(out)
+        return out
+    end
+
+    local function cfgSave(name)
+        if not hasFS then
+            notify("保存配置", "这个执行器不支持写文件（writefile）", "alert-triangle", 6)
+            return false
+        end
+        name = cfgSanitize(name)
+        if name == "" then
+            notify("保存配置", "先在上面填一个配置名字", "alert-triangle", 6)
+            return false
+        end
+        cfgEnsureDir()
+
+        local items = cfgCollect()
+        local data = {}
+        local saved = 0
+        for _, it in ipairs(items) do
+            local ok, v = pcall(CFG_READ[it.type], it.el)
+            if ok and v ~= nil then
+                data[it.key] = { t = it.type, v = v }
+                saved = saved + 1
+            end
+        end
+
+        local okEnc, js = pcall(function()
+            return game:GetService("HttpService"):JSONEncode(data)
+        end)
+        if not okEnc then
+            notify("保存配置", "编码失败：" .. tostring(js), "alert-triangle", 6)
+            return false
+        end
+
+        local path = CFG_DIR .. "/" .. name .. ".json"
+        local okW, errW = pcall(function() writefile(path, js) end)
+        if not okW then
+            notify("保存配置", "写入失败：" .. tostring(errW), "alert-triangle", 6)
+            return false
+        end
+
+        notify("保存配置", ("%s.json 已保存 %d 项"):format(name, saved), "check", 5)
+        print(("[配置] 已保存 → %s（%d 项）"):format(path, saved))
+        return true
+    end
+
+    local function cfgLoad(name)
+        if not hasFS then
+            notify("读取配置", "这个执行器不支持读文件（readfile）", "alert-triangle", 6)
+            return false
+        end
+        name = cfgSanitize(name)
+        if name == "" then
+            notify("读取配置", "先选一个配置", "alert-triangle", 6)
+            return false
+        end
+        local path = CFG_DIR .. "/" .. name .. ".json"
+        if type(isfile) == "function" and not isfile(path) then
+            notify("读取配置", "找不到 " .. path, "alert-triangle", 6)
+            return false
+        end
+
+        local okR, raw = pcall(function() return readfile(path) end)
+        if not okR or type(raw) ~= "string" then
+            notify("读取配置", "读取失败", "alert-triangle", 6)
+            return false
+        end
+
+        local okD, data = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(raw)
+        end)
+        if not okD or type(data) ~= "table" then
+            notify("读取配置", "文件解析失败（不是合法 JSON）", "alert-triangle", 6)
+            return false
+        end
+
+        local items = cfgCollect()
+        local byKey = {}
+        for _, it in ipairs(items) do byKey[it.key] = it end
+
+        local applied, missing = 0, 0
+        for key, rec in pairs(data) do
+            local it = byKey[key]
+            local t = type(rec) == "table" and rec.t or nil
+            if it and t and CFG_WRITE[t] then
+                local okW = pcall(CFG_WRITE[t], it.el, rec.v)
+                if okW then applied = applied + 1 else missing = missing + 1 end
+            elseif not it then
+                missing = missing + 1
+            end
+        end
+
+        notify("读取配置", ("%s.json 已应用 %d 项%s"):format(
+            name, applied, missing > 0 and ("，%d 项未找到"):format(missing) or ""), "check", 5)
+        print(("[配置] 已读取 %s：应用 %d 项，缺失 %d 项"):format(path, applied, missing))
+        return true
+    end
+
+    local function cfgDelete(name)
+        if not hasFS then return false end
+        name = cfgSanitize(name)
+        if name == "" then return false end
+        local path = CFG_DIR .. "/" .. name .. ".json"
+        local okD = pcall(function()
+            if type(isfile) == "function" and not isfile(path) then return end
+            if type(delfile) == "function" then delfile(path) end
+        end)
+        if okD then
+            notify("配置管理", "已删除 " .. name .. ".json", "trash-2", 4)
+            return true
+        end
+        notify("配置管理", "删除失败", "alert-triangle", 5)
+        return false
+    end
+
+    ------------------------------------------------------------------
+    -- UI 挂到「设置」页
+    ------------------------------------------------------------------
+    local cfgSec = settingsTab:Section({ Title = "配置保存 / 读取", Opened = true })
+    local cfgName = "default"
+    local cfgPick = nil
+    local cfgDropdown
+
+    cfgSec:Textbox({
+        Title = "配置名称",
+        Desc = "自定义名字；存到执行器工作区 " .. CFG_DIR .. "/<名字>.json",
+        Value = "default",
+        Placeholder = "例如 我的配置 / pvp / 挂机",
+        Callback = function(v)
+            cfgName = tostring(v or "")
+        end,
+    })
+
+    cfgSec:Button({
+        Title = "保存当前配置",
+        Desc = "把当前所有开关 / 拉条 / 下拉框 / 输入框 / 按键 / 颜色都存下来",
+        Icon = "save",
+        Callback = function()
+            cfgSave(cfgName)
+            if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
+                pcall(function() cfgDropdown:Refresh(cfgList()) end)
+            end
+        end,
+    })
+
+    cfgDropdown = cfgSec:Dropdown({
+        Title = "已保存的配置",
+        Desc = "选一个再点下面的读取 / 删除",
+        Values = cfgList(),
+        Value = nil,
+        Callback = function(v)
+            -- 富条目/裸字符串都兼容
+            if type(v) == "table" then
+                v = v.Title or v.Value or v.Name
+            end
+            cfgPick = v
+            if v then cfgName = tostring(v) end
+        end,
+    })
+
+    cfgSec:Button({
+        Title = "刷新配置列表",
+        Icon = "refresh-cw",
+        Callback = function()
+            if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
+                pcall(function() cfgDropdown:Refresh(cfgList()) end)
+                notify("配置管理", ("找到 %d 个配置"):format(#cfgList()), "list", 3)
+            else
+                notify("配置管理", "列表刷新不可用", "alert-triangle", 4)
+            end
+        end,
+    })
+
+    cfgSec:Button({
+        Title = "读取选中配置",
+        Desc = "把存档里的值套回所有控件",
+        Icon = "download",
+        Callback = function()
+            cfgLoad(cfgPick or cfgName)
+        end,
+    })
+
+    cfgSec:Button({
+        Title = "删除选中配置",
+        Desc = "直接删掉 suture_configs 里对应的 json",
+        Icon = "trash-2",
+        Callback = function()
+            if cfgDelete(cfgPick or cfgName) then
+                if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
+                    pcall(function() cfgDropdown:Refresh(cfgList()) end)
+                end
+            end
+        end,
+    })
+
+    cfgSec:Paragraph({
+        Title = "说明",
+        Desc = "存档位置：执行器工作区 " .. CFG_DIR
+            .. "/<名字>.json。按钮类控件没有状态，不参与保存；"
+            .. "游戏专属脚本是点页签才加载的，先点开对应页签再保存，才能把它的控件一并记下来。",
+    })
+
+    -- 导出给远程脚本（比如脚本库想自己存一份配置）
+    pcall(function()
+        local g = (getgenv and getgenv()) or _G
+        if g then
+            g.__SUIF_CONFIG = {
+                Save = cfgSave,
+                Load = cfgLoad,
+                Delete = cfgDelete,
+                List = cfgList,
+                Dir = CFG_DIR,
+                Collect = cfgCollect,
+            }
+        end
+    end)
+end
+
 -- WindUI 原生顶栏反馈入口
 local FeedbackURL = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/suif%E8%84%9A%E6%9C%AC%E5%8F%8D%E9%A6%88%E6%B8%A0%E9%81%93.lua"
 
