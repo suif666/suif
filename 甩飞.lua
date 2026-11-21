@@ -553,6 +553,33 @@ local listKey = ""
 local lastListRefresh = 0
 local selectedNames = {"ALL"}
 
+-- ★ 富玩家条目：头像 + 名字 + DisplayName · 血量（由主脚本 __SUIF_RICH_PLAYERS 生成）
+local function itemName(v)
+    local g = getgenv and getgenv() or _G
+    if type(g.__SUIF_ITEM_NAME) == "function" then
+        local ok, n = pcall(g.__SUIF_ITEM_NAME, v)
+        if ok then return n end
+    end
+    if type(v) == "table" then return v.Title or v.Name end
+    return v
+end
+
+local function richValues()
+    local g = getgenv and getgenv() or _G
+    if type(g.__SUIF_RICH_PLAYERS) == "function" then
+        local ok, r = pcall(g.__SUIF_RICH_PLAYERS, { all = true, excludeLocal = true })
+        if ok and type(r) == "table" and #r > 0 then
+            return r
+        end
+    end
+    -- 降级：主脚本没给工具就用纯名字
+    local out = {}
+    for _, n in ipairs(playerNameList) do
+        out[#out + 1] = n
+    end
+    return out
+end
+
 local function updatePlayerList(force)
     -- 限流：3 秒内最多真正刷新一次，避免频繁重建下拉框导致卡顿
     local now = os.clock()
@@ -564,9 +591,12 @@ local function updatePlayerList(force)
         lastListRefresh = now
         pcall(function()
             if TargetDropdown.Refresh then
-                TargetDropdown:Refresh(playerNameList, selectedNames)
+                -- ★ 原来写的是 Refresh(playerNameList, selectedNames)：
+                --   Boreal 的第 2 参是「新 Values」，第 3 参才是保留选中 —— 原写法会把
+                --   候选项替换成已选中的那几个。这里改成 (富条目, nil, true)。
+                TargetDropdown:Refresh(richValues(), nil, true)
             else
-                TargetDropdown:SetValues(playerNameList)
+                TargetDropdown:SetValues(richValues())
             end
         end)
     end
@@ -575,16 +605,18 @@ end
 TargetDropdown = Tab:Dropdown({
     Title = "选择目标",
  Desc = "可多选嗯对",
-    Values = playerNameList,
+    Values = richValues(),
     Value = {"ALL"},
     Multi = true,
     Callback = function(values)
         selectedNames = {}
-        for _, name in ipairs(values) do
-            table.insert(selectedNames, name)
+        for _, item in ipairs(values) do
+            local name = itemName(item)
+            if name then table.insert(selectedNames, name) end
         end
         SelectedTargets = {}
-        for _, name in ipairs(values) do
+        for _, item in ipairs(values) do
+            local name = itemName(item)
             if name == "ALL" then
                 SelectedTargets = {"ALL"}
                 break
