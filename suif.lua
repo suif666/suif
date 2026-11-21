@@ -2456,13 +2456,15 @@ lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
 -- ║ 【已恢复】D 黑白提取远程脚本整段 结束
 -- ╚══════════════════════════════════════════════════════════════╝
 
--- ============ [suture] 分帧挂载：加载器预下载的远程脚本 ============
--- 每帧只挂 1 个，间隔 0.06 秒让帧，彻底分散挂载风暴；进度写 __SUIF_MOUNT 供加载器显示
+-- ============ [suture] 分帧挂载：统一消费 __SUIF_PENDING 队列 ============
+-- 常驻循环：启动阶段的预载脚本 + 之后点页签/自动加载的脚本，全部由它消费
+-- ★ 启动条件只看 __SUIF_PRELOAD：即使加载器这次没预载任何东西，循环也要跑起来，
+--   否则后续 lazyLoad 塞进队列的任务永远没人执行（页签点开是空的）。
 pcall(function()
     local g = (getgenv and getgenv()) or _G
-    if g and g.__SUIF_PRELOAD and g.__SUIF_PENDING then
+    if g and g.__SUIF_PRELOAD then
+        g.__SUIF_PENDING = g.__SUIF_PENDING or {}
         local pending = g.__SUIF_PENDING
-        g.__SUIF_PENDING = {}
         local totalCount = #pending
         g.__SUIF_MOUNT = { total = totalCount, done = 0 }
         -- ★ 帧预算制挂载：每帧最多花 10ms 执行挂载 fn，剩余留到下一帧。
@@ -2482,8 +2484,17 @@ pcall(function()
                         while not _g.__SUIF_UI_QUEUE_EMPTY do
                             task.wait(0.03)
                         end
-                        if g.__SUIF_READY then
-                            g.__SUIF_READY()
+                        -- ★ 等「全量下载循环」也结束，否则功能类脚本还没下载完就淡出加载器
+                        local guard = 0
+                        while not _g.__SUIF_AUTOLOAD_DONE and guard < 1200 do
+                            guard = guard + 1
+                            task.wait(0.1)
+                        end
+                        if not _g.__SUIF_READY_FIRED then
+                            _g.__SUIF_READY_FIRED = true
+                            if g.__SUIF_READY then
+                                g.__SUIF_READY()
+                            end
                         end
                     end)
                 end
@@ -2527,19 +2538,12 @@ task.spawn(function()
         end
         task.wait(AUTO_LOAD_DELAY)
     end
-    -- [suture] 预编译模式：全部远程脚本下载完成后，一次性批量挂载（窗口已建好），再通知加载器淡出
+    -- [suture] 挂载统一交给常驻 mountBatch 循环消费 __SUIF_PENDING。
+    --   这里只打一个"下载全部结束"的标记，让它知道可以宣布 READY 了
+    --   （否则功能类还没下载完就淡出加载器，看起来像挂载失败）。
     pcall(function()
         local g = (getgenv and getgenv()) or _G
-        if g and g.__SUIF_PRELOAD and g.__SUIF_PENDING then
-            local pending = g.__SUIF_PENDING
-            g.__SUIF_PENDING = {}
-            for _, fn in ipairs(pending) do
-                pcall(fn)
-            end
-            if g.__SUIF_READY then
-                g.__SUIF_READY()
-            end
-        end
+        if g then g.__SUIF_AUTOLOAD_DONE = true end
     end)
 end)
 
@@ -2547,7 +2551,8 @@ end)
 -- [suture] READY 通知：预编译模式下由全量加载末尾统一触发；非预编译模式（独立执行）立即触发
 pcall(function()
     local g = (getgenv and getgenv()) or _G
-    if g and g.__SUIF_READY and not g.__SUIF_PRELOAD then
+    if g and g.__SUIF_READY and not g.__SUIF_PRELOAD and not g.__SUIF_READY_FIRED then
+        g.__SUIF_READY_FIRED = true
         g.__SUIF_READY()
     end
 end)
