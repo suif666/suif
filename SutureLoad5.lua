@@ -1394,7 +1394,7 @@ local REMOTE_SPECS = {
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/actionpack.lua", desc = "动作包" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/animpack.lua", desc = "动画包" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/disguise.lua", desc = "伪装玩家" },
-    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/slowrun.lua", desc = "缓慢的快速跑" },
+    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/slowrun.lua", desc = "缓慢的快速跑" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/clicker.lua", desc = "自动连点器" },
     { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/trigger.lua", desc = "触发类" },
     -- 黑白脚本加载器（tfcygvunbind/Apple）已移除：它是独立 UI 脚本，
