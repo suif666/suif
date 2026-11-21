@@ -420,6 +420,83 @@ local win = WindUI:CreateWindow({
     OpenButton = { Scale = 0.85, OnlyIcon = false }
 })
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【全局 UI 容器统一】WindUI 自己的 4 个 ScreenGui（主窗口 / 通知 / 下拉菜单 /
+-- 工具提示）默认走 gethui()，但执行器不支持时会退回 PlayerGui —— 那正好是
+-- 游戏 LocalScript 唯一能枚举到的容器。这里一律强制迁到 HIDDEN，并逐个保护。
+--
+-- 同时导出给所有远程脚本：
+--   getgenv().__SUIF_HOST                 → 隐藏容器本身
+--   getgenv().__SUIF_HIDDEN_GUI(name)     → 建一个挂在隐藏容器里的 ScreenGui
+-- 远程脚本里任何 ScreenGui 都必须用这两样，不要再挂 PlayerGui。
+-- ══════════════════════════════════════════════════════════════════════════════
+do
+    local g = (getgenv and getgenv()) or _G
+
+    local function protectGui(o)
+        pcall(function()
+            if protect_gui then
+                protect_gui(o)
+            elseif syn and syn.protect_gui then
+                syn.protect_gui(o)
+            elseif type(getgenv().protect_gui) == "function" then
+                getgenv().protect_gui(o)
+            end
+        end)
+    end
+
+    -- 把 WindUI 的四个 Gui 全部搬到隐藏容器
+    pcall(function()
+        if type(WindUI.SetParent) == "function" then
+            WindUI:SetParent(HIDDEN)
+        end
+    end)
+    -- 兜底：SetParent 不可用 / 有遗漏时，按名字直查
+    pcall(function()
+        local known = { "ScreenGui", "NotificationGui", "DropdownGui", "TooltipGui" }
+        for _, k in ipairs(known) do
+            local o = WindUI[k]
+            if o and o.Parent ~= HIDDEN then
+                pcall(function() o.Parent = HIDDEN end)
+            end
+        end
+    end)
+    -- 再兜底：把 HIDDEN 里名字像 WindUI 的 Gui 也保护一遍
+    pcall(function()
+        for _, c in ipairs(HIDDEN:GetChildren()) do
+            if c:IsA("ScreenGui") and string.find(string.lower(c.Name), "windui", 1, true) then
+                protectGui(c)
+            end
+        end
+    end)
+
+    if g then
+        g.__SUIF_HOST = HIDDEN
+        g.__SUIF_HIDDEN_GUI = function(name, displayOrder)
+            local gui = Instance.new("ScreenGui")
+            gui.Name = tostring(name or ("SutureUI_" .. __rnd(8)))
+            gui.ResetOnSpawn = false
+            gui.IgnoreGuiInset = true
+            gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            gui.DisplayOrder = displayOrder or 999999
+            gui.Parent = HIDDEN
+            protectGui(gui)
+            return gui
+        end
+        -- 把已有的 Gui 搬进隐藏容器（远程脚本里拿到的旧引用也能用）
+        g.__SUIF_HIDE_GUI = function(gui)
+            if gui and gui.Parent ~= HIDDEN then
+                pcall(function() gui.Parent = HIDDEN end)
+            end
+            protectGui(gui)
+            return gui
+        end
+    end
+
+    print(("[suture] UI 容器已统一到 %s（%d 个 ScreenGui）"):format(
+        tostring(HIDDEN:GetFullName()), #HIDDEN:GetChildren()))
+end
+
 -- ══════════════════════════════════════════════════════════════════
 -- [suture] 控件分批创建：避免一次性创建上百控件触发 UIListLayout 重排卡死界面
 -- 原理：hook Section:Tab -> tab 的控件方法，把创建调用排进队列，每帧只建 4 个
@@ -1044,19 +1121,19 @@ mainTab:Paragraph({
 
 mainTab:Paragraph({
     Title = "Suture Hub",
-    Desc = "欢迎使用 Suture Hub\n作者：suif\n企鹅群1134771930\n当前玩家：" .. lp.Name
+    Desc = "欢迎使用 Suture Hub\n作者：suif\n企鹅群462989034\n当前玩家：" .. lp.Name
 })
 
 mainTab:Paragraph({
     Title = "群聊",
-    Desc = "1134771930"
+    Desc = "462989034"
 })
 
 local countText = mainTab:Paragraph({
     Title = "全网执行次数",
     Desc = "正在获取..."
 })
-	
+
 -- 历史公告查看：请求后台历史公告列表，一次 Popup 显示全部（内容区可滚动）
 mainTab:Button({
     Title = "历史公告",
@@ -1850,12 +1927,6 @@ toolTab:Button({
     Title = "dex汉化", Desc = "顾名思义", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/dex.lua", "dex汉化") end
 })
-
-toolTab:Button({
-    Title = "dex++汉化", Desc = "需要再设置里面开启翻译", Icon = "shell",
-    Callback = function() run("https://github.com/czp86263-del/Dex-RE-/releases/download/Dex/Dex.RE++.lua", "dex++汉化") end
-})
-
 
 toolTab:Button({
     Title = "iy汉化", Desc = "infiniteyield的汉化版 功能可能不会和原版同步", Icon = "shell",
@@ -2738,13 +2809,6 @@ WindUI:Notify({
     Content = "遇到什么问题\n没有自己想玩的服务器\n脚本没法执行\n可以点右上角的反馈按钮进行反馈",
     Icon = "message-square-warning",
     Duration = 10
-})
-
-WindUI:Notify({
-    Title = "请务必加入我们的群聊",
-    Content = "1134771930",
-    Icon = "aperture",
-    Duration = 20
 })
 
 -- ╔══════════════════════════════════════════════════════════════╗
