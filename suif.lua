@@ -604,15 +604,9 @@ do
                         it.c.Visible = true
                     end
                 end)
-                -- 把还在队列里的控件一次性补完（同步，不再分帧）
-                pcall(function()
-                    local guard = 0
-                    while #UI_BATCH_QUEUE > 0 and guard < 2000 do
-                        guard = guard + 1
-                        local job = table.remove(UI_BATCH_QUEUE, 1)
-                        pcall(job)
-                    end
-                end)
+                -- ★ 不在这里同步补队列：一帧内建上千个控件会直接卡死。
+                --   UIBatchFlush 本来就在分批消费，让它继续跑即可。
+                pcall(UIBatchFlush)
             end
         end
     end
