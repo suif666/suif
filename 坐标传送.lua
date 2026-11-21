@@ -1222,6 +1222,33 @@ local function buildPlayerNames()
     return list
 end
 
+-- ★ 富玩家条目：头像 + 名字 + DisplayName · 血量（主脚本 __SUIF_RICH_PLAYERS 生成）
+local function itemName(v)
+    local g = getgenv and getgenv() or _G
+    if type(g.__SUIF_ITEM_NAME) == "function" then
+        local ok, n = pcall(g.__SUIF_ITEM_NAME, v)
+        if ok then return n end
+    end
+    if type(v) == "table" then return v.Title or v.Name end
+    return v
+end
+
+local function buildPlayerValues()
+    local g = getgenv and getgenv() or _G
+    if type(g.__SUIF_RICH_PLAYERS) == "function" then
+        local ok, r = pcall(g.__SUIF_RICH_PLAYERS, { excludeLocal = true })
+        if ok and type(r) == "table" and #r > 0 then
+            return r
+        end
+    end
+    -- 降级：纯名字
+    local out = {}
+    for _, n in ipairs(buildPlayerNames()) do
+        out[#out + 1] = n
+    end
+    return out
+end
+
 local function getPlayerByName(name)
     if not name or name == "" then return nil end
     for _, p in ipairs(Players:GetPlayers()) do
@@ -1252,15 +1279,37 @@ local function teleportToPlayer()
 end
 
 safe("传送玩家-目标选择", function()
-    tpPlayerSec:Dropdown({
+    local tpDropdown = tpPlayerSec:Dropdown({
         Title = "选择目标玩家",
-        Desc = "单次传送和循环传送共用这个目标",
-        Values = buildPlayerNames(),
+        Desc = "单次传送和循环传送共用这个目标（带头像和血量）",
+        Values = buildPlayerValues(),
         Value = nil,
         Callback = function(v)
-            tpTargetName = v
+            tpTargetName = itemName(v)
         end,
     })
+    -- ★ 玩家进出时刷新候选（2 秒合并一次，避免频繁重建列表卡顿）
+    local lastRefresh = 0
+    local scheduled = false
+    local function scheduleRefresh()
+        if scheduled then return end
+        scheduled = true
+        local waitFor = 2.0 - (os.clock() - lastRefresh)
+        if waitFor < 0.2 then waitFor = 0.2 end
+        task.delay(waitFor, function()
+            scheduled = false
+            lastRefresh = os.clock()
+            pcall(function()
+                if tpDropdown and tpDropdown.Refresh then
+                    tpDropdown:Refresh(buildPlayerValues(), nil, true)
+                end
+            end)
+        end)
+    end
+    pcall(function()
+        Players.PlayerAdded:Connect(scheduleRefresh)
+        Players.PlayerRemoving:Connect(scheduleRefresh)
+    end)
 end)
 
 safe("传送玩家-单次", function()
