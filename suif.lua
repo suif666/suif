@@ -1044,7 +1044,7 @@ mainTab:Paragraph({
 
 mainTab:Paragraph({
     Title = "Suture Hub",
-    Desc = "欢迎使用 Suture Hub\n作者：suif\n企鹅群462989034\n当前玩家：" .. lp.Name
+    Desc = "欢迎使用 Suture Hub\n作者：suif\n企鹅群1134771930\n当前玩家：" .. lp.Name
 })
 
 mainTab:Paragraph({
@@ -1056,7 +1056,7 @@ local countText = mainTab:Paragraph({
     Title = "全网执行次数",
     Desc = "正在获取..."
 })
-
+	
 -- 历史公告查看：请求后台历史公告列表，一次 Popup 显示全部（内容区可滚动）
 mainTab:Button({
     Title = "历史公告",
@@ -2738,6 +2738,13 @@ WindUI:Notify({
     Content = "遇到什么问题\n没有自己想玩的服务器\n脚本没法执行\n可以点右上角的反馈按钮进行反馈",
     Icon = "message-square-warning",
     Duration = 10
+})
+
+WindUI:Notify({
+    Title = "请务必加入我们的群聊",
+    Content = "1134771930",
+    Icon = "aperture",
+    Duration = 20
 })
 
 -- ╔══════════════════════════════════════════════════════════════╗
