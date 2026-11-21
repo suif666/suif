@@ -2727,7 +2727,8 @@ getgenv().SutureHBDisguiseTab = hbDisguiseTab
 hbLoad(HB_REMOTE_BASE .. "disguise.lua", "伪装玩家", hbDisguiseTab)
 
 -- 玩家类（复用 suif.lua 已有的 playerTab）
-hbLoad(HB_REMOTE_BASE .. "slowrun.lua", "缓慢的快速跑", playerTab)
+-- ★ 缓慢的快速跑：已按需求移除，不再加载（脚本文件仍留在仓库，需要时取消注释即可）
+-- hbLoad(HB_REMOTE_BASE .. "slowrun.lua", "缓慢的快速跑", playerTab)
 
 -- 工具类（复用 suif.lua 已有的 toolTab）
 hbLoad(HB_REMOTE_BASE .. "clicker.lua", "自动连点器", toolTab)
