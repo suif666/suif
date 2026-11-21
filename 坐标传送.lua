@@ -1310,6 +1310,37 @@ safe("传送玩家-目标选择", function()
         Players.PlayerAdded:Connect(scheduleRefresh)
         Players.PlayerRemoving:Connect(scheduleRefresh)
     end)
+
+    -- ★ 点一下直接开居中大面板（自带搜索/头像）
+    -- ★ 注册到全局刷新总线：任何脚本点「刷新玩家列表」都会刷这一个
+    local g = (getgenv and getgenv()) or _G
+    if type(g.__SUIF_BIGONLY) == "function" then
+        pcall(g.__SUIF_BIGONLY, tpDropdown)
+    end
+    if type(g.__SUIF_REGISTER_PLAYER_DD) == "function" then
+        pcall(g.__SUIF_REGISTER_PLAYER_DD, tpDropdown, function(dd)
+            if dd.Refresh then
+                dd:Refresh(buildPlayerValues(), nil, true)
+            end
+        end, "传送类")
+    end
+end)
+
+safe("传送玩家-刷新玩家列表", function()
+    tpPlayerSec:Button({
+        Title = "刷新玩家列表（同步全部）",
+        Desc = "刷新所有脚本里的玩家下拉框（甩飞 / 传送 / 发言 / 伪装都一起更新）",
+        Icon = "refresh-cw",
+        Callback = function()
+            local g = (getgenv and getgenv()) or _G
+            local n = 0
+            if type(g.__SUIF_REFRESH_ALL_PLAYERS) == "function" then
+                local ok, r = pcall(g.__SUIF_REFRESH_ALL_PLAYERS)
+                if ok and type(r) == "number" then n = r end
+            end
+            notify("传送玩家", ("全部玩家下拉框已更新（%d 个）"):format(n), "check")
+        end,
+    })
 end)
 
 safe("传送玩家-单次", function()
