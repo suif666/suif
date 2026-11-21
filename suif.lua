@@ -397,6 +397,7 @@ do
         pcall(function()
             local ui = dd and dd.UIElements
             if not ui then return end
+            if dd.__BigOpen then return end                            -- 放大菜单有自己的布局，别碰
             local canvas = ui.MenuCanvas
             if not canvas or not canvas.Visible then return end
             local btn = ui.Dropdown
