@@ -72,6 +72,8 @@ local Player = Players.LocalPlayer
 local PlayerGui = Player and Player:WaitForChild("PlayerGui")
 
 local FONT_DEFAULT = Enum.Font.Gotham
+-- 原本 708/789 行就引用了 FONT_BOLD 但从没定义过（Font=nil 会直接抛错），这里补上
+local FONT_BOLD = Enum.Font.GothamBold
 
 local function New(class, props, children)
     local obj = Instance.new(class)
@@ -577,6 +579,240 @@ function Loader:Show()
     Tween(NoticePanel, 0.7, { BackgroundTransparency = 0.4 })
     Tween(NoticeTitle, 0.7, { TextTransparency = 0 })
     Tween(NoticeBodyText, 0.7, { TextTransparency = 0.35 })
+    -- ═══════════════════════════════════════════════════════════════════
+    -- 新公告 → 屏幕中央弹窗 + 「已知晓」
+    --   已读记录写在 suture_announce_seen.txt（执行器不支持写文件时退回内存），
+    --   下次执行加载器若指纹一致就不再弹，直到发布新公告。
+    -- ═══════════════════════════════════════════════════════════════════
+    local ANN_SEEN_FILE = "suture_announce_seen.txt"
+
+    local function annFingerprint(ann)
+        local raw = table.concat({
+            tostring(ann.version or ""),
+            tostring(ann.title or ""),
+            tostring(ann.content or ""),
+        }, "\1")
+        local h = 5381
+        for i = 1, #raw do
+            h = (h * 33 + string.byte(raw, i)) % 4294967296
+        end
+        return string.format("%08x", h)
+    end
+
+    local function annReadSeen()
+        local ok, s = pcall(function()
+            if type(isfile) == "function" and type(readfile) == "function" then
+                if isfile(ANN_SEEN_FILE) then
+                    return readfile(ANN_SEEN_FILE)
+                end
+            end
+            return nil
+        end)
+        if ok and type(s) == "string" then
+            return (s:gsub("[^%w]", ""))
+        end
+        local g = getgenv and getgenv()
+        if g then return tostring(g.__SUTURE_ANN_SEEN or "") end
+        return ""
+    end
+
+    local function annWriteSeen(v)
+        pcall(function()
+            if type(writefile) == "function" then
+                writefile(ANN_SEEN_FILE, v)
+            end
+        end)
+        local g = getgenv and getgenv()
+        if g then g.__SUTURE_ANN_SEEN = v end
+    end
+
+    local function annShowPopup(ann, fp)
+        pcall(function()
+            local Players = game:GetService("Players")
+            local pg = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            if not pg then
+                pg = Players.LocalPlayer:WaitForChild("PlayerGui", 10)
+            end
+            if not pg then return end
+
+            local old = pg:FindFirstChild("SutureAnnouncePopup")
+            if old then old:Destroy() end
+
+            local gui = New("ScreenGui", {
+                Name = "SutureAnnouncePopup",
+                IgnoreGuiInset = true,
+                DisplayOrder = 2147483000,
+                ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+                Parent = pg,
+            })
+
+            local Overlay = New("Frame", {
+                Name = "Overlay",
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                BackgroundTransparency = 0.5,
+                BorderSizePixel = 0,
+                Parent = gui,
+            })
+
+            local Card = New("Frame", {
+                Name = "Card",
+                Size = UDim2.new(0, 540, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Position = UDim2.new(0.5, 0, 0.5, 0),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = Color3.fromRGB(17, 20, 28),
+                BorderSizePixel = 0,
+                Parent = Overlay,
+            })
+
+            New("UICorner", { CornerRadius = UDim.new(0, 14), Parent = Card })
+            New("UIStroke", {
+                Color = Color3.fromRGB(62, 74, 100),
+                Thickness = 1,
+                Transparency = 0.25,
+                Parent = Card,
+            })
+            New("UIPadding", {
+                PaddingTop = UDim.new(0, 18),
+                PaddingBottom = UDim.new(0, 18),
+                PaddingLeft = UDim.new(0, 22),
+                PaddingRight = UDim.new(0, 22),
+                Parent = Card,
+            })
+            New("UIListLayout", {
+                FillDirection = Enum.FillDirection.Vertical,
+                Padding = UDim.new(0, 10),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                Parent = Card,
+            })
+
+            -- 顶部小标签
+            local Tag = New("TextLabel", {
+                LayoutOrder = 1,
+                Size = UDim2.new(1, 0, 0, 18),
+                BackgroundTransparency = 1,
+                Font = FONT_DEFAULT,
+                TextSize = 12,
+                Text = "📢  新公告",
+                TextColor3 = Color3.fromRGB(120, 180, 255),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = Card,
+            })
+
+            -- 公告标题
+            local TitleLbl = New("TextLabel", {
+                LayoutOrder = 2,
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Font = FONT_BOLD,
+                TextSize = 20,
+                Text = tostring(ann.title or "公告"),
+                TextColor3 = Color3.fromRGB(240, 244, 250),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextWrapped = true,
+                Parent = Card,
+            })
+
+            -- 版本号（有才显示）
+            if ann.version and tostring(ann.version) ~= "" then
+                New("TextLabel", {
+                    LayoutOrder = 3,
+                    Size = UDim2.new(1, 0, 0, 16),
+                    BackgroundTransparency = 1,
+                    Font = FONT_DEFAULT,
+                    TextSize = 12,
+                    Text = tostring(ann.version),
+                    TextColor3 = Color3.fromRGB(140, 160, 190),
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Parent = Card,
+                })
+            end
+
+            -- 分隔线
+            New("Frame", {
+                LayoutOrder = 4,
+                Size = UDim2.new(1, 0, 0, 1),
+                BackgroundColor3 = Color3.fromRGB(48, 56, 72),
+                BorderSizePixel = 0,
+                Parent = Card,
+            })
+
+            -- 正文（可滚动）
+            local Scroll = New("ScrollingFrame", {
+                LayoutOrder = 5,
+                Size = UDim2.new(1, 0, 0, 210),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ScrollBarThickness = 4,
+                ScrollBarImageColor3 = Color3.fromRGB(90, 105, 130),
+                ScrollingDirection = Enum.ScrollingDirection.Y,
+                CanvasSize = UDim2.new(0, 0, 0, 0),
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                Parent = Card,
+            })
+            New("UIPadding", {
+                PaddingRight = UDim.new(0, 8),
+                Parent = Scroll,
+            })
+            New("TextLabel", {
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundTransparency = 1,
+                Font = FONT_DEFAULT,
+                TextSize = 14,
+                Text = tostring(ann.content or ""),
+                TextColor3 = Color3.fromRGB(205, 214, 228),
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                TextWrapped = true,
+                LineHeight = 1.25,
+                Parent = Scroll,
+            })
+
+            -- 底部按钮行
+            local BtnRow = New("Frame", {
+                LayoutOrder = 6,
+                Size = UDim2.new(1, 0, 0, 38),
+                BackgroundTransparency = 1,
+                Parent = Card,
+            })
+
+            local OkBtn = New("TextButton", {
+                Name = "AckBtn",
+                Size = UDim2.new(0, 116, 0, 36),
+                Position = UDim2.new(1, 0, 0, 0),
+                AnchorPoint = Vector2.new(1, 0),
+                BackgroundColor3 = Color3.fromRGB(58, 112, 210),
+                BorderSizePixel = 0,
+                AutoButtonColor = true,
+                Font = FONT_BOLD,
+                TextSize = 14,
+                Text = "已知晓",
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                Parent = BtnRow,
+            })
+            New("UICorner", { CornerRadius = UDim.new(0, 8), Parent = OkBtn })
+
+            OkBtn.MouseButton1Click:Connect(function()
+                annWriteSeen(fp)
+                Tween(Overlay, 0.18, { BackgroundTransparency = 1 })
+                Tween(Card, 0.18, { BackgroundTransparency = 1 })
+                Tween(OkBtn, 0.18, { BackgroundTransparency = 1, TextTransparency = 1 })
+                task.delay(0.22, function()
+                    pcall(function() gui:Destroy() end)
+                end)
+            end)
+
+            -- 入场动画
+            Card.BackgroundTransparency = 1
+            Card.Size = UDim2.new(0, 500, 0, 0)
+            Tween(Card, 0.18, { BackgroundTransparency = 0, Size = UDim2.new(0, 540, 0, 0) })
+        end)
+    end
+
     -- 异步拉公告
     Spawn(function()
         local ok, res = pcall(function()
@@ -598,6 +834,13 @@ function Loader:Show()
                 if self.NoticeBodyText then
                     self.NoticeBodyText.Text = decoded.content
                     Tween(self.NoticeBodyText, 0.4, { TextTransparency = 0 })
+                end
+                -- ★ 新公告检测：指纹变了才在屏幕中央弹窗
+                local fp = annFingerprint(decoded)
+                if fp ~= annReadSeen() then
+                    task.delay(0.4, function()
+                        annShowPopup(decoded, fp)
+                    end)
                 end
             end
         end
