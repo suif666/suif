@@ -201,11 +201,10 @@ local function loadRemote(url, desc, onSuccess, onFail)
                     if g2.__PRELOADED_URLS and g2.__PRELOADED_URLS[url] then
                         return
                     end
-                    -- 预编译模式：排队等主窗口出现后一次性挂载
+                    -- 排队交给常驻挂载循环消费（它每 0.1 秒检查一次新任务，
+                    -- 所以点页签这种晚到的加载也能被执行，不会再"点了没反应"）
                     g2.__SUIF_PENDING = g2.__SUIF_PENDING or {}
                     table.insert(g2.__SUIF_PENDING, fn)
-                    g2.__PRELOADED_URLS = g2.__PRELOADED_URLS or {}
-                    g2.__PRELOADED_URLS[url] = true
                 else
                     fn()
                 end
@@ -2469,31 +2468,44 @@ pcall(function()
         -- ★ 帧预算制挂载：每帧最多花 10ms 执行挂载 fn，剩余留到下一帧。
         --   比"固定 1 个 + 0.05s 等待"更平滑：轻的 fn 一帧能挂多个，重的 fn 自动拆到多帧。
         local MOUNT_FRAME_BUDGET = 0.010
+        local announced = false
         local function mountBatch()
-            if #pending <= 0 then
-                g.__SUIF_MOUNT = nil
-                -- 全部 fn 执行完 → 等 UI 控件队列排空（控件全部建完、布局恢复）才宣布完成
-                task.spawn(function()
-                    local _g = (getgenv and getgenv()) or _G
-                    while not _g.__SUIF_UI_QUEUE_EMPTY do
-                        task.wait(0.03)
-                    end
-                    if g.__SUIF_READY then
-                        g.__SUIF_READY()
-                    end
-                end)
+            -- ★ 每轮重新取队列引用：lazyLoad 晚到（用户点页签）时会塞进新的队列
+            local q = g.__SUIF_PENDING
+            if not q or #q <= 0 then
+                -- 空闲：宣布一次完成，然后低频轮询等新任务（不再退出，否则点页签没人消费）
+                if not announced then
+                    announced = true
+                    g.__SUIF_MOUNT = nil
+                    task.spawn(function()
+                        local _g = (getgenv and getgenv()) or _G
+                        while not _g.__SUIF_UI_QUEUE_EMPTY do
+                            task.wait(0.03)
+                        end
+                        if g.__SUIF_READY then
+                            g.__SUIF_READY()
+                        end
+                    end)
+                end
+                task.wait(0.1)
+                mountBatch()
                 return
             end
+            announced = false
+            g.__SUIF_MOUNT = g.__SUIF_MOUNT or { total = 0, done = 0 }
             local t0 = os.clock()
-            while #pending > 0 and (os.clock() - t0) < MOUNT_FRAME_BUDGET do
-                local fn = table.remove(pending, 1)
+            while true do
+                local cur = g.__SUIF_PENDING
+                if not cur or #cur <= 0 then break end
+                if (os.clock() - t0) >= MOUNT_FRAME_BUDGET then break end
+                local fn = table.remove(cur, 1)
                 if fn then
                     pcall(fn)
                 end
-                g.__SUIF_MOUNT.done = g.__SUIF_MOUNT.done + 1
+                g.__SUIF_MOUNT.done = (g.__SUIF_MOUNT.done or 0) + 1
             end
             task.spawn(function()
-                task.wait()   -- 直接下一帧继续（不再固定等待 0.05s）
+                task.wait()
                 mountBatch()
             end)
         end
