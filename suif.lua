@@ -823,6 +823,7 @@ local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked =
 local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
+local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -3054,6 +3055,13 @@ gTab:Button({
             warn("复制失败：当前环境不支持复制")
         end
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E7%8B%97.lua", "狗")
+    end
+})
+
+zqzcTab:Button({
+    Title = "[🔑]自动农场", Desc = "字面意思 可以挂机刷人头", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%87%AA%E5%8A%A8%E5%86%9C%E5%9C%BA.lua", "自动农场")
     end
 })
 
