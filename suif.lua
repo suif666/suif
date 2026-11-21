@@ -134,6 +134,13 @@ end)
 
 -- 【视觉体积优化版】全局通知函数
 local function notify(title, content, icon, duration)
+    -- ★ 配置恢复期间静音：套用存档会触发几十个控件的 Callback，每个都弹一下就是刷屏。
+    --   设 getgenv().__SUIF_QUIET = true 期间全部丢弃，读完只弹一条汇总。
+    local _gq = (getgenv and getgenv()) or _G
+    if _gq and _gq.__SUIF_QUIET then
+        return
+    end
+
     local shortText = title
     if content and content ~= "" then
         shortText = title .. " | " .. content
@@ -3125,7 +3132,7 @@ task.defer(function()
             return out
         end
 
-        local function cfgSave(name)
+        local function cfgSave(name, isOverwrite)
             if not hasFS then
                 notify("保存配置", "这个执行器不支持写文件（writefile）", "alert-triangle", 6)
                 return false
@@ -3165,8 +3172,12 @@ task.defer(function()
                 notify("保存配置", "写入失败", "alert-triangle", 6)
                 return false
             end
-            notify("保存配置", ("%s.json 已保存 %d 项"):format(name, saved), "check", 5)
-            print(("[配置] 已保存 → %s（%d 项）"):format(path, saved))
+            if isOverwrite then
+                notify("覆盖配置", ("%s.json 已覆盖为 %d 项"):format(name, saved), "check", 4)
+            else
+                notify("保存配置", ("%s.json 已保存 %d 项"):format(name, saved), "check", 4)
+            end
+            print(("[配置] 已%s → %s（%d 项）"):format(isOverwrite and "覆盖" or "保存", path, saved))
             return true
         end
 
@@ -3201,23 +3212,41 @@ task.defer(function()
             local byKey = {}
             for _, it in ipairs(cfgCollect()) do byKey[it.key] = it end
 
+            -- ★ 静音：套用过程中每个控件 Callback 里的通知一律丢弃，
+            --   否则一次恢复能弹几十条。同时屏蔽 WindUI:Notify 直连的调用。
+            local _g = (getgenv and getgenv()) or _G
+            local prevQuiet = _g and _g.__SUIF_QUIET
+            local prevWUNotify = WindUI and WindUI.Notify
+            if _g then _g.__SUIF_QUIET = true end
+            if WindUI then
+                WindUI.Notify = function() return nil end
+            end
+
             local applied, missing = 0, 0
-            for key, rec in pairs(data) do
-                local it = byKey[key]
-                local t = (type(rec) == "table") and rec.t or nil
-                if it and t and CFG_WRITE[t] then
-                    if pcall(CFG_WRITE[t], it.el, rec.v) then
-                        applied = applied + 1
+            pcall(function()
+                for key, rec in pairs(data) do
+                    local it = byKey[key]
+                    local t = (type(rec) == "table") and rec.t or nil
+                    if it and t and CFG_WRITE[t] then
+                        if pcall(CFG_WRITE[t], it.el, rec.v) then
+                            applied = applied + 1
+                        else
+                            missing = missing + 1
+                        end
                     else
                         missing = missing + 1
                     end
-                else
-                    missing = missing + 1
                 end
+            end)
+
+            if _g then _g.__SUIF_QUIET = prevQuiet end
+            if WindUI and type(prevWUNotify) == "function" then
+                WindUI.Notify = prevWUNotify
             end
-            notify("读取配置", ("%s.json 已应用 %d 项%s"):format(
-                name, applied, missing > 0 and (("，%d 项未找到"):format(missing)) or ""), "check", 5)
-            print(("[配置] 已读取 %s：应用 %d，缺失 %d"):format(path, applied, missing))
+
+            -- 只留这一条
+            notify("读取配置", ("成功恢复 %d 项"):format(applied), "check", 4)
+            print(("[配置] 已读取 %s：%d 项，缺失 %d"):format(path, applied, missing))
             return true
         end
 
@@ -3315,6 +3344,30 @@ task.defer(function()
             })
         end)
 
+        build("覆盖配置按钮", function()
+            cfgSec:Button({
+                Title = "覆盖配置",
+                Desc = "把当前所有设置写回「已保存的配置」里选中的那个（直接覆盖原文件）",
+                Callback = function()
+                    local target = cfgPick
+                    if not target or target == "（还没有存档）" then
+                        notify("覆盖配置", "先在下面选一个要覆盖的配置", "alert-triangle", 4)
+                        return
+                    end
+                    local exists = false
+                    for _, n in ipairs(cfgList()) do
+                        if n == target then exists = true break end
+                    end
+                    if not exists then
+                        notify("覆盖配置", target .. " 不存在，用「保存当前配置」新建", "alert-triangle", 5)
+                        return
+                    end
+                    cfgSave(target, true)
+                    cfgName = tostring(target)     -- 名字框同步成被覆盖的那个
+                end,
+            })
+        end)
+
         build("Dropdown", function()
             cfgDropdown = cfgSec:Dropdown({
                 Title = "已保存的配置",
@@ -3366,6 +3419,7 @@ task.defer(function()
             cfgSec:Paragraph({
                 Title = "说明",
                 Desc = "存档位置：执行器工作区 " .. CFG_DIR .. "/<名字>.json。"
+                    .. "「保存」= 新建/写入名字框里的名字；「覆盖」= 写回下拉框里选中的那份。"
                     .. "按钮类控件没有状态，不参与保存。"
                     .. "游戏专属脚本是点页签才加载的，先点开对应页签再保存，才能把它一并记下来。",
             })
