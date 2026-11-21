@@ -37,16 +37,32 @@ local PositionMap = {
 }
 
 -- 创建显示界面
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "PingFPSDisplay"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local success = pcall(function()
-    ScreenGui.Parent = CoreGui
-end)
-if not success then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+-- ★ 统一隐藏容器：优先主脚本导出的 __SUIF_HIDDEN_GUI（gethui/CoreGui），
+--   不落 PlayerGui（那是游戏 LocalScript 唯一能枚举到的地方）
+local ScreenGui
+do
+    local g0 = (getgenv and getgenv()) or _G
+    if type(g0.__SUIF_HIDDEN_GUI) == "function" then
+        local ok, r = pcall(g0.__SUIF_HIDDEN_GUI, "PingFPSDisplay", 90)
+        if ok and r then ScreenGui = r end
+    end
+    if not ScreenGui then
+        ScreenGui = Instance.new("ScreenGui")
+        ScreenGui.Name = "PingFPSDisplay"
+        ScreenGui.ResetOnSpawn = false
+        ScreenGui.IgnoreGuiInset = true
+        ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        local okH, h = pcall(function() return gethui and gethui() end)
+        if okH and h then
+            ScreenGui.Parent = h
+        else
+            local okC = pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
+            if not okC then
+                ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+            end
+        end
+        if type(g0.__SUIF_HIDE_GUI) == "function" then pcall(g0.__SUIF_HIDE_GUI, ScreenGui) end
+    end
 end
 
 local Frame = Instance.new("Frame")
