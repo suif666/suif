@@ -131,34 +131,43 @@ end
 UpdatePosition(Config.Position)
 UpdateSize(Config.TextSize)
 
--- FPS 计算
-local frames = 0
-local lastTime = tick()
+-- ★ 原来这里挂了两个永久连接：
+--     ① RenderStepped 每帧自增计数（60~240fps → 每帧一次 Lua 回调）
+--     ② Heartbeat 每帧写 FPSLabel/PingLabel（**每帧 UI 重绘**）+ 每帧调 GetNetworkPing
+--   两个都不断开，就算显示关掉也照样每帧跑。
+--   改成单协程：每秒量一次真实帧间隔、读一次 ping、写一次文本。零每帧开销。
 local currentFPS = 0
-
-RunService.RenderStepped:Connect(function()
-    frames += 1
-    local now = tick()
-    if now - lastTime >= 1 then
-        currentFPS = frames
-        frames = 0
-        lastTime = now
-    end
-end)
-
--- 主更新
-RunService.Heartbeat:Connect(function()
-    if not Config.Enabled then
-        Frame.Visible = false
-        return
-    end
-    Frame.Visible = true
-
-    FPSLabel.Text = "FPS: " .. tostring(currentFPS)
-
-    local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
-    PingLabel.Text = "Ping: " .. ping .. " ms"
-end)
+do
+    local RS = RunService
+    task.spawn(function()
+        while true do
+            if Config.Enabled then
+                -- 量一次真实帧间隔（只等一帧，不是常驻每帧回调）
+                local ok, dt = pcall(function()
+                    local t0 = os.clock()
+                    RS.RenderStepped:Wait()
+                    return os.clock() - t0
+                end)
+                local fps = 0
+                if ok and dt and dt > 0 then
+                    fps = math.floor(1 / dt)
+                end
+                if fps > 0 then
+                    currentFPS = (currentFPS > 0) and math.floor(currentFPS * 0.6 + fps * 0.4) or fps
+                end
+                Frame.Visible = true
+                FPSLabel.Text = "FPS: " .. tostring(currentFPS)
+                local ok2, ping = pcall(function()
+                    return math.floor(LocalPlayer:GetNetworkPing() * 1000)
+                end)
+                PingLabel.Text = "Ping: " .. tostring(ok2 and ping or 0) .. " ms"
+            else
+                Frame.Visible = false
+            end
+            task.wait(1)
+        end
+    end)
+end
 
 -- ==================== 往主脚本传入的 Tab 添加 UI ====================
 local uiOk, uiErr = pcall(function()
