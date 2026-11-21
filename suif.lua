@@ -1,42 +1,24 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- 【防护加固】已打包为远程脚本「防护加固.lua」
--- 原 1-196 行（静默层 + print/warn 过滤 + 安全 task + 容器搬迁/改名支持）全部移出。
--- 这里同步加载并执行：成功则全局静默与加固生效；失败自动降级为「无加固但能跑」。
--- 开关不变：getgenv().SutureNoHarden = true 关闭加固；getgenv().SutureVerbose = true 打日志
+-- 【防护加固】远程脚本：「防护加固.lua」（挂在 工具类 页签里，见下方 lazyLoad 注册）
+-- 这里只留最轻量的启动期兜底：全局 print/warn 变空函数，避免加载瞬间特征进日志。
+-- 真正的加固（过滤安装 / 安全 task / 容器代名 / 日志面板）全在远程脚本里。
+-- 开关：getgenv().SutureNoHarden = true 全关；getgenv().SutureVerbose = true 打日志
 -- ══════════════════════════════════════════════════════════════════════════════
-local HARDEN = {}
+local __realPrint, __realWarn = print, warn
+local __HARD = true
 pcall(function()
-    local HSvc = game:GetService("HttpService")
-    local rel = HSvc:UrlEncode("防护加固.lua")
-    local rawUrl = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/" .. rel
-    local proxy = "https://suture-hub-counter.sfbdsl666.workers.dev/proxy?url=" .. HSvc:UrlEncode(rawUrl)
-    local body = nil
-    local ok1, r1 = pcall(function() return game:HttpGet(proxy, true) end)
-    if ok1 and type(r1) == "string" and #r1 > 500 then
-        body = r1
-    else
-        local ok2, r2 = pcall(function() return game:HttpGet(rawUrl, true) end)
-        if ok2 and type(r2) == "string" and #r2 > 500 then
-            body = r2
-        end
-    end
-    if body then
-        local fn = loadstring(body)
-        if fn then
-            local R = fn()
-            if type(R) == "table" then HARDEN = R end
-        end
+    local g = (getgenv and getgenv()) or _G
+    if g and g.SutureNoHarden then __HARD = false end
+    if g and g.SutureVerbose then return end
+    if __HARD then
+        rawset(_G, "print", function() end)
+        rawset(_G, "warn", function() end)
     end
 end)
+local task = task
+local __sutLog = function(...) end
+local __sandbox = function(fn) return fn end
 
-local __HARD = HARDEN.HARD ~= false
-local __rnd = type(HARDEN.rnd) == "function" and HARDEN.rnd
-    or function() return tostring(math.random(1, 999999999)) end
-local task = (type(HARDEN.task) == "table") and HARDEN.task or task
-local __sutLog = type(HARDEN.log) == "function" and HARDEN.log
-    or function(...) end
-local __sandbox = type(HARDEN.sandbox) == "function" and HARDEN.sandbox
-    or function(fn) return fn end
 
 
 -- ★ 多源加载：raw.githubusercontent 在某些网络下会被掐，jsDelivr 更稳。
@@ -1343,6 +1325,13 @@ do
     getgenv().OpenRscripts = function()
         rsBuild(); rsHookSearch(); rsGui.Enabled = true
     end
+
+    -- ═══ 防护加固（防UI检测）：远程脚本挂到工具类页签 ═══
+    -- 加载后自动安装全局 print/warn 过滤，并在工具类里生成「防护加固」设置面板
+    pcall(function()
+        lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/"
+            .. game:GetService("HttpService"):UrlEncode("防护加固.lua"), "防UI检测", toolTab, false)
+    end)
 end
 
 local function updateCount()
@@ -2158,13 +2147,15 @@ do
     })
 end
 
--- ═══ 脚本区域（已打包为远程脚本「脚本库.lua」）═══
--- 42 个游戏页签 + 全部脚本按钮/远程挂载都在远程脚本里，异步加载不阻塞主流程
-task.spawn(function()
+-- ═══ 脚本区域（远程脚本「脚本库.lua」）═══
+-- 42 个游戏页签 + 全部脚本按钮都在远程脚本里；点开「脚本库」页签才加载（onDemand）
+local scriptLibTab = scriptSec:Tab({ Title = "脚本库", Icon = "shell", Locked = false })
+do
     local g = (getgenv and getgenv()) or _G
-    -- 先注册主脚本页签（脚本库远程脚本里要反查这些引用做 Tabs 注册）
     g.Tabs = g.Tabs or {}
     _G.Tabs = g.Tabs
+    g.Tabs.ScriptLibTab = scriptLibTab
+    -- 脚本库远程脚本内部要反查的主脚本页签
     g.Tabs.RangeTab    = FwTab
     g.Tabs.FlingTPTab  = SfTab
     g.Tabs.PingFPSTab  = pingfpsTab
@@ -2175,29 +2166,17 @@ task.spawn(function()
     g.Tabs.ESPTab      = espTab
     g.Tabs.ServerTab   = serverTab
     g.Tabs.CoordTPTab  = coordTab
+    -- 依赖注入
     g.__SUIF_SCRIPT_SEC = scriptSec
     g.__SUIF_RUN = run
     g.__SUIF_LAZYLOAD = lazyLoad
     g.__SUIF_NOTIFY = notify
-    local ok, err = pcall(function()
-        local url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/"
-            .. game:GetService("HttpService"):UrlEncode("脚本库.lua")
-        local body = httpGetWithProxy(url)
-        if not body or #body < 100 then
-            error("脚本库下载失败或内容异常")
-        end
-        local fn = loadstring(body)
-        if not fn then
-            error("loadstring 编译失败")
-        end
-        fn()
+    -- 挂远程脚本：点开页签才下载执行
+    pcall(function()
+        lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/"
+            .. game:GetService("HttpService"):UrlEncode("脚本库.lua"), "脚本库", scriptLibTab, true)
     end)
-    if not ok then
-        pcall(function()
-            notify("脚本库", "加载失败：" .. tostring(err), "alert-triangle", 6)
-        end)
-    end
-end)
+end
 
 -- UI设置
 local themeMap = {
