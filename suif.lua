@@ -268,6 +268,11 @@ local function lazyLoad(url, desc, tab, onDemand)
                     if btn and btn.MouseButton1Click then
                         local okHook = pcall(function()
                             btn.MouseButton1Click:Connect(function()
+                                -- ★ 用户主动点开页签 → 立刻切运行期模式（同步建控件，点开即显示）
+                                pcall(function()
+                                    local _g = (getgenv and getgenv()) or _G
+                                    if _g and _g.__SUIF_RUNTIME_MODE then _g.__SUIF_RUNTIME_MODE() end
+                                end)
                                 if item.state == "pending" or item.state == "failed" then
                                     startLoad(item)
                                 end
@@ -323,6 +328,61 @@ do
     local UI_BATCH_PER_FRAME = 12
     local UI_BATCH_MIN, UI_BATCH_MAX = 4, 32
     local UI_CTRL_METHODS = { "Button", "Toggle", "Slider", "Dropdown", "ColorPicker", "Keybind", "Textbox", "Paragraph", "Label", "Space" }
+    -- ★ [suture] 批处理/冻结只用于「启动期一次性建 UI」。
+    --   运行期（用户点页签加载远程脚本、下拉框刷新）必须同步建控件，否则：
+    --     1) FreezeContainer 摘掉 UIListLayout → 后加的控件不参与布局 → 要切走再切回才显示
+    --     2) Dropdown 在冻结的容器里刷新 → 位置算错（错位/点不中）
+    --     3) 反复 Freeze/Thaw → UIListLayout 反复全量重排 → 周期性卡顿
+    do
+        local _g0 = (getgenv and getgenv()) or _G
+        if _g0 and _g0.__SUIF_BATCH_ACTIVE == nil then
+            _g0.__SUIF_BATCH_ACTIVE = true
+        end
+    end
+    local function BatchActive()
+        local _g = (getgenv and getgenv()) or _G
+        return _g == nil or _g.__SUIF_BATCH_ACTIVE ~= false
+    end
+
+    -- ★ 只有「调用方不保留返回值」的控件可以排队。
+    --   Toggle/Slider/Dropdown/ColorPicker/Keybind/Textbox 常被远程脚本存下来
+    --   （local dd = tab:Dropdown(...); dd:Refresh(...)），排队会导致返回 self(Tab)
+    --   → 后续 Refresh 打到 Tab 上 → 下拉框刷新错位 / 点不动 / 报错。
+    local UI_QUEUEABLE = { Button = true, Paragraph = true, Label = true, Space = true }
+
+    -- ★ 下拉框刷新节流：WindUI 的 Dropdown:Refresh 会销毁并重建整个选项列表。
+    --   玩家进出时多个脚本同时刷新 → 周期性卡顿。这里把 150ms 内的多次刷新合并成一次。
+    local function ThrottleDropdown(dd)
+        if type(dd) ~= "table" then return dd end
+        if dd.__sutureThrottled then return dd end
+        local origRefresh = dd.Refresh
+        if type(origRefresh) ~= "function" then return dd end
+        dd.__sutureThrottled = true
+        local pending, scheduled = nil, false
+        local firstCall = true
+        dd.Refresh = function(self, ...)
+            -- 首次（多用于构建初始选项）直接执行，不能延迟，否则下拉框一开始是空的
+            if firstCall then
+                firstCall = false
+                return origRefresh(self, ...)
+            end
+            pending = { ... }
+            if scheduled then return self end
+            scheduled = true
+            task.delay(0.15, function()
+                scheduled = false
+                local a = pending
+                pending = nil
+                if a then
+                    pcall(function()
+                        origRefresh(self, table.unpack(a))
+                    end)
+                end
+            end)
+            return self
+        end
+        return dd
+    end
     -- ★ 源头优化：WindUI 每个控件加入容器都会触发 UIListLayout 全量重排（O(n²)）。
     --   创建期间冻结布局（摘掉 UIListLayout + 隐藏容器），全部创建完成一次性恢复（O(n)）。
     local UI_FROZEN = {}   -- container -> UIListLayout
@@ -402,14 +462,21 @@ do
         local origSectionM = tabObj.Section
         if type(origSectionM) == "function" then
             tabObj.Section = function(self, cfg)
-                pcall(FreezeContainer, self)
+                if BatchActive() then pcall(FreezeContainer, self) end
                 return origSectionM(self, cfg)
             end
         end
         for _, m in ipairs(UI_CTRL_METHODS) do
             local orig = tabObj[m]
             if type(orig) == "function" then
+                local queueable = UI_QUEUEABLE[m] == true
                 tabObj[m] = function(self, cfg)
+                    -- 运行期 / 需要返回对象的控件：同步创建（布局正常、返回真对象）
+                    if not queueable or not BatchActive() then
+                        local r = orig(self, cfg)
+                        if m == "Dropdown" then pcall(ThrottleDropdown, r) end
+                        return r
+                    end
                     FreezeContainer(self)
                     table.insert(UI_BATCH_QUEUE, function()
                         orig(self, cfg)
@@ -434,7 +501,13 @@ do
         for _, m in ipairs(UI_CTRL_METHODS) do
             local origM = secObj[m]
             if type(origM) == "function" then
+                local queueable = UI_QUEUEABLE[m] == true
                 secObj[m] = function(self, cfg)
+                    if not queueable or not BatchActive() then
+                        local r = origM(self, cfg)
+                        if m == "Dropdown" then pcall(ThrottleDropdown, r) end
+                        return r
+                    end
                     FreezeContainer(self)
                     table.insert(UI_BATCH_QUEUE, function()
                         origM(self, cfg)
@@ -445,6 +518,39 @@ do
             end
         end
     end
+    -- ★ 切到「运行期模式」：关掉批处理/冻结，并把残留冻结的容器立刻解冻。
+    --   之后所有控件同步创建，页签点开即显示、下拉框刷新不错位、不再反复重排。
+    do
+        local _g1 = (getgenv and getgenv()) or _G
+        if _g1 then
+            _g1.__SUIF_RUNTIME_MODE = function()
+                if _g1.__SUIF_BATCH_ACTIVE == false then return end
+                _g1.__SUIF_BATCH_ACTIVE = false
+                -- 立刻把还冻结着的容器解冻（否则它们会一直 Visible=false）
+                pcall(function()
+                    local list = {}
+                    for c, ll in pairs(UI_FROZEN) do
+                        table.insert(list, { c = c, ll = ll })
+                    end
+                    UI_FROZEN = {}
+                    for _, it in ipairs(list) do
+                        if it.ll and not it.ll.Parent then it.ll.Parent = it.c end
+                        it.c.Visible = true
+                    end
+                end)
+                -- 把还在队列里的控件一次性补完（同步，不再分帧）
+                pcall(function()
+                    local guard = 0
+                    while #UI_BATCH_QUEUE > 0 and guard < 2000 do
+                        guard = guard + 1
+                        local job = table.remove(UI_BATCH_QUEUE, 1)
+                        pcall(job)
+                    end
+                end)
+            end
+        end
+    end
+
     local origWinSection = win.Section
     if type(origWinSection) == "function" then
         win.Section = function(self, cfg)
@@ -949,9 +1055,24 @@ do
                     if XRAY.saved[v] == nil then
                         XRAY.saved[v] = v.LocalTransparencyModifier
                     end
-                    pcall(function() v.LocalTransparencyModifier = XRAY.alpha end)
+                    -- ★ 已经是目标值就不再写（属性写入有开销，全场景重写是卡顿主因）
+                    if v.LocalTransparencyModifier ~= XRAY.alpha then
+                        pcall(function() v.LocalTransparencyModifier = XRAY.alpha end)
+                    end
                 end
             end
+        end
+    end
+
+    -- 单个部件即时处理（新生成的部件立刻透视，不用等全量扫描）
+    local function xrayApplyOne(v)
+        if not v:IsA("BasePart") then return end
+        if XRAY.skipChars and xrayIsCharPart(v) then return end
+        if XRAY.saved[v] == nil then
+            XRAY.saved[v] = v.LocalTransparencyModifier
+        end
+        if v.LocalTransparencyModifier ~= XRAY.alpha then
+            pcall(function() v.LocalTransparencyModifier = XRAY.alpha end)
         end
     end
 
@@ -976,19 +1097,31 @@ do
 
     local function xrayLoopStart()
         if XRAY.conn or not XRAY.loop then return end
+        -- ★ 原来每 0.5 秒全量扫一遍 workspace（几万个实例全改透明度）→ 周期性卡顿。
+        --   改成：新部件靠 DescendantAdded 即时处理，全量扫描只做 2 秒一次的兜底对账。
         XRAY.conn = RunService.Heartbeat:Connect(function()
             if not XRAY.on then return end
             local now = os.clock()
             if XRAY.next > now then return end
-            XRAY.next = now + 0.5
+            XRAY.next = now + 2.0
             xrayApply()
         end)
+        if not XRAY.addConn then
+            XRAY.addConn = workspace.DescendantAdded:Connect(function(v)
+                if not XRAY.on then return end
+                pcall(xrayApplyOne, v)
+            end)
+        end
     end
 
     local function xrayLoopStop()
         if XRAY.conn then
             pcall(function() XRAY.conn:Disconnect() end)
             XRAY.conn = nil
+        end
+        if XRAY.addConn then
+            pcall(function() XRAY.addConn:Disconnect() end)
+            XRAY.addConn = nil
         end
     end
 
@@ -2490,6 +2623,10 @@ pcall(function()
                             guard = guard + 1
                             task.wait(0.1)
                         end
+                        -- 启动期 UI 已全部建完 → 切运行期模式（之后的动态挂载/刷新都同步）
+                        pcall(function()
+                            if _g and _g.__SUIF_RUNTIME_MODE then _g.__SUIF_RUNTIME_MODE() end
+                        end)
                         if not _g.__SUIF_READY_FIRED then
                             _g.__SUIF_READY_FIRED = true
                             if g.__SUIF_READY then
