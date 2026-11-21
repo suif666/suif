@@ -388,6 +388,72 @@ do
     --   → 后续 Refresh 打到 Tab 上 → 下拉框刷新错位 / 点不动 / 报错。
     local UI_QUEUEABLE = { Button = true, Paragraph = true, Label = true, Space = true }
 
+    -- ★ 下拉框刷新后重算菜单位置
+    --   WindUI 的 UpdatePosition() 只在 DropdownMenu:Open() 里调用一次。
+    --   刷新会销毁并重建全部选项 → 列表高度变了但位置不会重算
+    --   → 展开状态下刷新必然「整体错位、点不中」。
+    --   这里在刷新完成后（等布局算完两帧）按 WindUI 同一套算法重算尺寸+位置。
+    local function RepositionDropdownMenu(dd)
+        pcall(function()
+            local ui = dd and dd.UIElements
+            if not ui then return end
+            local canvas = ui.MenuCanvas
+            if not canvas or not canvas.Visible then return end
+            local btn = ui.Dropdown
+                or (dd.DropdownFrame and dd.DropdownFrame.UIElements and dd.DropdownFrame.UIElements.Main)
+            if not btn then return end
+
+            local cam = workspace.CurrentCamera
+            local vpY = (cam and cam.ViewportSize.Y) or 1080
+
+            local pad = 6
+            pcall(function()
+                local pb = ui.Menu and ui.Menu:FindFirstChildOfClass("UIPadding")
+                if pb then
+                    local v = math.max(pb.PaddingLeft.Offset, pb.PaddingTop.Offset)
+                    if v > 0 then pad = v end
+                end
+            end)
+
+            -- ① 尺寸：按真实内容高度重算（Refresh 时 AbsoluteContentSize 可能还是旧值）
+            local list = ui.UIListLayout
+            if list then
+                local contentY = list.AbsoluteContentSize.Y
+                if contentY > 0 then
+                    local sb = ui.Menu and ui.Menu:FindFirstChild("SearchBar")
+                    local extra = (sb and (sb.AbsoluteSize.Y + pad * 3)) or (pad * 2)
+                    local need = contentY + extra
+                    local maxH = vpY * 0.6
+                    if need > maxH then need = maxH end
+                    canvas.Size = UDim2.fromOffset(canvas.AbsoluteSize.X, need)
+                end
+            end
+
+            -- ② 位置：与 WindUI UpdatePosition 同逻辑
+            local btnBottom = btn.AbsolutePosition.Y + btn.AbsoluteSize.Y
+            local spaceBelow = vpY - btnBottom - pad - 54
+            local menuH = canvas.AbsoluteSize.Y + pad
+            local liftUp = -54
+            if spaceBelow < menuH then
+                liftUp = menuH - spaceBelow - 54
+            end
+            canvas.Position = UDim2.new(
+                0,
+                btn.AbsolutePosition.X + btn.AbsoluteSize.X,
+                0,
+                btnBottom - liftUp + (pad * 2)
+            )
+        end)
+    end
+
+    local function ScheduleReposition(dd)
+        task.defer(function()
+            task.wait()
+            task.wait()
+            RepositionDropdownMenu(dd)
+        end)
+    end
+
     -- ★ 下拉框刷新节流：WindUI 的 Dropdown:Refresh 会销毁并重建整个选项列表。
     --   玩家进出时多个脚本同时刷新 → 周期性卡顿。这里把 150ms 内的多次刷新合并成一次。
     local function ThrottleDropdown(dd)
@@ -402,7 +468,9 @@ do
             -- 首次（多用于构建初始选项）直接执行，不能延迟，否则下拉框一开始是空的
             if firstCall then
                 firstCall = false
-                return origRefresh(self, ...)
+                local r = origRefresh(self, ...)
+                ScheduleReposition(self)
+                return r
             end
             pending = { ... }
             if scheduled then return self end
@@ -415,6 +483,7 @@ do
                     pcall(function()
                         origRefresh(self, table.unpack(a))
                     end)
+                    ScheduleReposition(self)
                 end
             end)
             return self
@@ -429,7 +498,9 @@ do
             dd.RefreshSpecialValues = function(self, ...)
                 if spFirst then
                     spFirst = false
-                    return origSpecial(self, ...)
+                    local r = origSpecial(self, ...)
+                    ScheduleReposition(self)
+                    return r
                 end
                 spPending = { ... }
                 if spScheduled then return self end
@@ -442,6 +513,7 @@ do
                         pcall(function()
                             origSpecial(self, table.unpack(a))
                         end)
+                        ScheduleReposition(self)
                     end
                 end)
                 return self
