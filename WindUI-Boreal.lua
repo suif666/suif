@@ -9477,6 +9477,13 @@ end
 am.UIElements.Menu.Visible=true
 am.UIElements.MenuCanvas.Visible=true
 am.UIElements.MenuCanvas.Active=true
+-- [suture 修复] 每次打开都递增序号：关闭流程里那些 task.wait(0.25) 的收尾任务
+--   靠 __openSeq 判断是否已过期。原来 __openSeq 从来没被赋过值（永远是 0），
+--   导致「快速开→关→再开」时，上一次关闭的收尾任务照样执行，
+--   把正在显示的菜单布局改回竖排、Position 归零、BigTitleBar 销毁
+--   —— 表现就是「打开一次、再打开一次就错位且点不中」。
+am.__openSeq=(am.__openSeq or 0)+1
+
 am.UIElements.Menu.Size=UDim2.new(
 1,0,
 0,0
@@ -9573,6 +9580,8 @@ function aq.OpenBig(as)
 if not ao or am.Opened then
 return
 end
+-- [suture 修复] 同上：打开放大菜单也要让上一次关闭的收尾任务作废
+am.__openSeq=(am.__openSeq or 0)+1
 am.Opened=true
 am.__BigOpen=true
 
@@ -9582,6 +9591,8 @@ local BigH=math.max(220,math.min(480,(V and V.Y or 480)-100))
 
 local function CloseBig()
 if not am.__BigFrame then return end
+-- [suture 修复] 关闭放大菜单也递增序号，防止上一次的延迟 Destroy 命中新开的面板
+am.__openSeq=(am.__openSeq or 0)+1
 am.__BigOpen=false
 am.Opened=false
 local Frame=am.__BigFrame
