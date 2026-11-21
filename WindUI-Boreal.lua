@@ -9879,9 +9879,17 @@ BigFrame.Size=UDim2.new(0,0,0,0)
 ak(BigFrame,0.12,{Size=UDim2.new(0,BigW,0,BigH)},Enum.EasingStyle.Quart,Enum.EasingDirection.Out):Play()
 end
 
+-- [suture] 下拉框主体不再弹小菜单：统一走放大面板（唯一的展开入口）
 ai.AddSignal((am.UIElements.Dropdown and am.UIElements.Dropdown.MouseButton1Click or am.DropdownFrame.UIElements.Main.MouseButton1Click),function()
+if am.__BigOpen then
+if am.__CloseBig then am.__CloseBig() end
+return
+end
 if am.Opened then
 aq:Close()
+end
+if aq.OpenBig then
+aq:OpenBig()
 else
 aq:Open()
 end
@@ -10257,30 +10265,17 @@ function ap.GetSelected(au)
 return ap.Value
 end
 
-ag("ImageLabel",{
-Image=af.Icon"chevrons-up-down"[1],
-ImageRectOffset=af.Icon"chevrons-up-down"[2].ImageRectPosition,
-ImageRectSize=af.Icon"chevrons-up-down"[2].ImageRectSize,
-Size=UDim2.new(0,18,0,18),
-Position=UDim2.new(
-1,
-ap.UIElements.Dropdown and-12 or 0,
-0.5,
-0
-),
-ThemeTag={
-ImageColor3="Icon"
-},
-AnchorPoint=Vector2.new(1,0.5),
-Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFrame.UIElements.Main
-})
--- [suture] 放大按钮：点击打开 WinUI 风格二级大菜单（全部选项 + 搜索）
+-- [suture] 原「下拉箭头」图标已删除：下拉框不再有自己的展开入口，
+-- 唯一的按钮就是右边那个（图标改成了下拉箭头 chevrons-up-down），
+-- 点它直接弹出居中大面板（全部选项 + 搜索 + 头像），不再有小菜单。
+--
+-- 放大按钮：点击打开 WinUI 风格二级大菜单（全部选项 + 搜索）
 local BigBtn=ag("ImageButton",{
 Name="WindUIDropdownBigBtn",
-Size=UDim2.new(0,26,0,26),
+Size=UDim2.new(0,32,0,32),
 Position=UDim2.new(
 1,
-ap.UIElements.Dropdown and-40 or-28,
+-4,
 0.5,
 0
 ),
@@ -10292,13 +10287,13 @@ Parent=ap.UIElements.Dropdown and ap.UIElements.Dropdown.Frame or ap.DropdownFra
 },{
 ag("ImageLabel",{
 Name="Icon",
-Size=UDim2.new(0,18,0,18),
+Size=UDim2.new(0,20,0,20),
 AnchorPoint=Vector2.new(0.5,0.5),
 Position=UDim2.new(0.5,0,0.5,0),
 BackgroundTransparency=1,
-Image=af.Icon"search"[1],
-ImageRectOffset=af.Icon"search"[2].ImageRectPosition,
-ImageRectSize=af.Icon"search"[2].ImageRectSize,
+Image=af.Icon"chevrons-up-down"[1],
+ImageRectOffset=af.Icon"chevrons-up-down"[2].ImageRectPosition,
+ImageRectSize=af.Icon"chevrons-up-down"[2].ImageRectSize,
 ThemeTag={
 ImageColor3="Icon"
 },
