@@ -381,6 +381,34 @@ do
             end)
             return self
         end
+        -- ★ SpecialType="Player" 的下拉框走 RefreshSpecialValues（Boreal 内部自动刷新：
+        --   玩家一进/一退就重建整个选项列表 + 重算 CanvasSize）。同样合并到 150ms 一次，
+        --   避免刚进出玩家那几帧连续重建导致的卡顿。
+        local origSpecial = dd.RefreshSpecialValues
+        if type(origSpecial) == "function" then
+            local spPending, spScheduled = nil, false
+            local spFirst = true
+            dd.RefreshSpecialValues = function(self, ...)
+                if spFirst then
+                    spFirst = false
+                    return origSpecial(self, ...)
+                end
+                spPending = { ... }
+                if spScheduled then return self end
+                spScheduled = true
+                task.delay(0.15, function()
+                    spScheduled = false
+                    local a = spPending
+                    spPending = nil
+                    if a then
+                        pcall(function()
+                            origSpecial(self, table.unpack(a))
+                        end)
+                    end
+                end)
+                return self
+            end
+        end
         return dd
     end
     -- ★ 源头优化：WindUI 每个控件加入容器都会触发 UIListLayout 全量重排（O(n²)）。
