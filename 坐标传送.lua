@@ -779,6 +779,10 @@ local function findDescLabel()
     return nil
 end
 
+-- ★ 找不到坐标控件时退避 3 秒。findDescLabel 会遍历 PlayerGui + CoreGui 的
+--   全部后代（几千个实例）；原来一旦控件失效，每 0.1 秒就全量扫一遍 → 卡死。
+local findMissUntil = 0
+
 local function refreshDisplay()
     local p = getPos()
     if not p then
@@ -793,10 +797,18 @@ local function refreshDisplay()
     Core.displayedPos = p
     local text = fmtPos(p)
     if not descLabel or not descLabel.Parent then
-        descLabel = findDescLabel()
-        if not descLabel and not warnedNoLabel then
-            warnedNoLabel = true
-            warn("[坐标传送] 未能定位坐标显示控件，请把这条报错发给我")
+        local now = os.clock()
+        if now >= findMissUntil then          -- 失败后退避，不要每轮全量扫 GUI
+            descLabel = findDescLabel()
+            if not descLabel then
+                findMissUntil = now + 3
+                if not warnedNoLabel then
+                    warnedNoLabel = true
+                    warn("[坐标传送] 未能定位坐标显示控件，请把这条报错发给我")
+                end
+            end
+        else
+            return
         end
     end
     if descLabel and descLabel.Parent then
@@ -1206,181 +1218,11 @@ rebuildList()
 refreshDisplay()
 resolveGameInfo()   -- 异步查询主游戏名（不阻塞界面）
 
--- ==================== 分组4：传送玩家（从甩飞类迁移过来，独立分区） ====================
-local tpPlayerSec = tab:Section({ Title = "传送玩家", Icon = "user-check", Opened = true })
-
-local tpTargetName = nil
-local tpLoopRunning = false
-
-local function buildPlayerNames()
-    local list = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp then
-            table.insert(list, p.Name)
-        end
-    end
-    return list
-end
-
--- ★ 富玩家条目：头像 + 名字 + DisplayName · 血量（主脚本 __SUIF_RICH_PLAYERS 生成）
-local function itemName(v)
-    local g = getgenv and getgenv() or _G
-    if type(g.__SUIF_ITEM_NAME) == "function" then
-        local ok, n = pcall(g.__SUIF_ITEM_NAME, v)
-        if ok then return n end
-    end
-    if type(v) == "table" then return v.Title or v.Name end
-    return v
-end
-
-local function buildPlayerValues()
-    local g = getgenv and getgenv() or _G
-    if type(g.__SUIF_RICH_PLAYERS) == "function" then
-        local ok, r = pcall(g.__SUIF_RICH_PLAYERS, { excludeLocal = true })
-        if ok and type(r) == "table" and #r > 0 then
-            return r
-        end
-    end
-    -- 降级：纯名字
-    local out = {}
-    for _, n in ipairs(buildPlayerNames()) do
-        out[#out + 1] = n
-    end
-    return out
-end
-
-local function getPlayerByName(name)
-    if not name or name == "" then return nil end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Name == name or p.DisplayName == name then
-            return p
-        end
-    end
-    return nil
-end
-
-local function teleportToPlayer()
-    local target = getPlayerByName(tpTargetName)
-    if not target then
-        notify("传送玩家", "请先选择目标玩家")
-        return
-    end
-    if not target.Character then
-        notify("传送玩家", "目标角色未加载")
-        return
-    end
-    local root = target.Character:FindFirstChild("HumanoidRootPart")
-    local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if root and myRoot then
-        myRoot.CFrame = root.CFrame * CFrame.new(0, 3, 0)
-    else
-        notify("传送玩家", "找不到 HumanoidRootPart")
-    end
-end
-
-safe("传送玩家-目标选择", function()
-    local tpDropdown = tpPlayerSec:Dropdown({
-        Title = "选择目标玩家",
-        Desc = "单次传送和循环传送共用这个目标（带头像和血量）",
-        Values = buildPlayerValues(),
-        Value = nil,
-        Callback = function(v)
-            tpTargetName = itemName(v)
-        end,
-    })
-    -- ★ 玩家进出时刷新候选（2 秒合并一次，避免频繁重建列表卡顿）
-    local lastRefresh = 0
-    local scheduled = false
-    local function scheduleRefresh()
-        if scheduled then return end
-        scheduled = true
-        local waitFor = 2.0 - (os.clock() - lastRefresh)
-        if waitFor < 0.2 then waitFor = 0.2 end
-        task.delay(waitFor, function()
-            scheduled = false
-            lastRefresh = os.clock()
-            pcall(function()
-                if tpDropdown and tpDropdown.Refresh then
-                    tpDropdown:Refresh(buildPlayerValues(), nil, true)
-                end
-            end)
-        end)
-    end
-    pcall(function()
-        Players.PlayerAdded:Connect(scheduleRefresh)
-        Players.PlayerRemoving:Connect(scheduleRefresh)
-    end)
-
-    -- ★ 点一下直接开居中大面板（自带搜索/头像）
-    -- ★ 注册到全局刷新总线：任何脚本点「刷新玩家列表」都会刷这一个
-    local g = (getgenv and getgenv()) or _G
-    if type(g.__SUIF_BIGONLY) == "function" then
-        pcall(g.__SUIF_BIGONLY, tpDropdown)
-    end
-    if type(g.__SUIF_REGISTER_PLAYER_DD) == "function" then
-        pcall(g.__SUIF_REGISTER_PLAYER_DD, tpDropdown, function(dd)
-            if dd.Refresh then
-                dd:Refresh(buildPlayerValues(), nil, true)
-            end
-        end, "传送类")
-    end
-end)
-
-safe("传送玩家-刷新玩家列表", function()
-    tpPlayerSec:Button({
-        Title = "刷新玩家列表（同步全部）",
-        Desc = "刷新所有脚本里的玩家下拉框（甩飞 / 传送 / 发言 / 伪装都一起更新）",
-        Icon = "refresh-cw",
-        Callback = function()
-            local g = (getgenv and getgenv()) or _G
-            local n = 0
-            if type(g.__SUIF_REFRESH_ALL_PLAYERS) == "function" then
-                local ok, r = pcall(g.__SUIF_REFRESH_ALL_PLAYERS)
-                if ok and type(r) == "number" then n = r end
-            end
-            notify("传送玩家", ("全部玩家下拉框已更新（%d 个）"):format(n), "check")
-        end,
-    })
-end)
-
-safe("传送玩家-单次", function()
-    tpPlayerSec:Button({
-        Title = "单次传送玩家",
-        Desc = "传送到选中玩家身边（头顶上方 3 格）",
-        Callback = function()
-            teleportToPlayer()
-        end,
-    })
-end)
-
-safe("传送玩家-循环", function()
-    tpPlayerSec:Toggle({
-        Title = "循环传送",
-        Desc = "持续跟随目标玩家（33 次/秒，目标移动也能紧贴）",
-        Value = false,
-        Callback = function(v)
-            if v then
-                if tpLoopRunning then return end
-                tpLoopRunning = true
-                task.spawn(function()
-                    while tpLoopRunning do
-                        teleportToPlayer()
-                        task.wait(0.03)
-                    end
-                end)
-                notify("传送玩家", "循环传送已启动")
-            else
-                tpLoopRunning = false
-                notify("传送玩家", "循环传送已停止")
-            end
-        end,
-    })
-end)
-
 -- 实时刷新循环（默认关闭，开启后每 0.1 秒刷新）
 task.spawn(function()
+    -- ★ 原来 10 次/秒（0.1）刷新外显；坐标显示 2 次/秒完全够看，省下 80% 调用
     while true do
-        task.wait(0.1)
+        task.wait(0.5)
         if LiveRefresh then
             refreshDisplay()
         end
