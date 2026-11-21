@@ -1387,17 +1387,16 @@ local REMOTE_SPECS = {
     { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", desc = "ESP" },
     { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", desc = "服务器类" },
     { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BC%A0%E9%80%81.lua", desc = "坐标传送" },
-    -- ★★★ 黑白远程脚本（hb/*）已整体停用，排查卡顿用 ★★★
-    -- 阶段一：先全停，确认卡顿是否由这批引起。
-    -- 想恢复某一项：把它从下面注释里移回上面即可（主脚本那边也要把
-    -- getgenv().SutureDisableHB 设为 false，否则不会挂载）。
-    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/animation.lua", desc = "动作动画" },
-    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/actionpack.lua", desc = "动作包" },
-    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/animpack.lua", desc = "动画包" },
-    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/disguise.lua", desc = "伪装玩家" },
-    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/slowrun.lua", desc = "缓慢的快速跑" },
-    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/clicker.lua", desc = "自动连点器" },
-    -- { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/trigger.lua", desc = "触发类" },
+    -- 黑白远程脚本（hb/*）—— 全部已重写为自实现版：
+    --   不再远程加载任何混淆代码（原 slowrun 拉 pastebin 176KB 混淆、animation 拉远程解锁脚本），
+    --   不再有逐帧/高频轮询。若又出现卡顿，把主脚本 getgenv().SutureDisableHB 设 true 即可全停。
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/animation.lua", desc = "动作动画" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/actionpack.lua", desc = "动作包" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/animpack.lua", desc = "动画包" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/disguise.lua", desc = "伪装玩家" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/slowrun.lua", desc = "缓慢的快速跑" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/clicker.lua", desc = "自动连点器" },
+    { url = "https://raw.githubusercontent.com/suif666/tu/main/hb/trigger.lua", desc = "触发类" },
     -- 黑白脚本加载器（tfcygvunbind/Apple）已移除：它是独立 UI 脚本，
     -- 预载挂载会创建第二个"黑白脚本"界面且与主脚本并存；改回由主脚本按钮点击加载
 }
