@@ -1684,15 +1684,15 @@ local inst = Loader.new({ Title = "Suture Hub", Subtitle = "现代加载器 · �
 inst:Show()
 
 local REMOTE_SPECS = {
-    { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", desc = "范围" },
+    { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", desc = "范围", autoMount = false },
     { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E7%94%A9%E9%A3%9E.lua", desc = "甩飞" },
     { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%BE%E7%A4%BAfps%E5%92%8Cping.lua", desc = "ping/fps显示" },
-    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", desc = "雷达" },
-    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", desc = "玩家类" },
-    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", desc = "自瞄类" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", desc = "雷达", autoMount = false },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", desc = "玩家类", autoMount = false },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", desc = "自瞄类", autoMount = false },
     { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E5%8A%A8%E5%8F%91%E8%A8%80%E7%A4%BA%E4%BE%8B.lua", desc = "发言类" },
-    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", desc = "ESP" },
-    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", desc = "服务器类" },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", desc = "ESP", autoMount = false },
+    { url = "https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", desc = "服务器类", autoMount = false },
     { url = "https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E5%9D%90%E6%A0%87%E4%BC%A0%E9%80%81.lua", desc = "坐标传送" },
     -- 黑白远程脚本（hb/*）—— 全部已重写为自实现版：
     --   不再远程加载任何混淆代码（原 slowrun 拉 pastebin 176KB 混淆、animation 拉远程解锁脚本），
@@ -1721,7 +1721,7 @@ local function PreloadRemotes(inst)
     local specs, seen = {}, {}
     for _, s in ipairs(REMOTE_SPECS) do
         seen[s.url] = true
-        table.insert(specs, { url = s.url, desc = s.desc, mirrors = RawToMirrors(s.url) })
+        table.insert(specs, { url = s.url, desc = s.desc, mirrors = RawToMirrors(s.url), autoMount = s.autoMount })
     end
     pcall(function()
         local dynSrc = game:HttpGet(SUIF_URL, true)
@@ -1748,8 +1748,16 @@ local function PreloadRemotes(inst)
             local spec = table.remove(queue, 1)
             local fn = TryLoadAny(spec.mirrors or { spec.url }, false)
             if fn then
-                table.insert(g.__SUIF_PENDING, fn)
                 g.__PRELOADED_URLS[spec.url] = true
+                -- ★ 预编译缓存：下载+编译好的 chunk 存起来，点页签时直接执行，零下载延迟
+                g.__PRELOADED_FNS = g.__PRELOADED_FNS or {}
+                g.__PRELOADED_FNS[spec.url] = fn
+                -- ★ 只有 autoMount 不为 false 的才在启动时自动挂载。
+                --   范围/雷达/玩家类/自瞄类/ESP/服务器类 这些带常驻循环的重脚本
+                --   改成「点对应页签才挂载」，避免开局十几个脚本同时跑循环。
+                if spec.autoMount ~= false then
+                    table.insert(g.__SUIF_PENDING, fn)
+                end
             end
             done = done + 1
             if inst.TaskLbl then
