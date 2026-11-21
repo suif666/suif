@@ -635,15 +635,19 @@ function Loader:Show()
             end
             if not pg then return end
 
-            local old = pg:FindFirstChild("SutureAnnouncePopup")
+            -- ★ 图层关键：加载器自己挂在 gethui()/CoreGui（隐藏容器，层级高于 PlayerGui），
+            --   弹窗如果挂在 PlayerGui 会被加载器整块盖住。这里跟着加载器走同一个宿主。
+            local host = (self.Gui and self.Gui.Parent) or pg
+
+            local old = host:FindFirstChild("SutureAnnouncePopup")
             if old then old:Destroy() end
 
             local gui = New("ScreenGui", {
                 Name = "SutureAnnouncePopup",
                 IgnoreGuiInset = true,
-                DisplayOrder = 2147483000,
+                DisplayOrder = 999999,      -- 容器内也要压过加载器本身
                 ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-                Parent = pg,
+                Parent = host,
             })
 
             local Overlay = New("Frame", {
@@ -652,6 +656,7 @@ function Loader:Show()
                 BackgroundColor3 = Color3.fromRGB(0, 0, 0),
                 BackgroundTransparency = 0.5,
                 BorderSizePixel = 0,
+                ZIndex = 9000,
                 Parent = gui,
             })
 
@@ -663,6 +668,7 @@ function Loader:Show()
                 AnchorPoint = Vector2.new(0.5, 0.5),
                 BackgroundColor3 = Color3.fromRGB(17, 20, 28),
                 BorderSizePixel = 0,
+                ZIndex = 9001,
                 Parent = Overlay,
             })
 
@@ -1352,6 +1358,7 @@ function Loader:Start(cb)
     end
     Spawn(function()
         for i, task in ipairs(self.Tasks) do
+            if self.Cancelled then return end          -- 用户点了「退出脚本」
             if self.TaskLbl then
                 self.TaskLbl.Text = task.Name
                 self.TaskLbl.TextTransparency = 0.55
@@ -1364,8 +1371,10 @@ function Loader:Start(cb)
             self:SetProgress((i / n) * 100)
             Wait(0.06)
         end
+        if self.Cancelled then return end
         self:SetProgress(100, "加载完成")
         Wait(0.4)
+        if self.Cancelled then return end
         if cb then
             pcall(cb)
         end
@@ -1406,8 +1415,8 @@ function Loader:ShowLaunchButton(cb)
     end
     local Btn = New("TextButton", {
         Name = "LaunchBtn",
-        Size = UDim2.new(0, 190, 0, 44),
-        Position = UDim2.new(0.5, 0, 0, 250),
+        Size = UDim2.new(0, 158, 0, 44),
+        Position = UDim2.new(0.5, -84, 0, 250),
         AnchorPoint = Vector2.new(0.5, 0),
         BackgroundColor3 = Color3.fromRGB(70, 130, 255),
         BackgroundTransparency = 1,
@@ -1435,7 +1444,7 @@ function Loader:ShowLaunchButton(cb)
     Tween(Btn, 0.8, { BackgroundTransparency = 0.12 })
     Tween(Btn, 0.8, { TextTransparency = 0 })
     Btn.MouseButton1Click:Connect(function()
-        if self.Launched then
+        if self.Launched or self.Cancelled then
             return
         end
         self.Launched = true
@@ -1446,6 +1455,61 @@ function Loader:ShowLaunchButton(cb)
             end
         end)
     end)
+
+    -- ★ 退出脚本：点了就不加载任何东西，直接把加载器关掉
+    local ExitBtn = New("TextButton", {
+        Name = "ExitBtn",
+        Size = UDim2.new(0, 118, 0, 44),
+        Position = UDim2.new(0.5, 90, 0, 250),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(212, 72, 84),
+        BackgroundTransparency = 1,
+        Text = "✕  退出脚本",
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 15,
+        Font = Enum.Font.GothamBold,
+        TextTransparency = 1,
+        AutoButtonColor = true,
+        ZIndex = 2,
+        Parent = self.MidPanel,
+    }, {
+        New("UICorner", { CornerRadius = UDim.new(0, 12) }),
+        New("UIStroke", { Color = Color3.fromRGB(255, 150, 150), Transparency = 0.6, Thickness = 1 }),
+    })
+    self.ExitBtn = ExitBtn
+    Tween(ExitBtn, 0.8, { BackgroundTransparency = 0.15 })
+    Tween(ExitBtn, 0.8, { TextTransparency = 0 })
+
+    ExitBtn.MouseButton1Click:Connect(function()
+        if self.Cancelled then return end
+        self.Cancelled = true
+        self.Launched = true                 -- 阻止「开始加载」再触发
+        ExitBtn.Text = "已退出"
+        pcall(function()
+            -- 立刻清掉宿主容器里的弹窗，避免残留
+            local host = self.Gui and self.Gui.Parent
+            if host then
+                local p = host:FindFirstChild("SutureAnnouncePopup")
+                if p then p:Destroy() end
+            end
+        end)
+        pcall(function()
+            if self.Gui then
+                if Tween then
+                    Tween(self.Gui:FindFirstChildOfClass("Frame") or self.Bg, 0.25, { BackgroundTransparency = 1 })
+                end
+            end
+        end)
+        task.delay(0.28, function()
+            pcall(function()
+                if self.Gui then self.Gui:Destroy() end
+            end)
+            pcall(function()
+                if self.Card then self.Card:Destroy() end
+            end)
+        end)
+    end)
+
     return Btn
 end
 
