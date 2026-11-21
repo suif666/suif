@@ -320,34 +320,42 @@ local function queueRefresh()
     end)
 end
 
--- 主循环：状态处理每帧跑，已放大目标每帧锁定尺寸（值相同则不写入）
-RunService.Heartbeat:Connect(function()
-    if not Config.Enable then return end
+-- ★ 主循环：原来挂 RunService.Heartbeat，**每帧**对每个玩家和每个 NPC 跑一次
+--   processTarget（改透明度/描边/颜色，全是属性写入）+ 每帧重锁已放大目标的尺寸。
+--   人多/NPC 多的场景下等于每帧几十上百次属性写 —— 这就是周期卡顿的主因之一。
+--   改成协程：开启期间每 0.1 秒处理一次（肉眼无差，游戏也不可能每帧把尺寸改回去），
+--   关闭时直接空转退避，不占任何每帧开销。
+task.spawn(function()
+    while true do
+        if Config.Enable then
+            if os.clock() - State.lastNpcUpdate >= 3 then
+                updateNpcList()
+            end
 
-    if os.clock() - State.lastNpcUpdate >= 3 then
-        updateNpcList()
-    end
+            -- 锁定已放大的目标：游戏/服务器改大后，最多 0.1 秒补回来
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character and State.enlarged[plr.Character] then
+                    pcall(applyEnlarge, plr.Character)
+                end
+            end
+            for _, npc in ipairs(State.npcList) do
+                if State.enlarged[npc] then
+                    pcall(applyEnlarge, npc)
+                end
+            end
 
-    -- 每帧锁定已放大的目标：游戏/服务器把尺寸改大后，下一帧立刻改回，防巨大
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character and State.enlarged[plr.Character] then
-            pcall(applyEnlarge, plr.Character)
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character then
+                    pcall(processTarget, plr.Character)
+                end
+            end
+            for _, npc in ipairs(State.npcList) do
+                pcall(processTarget, npc)
+            end
+            task.wait(0.1)
+        else
+            task.wait(0.4)
         end
-    end
-    for _, npc in ipairs(State.npcList) do
-        if State.enlarged[npc] then
-            pcall(applyEnlarge, npc)
-        end
-    end
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character then
-            pcall(processTarget, plr.Character)
-        end
-    end
-
-    for _, npc in ipairs(State.npcList) do
-        pcall(processTarget, npc)
     end
 end)
 
