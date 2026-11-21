@@ -3032,6 +3032,14 @@ end)
 -- ══════════════════════════════════════════════════════════════════════════════
 task.defer(function()
     local okBlock, errBlock = pcall(function()
+        -- ★ 关键：必须在建控件之前切到"运行期同步模式"。
+        --   启动期的 UI 是分批排队的，Section(...) 在这种模式下可能返回 nil，
+        --   接着 cfgSec:Textbox 就是对 nil 取索引 → 3243 行那个报错。
+        local _g0 = (getgenv and getgenv()) or _G
+        if _g0 and type(_g0.__SUIF_RUNTIME_MODE) == "function" then
+            pcall(_g0.__SUIF_RUNTIME_MODE)
+        end
+
         local CFG_DIR = "suture_configs"
         local hasFS = (type(writefile) == "function") and (type(readfile) == "function")
 
@@ -3227,9 +3235,13 @@ task.defer(function()
         end
 
         ------------------------------------------------------------------
-        -- UI
+        -- UI —— 直接挂在「设置」页签上（不建 Section：
+        -- Section() 在报错现场返回过 nil，tab 上的控件方法是稳定可用的）
         ------------------------------------------------------------------
-        local cfgSec = settingsTab:Section({ Title = "配置保存 / 读取", Opened = true })
+        local cfgSec = settingsTab
+        if not cfgSec or type(cfgSec.Textbox) ~= "function" then
+            error("settingsTab 不可用，跳过配置区块")
+        end
         local cfgName = "default"
         local cfgPick = nil
         local cfgDropdown = nil
@@ -3239,6 +3251,13 @@ task.defer(function()
             if #list == 0 then return { "（还没有存档）" } end
             return list
         end
+
+        pcall(function()
+            cfgSec:Label({
+                Title = "配置保存 / 读取",
+                Desc = "把所有开关 / 拉条 / 下拉框 / 输入框 / 按键 / 颜色一次性存档",
+            })
+        end)
 
         cfgSec:Textbox({
             Title = "配置名称",
