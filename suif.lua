@@ -313,30 +313,13 @@ getgenv().__SUIF_RICH_PLAYERS = function(opts)
     if opts.all then
         out[#out + 1] = {
             Title = "ALL",
-            Desc = "全体玩家 · 当前 " .. tostring(#PSvc:GetPlayers()) .. " 人",
             Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(me and me.UserId or 1) .. "&w=48&h=48",
         }
     end
     for _, p in ipairs(PSvc:GetPlayers()) do
         if not (opts.excludeLocal and p == me) then
-            local desc = p.DisplayName
-            if p.DisplayName ~= p.Name then
-                desc = p.DisplayName .. "  @" .. p.Name
-            end
-            local ch = p.Character
-            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-            if hum then
-                if hum.Health > 0 then
-                    desc = desc .. "  ·  HP " .. tostring(math.floor(hum.Health))
-                else
-                    desc = desc .. "  ·  已阵亡"
-                end
-            else
-                desc = desc .. "  ·  未加载"
-            end
             out[#out + 1] = {
                 Title = p.Name,
-                Desc = desc,
                 Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(p.UserId) .. "&w=48&h=48",
             }
         end
