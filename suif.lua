@@ -3238,9 +3238,21 @@ task.defer(function()
         -- UI —— 直接挂在「设置」页签上（不建 Section：
         -- Section() 在报错现场返回过 nil，tab 上的控件方法是稳定可用的）
         ------------------------------------------------------------------
-        local cfgSec = settingsTab
-        if not cfgSec or type(cfgSec.Textbox) ~= "function" then
-            error("settingsTab 不可用，跳过配置区块")
+        local cfgSec = settingsTab or win     -- 兜底：settingsTab 万一是 nil 就挂到 window 上
+        -- ★ 不在这里 error：类型判断一旦误判就会把整个配置区连标题都不留。
+        --   改成逐项 pcall + 诊断输出，能建几个算几个，失败也只在控制台留痕。
+        do
+            local tObj = type(cfgSec)
+            local tTb, tBtn, tSec, tDd
+            pcall(function() tTb = type(cfgSec.Textbox) end)
+            pcall(function() tBtn = type(cfgSec.Button) end)
+            pcall(function() tSec = type(cfgSec.Section) end)
+            pcall(function() tDd = type(cfgSec.Dropdown) end)
+            print(("[配置] 诊断 settingsTab: 对象=%s Textbox=%s Button=%s Section=%s Dropdown=%s")
+                :format(tObj, tostring(tTb), tostring(tBtn), tostring(tSec), tostring(tDd)))
+            if tObj == "nil" then
+                error("settingsTab 为 nil，配置区无法创建")
+            end
         end
         local cfgName = "default"
         local cfgPick = nil
@@ -3252,77 +3264,109 @@ task.defer(function()
             return list
         end
 
-        pcall(function()
+        local made, failed = 0, {}
+
+        local function build(name, fn)
+            local ok, err = pcall(fn)
+            if ok then
+                made = made + 1
+            else
+                table.insert(failed, name .. ":" .. tostring(err))
+            end
+            return ok
+        end
+
+        build("Label", function()
             cfgSec:Label({
                 Title = "配置保存 / 读取",
                 Desc = "把所有开关 / 拉条 / 下拉框 / 输入框 / 按键 / 颜色一次性存档",
             })
         end)
 
-        cfgSec:Textbox({
-            Title = "配置名称",
-            Desc = "自定义名字；存到执行器工作区 " .. CFG_DIR .. "/<名字>.json",
-            Value = "default",
-            Placeholder = "例如 我的配置 / pvp / 挂机",
-            Callback = function(v) cfgName = tostring(v or "") end,
-        })
+        build("Textbox", function()
+            cfgSec:Textbox({
+                Title = "配置名称",
+                Desc = "自定义名字；存到执行器工作区 " .. CFG_DIR .. "/<名字>.json",
+                Value = "default",
+                Placeholder = "例如 我的配置 / pvp / 挂机",
+                Callback = function(v) cfgName = tostring(v or "") end,
+            })
+        end)
 
-        cfgSec:Button({
-            Title = "保存当前配置",
-            Desc = "把当前所有开关 / 拉条 / 下拉框 / 输入框 / 按键 / 颜色都存下来",
-            Callback = function()
-                cfgSave(cfgName)
-                if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
-                    pcall(function() cfgDropdown:Refresh(cfgValuesSafe()) end)
-                end
-            end,
-        })
-
-        cfgDropdown = cfgSec:Dropdown({
-            Title = "已保存的配置",
-            Desc = "选一个再点下面的读取 / 删除",
-            Values = cfgValuesSafe(),
-            Callback = function(v)
-                if type(v) == "table" then v = v.Title or v.Value or v.Name end
-                cfgPick = v
-                if v and v ~= "（还没有存档）" then cfgName = tostring(v) end
-            end,
-        })
-
-        cfgSec:Button({
-            Title = "刷新配置列表",
-            Callback = function()
-                if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
-                    pcall(function() cfgDropdown:Refresh(cfgValuesSafe()) end)
-                    notify("配置管理", ("找到 %d 个配置"):format(#cfgList()), "list", 3)
-                end
-            end,
-        })
-
-        cfgSec:Button({
-            Title = "读取选中配置",
-            Desc = "把存档里的值套回所有控件",
-            Callback = function() cfgLoad(cfgPick or cfgName) end,
-        })
-
-        cfgSec:Button({
-            Title = "删除选中配置",
-            Desc = "删掉 suture_configs 里对应的 json",
-            Callback = function()
-                if cfgDelete(cfgPick or cfgName) then
+        build("保存按钮", function()
+            cfgSec:Button({
+                Title = "保存当前配置",
+                Desc = "把当前所有开关 / 拉条 / 下拉框 / 输入框 / 按键 / 颜色都存下来",
+                Callback = function()
+                    cfgSave(cfgName)
                     if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
                         pcall(function() cfgDropdown:Refresh(cfgValuesSafe()) end)
                     end
-                end
-            end,
-        })
+                end,
+            })
+        end)
 
-        cfgSec:Paragraph({
-            Title = "说明",
-            Desc = "存档位置：执行器工作区 " .. CFG_DIR .. "/<名字>.json。"
-                .. "按钮类控件没有状态，不参与保存。"
-                .. "游戏专属脚本是点页签才加载的，先点开对应页签再保存，才能把它一并记下来。",
-        })
+        build("Dropdown", function()
+            cfgDropdown = cfgSec:Dropdown({
+                Title = "已保存的配置",
+                Desc = "选一个再点下面的读取 / 删除",
+                Values = cfgValuesSafe(),
+                Callback = function(v)
+                    if type(v) == "table" then v = v.Title or v.Value or v.Name end
+                    cfgPick = v
+                    if v and v ~= "（还没有存档）" then cfgName = tostring(v) end
+                end,
+            })
+        end)
+
+        build("刷新按钮", function()
+            cfgSec:Button({
+                Title = "刷新配置列表",
+                Callback = function()
+                    if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
+                        pcall(function() cfgDropdown:Refresh(cfgValuesSafe()) end)
+                        notify("配置管理", ("找到 %d 个配置"):format(#cfgList()), "list", 3)
+                    end
+                end,
+            })
+        end)
+
+        build("读取按钮", function()
+            cfgSec:Button({
+                Title = "读取选中配置",
+                Desc = "把存档里的值套回所有控件",
+                Callback = function() cfgLoad(cfgPick or cfgName) end,
+            })
+        end)
+
+        build("删除按钮", function()
+            cfgSec:Button({
+                Title = "删除选中配置",
+                Desc = "删掉 suture_configs 里对应的 json",
+                Callback = function()
+                    if cfgDelete(cfgPick or cfgName) then
+                        if cfgDropdown and type(cfgDropdown.Refresh) == "function" then
+                            pcall(function() cfgDropdown:Refresh(cfgValuesSafe()) end)
+                        end
+                    end
+                end,
+            })
+        end)
+
+        build("Paragraph", function()
+            cfgSec:Paragraph({
+                Title = "说明",
+                Desc = "存档位置：执行器工作区 " .. CFG_DIR .. "/<名字>.json。"
+                    .. "按钮类控件没有状态，不参与保存。"
+                    .. "游戏专属脚本是点页签才加载的，先点开对应页签再保存，才能把它一并记下来。",
+            })
+        end)
+
+        print(("[配置] 控件创建：成功 %d 个"):format(made))
+        if #failed > 0 then
+            warn("[配置] 以下控件创建失败（其它功能不受影响）:")
+            for _, t in ipairs(failed) do warn("  - " .. t) end
+        end
 
         pcall(function()
             local g = (getgenv and getgenv()) or _G
