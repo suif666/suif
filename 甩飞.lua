@@ -628,13 +628,40 @@ TargetDropdown = Tab:Dropdown({
     end
 })
 
+-- ★ 点一下直接开居中大面板（自带搜索/多选/头像），不再弹那个会错位的小菜单
+-- ★ 同时注册到全局刷新总线：任何脚本点「刷新玩家列表」都会刷这一个
+do
+    local g = (getgenv and getgenv()) or _G
+    if type(g.__SUIF_BIGONLY) == "function" then
+        pcall(g.__SUIF_BIGONLY, TargetDropdown)
+    end
+    if type(g.__SUIF_REGISTER_PLAYER_DD) == "function" then
+        pcall(g.__SUIF_REGISTER_PLAYER_DD, TargetDropdown, function(dd)
+            rebuildPlayerList()
+            listKey = table.concat(playerNameList, ",")
+            if dd.Refresh then
+                dd:Refresh(richValues(), nil, true)
+            else
+                dd:SetValues(richValues())
+            end
+        end, "甩飞")
+    end
+end
+
 Tab:Button({
-    Title = "刷新玩家列表",
-    Desc = "手动刷新目标选择列表（玩家进出会自动更新，列表异常时点这个）",
+    Title = "刷新玩家列表（同步全部）",
+    Desc = "刷新所有脚本里的玩家下拉框（甩飞 / 传送 / 发言 / 伪装都一起更新）",
     Icon = "refresh-cw",
     Callback = function()
-        updatePlayerList(true)
-        Notify("已刷新", "玩家列表已更新", 2)
+        local g = (getgenv and getgenv()) or _G
+        local n = 0
+        if type(g.__SUIF_REFRESH_ALL_PLAYERS) == "function" then
+            local ok, r = pcall(g.__SUIF_REFRESH_ALL_PLAYERS)
+            if ok and type(r) == "number" then n = r end
+        else
+            updatePlayerList(true)
+        end
+        Notify("已刷新", ("全部玩家下拉框已更新（%d 个）"):format(n), 2)
     end
 })
 
