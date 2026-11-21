@@ -1049,7 +1049,7 @@ mainTab:Paragraph({
 
 mainTab:Paragraph({
     Title = "群聊",
-    Desc = "462989034"
+    Desc = "1134771930"
 })
 
 local countText = mainTab:Paragraph({
