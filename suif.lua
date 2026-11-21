@@ -2700,7 +2700,9 @@ local HB_REMOTE_BASE = "https://raw.githubusercontent.com/suif666/tu/main/hb/"
 do
     local g = (getgenv and getgenv()) or _G
     if g and g.SutureDisableHB == nil then
-        g.SutureDisableHB = true
+        -- 脚本已全部重写（自实现、无远程混淆、无轮询），默认启用。
+        -- 若仍遇卡顿：游戏里执行 getgenv().SutureDisableHB = true 后重启脚本即可全停。
+        g.SutureDisableHB = false
     end
 end
 
