@@ -244,32 +244,46 @@ end
 
 -- onDemand=true 的游戏专属脚本：点对应 Tab 时才加载（避免启动全量加载卡顿）
 local function lazyLoad(url, desc, tab, onDemand)
-    if tab and tab.Index then
+    -- ★ 原来要求 tab.Index 必须存在，批量创建时若 Index 还没赋值会整个跳过注册
+    --   → 远程脚本永远不加载。现在 tab 存在就注册，Index 缺失用对象自身当 key。
+    if tab then
+        local tabKey = tab.Index
+        if tabKey == nil then tabKey = tab end
         local item = { url = url, desc = desc, state = "pending", onDemand = onDemand or false }
         -- [suture] 预编译模式：URL 已被加载器预下载 → 标记 done，全量自动加载段直接跳过
         local g2 = (getgenv and getgenv()) or _G
         if g2 and g2.__SUIF_PRELOAD and g2.__PRELOADED_URLS and g2.__PRELOADED_URLS[url] then
             item.state = "done"
         end
-        lazyTabs[tab.Index] = item
+        lazyTabs[tabKey] = item
         lazyOrder[#lazyOrder + 1] = item
         if onDemand then
             -- 挂 Tab 栏按钮点击（普通 Tab 的点击对象是 tab.UIElements.Main，
             -- TabItem 只有 Dropdown 类型 Tab 才用，挂它点不动）
+            -- ★ UI 是分批创建的，页签按钮可能很晚才出现（原来只等 2 秒容易漏挂）：
+            --   这里最多等 60 秒；等到就先挂；始终没等到就退化为「直接加载」，保证一定能用。
             task.spawn(function()
-                for retry = 1, 20 do
+                local hooked = false
+                for retry = 1, 600 do
                     local btn = tab.UIElements and tab.UIElements.Main
                     if btn and btn.MouseButton1Click then
-                        pcall(function()
+                        local okHook = pcall(function()
                             btn.MouseButton1Click:Connect(function()
                                 if item.state == "pending" or item.state == "failed" then
                                     startLoad(item)
                                 end
                             end)
                         end)
-                        break
+                        if okHook then
+                            hooked = true
+                            break
+                        end
                     end
                     task.wait(0.1)
+                end
+                if not hooked and item.state == "pending" then
+                    -- 兜底：页签按钮一直没出现 → 直接加载，避免"点了没反应"
+                    startLoad(item)
                 end
             end)
         end
