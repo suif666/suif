@@ -8,6 +8,10 @@
 --   task  表     安全版 task（防协议异常）
 -- 加载失败时主脚本自动降级为「无加固但能跑」
 -- ══════════════════════════════════════════════════════════════════════════════
+local _G = getgenv and getgenv() or _G
+-- 挂载目标页签（主脚本 lazyLoad 前会注册 getgenv().Tabs.ToolTab）
+local Tab = (_G.Tabs and _G.Tabs.ToolTab) or nil
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 【静默层】加载期一个字节都不往控制台输出
 --
@@ -205,11 +209,66 @@ end
 
 if __HARD then pcall(__installFilter) end
 
--- ═══ 返回给调用方 ═══
-return {
+-- ═══ 能力写回 getgenv（主脚本从 __SUIF_HARDEN 取用）═══
+_G.__SUIF_HARDEN = {
     HARD = __HARD,
-    log = __log,
-    rnd = __rnd,
+    log = __lg,
     task = task,
     sandbox = __sandbox,
 }
+_G.SutureLog = function(full)
+    if full == true then
+        return table.concat(__LOG, "\n")
+    end
+    return #__LOG
+end
+
+-- ═══ 工具类页签：防护加固控制面板 ═══
+if Tab then
+    local okUI, errUI = pcall(function()
+        local sec = Tab:Section({ Title = "防护加固（防UI检测）", Icon = "shield", Opened = false })
+
+        sec:Paragraph({
+            Title = "当前状态",
+            Desc = __HARD and "加固已生效：全局 print/warn 已过滤，容器已换代名，task 走安全包装"
+                or "加固已关闭（getgenv().SutureNoHarden = true）",
+            Image = "shield",
+            ImageSize = 14,
+            Color = __HARD and Color3.fromRGB(120, 200, 140) or Color3.fromRGB(200, 160, 120),
+        })
+
+        sec:Toggle({
+            Title = "静默输出",
+            Desc = "拦截全局 print/warn，日志只进内存（getgenv().SutureLog(true) 查看）",
+            Type = "Toggle",
+            Value = __HARD,
+            Callback = function(v)
+                pcall(function()
+                    if v then
+                        __installFilter()
+                    else
+                        pcall(function() rawset(_G, "print", __realPrint) end)
+                    end
+                end)
+            end,
+        })
+
+        sec:Button({
+            Title = "查看静默日志",
+            Desc = "把内存里的日志复制到剪贴板",
+            Icon = "clipboard",
+            Callback = function()
+                local s = table.concat(__LOG, "\n")
+                local clip = setclipboard or (getgenv and getgenv().setclipboard)
+                if clip then
+                    pcall(clip, s)
+                end
+            end,
+        })
+    end)
+    if not okUI then
+        pcall(function() __lg("防护加固 UI 创建失败：" .. tostring(errUI)) end)
+    end
+end
+
+pcall(function() __lg("[防护加固] 远程脚本已挂载到工具类") end)
