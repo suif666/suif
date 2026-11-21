@@ -1,23 +1,14 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- 【脚本库 / rscripts】远程脚本（从主脚本打包）
--- 自建 ScreenGui 卡片列表 UI，数据来自 worker /rscripts，按当前 placeId 自动筛选
--- 依赖注入：
---   __SUIF_WIN     WindUI 窗口对象（建分组用）
---   __SUIF_RUN     执行函数 run(url, name)
---   __SUIF_RS_TAB  主脚本预建的「rscripts 脚本库」页签
+-- 【脚本库 / rscripts】远程脚本
+-- 主脚本负责创建页签（getgenv().Tabs.RscriptsTab），本脚本只添加控件与逻辑：
+--   自建 ScreenGui 卡片列表 + worker /rscripts 数据 + 搜索分页 + 一键执行
+-- 依赖注入：getgenv().__SUIF_WIN（窗口）、getgenv().__SUIF_RUN（执行函数）
 -- ══════════════════════════════════════════════════════════════════════════════
 local _G = getgenv and getgenv() or _G
 local win = _G.__SUIF_WIN
 local run = _G.__SUIF_RUN
-local _rsTabInjected = _G.__SUIF_RS_TAB
-
-if not win then
-    warn("[脚本库] 缺少 win 注入，无法创建界面")
-    return
-end
-if not run then
-    run = function(url, name) end
-end
+if not win then warn("[脚本库] 缺少 win 注入") return end
+if not run then run = function(url, name) end end
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- rscripts 脚本库 · 自建 UI
@@ -552,11 +543,10 @@ do
     end
 
     -- ═══ 挂到 WindUI 分区上：一个入口按钮 ═══
-    -- 页签由主脚本预建（getgenv().__SUIF_RS_TAB），这里直接用，不重复建分组
-    local rsSec = nil
-    local rsTab = _rsTabInjected
+    -- 页签由主脚本创建，这里直接用（远程脚本只负责控件与逻辑）
+    local rsTab = _G.Tabs and _G.Tabs.RscriptsTab
     if not rsTab then
-        warn("[脚本库] 页签注入无效，放弃挂载")
+        warn("[脚本库] 未拿到主脚本创建的页签，放弃挂载")
         return
     end
 
@@ -610,4 +600,7 @@ do
     getgenv().Tabs = getgenv().Tabs or {}
     getgenv().Tabs.RscriptsTab = rsTab
     getgenv().SutureRscriptsTab = rsTab
+    getgenv().OpenRscripts = function()
+        rsBuild(); rsHookSearch(); rsGui.Enabled = true
+    end
 end
