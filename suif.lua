@@ -1852,6 +1852,12 @@ toolTab:Button({
 })
 
 toolTab:Button({
+    Title = "dex++汉化", Desc = "需要再设置里面开启翻译", Icon = "shell",
+    Callback = function() run("https://github.com/czp86263-del/Dex-RE-/releases/download/Dex/Dex.RE++.lua", "dex++汉化") end
+})
+
+
+toolTab:Button({
     Title = "iy汉化", Desc = "infiniteyield的汉化版 功能可能不会和原版同步", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/config/iy%E6%B1%89%E5%8C%96%E7%89%88", "iy汉化") end
 })
