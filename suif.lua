@@ -3245,6 +3245,9 @@ task.defer(function()
             local tObj = type(cfgSec)
             local tTb, tBtn, tSec, tDd
             pcall(function() tTb = type(cfgSec.Textbox) end)
+            local tIn
+            pcall(function() tIn = type(cfgSec.Input) end)
+            print("[配置] 诊断 Input 方法类型: " .. tostring(tIn))
             pcall(function() tBtn = type(cfgSec.Button) end)
             pcall(function() tSec = type(cfgSec.Section) end)
             pcall(function() tDd = type(cfgSec.Dropdown) end)
@@ -3283,14 +3286,20 @@ task.defer(function()
             })
         end)
 
-        build("Textbox", function()
-            cfgSec:Textbox({
+        -- ★ WindUI-Boreal 里文本框叫 :Input（控件 __type 也是 Input），
+        --   没有 :Textbox() 这个方法。两个都试，哪个能用用哪个。
+        build("Input", function()
+            local cfgBox = {
                 Title = "配置名称",
                 Desc = "自定义名字；存到执行器工作区 " .. CFG_DIR .. "/<名字>.json",
                 Value = "default",
                 Placeholder = "例如 我的配置 / pvp / 挂机",
                 Callback = function(v) cfgName = tostring(v or "") end,
-            })
+            }
+            local okIn = pcall(function() cfgSec:Input(cfgBox) end)
+            if not okIn then
+                cfgSec:Textbox(cfgBox)      -- 万一某个版本叫 Textbox
+            end
         end)
 
         build("保存按钮", function()
