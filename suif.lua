@@ -297,6 +297,61 @@ end
 -- ============ 主脚本主体：公告确认后才执行 ============
 local function initMainScript()
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【富玩家条目】给各远程脚本的「玩家下拉框」用
+-- 每个玩家一个条目：头像(rbxthumb) + 名字 + DisplayName · 血量状态
+-- 用法：getgenv().__SUIF_RICH_PLAYERS({ all = true, excludeLocal = true })
+--   返回 { {Title="玩家名", Desc="显示名 · HP 100", Image="rbxthumb://..."} , ... }
+--   远程脚本拿到后直接当 Dropdown 的 Values 用；Boreal 原生支持
+--   Values 里是 table 时按 Title/Desc/Image 渲染成带头像的卡片。
+-- ══════════════════════════════════════════════════════════════════════════════
+getgenv().__SUIF_RICH_PLAYERS = function(opts)
+    opts = opts or {}
+    local PSvc = game:GetService("Players")
+    local me = PSvc.LocalPlayer
+    local out = {}
+    if opts.all then
+        out[#out + 1] = {
+            Title = "ALL",
+            Desc = "全体玩家 · 当前 " .. tostring(#PSvc:GetPlayers()) .. " 人",
+            Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(me and me.UserId or 1) .. "&w=48&h=48",
+        }
+    end
+    for _, p in ipairs(PSvc:GetPlayers()) do
+        if not (opts.excludeLocal and p == me) then
+            local desc = p.DisplayName
+            if p.DisplayName ~= p.Name then
+                desc = p.DisplayName .. "  @" .. p.Name
+            end
+            local ch = p.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if hum then
+                if hum.Health > 0 then
+                    desc = desc .. "  ·  HP " .. tostring(math.floor(hum.Health))
+                else
+                    desc = desc .. "  ·  已阵亡"
+                end
+            else
+                desc = desc .. "  ·  未加载"
+            end
+            out[#out + 1] = {
+                Title = p.Name,
+                Desc = desc,
+                Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(p.UserId) .. "&w=48&h=48",
+            }
+        end
+    end
+    return out
+end
+
+-- 从富条目或裸字符串里取玩家名（远程脚本解析回调用）
+getgenv().__SUIF_ITEM_NAME = function(v)
+    if type(v) == "table" then
+        return v.Title or v.Name or v.Value
+    end
+    return v
+end
+
 -- 全局通用防爆杀 (Adonis Bypass)
 -- ★ 说明：这个键名是[公开约定]，游戏侧的反作弊理论上可以直接读它来判定在用第三方。
 --   但 Adonis 的绕过依赖它，删了会失去这层保护，所以保留 —— 这是本脚本仅剩的
