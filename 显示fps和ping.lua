@@ -131,39 +131,57 @@ end
 UpdatePosition(Config.Position)
 UpdateSize(Config.TextSize)
 
--- ★ 原来这里挂了两个永久连接：
---     ① RenderStepped 每帧自增计数（60~240fps → 每帧一次 Lua 回调）
---     ② Heartbeat 每帧写 FPSLabel/PingLabel（**每帧 UI 重绘**）+ 每帧调 GetNetworkPing
---   两个都不断开，就算显示关掉也照样每帧跑。
---   改成单协程：每秒量一次真实帧间隔、读一次 ping、写一次文本。零每帧开销。
+-- ══════════════════════════════════════════════════════════════════════════════
+-- FPS / Ping 采样
+--   原版挂两个永久连接：RenderStepped 每帧计帧 + Heartbeat **每帧写两个 TextLabel**
+--   并每帧调 GetNetworkPing。每帧 UI 重绘是真正的开销来源。
+--
+--   现在拆成两层：
+--     ① RenderStepped 每帧只做「frameCount = frameCount + 1」——一次加法，不碰 UI
+--     ② 协程每 1 秒结算：fps = 帧数 / 实际经过时间，然后才写一次文本
+--
+--   为什么不靠「等一帧再量 dt」：os.clock() 精度只有毫秒级，量单帧（16.7ms）
+--   相对误差能到 10% 以上，还会被协程调度延迟污染 —— 显示出来的数字一直乱跳。
+--   计数法是一秒内的总帧数，不受单帧抖动影响。
+-- ══════════════════════════════════════════════════════════════════════════════
 local currentFPS = 0
+local frameCount = 0
+
 do
     local RS = RunService
+
+    -- ① 纯计数，无 UI 写入
+    RS.RenderStepped:Connect(function()
+        frameCount = frameCount + 1
+    end)
+
+    -- ② 每秒结算一次
     task.spawn(function()
+        local last = os.clock()
+        task.wait(1)
         while true do
+            local now = os.clock()
+            local elapsed = now - last
+            last = now
+
+            if elapsed > 0 then
+                -- 四舍五入，避免 59.6 → 59 那种系统性偏低
+                currentFPS = math.floor(frameCount / elapsed + 0.5)
+            end
+            frameCount = 0
+
             if Config.Enabled then
-                -- 量一次真实帧间隔（只等一帧，不是常驻每帧回调）
-                local ok, dt = pcall(function()
-                    local t0 = os.clock()
-                    RS.RenderStepped:Wait()
-                    return os.clock() - t0
-                end)
-                local fps = 0
-                if ok and dt and dt > 0 then
-                    fps = math.floor(1 / dt)
-                end
-                if fps > 0 then
-                    currentFPS = (currentFPS > 0) and math.floor(currentFPS * 0.6 + fps * 0.4) or fps
-                end
                 Frame.Visible = true
                 FPSLabel.Text = "FPS: " .. tostring(currentFPS)
-                local ok2, ping = pcall(function()
+
+                local ok, ping = pcall(function()
                     return math.floor(LocalPlayer:GetNetworkPing() * 1000)
                 end)
-                PingLabel.Text = "Ping: " .. tostring(ok2 and ping or 0) .. " ms"
+                PingLabel.Text = "Ping: " .. tostring(ok and ping or 0) .. " ms"
             else
                 Frame.Visible = false
             end
+
             task.wait(1)
         end
     end)
