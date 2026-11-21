@@ -189,18 +189,21 @@ local function loadRemote(url, desc, onSuccess, onFail)
         local ok, err
         for attempt = 1, 3 do
             ok, err = pcall(function()
+                local g2 = (getgenv and getgenv()) or _G
+                -- ★ 预编译缓存命中：加载器已经把源码下载并编译好了，直接执行，不重复下载
+                local cached = g2 and g2.__PRELOADED_FNS and g2.__PRELOADED_FNS[url]
+                if type(cached) == "function" then
+                    g2.__PRELOADED_FNS[url] = nil   -- 一次性消费，避免重复挂载出两份控件
+                    cached()
+                    return
+                end
                 local src = httpGetWithProxy(url)
                 local fn, compileErr = loadstring(src)
                 __sandbox(fn)                  -- ★ 远程脚本静默
                 if not fn then
                     error(compileErr)
                 end
-                local g2 = (getgenv and getgenv()) or _G
                 if g2 and g2.__SUIF_PRELOAD then
-                    -- [suture] 已由加载器预下载过的 URL 直接跳过（避免重复下载/重复挂载）
-                    if g2.__PRELOADED_URLS and g2.__PRELOADED_URLS[url] then
-                        return
-                    end
                     -- 排队交给常驻挂载循环消费（它每 0.1 秒检查一次新任务，
                     -- 所以点页签这种晚到的加载也能被执行，不会再"点了没反应"）
                     g2.__SUIF_PENDING = g2.__SUIF_PENDING or {}
@@ -249,11 +252,9 @@ local function lazyLoad(url, desc, tab, onDemand)
         local tabKey = tab.Index
         if tabKey == nil then tabKey = tab end
         local item = { url = url, desc = desc, state = "pending", onDemand = onDemand or false }
-        -- [suture] 预编译模式：URL 已被加载器预下载 → 标记 done，全量自动加载段直接跳过
-        local g2 = (getgenv and getgenv()) or _G
-        if g2 and g2.__SUIF_PRELOAD and g2.__PRELOADED_URLS and g2.__PRELOADED_URLS[url] then
-            item.state = "done"
-        end
+        -- ★ 不再因为「已预下载」就标 done：那样点页签永远不挂载。
+        --   预下载只是把编译结果缓存到 __PRELOADED_FNS，实际挂载由点页签时的
+        --   startLoad → loadRemote 消费缓存完成（瞬间完成，无下载延迟）。
         lazyTabs[tabKey] = item
         lazyOrder[#lazyOrder + 1] = item
         if onDemand then
@@ -924,15 +925,17 @@ win:Tag({ Title = "free", Icon = "gem", Color = Color3.fromHex("#30ff6a"), Radiu
 -- 主窗口可见性广播：子脚本的独立浮层（雷达、Ping/FPS 等）跟随主 UI 一起显示/隐藏
 getgenv().SutureMainWindow = win
 getgenv().SutureMainUIVisible = true
-task.spawn(function()
-    while true do
-        task.wait(0.3)
-        local ok, vis = pcall(function()
-            return win.UIElements.Main.Visible
-        end)
-        getgenv().SutureMainUIVisible = ok and vis or false
+do
+    -- ★ 原来 0.3 秒轮询读一次 Visible；改成监听属性变化，完全不占帧。
+    local mainUi = win.UIElements.Main
+    local function sync()
+        getgenv().SutureMainUIVisible = mainUi and mainUi.Visible or false
     end
-end)
+    sync()
+    pcall(function()
+        mainUi:GetPropertyChangedSignal("Visible"):Connect(sync)
+    end)
+end
 
 --// 【彩虹边框】原版 while 逻辑回归
 local UIStroke = Instance.new("UIStroke")
@@ -958,8 +961,8 @@ task.spawn(function()
     while true do
         local main = win.UIElements.Main
         if main and main.Visible then
-            UIGradient.Rotation = (UIGradient.Rotation + 10) % 360
-            task.wait(0.08)
+            UIGradient.Rotation = (UIGradient.Rotation + 12) % 360
+            task.wait(0.15)          -- 原来 0.08（12.5次/秒），写 UIGradient 每次都触发 UI 重绘
         else
             task.wait(1)
         end
@@ -1060,7 +1063,6 @@ local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked =
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
 local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
-local jyrsTab = scriptSec:Tab({ Title = "监狱人生", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1297,10 +1299,18 @@ pcall(function()
                 fovConn:Disconnect()
                 fovConn = nil
             end
-            fovConn = RunService.RenderStepped:Connect(function()
-                local cam = workspace.CurrentCamera
-                if cam and cam.FieldOfView ~= fov then
-                    cam.FieldOfView = fov
+            -- ★ 原来用 RenderStepped 每帧回调：只要拖过一次滑条，这段连接就一直活着，
+            --   60~240fps 下每帧都要进一次 Lua（哪怕什么都不用改）。改成独立协程
+            --   每 0.15 秒检查一次 —— 被重置后最多 0.15 秒补回来，肉眼无差，开销归零。
+            local token = {}
+            fovConn = token
+            task.spawn(function()
+                while fovConn == token do
+                    task.wait(0.15)
+                    local cam = workspace.CurrentCamera
+                    if cam and cam.FieldOfView ~= fov then
+                        cam.FieldOfView = fov
+                    end
                 end
             end)
         end
@@ -1377,12 +1387,15 @@ do
         if XRAY.conn or not XRAY.loop then return end
         -- ★ 原来每 0.5 秒全量扫一遍 workspace（几万个实例全改透明度）→ 周期性卡顿。
         --   改成：新部件靠 DescendantAdded 即时处理，全量扫描只做 2 秒一次的兜底对账。
-        XRAY.conn = RunService.Heartbeat:Connect(function()
-            if not XRAY.on then return end
-            local now = os.clock()
-            if XRAY.next > now then return end
-            XRAY.next = now + 2.0
-            xrayApply()
+        -- ★ 原来挂 RunService.Heartbeat：即使 Xray 关着，每帧也要进一次 Lua 回调。
+        --   改成协程：只在开启期间每 2 秒对账一次，关闭即退出，零每帧开销。
+        local token = {}
+        XRAY.conn = token
+        task.spawn(function()
+            while XRAY.on and XRAY.conn == token do
+                xrayApply()
+                task.wait(2.0)
+            end
         end)
         if not XRAY.addConn then
             XRAY.addConn = workspace.DescendantAdded:Connect(function(v)
@@ -2388,7 +2401,7 @@ gnjbTab:Button({
 --范围远程
 getgenv().Tabs.RangeTab = FwTab          -- 这里换成你实际创建的 Tab 变量名
 
-lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", "范围", FwTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E8%8C%83%E5%9B%B4.lua", "范围", FwTab, true)
 
 --甩飞远程
 getgenv().Tabs.FlingTPTab = SfTab
@@ -2406,19 +2419,19 @@ lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/%E6%98%
 getgenv().Tabs.RadarTab = radarTab
 getgenv().SutureRadarTab = radarTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", "雷达", radarTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E9%9B%B7%E8%BE%BE%E7%A4%BA%E4%BE%8B.lua", "雷达", radarTab, true)
 
 --玩家类远程
 getgenv().Tabs.PlayerTab = playerTab
 getgenv().SuturePlayerTab = playerTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "玩家类", playerTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E7%8E%A9%E5%AE%B6%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "玩家类", playerTab, true)
 
 --自瞄类远程
 getgenv().Tabs.AimbotTab = amTab
 getgenv().SutureAimbotTab = amTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "自瞄类", amTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%87%AA%E7%9E%84%E7%B1%BB%E8%BF%9C%E7%A8%8B.lua", "自瞄类", amTab, true)
 
 --发言类远程
 getgenv().Tabs.SayTab = sayTab
@@ -2430,13 +2443,13 @@ lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E8%
 getgenv().Tabs.ESPTab = espTab
 getgenv().SutureESPTab = espTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", "ESP", espTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/esp%E7%A4%BA%E4%BE%8B.lua", "ESP", espTab, true)
 
 --服务器类远程
 getgenv().Tabs.ServerTab = serverTab
 getgenv().SutureServerTab = serverTab
 
-lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", "服务器类", serverTab)
+lazyLoad("https://raw.githubusercontent.com/suif666/testing/refs/heads/main/%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%A4%BA%E4%BE%8B.lua", "服务器类", serverTab, true)
 
 --自然灾害远程
 getgenv().Tabs.ZRZHTab = zrzhTab
@@ -2759,14 +2772,6 @@ zqzcTab:Button({
     end
 })
 
-jyrsTab:Button({
-    Title = "监狱人生", Desc = "功能还可以 不适合演戏", Icon = "shell",
-    Callback = function()
-        run("https://raw.githubusercontent.com/suif666/tu/refs/heads/main/%E7%9B%91%E7%8B%B1%E4%BA%BA%E7%94%9F.lua", "监狱人生")
-    end
-})
-
-
 
 -- UI设置
 local themeMap = {
@@ -2979,7 +2984,12 @@ local AUTO_LOAD_DELAY = 0.5
 task.spawn(function()
     task.wait(0.3)
     for _, item in ipairs(lazyOrder) do
-        -- onDemand（游戏专属）跳过：等用户点对应 Tab 时才加载
+        -- onDemand 跳过：等用户点对应 Tab 时才加载。
+        -- ★ 范围/雷达/玩家类/自瞄类/ESP/服务器类 这 6 个重脚本现在都是 onDemand：
+        --   它们都带常驻循环（每帧 Heartbeat / 每帧遍历 workspace / 高频属性写），
+        --   开局全挂上去就是十几个循环同时跑 —— 那才是"莫名其妙卡一下"的来源。
+        --   加载器那边已经把它们的源码预下载并编译好（__PRELOADED_FNS），
+        --   点页签瞬间执行，没有下载等待。
         if not item.onDemand and (item.state == "pending" or item.state == "failed") then
             startLoad(item)
         end
