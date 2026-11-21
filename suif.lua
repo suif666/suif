@@ -2690,32 +2690,53 @@ getgenv().HB_notify = notify
 
 local HB_REMOTE_BASE = "https://raw.githubusercontent.com/suif666/tu/main/hb/"
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ★★★ 黑白远程脚本总开关 ★★★
+-- 排查卡顿时先整体关掉这一批，看卡顿是否消失。
+--   默认关闭（false 之外的写法都不会加载）；
+--   想全部恢复：在游戏里执行  getgenv().SutureDisableHB = false  再重启脚本
+-- ══════════════════════════════════════════════════════════════════════════════
+do
+    local g = (getgenv and getgenv()) or _G
+    if g and g.SutureDisableHB == nil then
+        g.SutureDisableHB = true
+    end
+end
+
+local function hbLoad(url, desc, tab, onDemand)
+    local g = (getgenv and getgenv()) or _G
+    if g and g.SutureDisableHB then
+        return   -- 总开关关闭中：这批判定全部不加载
+    end
+    lazyLoad(url, desc, tab, onDemand)
+end
+
 -- 视觉类 → 动作/动画（三个远程脚本塞进同一个页签）
 getgenv().Tabs.HBAnimTab     = hbAnimTab
 getgenv().SutureHBAnimTab    = hbAnimTab
-lazyLoad(HB_REMOTE_BASE .. "animation.lua",  "动作动画", hbAnimTab)
-lazyLoad(HB_REMOTE_BASE .. "actionpack.lua", "动作包",   hbAnimTab)
-lazyLoad(HB_REMOTE_BASE .. "animpack.lua",   "动画包",   hbAnimTab)
+hbLoad(HB_REMOTE_BASE .. "animation.lua",  "动作动画", hbAnimTab)
+hbLoad(HB_REMOTE_BASE .. "actionpack.lua", "动作包",   hbAnimTab)
+hbLoad(HB_REMOTE_BASE .. "animpack.lua",   "动画包",   hbAnimTab)
 
 -- 视觉类 → 伪装玩家
 getgenv().Tabs.HBDisguiseTab  = hbDisguiseTab
 getgenv().SutureHBDisguiseTab = hbDisguiseTab
-lazyLoad(HB_REMOTE_BASE .. "disguise.lua", "伪装玩家", hbDisguiseTab)
+hbLoad(HB_REMOTE_BASE .. "disguise.lua", "伪装玩家", hbDisguiseTab)
 
 -- 玩家类（复用 suif.lua 已有的 playerTab）
-lazyLoad(HB_REMOTE_BASE .. "slowrun.lua", "缓慢的快速跑", playerTab)
+hbLoad(HB_REMOTE_BASE .. "slowrun.lua", "缓慢的快速跑", playerTab)
 
 -- 工具类（复用 suif.lua 已有的 toolTab）
-lazyLoad(HB_REMOTE_BASE .. "clicker.lua", "自动连点器", toolTab)
+hbLoad(HB_REMOTE_BASE .. "clicker.lua", "自动连点器", toolTab)
 
 -- 功能类 → 独立页签
 getgenv().Tabs.HBTriggerTab  = hbTriggerTab
 getgenv().SutureHBTriggerTab = hbTriggerTab
-lazyLoad(HB_REMOTE_BASE .. "trigger.lua", "触发类", hbTriggerTab)
+hbLoad(HB_REMOTE_BASE .. "trigger.lua", "触发类", hbTriggerTab)
 
 -- 脚本类 → 自然灾害（复用 suif.lua 已有的 zrzhTab；该页签已挂两个远程脚本，
 -- 这里跟着用 onDemand=true，点开页签时才加载）
-lazyLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
+hbLoad(HB_REMOTE_BASE .. "disaster.lua", "灾害预警", zrzhTab, true)
 
 -- ╔══════════════════════════════════════════════════════════════╗
 -- ║ 【已恢复】D 黑白提取远程脚本整段 结束
