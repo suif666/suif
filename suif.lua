@@ -327,6 +327,73 @@ getgenv().__SUIF_RICH_PLAYERS = function(opts)
     return out
 end
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【玩家下拉框 · 只用放大面板】
+-- 普通小菜单（贴按钮下方那个）在刷新后容易位置错乱、点不中；
+-- 这里把 Dropdown 的 Open 直接改成 OpenBig：点一下直接弹出居中大面板
+-- （自带搜索 / 多选 / 头像，视觉和原版放大按钮一致）。
+-- ══════════════════════════════════════════════════════════════════════════════
+getgenv().__SUIF_BIGONLY = function(dd)
+    if not dd then return dd end
+    local ok = pcall(function()
+        if dd.__bigOnly then return end
+        local dm = dd.DropdownMenu
+        if not dm or type(dm.OpenBig) ~= "function" then return end
+        dd.__bigOnly = true
+        dm.Open = function(self, ...)
+            -- 已经在放大面板里 → 再点一次关掉
+            if self.__BigOpen then
+                pcall(function()
+                    if type(self.__CloseBig) == "function" then self.__CloseBig() end
+                end)
+                return
+            end
+            -- 小菜单若开着，先关掉再开大面板（Close 会同步把 Opened 置 false）
+            if self.Opened then
+                pcall(function() self:Close() end)
+            end
+            return self:OpenBig(...)
+        end
+        dd.Open = dm.Open          -- 别名同步，外部调 dd:Open() 也走大面板
+    end)
+    if not ok then
+        warn("[suture] __SUIF_BIGONLY 应用失败（该下拉框可能不支持放大面板）")
+    end
+    return dd
+end
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【玩家下拉框 · 全局刷新总线】
+-- 每个玩家下拉框注册进来（附带各自的重新填充函数）。
+-- 任何一个脚本里的「刷新玩家列表」按钮，都会刷全部注册过的玩家下拉框。
+--   __SUIF_REGISTER_PLAYER_DD(dd, refillFn, "甩飞")
+--   __SUIF_REFRESH_ALL_PLAYERS()  → 返回成功刷新的个数
+-- ══════════════════════════════════════════════════════════════════════════════
+getgenv().__SUIF_PLAYER_DDS = getgenv().__SUIF_PLAYER_DDS or {}
+
+getgenv().__SUIF_REGISTER_PLAYER_DD = function(dd, refill, owner)
+    if not dd then return dd end
+    local list = getgenv().__SUIF_PLAYER_DDS
+    list[#list + 1] = { dd = dd, refill = refill, owner = tostring(owner or "") }
+    return dd
+end
+
+getgenv().__SUIF_REFRESH_ALL_PLAYERS = function()
+    local list = getgenv().__SUIF_PLAYER_DDS or {}
+    local n = 0
+    for i = #list, 1, -1 do
+        local e = list[i]
+        local dd = e.dd
+        if dd and type(e.refill) == "function" then
+            local ok = pcall(e.refill, dd)
+            if ok then n = n + 1 else table.remove(list, i) end
+        else
+            table.remove(list, i)
+        end
+    end
+    return n
+end
+
 -- 从富条目或裸字符串里取玩家名（远程脚本解析回调用）
 getgenv().__SUIF_ITEM_NAME = function(v)
     if type(v) == "table" then
