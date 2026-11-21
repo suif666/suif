@@ -1,25 +1,199 @@
 -- ══════════════════════════════════════════════════════════════════════════════
--- 【防护加固】远程脚本：「防护加固.lua」（挂在 工具类 页签里，见下方 lazyLoad 注册）
--- 这里只留最轻量的启动期兜底：全局 print/warn 变空函数，避免加载瞬间特征进日志。
--- 真正的加固（过滤安装 / 安全 task / 容器代名 / 日志面板）全在远程脚本里。
--- 开关：getgenv().SutureNoHarden = true 全关；getgenv().SutureVerbose = true 打日志
+-- 【静默层】加载期一个字节都不往控制台输出
+--
+-- 为什么必须做：执行器里 print / warn 的内容会进 LogService.MessageOut，
+-- 游戏只要连一条监听就能在你按下执行、UI 还没画出来的时候抓到脚本特征串；
+-- 未捕获的报错还会进 ScriptContext.Error（带调用栈）并被判定为外来脚本。
+-- 所以本文件内的 print / warn 被整体替换为写内存缓冲，控制台完全静默。
+--
+-- 想看日志：控制台执行  =getgenv().SutureLog(true)  会返回整段日志
+--           执行  getgenv().SutureLog()           会返回条数
 -- ══════════════════════════════════════════════════════════════════════════════
-local __realPrint, __realWarn = print, warn
+local __LOG, __LOGCAP = {}, 300
+-- ★ 排障开关：加载前执行  getgenv().SutureVerbose = true
+--   日志就会同时打到控制台（默认全静默）。出了"公告不出来"这类问题先开它。
+local __VERBOSE = false
+pcall(function()
+    local g = getgenv and getgenv()
+    if g and g.SutureVerbose then __VERBOSE = true end
+end)
+-- ★★ 总开关：加载前执行  getgenv().SutureNoHarden = true
+--    则下面所有加固逐条失效，脚本回到"原版行为"：
+--      不搬容器（GUI 挂回 PlayerGui）、不改名（用回 SutureBall/SutureRscripts）、
+--      任务直通（不包 xpcall）、不过滤全局 print/warn、不调 protect_gui。
+--    用途：出任何怪问题时先开这个开关，一眼分辨"是不是加固引起的"。
+--    日常用不着，默认关闭。
 local __HARD = true
 pcall(function()
-    local g = (getgenv and getgenv()) or _G
+    local g = getgenv and getgenv()
     if g and g.SutureNoHarden then __HARD = false end
-    if g and g.SutureVerbose then return end
-    if __HARD then
-        rawset(_G, "print", function() end)
-        rawset(_G, "warn", function() end)
+end)
+local __realPrint = print          -- ★ 在 shadow 之前抓住原生的
+local function __lg(...)
+    local cnt, parts = select("#", ...), {}
+    for i = 1, cnt do parts[i] = tostring((select(i, ...))) end
+    local joined = table.concat(parts, " ")
+    __LOG[#__LOG + 1] = joined
+    if #__LOG > __LOGCAP then table.remove(__LOG, 1) end
+    if __VERBOSE then pcall(__realPrint, "[Suture] " .. joined) end
+end
+local print, warn = __lg, __lg      -- ★ 本文件内彻底静音（含所有嵌套函数）
+
+-- ══════════════════════════════════════════════════════════════════
+-- 报错诊断（静默后台）：加载器/主脚本出错时自动弹诊断 UI，平时无感。
+-- 加载器已启动过（__SUTURE_DIAG_ACTIVE）则本处自动跳过（防重）。
+-- ══════════════════════════════════════════════════════════════════
+pcall(function()
+    if task and task.spawn then
+        task.spawn(function()
+            pcall(function()
+                local diagSrc = game:HttpGet("https://raw.githubusercontent.com/suif666/suif/main/%E6%8A%A5%E9%94%99%E8%AF%8A%E6%96%AD.lua")
+                local diagFn = loadstring(diagSrc)
+                if diagFn then diagFn() end
+            end)
+        end)
     end
 end)
-local task = task
-local __sutLog = function(...) end
-local __sandbox = function(fn) return fn end
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【任务包装层】task.spawn / task.delay / task.defer 包一层 xpcall。
+-- 本文件里原本有 6 处 task.spawn 没被 pcall 保护，其中两个是 while true 常驻循环 ——
+-- 里面一旦抛错就会以"未捕获错误"的形式进控制台，同时进 LogService.MessageOut
+-- 和 ScriptContext.Error（带调用栈），等于主动告诉游戏"有个外来脚本在我这儿崩了"。
+--
+-- ★ 写法上的两个硬要求（踩过坑）：
+--   1. 绝对不能遍历 task 表去拷贝 —— 有些执行器的 task 是代理，pairs 拿不到键，
+--      拷贝出来就是空表，task.spawn 变 nil，本文件末尾拉公告那句会直接报错，
+--      表现就是"公告加载不出来"。这里改成 __index 代理，其余键全部落回原生 task。
+--   2. 必须自检：万一代理不可用，就原样用回原生 task，宁可少一层保护也不能把脚本弄崩。
+-- ══════════════════════════════════════════════════════════════════════════════
+local __taskRaw = task                     -- ★ 原生引用留一份，开关关掉时用回它
+local __taskSafe = __taskRaw               -- 默认就是原生 task：任何一步出问题都不改行为
+pcall(function()
+    local t = task
+    if type(t) ~= "table" and type(t) ~= "userdata" then return end
+    local rawSpawn, rawDelay, rawDefer = t.spawn, t.delay, t.defer
+    local __unpack = table.unpack or unpack
+    local function wrap(fn)
+        if type(fn) ~= "function" then return fn end
+        return function(...)
+            -- ★ 不依赖 xpcall 转发额外参数（老环境不支持），自己收好再传
+            local n = select("#", ...)
+            local args = { ... }
+            local ok, err = xpcall(function() return fn(__unpack(args, 1, n)) end,
+                                   function(e) return tostring(e) end)
+            if not ok then __lg("task 内未捕获错误（已吞）：" .. tostring(err)) end
+        end
+    end
+    local proxy = setmetatable({}, { __index = t })    -- ★ 不遍历，其余键透传
+    if type(rawSpawn) == "function" then
+        rawset(proxy, "spawn", function(fn, ...) return rawSpawn(wrap(fn), ...) end)
+    end
+    if type(rawDelay) == "function" then
+        rawset(proxy, "delay", function(a, fn, ...) return rawDelay(a, wrap(fn), ...) end)
+    end
+    if type(rawDefer) == "function" then
+        rawset(proxy, "defer", function(fn, ...) return rawDefer(wrap(fn), ...) end)
+    end
+    -- ★ 自检：wait / spawn 都拿得到才启用
+    if type(proxy.wait) == "function" and type(proxy.spawn) == "function" then
+        __taskSafe = proxy
+    end
+end)
+local task = (__HARD and __taskSafe) or __taskRaw   -- ★ 开关决定走安全版还是原生版
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【关于服务引用脱钩 —— 结论：不做】
+-- 本来想用 local game = cloneref(game) 来废掉"代理元表记录外来索引"这套陷阱，
+-- 实测证明这条路会把脚本弄坏，原因很简单：
+--   cloneref 返回的是"干净克隆"，执行器给 game 加的扩展方法全部消失 ——
+--   game.HttpGet / game.HttpGetAsync / game.HttpGetAsync 之类当场变 nil。
+--   而 WindUI-Boreal 自己就在用它拉两个东西：
+--     L386  图标集        l = loadstring(game.HttpGetAsync and game:HttpGetAsync(j) or h:GetAsync(j))()
+--     L1938 Luarmor 卡密库 loadstring(game.HttpGetAsync and game:HttpGetAsync(ad) or HttpService:GetAsync(ad))()
+--   game.HttpGetAsync 一没，就退到 HttpService:GetAsync（客户端没这个权限）→ 拿到 nil
+--   → loadstring(nil)() → "attempt to call a nil value" → 界面报 "Boreal加载失败"。
+-- 所以这里彻底不做 game/workspace 脱钩：原样保留执行器包装的 game。
+-- 代理元表那类检测的收益，远不值"把 WindUI 弄坏"这个代价。
+-- ══════════════════════════════════════════════════════════════════════════════
+
+pcall(function()
+    local g = (getgenv and getgenv()) or _G
+    if g then
+        g.SutureLog = function(full)
+            if full == true then return table.concat(__LOG, "\n") end
+            return #__LOG
+        end
+    end
+end)
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 【远程脚本静音】loadstring 出来的代码默认在全局环境里跑，它自己的 print/warn
+-- 会绕过上面的本地静默层、直接进 LogService.MessageOut。
+-- 实测：WindUI-Boreal 本体有 20 处 warn，L17 的 "[Boreal] GetIcons 获取失败"
+-- 在加载阶段就会触发，L20121 是 "[ WindUI ] Unknown theme"，L5234 是
+-- "[ WindUI.ConfigManager ]" —— 全是公开库名，正好是游戏黑名单会匹配的东西。
+--
+-- ★★ 这里绝对不能用 setfenv / 换环境（踩过大坑，2025 修了一轮）：
+--    WindUI-Boreal 里有一段 "tick","assert","shared","loadstring","tonumber",...
+--    的全局名清单 —— 它会【枚举当前环境】来给它内部 loadstring 出来的子 chunk
+--    拼一个新环境。一旦我们把它的 chunk env 换成只有几个键的表，它枚举出来的
+--    环境里就没有 loadstring / tick / assert，内部子 chunk 一调用就报
+--    "attempt to call a nil value"，表现就是界面上写着 "Boreal加载失败"。
+--    所以：不碰任何 chunk 的环境，只把全局 print/warn 换一层过滤 ——
+--    命中特征串的吞掉（仍然记进日志，不丢），其余原样放行。
+--    对任何库都是零侵入，不可能改坏它的内部逻辑。
+--
+-- 代价：print 从原生 C 函数变成一个闭包，理论上 tostring(print) 查得出来。
+-- 但"改坏 WindUI"比"理论上的可检测性"严重得多，所以选了这条路。
+-- ══════════════════════════════════════════════════════════════════════════════
+local __SIG = {
+    "windui", "boreal", "expand", "configmanager", "window.background",
+    "addicons", "suture", "msptds", "doorsesp", "suif",
+}
+local __installed = false
+
+local function __installFilter()
+    if __installed then return end
+    __installed = true
+    local function makeFilt(real)
+        return function(...)
+            local cnt, parts = select("#", ...), {}
+            for i = 1, cnt do parts[i] = tostring((select(i, ...))) end
+            local joined = table.concat(parts, " ")
+            local lower = joined:lower()
+            for _, pat in ipairs(__SIG) do
+                if string.find(lower, pat, 1, true) then
+                    __lg(joined)          -- ★ 吞掉，但记进缓冲，别丢
+                    return
+                end
+            end
+            return real(...)
+        end
+    end
+    -- ★ 必须"一定装上"，不能"环境有才装"：
+    --   旧版用 setfenv 时是显式把 print/warn 塞进沙箱环境的，所以沙箱 chunk 一定有 warn；
+    --   改成全局过滤后如果写成"只在 _G.warn 存在时才替换"，那些 _G.warn 恰好缺失的
+    --   环境里，远程脚本的 warn(...) 就会直接 "attempt to call a nil value"。
+    --   所以这里 print/warn 一律给出可用实现：优先包住原生的，没有就用转发的。
+    local rp = rawget(_G, "print")
+    if type(rp) ~= "function" then rp = print end
+    local rw = rawget(_G, "warn")
+    if type(rw) ~= "function" then
+        -- 没有原生 warn 就用 print 转发一份（Roblox 里 warn 一定存在，这里只是兜底）
+        rw = function(...) return rp(...) end
+    end
+    pcall(function() rawset(_G, "print", makeFilt(rp)) end)
+    pcall(function() rawset(_G, "warn", makeFilt(rw)) end)
+end
+
+-- 兼容旧调用点：仍然写 __sandbox(fn)，但它只负责装过滤，绝不动环境
+local function __sandbox(fn)
+    if __HARD then __installFilter() end
+    return fn
+end
+
+if __HARD then pcall(__installFilter) end
 
 -- ★ 多源加载：raw.githubusercontent 在某些网络下会被掐，jsDelivr 更稳。
 --   两条都是通用 CDN 域名，交替重试，避免单点失效导致整个脚本加载不出来。
@@ -73,7 +247,7 @@ end)
 if ok and WindUI then
     -- 执行器控制台可见提示（部分执行器支持 rconsoleprint）
     pcall(function() if rconsoleprint then rconsoleprint("[" .. __LoadedVersion .. "] 加载源列表见 SutureLog(true)") end end)
-    __sutLog("[suture] " .. __LoadedVersion)   -- 走静默日志，SutureLog(true) 可查
+    print("[suture] " .. __LoadedVersion)      -- 走静默层内存日志，SutureLog(true) 可查
 end
 
 if not ok or not WindUI then
@@ -607,7 +781,49 @@ local hbDisguiseTab = shijueSec:Tab({ Title = "伪装玩家",  Icon = "user",  L
 
 -- 脚本类
 local scriptSec = win:Section({ Title = "脚本类", Icon = "folder", Opened = false })
--- 42 个游戏页签在下方「脚本区域」创建（本地内联，非远程）
+local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
+local gnjbTab = scriptSec:Tab({ Title = "国内脚本", Icon = "shell", Opened = false })
+local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
+local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
+local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
+local stgTab = scriptSec:Tab({ Title = "死铁轨", Icon = "shell", Locked = false })
+local slTab = scriptSec:Tab({ Title = "扫雷", Icon = "shell", Locked = false })
+local fkgsTab = scriptSec:Tab({ Title = "方块故事", Icon = "shell", Locked = false })
+local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked = false })
+local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
+local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
+local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
+local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
+local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
+local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
+local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
+local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
+local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
+local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
+local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Locked = false })
+local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
+local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
+local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
+local sgTab = scriptSec:Tab({ Title = "闪光", Icon = "shell", Locked = false })
+local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
+local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
+local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
+local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = false })
+local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = false })
+local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
+local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
+local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
+local swsxxmsTab = scriptSec:Tab({ Title = "死亡顺序：西蒙说", Icon = "shell", Locked = false })
+local llcqTab = scriptSec:Tab({ Title = "力量传奇", Icon = "shell", Locked = false })
+local bcmjbTab = scriptSec:Tab({ Title = "保持门紧闭", Icon = "shell", Locked = false })
+local bzyyzyzTab = scriptSec:Tab({ Title = "捕捉一亿只鸭子", Icon = "shell", Locked = false })
+local hbbTab = scriptSec:Tab({ Title = "汉堡包", Icon = "shell", Locked = false })
+local zslzd99yTab = scriptSec:Tab({ Title = "在森林中的99夜", Icon = "shell", Locked = false })
+local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked = false })
+local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
+local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
+local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
+local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -733,35 +949,598 @@ mainTab:Button({
     end
 })
 
--- ═══════════════════════════════════════════════════════════════════════════
--- 脚本库（rscripts）· 已打包为远程脚本「脚本库.lua」，此处只建占位页签并注册加载
--- ═══════════════════════════════════════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════════════════════
+-- rscripts 脚本库 · 自建 UI
+--
+-- 为什么不用 WindUI 的 Dropdown：下拉框只能显示一行，作者/赞数/风险/简介
+-- 全塞不下，只能压成「1. ⚠ 🔑 标题…」，根本没法看。所以这里自己建
+-- ScreenGui，做成卡片列表，每个脚本一行卡片，信息一次看全。
+--
+-- 数据来自我们自己的 Worker（/rscripts），密钥存在 Worker 里，客户端看不到。
+-- 执行复用现有的 run(url)：API 给的 rawScript 是公开裸源码 URL，直接
+-- game:HttpGet 就行，源码不经过 Worker。
+--
+-- 最值钱的一点：placeId 用当前游戏的。玩家在任意游戏里打开，看到的都是
+-- 【那个游戏可用】的脚本，全自动，不用人工整理。
+-- ═══════════════════════════════════════════════════════════════════════
 do
+    local RS_API = "https://suture-hub-counter.sfbdsl666.workers.dev/rscripts"
+    local RS_LIMIT = 30        -- 列表端点上限 48，取 30 够用又省流量
+    local RS_SEARCH_LIMIT = 20 -- 搜索端点上限只有 20（填 30 会报错）
+
+    local RS = {
+        Win = Color3.fromRGB(28, 28, 36),   -- 外框
+        Panel = Color3.fromRGB(34, 34, 44), -- 内容区
+        Card = Color3.fromRGB(43, 43, 56),  -- 卡片
+        CardHi = Color3.fromRGB(56, 56, 74),-- 卡片悬停
+        Accent = Color3.fromRGB(99, 102, 241),
+        Accent2 = Color3.fromRGB(129, 132, 255),
+        Text = Color3.fromRGB(236, 236, 245),
+        Text2 = Color3.fromRGB(158, 158, 178),
+        Good = Color3.fromRGB(88, 205, 128),
+        Warn = Color3.fromRGB(242, 186, 82),
+        Bad = Color3.fromRGB(238, 100, 100),
+        Line = Color3.fromRGB(60, 60, 76),
+    }
+
+    local FONT = Enum.Font.Gotham
+    local FONT_B = Enum.Font.GothamBold
+    local FONT_M = Enum.Font.GothamMedium
+
+    local rsState = { mode = "place", q = "", page = 1, busy = false, list = {} }
+    local rsLoad   -- 前置声明：下面建 UI 时的按钮回调要用到它，而它定义在后面
+    local rsGui, rsPanel, rsList, rsStatus, rsSearchBox, rsSearchBar
+    local rsModeBtns = {}
+
+    -- ── 小工具 ──────────────────────────────────────────────────────────
+    local function corner(obj, r)
+        local c = Instance.new("UICorner", obj)
+        c.CornerRadius = UDim.new(0, r or 6)
+        return c
+    end
+
+    local function stroke(obj, color, thick)
+        local s = Instance.new("UIStroke", obj)
+        s.Color = color or RS.Line
+        s.Thickness = thick or 1
+        s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        return s
+    end
+
+    local function label(parent, text, size, color, bold)
+        local t = Instance.new("TextLabel", parent)
+        t.BackgroundTransparency = 1
+        t.Text = text
+        t.TextSize = size or 13
+        t.TextColor3 = color or RS.Text
+        t.Font = bold and FONT_B or FONT
+        t.TextXAlignment = Enum.TextXAlignment.Left
+        t.TextYAlignment = Enum.TextYAlignment.Center
+        return t
+    end
+
+    -- ── 建 UI（只建一次，之后复用）───────────────────────────────────────
+    local function rsBuild()
+        if rsGui and rsGui.Parent then return end
+
+        rsGui = Instance.new("ScreenGui")
+        rsGui.Name = __HARD and __rnd(12) or "SutureRscripts"  -- ★ 开关关掉就用回原名
+        rsGui.ResetOnSpawn = false
+        rsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        rsGui.DisplayOrder = 100
+        rsGui.Parent = HIDDEN        -- ★ 原来挂 PlayerGui，改挂隐藏容器
+
+        rsPanel = Instance.new("Frame", rsGui)
+        rsPanel.Name = "Panel"
+        rsPanel.Size = UDim2.fromOffset(640, 470)
+        rsPanel.Position = UDim2.new(0.5, -320, 0.5, -235)
+        rsPanel.BackgroundColor3 = RS.Win
+        rsPanel.BorderSizePixel = 0
+        rsPanel.Active = true
+        corner(rsPanel, 12)
+        stroke(rsPanel, RS.Line, 1)
+
+        -- 标题栏（拖动区）
+        local bar = Instance.new("Frame", rsPanel)
+        bar.Name = "TitleBar"
+        bar.Size = UDim2.new(1, 0, 0, 42)
+        bar.BackgroundColor3 = RS.Panel
+        bar.BorderSizePixel = 0
+        bar.Active = true
+        corner(bar, 12)
+        local barFix = Instance.new("Frame", bar)  -- 盖住下边缘的圆角
+        barFix.Size = UDim2.new(1, 0, 0, 12)
+        barFix.Position = UDim2.new(0, 0, 1, -12)
+        barFix.BackgroundColor3 = RS.Panel
+        barFix.BorderSizePixel = 0
+
+        local titleL = label(bar, "rscripts 脚本库", 16, RS.Text, true)
+        titleL.Position = UDim2.new(0, 46, 0, 0)
+        titleL.Size = UDim2.new(1, -160, 1, 0)
+
+        -- 小圆点装饰（和 hub 主题色一致）
+        local dot = Instance.new("Frame", bar)
+        dot.Size = UDim2.fromOffset(12, 12)
+        dot.Position = UDim2.new(0, 18, 0.5, -6)
+        dot.BackgroundColor3 = RS.Accent
+        dot.BorderSizePixel = 0
+        corner(dot, 6)
+
+        local close = Instance.new("TextButton", bar)
+        close.Size = UDim2.fromOffset(30, 30)
+        close.Position = UDim2.new(1, -38, 0.5, -15)
+        close.BackgroundColor3 = RS.Card
+        close.Text = "✕"
+        close.TextSize = 14
+        close.Font = FONT_B
+        close.TextColor3 = RS.Text2
+        close.AutoButtonColor = false
+        close.BorderSizePixel = 0
+        corner(close, 8)
+        close.MouseEnter:Connect(function() close.BackgroundColor3 = RS.Bad end)
+        close.MouseLeave:Connect(function() close.BackgroundColor3 = RS.Card end)
+        close.MouseButton1Click:Connect(function()
+            if rsGui then rsGui.Enabled = false end
+        end)
+
+        -- 拖动
+        local dragging, dragStart, startPos
+        bar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = rsPanel.Position
+            end
+        end)
+        bar.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+                or input.UserInputType == Enum.UserInputType.Touch) then
+                local d = input.Position - dragStart
+                rsPanel.Position = UDim2.new(
+                    startPos.X.Scale, startPos.X.Offset + d.X,
+                    startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            end
+        end)
+        bar.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+
+        -- 工具栏：搜索框 + 分区按钮
+        local tools = Instance.new("Frame", rsPanel)
+        tools.Size = UDim2.new(1, -24, 0, 38)
+        tools.Position = UDim2.new(0, 12, 0, 50)
+        tools.BackgroundTransparency = 1
+
+        rsSearchBar = Instance.new("Frame", tools)
+        rsSearchBar.Size = UDim2.new(1, -300, 1, 0)
+        rsSearchBar.BackgroundColor3 = RS.Panel
+        rsSearchBar.BorderSizePixel = 0
+        corner(rsSearchBar, 8)
+        stroke(rsSearchBar, RS.Line, 1)
+
+        rsSearchBox = Instance.new("TextBox", rsSearchBar)
+        rsSearchBox.Size = UDim2.new(1, -14, 1, 0)
+        rsSearchBox.Position = UDim2.new(0, 7, 0, 0)
+        rsSearchBox.BackgroundTransparency = 1
+        rsSearchBox.Text = ""
+        rsSearchBox.PlaceholderText = "🔍  搜索脚本，回车执行（例如 aimbot / auto farm）"
+        rsSearchBox.PlaceholderColor3 = RS.Text2
+        rsSearchBox.TextColor3 = RS.Text
+        rsSearchBox.TextSize = 13
+        rsSearchBox.Font = FONT
+        rsSearchBox.ClearTextOnFocus = false
+        rsSearchBox.TextXAlignment = Enum.TextXAlignment.Left
+
+        local function modeBtn(text, key, xOff)
+            local b = Instance.new("TextButton", tools)
+            b.Size = UDim2.fromOffset(90, 38)
+            b.Position = UDim2.new(1, xOff, 0, 0)
+            b.BackgroundColor3 = RS.Panel
+            b.Text = text
+            b.TextSize = 13
+            b.Font = FONT_M
+            b.TextColor3 = RS.Text2
+            b.AutoButtonColor = false
+            b.BorderSizePixel = 0
+            corner(b, 8)
+            stroke(b, RS.Line, 1)
+            rsModeBtns[key] = b
+            b.MouseButton1Click:Connect(function()
+                rsLoad(key)
+            end)
+            return b
+        end
+        modeBtn("本游戏", "place", -272)
+        modeBtn("最新", "newest", -178)
+        modeBtn("热门", "trending", -84)
+
+        -- 状态行
+        rsStatus = label(rsPanel, "点「本游戏」列出这个游戏能用的脚本", 12, RS.Text2)
+        rsStatus.Size = UDim2.new(1, -24, 0, 20)
+        rsStatus.Position = UDim2.new(0, 12, 0, 94)
+
+        -- 卡片列表
+        local holder = Instance.new("Frame", rsPanel)
+        holder.Size = UDim2.new(1, -24, 1, -126)
+        holder.Position = UDim2.new(0, 12, 0, 116)
+        holder.BackgroundColor3 = RS.Panel
+        holder.BorderSizePixel = 0
+        corner(holder, 10)
+        stroke(holder, RS.Line, 1)
+
+        rsList = Instance.new("ScrollingFrame", holder)
+        rsList.Size = UDim2.new(1, -10, 1, -10)
+        rsList.Position = UDim2.new(0, 5, 0, 5)
+        rsList.BackgroundTransparency = 1
+        rsList.BorderSizePixel = 0
+        rsList.ScrollBarThickness = 5
+        rsList.ScrollBarImageColor3 = RS.Accent
+        rsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+        rsList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        rsList.ScrollingDirection = Enum.ScrollingDirection.Y
+
+        local pad = Instance.new("UIPadding", rsList)
+        pad.PaddingTop = UDim.new(0, 6)
+        pad.PaddingBottom = UDim.new(0, 6)
+        pad.PaddingLeft = UDim.new(0, 6)
+        pad.PaddingRight = UDim.new(0, 6)
+
+        local lay = Instance.new("UIListLayout", rsList)
+        lay.Padding = UDim.new(0, 8)
+        lay.SortOrder = Enum.SortOrder.LayoutOrder
+    end
+
+    -- ── 一张卡片 ────────────────────────────────────────────────────────
+    local function rsCard(x, index)
+        local card = Instance.new("Frame")
+        card.Name = "Card" .. index
+        card.Size = UDim2.new(1, 0, 0, 76)
+        card.BackgroundColor3 = RS.Card
+        card.BorderSizePixel = 0
+        card.LayoutOrder = index
+        corner(card, 9)
+
+        -- 左侧：游戏封面图；加载不出来就显示游戏名首字（不留空白）
+        local thumbWrap = Instance.new("Frame", card)
+        thumbWrap.Size = UDim2.fromOffset(56, 56)
+        thumbWrap.Position = UDim2.new(0, 10, 0.5, -28)
+        thumbWrap.BackgroundColor3 = RS.Panel
+        thumbWrap.BorderSizePixel = 0
+        thumbWrap.ZIndex = 2
+        corner(thumbWrap, 8)
+
+        local initial = label(thumbWrap, string.sub(x.game ~= "" and x.game or x.title or "?", 1, 1),
+            22, RS.Text2, true)
+        initial.Size = UDim2.new(1, 0, 1, 0)
+        initial.TextXAlignment = Enum.TextXAlignment.Center
+
+        if x.img and x.img ~= "" then
+            local img = Instance.new("ImageLabel", thumbWrap)
+            img.Size = UDim2.new(1, 0, 1, 0)
+            img.BackgroundTransparency = 1
+            img.Image = x.img
+            img.ZIndex = 3
+            corner(img, 8)
+            -- ImageFailed 不是所有执行器都有，取不到就让占位首字留在下面
+            pcall(function() img.ImageFailed:Connect(function() img:Destroy() end) end)
+        end
+
+        -- 标题
+        local title = label(card, x.title ~= "" and x.title or "（无标题）", 14, RS.Text, true)
+        title.Size = UDim2.new(1, -240, 0, 20)
+        title.Position = UDim2.new(0, 76, 0, 10)
+        title.TextTruncate = Enum.TextTruncate.AtEnd
+        title.ZIndex = 2
+
+        -- 作者 · 赞 · 浏览
+        local meta = {}
+        if x.author ~= "" then table.insert(meta, x.author) end
+        if x.verified then table.insert(meta, "✔") end
+        table.insert(meta, "👍 " .. tostring(x.likes or 0))
+        table.insert(meta, "👁 " .. tostring(x.views or 0))
+        local metaL = label(card, table.concat(meta, "   "), 12, RS.Text2)
+        metaL.Size = UDim2.new(1, -240, 0, 16)
+        metaL.Position = UDim2.new(0, 76, 0, 30)
+        metaL.TextTruncate = Enum.TextTruncate.AtEnd
+        metaL.ZIndex = 2
+
+        -- 状态徽章：一眼看出能不能用
+        local badges = Instance.new("Frame", card)
+        badges.Size = UDim2.new(1, -240, 0, 20)
+        badges.Position = UDim2.new(0, 76, 0, 48)
+        badges.BackgroundTransparency = 1
+        badges.ZIndex = 2
+        local bl = Instance.new("UIListLayout", badges)
+        bl.FillDirection = Enum.FillDirection.Horizontal
+        bl.Padding = UDim.new(0, 6)
+        bl.SortOrder = Enum.SortOrder.LayoutOrder
+
+        local function badge(text, color, order)
+            local b = Instance.new("Frame", badges)
+            b.BackgroundColor3 = color
+            b.BackgroundTransparency = 0.82
+            b.BorderSizePixel = 0
+            b.LayoutOrder = order or 1
+            b.ZIndex = 3
+            corner(b, 5)
+            local t = Instance.new("TextLabel", b)
+            t.BackgroundTransparency = 1
+            t.Text = text
+            t.TextSize = 11
+            t.Font = FONT_M
+            t.TextColor3 = color
+            t.Size = UDim2.new(1, 0, 1, 0)
+            t.ZIndex = 4
+            local pad2 = Instance.new("UIPadding", b)
+            pad2.PaddingLeft = UDim.new(0, 7)
+            pad2.PaddingRight = UDim.new(0, 7)
+            -- 宽度跟着文字走。中文一个字比英文宽近一倍，分开算才不会挤
+            local wide = 0
+            for i = 1, #text do
+                local byte = string.byte(text, i)
+                if byte >= 0xE0 then wide = wide + 1 end   -- UTF-8 多字节 = 中文/emoji
+            end
+            local narrow = #text - wide * 2
+            b.Size = UDim2.fromOffset(math.max(50, 18 + narrow * 7 + wide * 13), 20)
+            return b
+        end
+
+        local o = 1
+        if x.patched then
+            badge("⚠ 已被游戏方修复", RS.Bad, o); o = o + 1
+        else
+            badge("✅ 可直接用", RS.Good, o); o = o + 1
+        end
+        if x.key then
+            badge("🔑 需要卡密", RS.Warn, o); o = o + 1
+        end
+        if x.paid then
+            badge("💰 付费", RS.Warn, o); o = o + 1
+        end
+        if x.risk and x.risk ~= "" and x.risk ~= "Safe" then
+            badge("风险 " .. x.risk, RS.Warn, o); o = o + 1
+        end
+        if x.game and x.game ~= "" then
+            badge(x.game, RS.Accent2, o); o = o + 1
+        end
+
+        -- 右侧：执行按钮
+        local go = Instance.new("TextButton", card)
+        go.Size = UDim2.fromOffset(88, 34)
+        go.Position = UDim2.new(1, -100, 0.5, -17)
+        go.BackgroundColor3 = x.patched and RS.Card or RS.Accent
+        go.Text = x.patched and "仍要执行" or "执行"
+        go.TextSize = 13
+        go.Font = FONT_B
+        go.TextColor3 = x.patched and RS.Text2 or Color3.new(1, 1, 1)
+        go.AutoButtonColor = false
+        go.BorderSizePixel = 0
+        go.ZIndex = 4
+        corner(go, 8)
+
+        if x.patched then
+            -- 已修复的脚本默认不给绿色按钮，避免误点
+            stroke(go, RS.Line, 1)
+        end
+
+        go.MouseEnter:Connect(function()
+            go.BackgroundColor3 = x.patched and RS.CardHi or RS.Accent2
+        end)
+        go.MouseLeave:Connect(function()
+            go.BackgroundColor3 = x.patched and RS.Card or RS.Accent
+        end)
+        go.MouseButton1Click:Connect(function()
+            if not x.raw or x.raw == "" then
+                notify("脚本库", "这个脚本没有可执行地址", "warning", 3)
+                return
+            end
+            if x.key and x.keyUrl and x.keyUrl ~= "" then
+                notify("脚本库", "需要卡密，先去：" .. x.keyUrl, "warning", 5)
+            end
+            if x.patched then
+                notify("脚本库", "这个脚本已被游戏方修复，多半无效", "warning", 4)
+            end
+            run(x.raw, x.title or "rscripts 脚本")
+        end)
+
+        -- 悬停高亮：直接改卡片自己的底色（原来的做法是加一层 Frame，
+        -- 但那一层在卡片背景【下面】，根本看不见）
+        card.MouseEnter:Connect(function() card.BackgroundColor3 = RS.CardHi end)
+        card.MouseLeave:Connect(function() card.BackgroundColor3 = RS.Card end)
+
+        card.Parent = rsList
+        return card
+    end
+
+    -- ── 把一个空状态/提示塞进列表 ────────────────────────────────────────
+    local function rsHint(text, color)
+        local f = Instance.new("Frame", rsList)
+        f.Size = UDim2.new(1, 0, 0, 120)
+        f.BackgroundTransparency = 1
+        local t = label(f, text, 13, color or RS.Text2)
+        t.Size = UDim2.new(1, 0, 1, 0)
+        t.TextXAlignment = Enum.TextXAlignment.Center
+        t.TextWrapped = true
+    end
+
+    local function rsClear()
+        for _, c in ipairs(rsList:GetChildren()) do
+            if c:IsA("Frame") then c:Destroy() end
+        end
+    end
+
+    local function rsMarkMode()
+        for k, b in pairs(rsModeBtns) do
+            local on = (k == rsState.mode)
+            b.BackgroundColor3 = on and RS.Accent or RS.Panel
+            b.TextColor3 = on and Color3.new(1, 1, 1) or RS.Text2
+        end
+    end
+
+    -- ── 拉数据 + 渲染 ───────────────────────────────────────────────────
+    rsLoad = function(mode)
+        if rsState.busy then
+            notify("脚本库", "上一次还在加载中", "info", 2)
+            return
+        end
+        rsBuild()
+        rsGui.Enabled = true
+
+        if mode then rsState.mode = mode end
+        if rsState.mode == "search" and rsState.q == "" then
+            notify("脚本库", "先在搜索框里输入关键词", "info", 2)
+            return
+        end
+
+        rsState.busy = true
+        rsMarkMode()
+        rsClear()
+        rsHint("正在加载…")
+        rsStatus.Text = "正在请求…"
+
+        task.spawn(function()
+            local http = game:GetService("HttpService")
+            local url
+            if rsState.mode == "search" then
+                url = RS_API .. "?q=" .. http:UrlEncode(rsState.q) .. "&limit=" .. RS_SEARCH_LIMIT
+            elseif rsState.mode == "trending" then
+                url = RS_API .. "?trending=1"
+            elseif rsState.mode == "newest" then
+                url = RS_API .. "?sort=newest&limit=" .. RS_LIMIT
+            else
+                url = RS_API .. "?placeid=" .. http:UrlEncode(tostring(game.PlaceId)) .. "&limit=" .. RS_LIMIT
+            end
+
+            local ok, res = pcall(function() return game:HttpGet(url, true) end)
+            if not ok then
+                rsState.busy = false
+                rsClear(); rsHint("加载失败：网络请求异常\n点上面的分区按钮重试", RS.Bad)
+                rsStatus.Text = "加载失败"
+                return
+            end
+
+            local okDec, data = pcall(function() return http:JSONDecode(tostring(res)) end)
+            if not okDec or type(data) ~= "table" then
+                rsState.busy = false
+                rsClear(); rsHint("加载失败：返回内容无法解析", RS.Bad)
+                rsStatus.Text = "加载失败"
+                return
+            end
+            if not data.ok then
+                rsState.busy = false
+                rsClear(); rsHint("加载失败：" .. tostring(data.error or "未知错误"), RS.Bad)
+                rsStatus.Text = "加载失败"
+                return
+            end
+
+            -- 热门模式返回两组，合并
+            local list = {}
+            if data.trending then
+                for _, x in ipairs(data.rising or {}) do x.__tag = "上升"; table.insert(list, x) end
+                for _, x in ipairs(data.trending or {}) do x.__tag = "热门"; table.insert(list, x) end
+            else
+                list = data.scripts or {}
+            end
+            rsState.list = list
+
+            rsClear()
+            if #list == 0 then
+                rsHint("没有找到脚本\n换个分区，或者换个关键词试试")
+                rsStatus.Text = "没有结果"
+            else
+                for i, x in ipairs(list) do rsCard(x, i) end
+                local total = (data.meta and data.meta.total) or #list
+                if rsState.mode == "place" then
+                    rsStatus.Text = ("本游戏「%s」共 %s 个脚本，已列出 %d 个 —— 往下滑"):format(
+                        game.Name, tostring(total), #list)
+                elseif rsState.mode == "search" then
+                    rsStatus.Text = ("搜索「%s」共 %s 个，已列出 %d 个"):format(
+                        rsState.q, tostring(total), #list)
+                elseif rsState.mode == "trending" then
+                    rsStatus.Text = ("热门 + 上升共 %d 个"):format(#list)
+                else
+                    rsStatus.Text = ("最新上传：共 %s 个，已列出 %d 个"):format(tostring(total), #list)
+                end
+            end
+            rsState.busy = false
+        end)
+    end
+
+    -- 搜索框回车 = 搜索
+    local function rsHookSearch()
+        if not rsSearchBox then return end
+        rsSearchBox.FocusLost:Connect(function(enterPressed)
+            rsState.q = tostring(rsSearchBox.Text or "")
+            if enterPressed and rsState.q ~= "" then
+                rsLoad("search")
+            end
+        end)
+    end
+
+    -- ═══ 挂到 WindUI 分区上：一个入口按钮 ═══
     local rsSec = win:Section({ Title = "脚本库" })
     local rsTab = rsSec:Tab({ Title = "rscripts 脚本库", Icon = "library", Locked = false })
+
+    rsTab:Paragraph({
+        Title = "rscripts 脚本库",
+        Desc = "点下面的按钮打开脚本列表。\n"
+            .. "「本游戏」用的是当前游戏的 PlaceId，所以你在任何游戏里点开，\n"
+            .. "看到的都是【那个游戏能用】的脚本，全自动，不用手动找。"
+    })
+
+    rsTab:Button({
+        Title = "打开脚本库",
+        Desc = "卡片列表：封面、作者、点赞、以及能不能直接用的标记",
+        Icon = "layout-grid",
+        Callback = function()
+            rsBuild()
+            rsHookSearch()
+            rsGui.Enabled = true
+            if #rsState.list == 0 then
+                rsLoad("place")
+            else
+                rsMarkMode()
+            end
+        end
+    })
+
+    rsTab:Button({
+        Title = "直接列出本游戏脚本",
+        Desc = "跳过 UI，直接刷新本游戏的脚本列表",
+        Icon = "gamepad-2",
+        Callback = function()
+            rsBuild()
+            rsHookSearch()
+            rsLoad("place")
+        end
+    })
+
+    -- 主题跟随（hub 支持切主题，这里只跟着强调色走，不跟深浅）
+    pcall(function()
+        if getgenv().SutureRscriptsAccent then
+            RS.Accent = getgenv().SutureRscriptsAccent
+        end
+    end)
+
+    -- 退出脚本时一起销毁，避免留一个关不掉的悬浮窗
+    getgenv().SutureDestroyRscripts = function()
+        pcall(function() if rsGui then rsGui:Destroy() end end)
+        rsGui = nil
+    end
+
     getgenv().Tabs = getgenv().Tabs or {}
     getgenv().Tabs.RscriptsTab = rsTab
     getgenv().SutureRscriptsTab = rsTab
-    -- 依赖注入（远程脚本里要用）
-    getgenv().__SUIF_WIN = win
-    getgenv().__SUIF_RUN = run
-    getgenv().__SUIF_RS_TAB = rsTab
-
     -- 自动连点器（tu/hb 提取）依赖 ToolTab 页签，主脚本工具类页签就是它
     getgenv().Tabs.ToolTab = toolTab
     getgenv().SutureToolTab = toolTab
-
-    -- ═══ 脚本库（rscripts）：远程脚本 ═══
-    pcall(function()
-        lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/"
-            .. game:GetService("HttpService"):UrlEncode("脚本库.lua"), "脚本库", rsTab, false)
-    end)
-
-    -- ═══ 防护加固（防UI检测）：远程脚本挂到工具类页签 ═══
-    pcall(function()
-        lazyLoad("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/"
-            .. game:GetService("HttpService"):UrlEncode("防护加固.lua"), "防UI检测", toolTab, false)
-    end)
+    getgenv().OpenRscripts = function()
+        rsBuild(); rsHookSearch(); rsGui.Enabled = true
+    end
 end
 
 local function updateCount()
@@ -1577,51 +2356,6 @@ do
     })
 end
 
--- ═══ 脚本区域（游戏脚本页签 + 按钮，本地内联）═══
-local tyscriptTab = scriptSec:Tab({ Title = "通用", Icon = "shell", Opened = false })
-local gnjbTab = scriptSec:Tab({ Title = "国内脚本", Icon = "shell", Opened = false })
-local fescriptTab = scriptSec:Tab({ Title = "Fe脚本", Icon = "shell", Opened = false })
-local doorsTab = scriptSec:Tab({ Title = "doors/门", Icon = "shell", Locked = false })
-local byqTab = scriptSec:Tab({ Title = "被遗弃", Icon = "shell", Locked = false })
-local stgTab = scriptSec:Tab({ Title = "死铁轨", Icon = "shell", Locked = false })
-local slTab = scriptSec:Tab({ Title = "扫雷", Icon = "shell", Locked = false })
-local fkgsTab = scriptSec:Tab({ Title = "方块故事", Icon = "shell", Locked = false })
-local zrzhTab = scriptSec:Tab({ Title = "自然灾害", Icon = "shell", Locked = false })
-local xesqTab = scriptSec:Tab({ Title = "将会发生些邪恶事情", Icon = "shell", Locked = false })
-local wqkTab = scriptSec:Tab({ Title = "武器库", Icon = "shell", Locked = false })
-local wxlgTab = scriptSec:Tab({ Title = "无限旅馆", Icon = "shell", Locked = false })
-local dwyyTab = scriptSec:Tab({ Title = "动物医院", Icon = "shell", Locked = false })
-local pghsTab = scriptSec:Tab({ Title = "排干湖水", Icon = "shell", Locked = false })
-local lcTab = scriptSec:Tab({ Title = "莱克星顿与康科德/lc", Icon = "shell", Locked = false })
-local zhyfxTab = scriptSec:Tab({ Title = "最后一封信", Icon = "shell", Locked = false })
-local sxmsaTab = scriptSec:Tab({ Title = "数学谋杀案", Icon = "shell", Locked = false })
-local zbjscqtTab = scriptSec:Tab({ Title = "在北极生存7天", Icon = "shell", Locked = false })
-local scjsjjcTab = scriptSec:Tab({ Title = "生存僵尸竞技场", Icon = "shell", Locked = false })
-local nljjcTab = scriptSec:Tab({ Title = "能力竞技场", Icon = "shell", Locked = false })
-local bdh2Tab = scriptSec:Tab({ Title = "冰大亨2", Icon = "shell", Locked = false })
-local zxdyTab = scriptSec:Tab({ Title = "重型钓鱼", Icon = "shell", Locked = false })
-local sqjjcTab = scriptSec:Tab({ Title = "手枪竞技场", Icon = "shell", Locked = false })
-local sgTab = scriptSec:Tab({ Title = "闪光", Icon = "shell", Locked = false })
-local hcyghdTab = scriptSec:Tab({ Title = "合成一个核弹", Icon = "shell", Locked = false })
-local cclsTab = scriptSec:Tab({ Title = "储存猎手：开放世界", Icon = "shell", Locked = false })
-local smnmTab = scriptSec:Tab({ Title = "售卖柠檬", Icon = "shell", Locked = false })
-local podpoTab = scriptSec:Tab({ Title = "po大po", Icon = "shell", Locked = false })
-local slaTab = scriptSec:Tab({ Title = "圣里奥", Icon = "shell", Locked = false })
-local hbhswTab = scriptSec:Tab({ Title = "烘焙或死亡", Icon = "shell", Locked = false })
-local tpzTab = scriptSec:Tab({ Title = "逃跑者", Icon = "shell", Locked = false })
-local qlsylyTab = scriptSec:Tab({ Title = "清理所有落叶", Icon = "shell", Locked = false })
-local swsxxmsTab = scriptSec:Tab({ Title = "死亡顺序：西蒙说", Icon = "shell", Locked = false })
-local llcqTab = scriptSec:Tab({ Title = "力量传奇", Icon = "shell", Locked = false })
-local bcmjbTab = scriptSec:Tab({ Title = "保持门紧闭", Icon = "shell", Locked = false })
-local bzyyzyzTab = scriptSec:Tab({ Title = "捕捉一亿只鸭子", Icon = "shell", Locked = false })
-local hbbTab = scriptSec:Tab({ Title = "汉堡包", Icon = "shell", Locked = false })
-local zslzd99yTab = scriptSec:Tab({ Title = "在森林中的99夜", Icon = "shell", Locked = false })
-local msjdTab = scriptSec:Tab({ Title = "谋杀决斗", Icon = "shell", Locked = false })
-local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked = false })
-local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
-
-local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
-
 -- 脚本区域
 doorsTab:Button({
     Title = "[🔑]mspaint",
@@ -2321,6 +3055,13 @@ gTab:Button({
             warn("复制失败：当前环境不支持复制")
         end
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E7%8B%97.lua", "狗")
+    end
+})
+
+zqzcTab:Button({
+    Title = "[🔑]自动农场", Desc = "字面意思 可以挂机刷人头", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%87%AA%E5%8A%A8%E5%86%9C%E5%9C%BA.lua", "自动农场")
     end
 })
 
