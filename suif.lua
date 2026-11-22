@@ -2166,6 +2166,11 @@ slTab:Button({
     Callback = function() run("https://raw.githubusercontent.com/Nattalz/rblx/refs/heads/main/blockerman_full.lua?='", "扫雷") end
 })
 
+slTab:Button({
+    Title = "扫雷02", Desc = "功能最多最全面", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/tu/refs/heads/main/%E6%89%AB%E9%9B%B73.lua", "扫雷02") end
+})
+
  --扫雷远程
   getgenv().Tabs = getgenv().Tabs or {}
   getgenv().Tabs.MinesweeperTab = slTab
