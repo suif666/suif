@@ -16,7 +16,22 @@
 local ScriptUrl = "https://raw.githubusercontent.com/aibabylaugh/catsaken/refs/heads/main/Beta/catsaken.lua"
 local ScriptArg = "gg/VzHp67sw9a"
 
-print("[汉化] catsaken 汉化版 加载中…")
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 开关
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ENABLE_HOOK：拦截 Instance 元表的 __newindex。
+--   翻得最快、无闪烁，但会改写全局元表 —— catsaken 的 VM 对元表状态敏感，
+--   实测会导致 buffer.create 收错 size 而崩。默认关闭。
+--   想试可以改成 true，失败会自动回落到监听模式。
+local ENABLE_HOOK = false
+
+-- ENABLE_TRANSLATE：总开关。改成 false 就变成"纯加载不翻译"，
+--   用来排查"到底是翻译层的问题还是原脚本的问题"。
+local ENABLE_TRANSLATE = true
+
+print("[汉化] catsaken 汉化版 加载中…（翻译 " ..
+    (ENABLE_TRANSLATE and "开" or "关") .. " / Hook " ..
+    (ENABLE_HOOK and "开" or "关") .. "）")
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 1. 翻译表（812 条）
@@ -901,7 +916,11 @@ local function StripTags(s)
     return (s:gsub("<[^>]*>", ""))
 end
 
+local transCount = 0
+local transLog = {}
+
 local function TranslateText(txt)
+    if not ENABLE_TRANSLATE then return txt end
     if type(txt) ~= "string" or txt == "" then return txt end
 
     local hit = cache[txt]
@@ -913,6 +932,8 @@ local function TranslateText(txt)
     local exact = Translations[txt] or Translations[clean]
     if exact then
         cache[txt] = exact
+        transCount = transCount + 1
+        if #transLog < 40 then transLog[#transLog + 1] = txt .. "  →  " .. exact end
         return exact
     end
 
@@ -977,38 +998,71 @@ local function IsSysUI(obj)
     return false
 end
 
+-- 该不该翻这个控件？
+--   TextLabel  ：显示用，脚本不会读回来 → 全翻
+--   TextBox    ：输入提示，翻
+--   TextButton ：危险。catsaken 大量用按钮的 Text 当状态标志，
+--                它会把 "OFF" 写进按钮再读回来判断。一旦被我们翻成"关闭"，
+--                判断就永远不成立。所以 4 字符以内的按钮文本一律不翻。
+local function ShouldTranslate(obj, txt)
+    if not ENABLE_TRANSLATE then return false end
+    if IsSysUI(obj) then return false end
+    if obj:IsA("TextLabel") then return true end
+    if obj:IsA("TextBox") then return true end
+    if obj:IsA("TextButton") then
+        local clean = (txt:gsub("<[^>]*>", ""):gsub("^%s+", ""):gsub("%s+$", ""))
+        if #clean <= 4 then return false end   -- ON / OFF / Yes / No / Max …
+        return true
+    end
+    return false
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 5. Hook 模式：拦 __newindex，改 Text 赋值
 -- ═══════════════════════════════════════════════════════════════════════════
 local hookInstalled = false
 
 local function TryHook()
+    -- 元表 Hook 会改写所有 Instance 的属性赋值通道。
+    -- 里面每一次 Roblox API 调用都必须 pcall —— 碰到已销毁的 Instance、
+    -- 或者 t 是 userdata 的情况，裸调用会抛异常，属性赋值失败，
+    -- catsaken 的 VM 表状态就乱了（表现为 buffer.create 越界）。
     local ok, err = pcall(function()
         local mt = getrawmetatable(game)
         if not mt then error("getrawmetatable 返回 nil") end
         local oldNewIndex = mt.__newindex
         if type(setreadonly) == "function" then setreadonly(mt, false) end
+
         mt.__newindex = newcclosure(function(t, k, v)
-            if (k == "Text" or k == "PlaceholderText")
-                and typeof(t) == "Instance"
-                and (t:IsA("TextLabel") or t:IsA("TextButton") or t:IsA("TextBox"))
-                and not IsSysUI(t) then
-                local okv, nv = pcall(TranslateText, tostring(v))
-                if okv and nv then v = nv end
+            if k == "Text" or k == "PlaceholderText" then
+                local okc, should = pcall(function()
+                    if typeof(t) ~= "Instance" then return false end
+                    if IsSysUI(t) then return false end
+                    return ShouldTranslate(t, tostring(v))
+                end)
+                if okc and should then
+                    local okv, nv = pcall(TranslateText, tostring(v))
+                    if okv and type(nv) == "string" then v = nv end
+                end
             end
             return oldNewIndex(t, k, v)
         end)
+
         if type(setreadonly) == "function" then setreadonly(mt, true) end
     end)
     hookInstalled = ok
     if not ok then
-        warn("[汉化] Hook 装不上，降级为监听模式：" .. tostring(err))
+        warn("[汉化] Hook 装不上，走监听模式：" .. tostring(err))
     else
         print("[汉化] Hook 模式已启用")
     end
 end
 
-TryHook()
+if ENABLE_HOOK then
+    TryHook()
+else
+    print("[汉化] Hook 已关闭，走监听模式")
+end
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 6. 监听兜底：Hook 失败的执行器靠这个
@@ -1018,13 +1072,20 @@ local busy      = setmetatable({}, { __mode = "k" })
 local scanned   = setmetatable({}, { __mode = "k" })
 
 local function TranslateObj(obj)
-    if busy[obj] or IsSysUI(obj) then return end
+    if busy[obj] then return end
+    if not ENABLE_TRANSLATE then return end
     busy[obj] = true
-    local ok, err = pcall(function()
-        local nText = TranslateText(obj.Text)
-        if nText ~= obj.Text then obj.Text = nText end
-        local nPlace = TranslateText(obj.PlaceholderText)
-        if nPlace ~= obj.PlaceholderText then obj.PlaceholderText = nPlace end
+    pcall(function()
+        local t = obj.Text
+        if type(t) == "string" and t ~= "" and ShouldTranslate(obj, t) then
+            local nText = TranslateText(t)
+            if nText ~= t then obj.Text = nText end
+        end
+        local p = obj.PlaceholderText
+        if type(p) == "string" and p ~= "" and ShouldTranslate(obj, p) then
+            local nPlace = TranslateText(p)
+            if nPlace ~= p then obj.PlaceholderText = nPlace end
+        end
     end)
     busy[obj] = nil
 end
@@ -1039,12 +1100,12 @@ local function WatchObj(obj)
     pcall(function()
         obj:GetPropertyChangedSignal("Text"):Connect(function()
             if not busy[obj] then
-                task.delay(0.03, function() TranslateObj(obj) end)
+                task.delay(0.01, function() TranslateObj(obj) end)
             end
         end)
         obj:GetPropertyChangedSignal("PlaceholderText"):Connect(function()
             if not busy[obj] then
-                task.delay(0.03, function() TranslateObj(obj) end)
+                task.delay(0.01, function() TranslateObj(obj) end)
             end
         end)
     end)
@@ -1058,7 +1119,7 @@ local function ScanRoot(root)
             WatchObj(obj)
         end
         root.DescendantAdded:Connect(function(obj)
-            task.delay(0.05, function()
+            task.delay(0.01, function()
                 WatchObj(obj)
                 pcall(function()
                     for _, c in ipairs(obj:GetDescendants()) do
@@ -1122,9 +1183,26 @@ print("[汉化] 执行 catsaken…")
 local okRun, runErr = pcall(func, ScriptArg)
 if not okRun then
     warn("[汉化] 执行出错：" .. tostring(runErr))
-else
-    print("[汉化] catsaken 已启动，界面文本会自动翻译")
+    warn("[汉化] 这不是汉化层的问题（翻译用的是监听方式，只读 UI 文本）")
+    return
 end
+
+print("[汉化] catsaken 已启动，开始翻译界面…")
+
+-- 立刻全扫，不用等轮询
+task.spawn(function()
+    for round = 1, 10 do
+        for _, root in ipairs(GetAllRoots()) do
+            pcall(function()
+                for _, obj in ipairs(root:GetDescendants()) do
+                    WatchObj(obj)
+                end
+            end)
+        end
+        task.wait(0.25)
+    end
+    print(string.format("[汉化] 首轮翻译完成，共命中 %d 条", transCount))
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 8. 导出（给别的脚本调用）
@@ -1135,5 +1213,13 @@ pcall(function()
         translate = TranslateText,
         table     = Translations,
         reload    = function() cache = {} end,
+        log       = function()
+            print(string.format("[汉化] 已翻译 %d 条，最近记录：", transCount))
+            for _, l in ipairs(transLog) do print("  " .. l) end
+        end,
+        setHook      = function(on) ENABLE_HOOK = on and true or false end,
+        setTranslate = function(on) ENABLE_TRANSLATE = on and true or false end,
+        isTranslateOn = function() return ENABLE_TRANSLATE end,
+        version   = "1.1",
     }
 end)
