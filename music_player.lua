@@ -304,6 +304,74 @@ local loopOn      = false
 local volume      = 0.5
 local seeking     = false
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 宿主 Sound 机制
+--   本环境里脚本自建的 Sound 不推进 TimePosition（对照测试点了没反应就是这个），
+--   说明客户端不接受"凭空创建"的音频对象。
+--   但游戏自己的 Sound 一定在出声 —— 那就借一个来用：
+--   把它的 SoundId 换成我们注册好的本地资产，然后 Play。
+-- ═══════════════════════════════════════════════════════════════════════════
+local hostSound = nil          -- 被借用的游戏 Sound
+local hostOrigin = nil         -- 它的原始 SoundId / Looped / Volume（用完还原）
+
+local function scanSounds(root, out, depth)
+    if depth > 3 then return end
+    local ok, kids = pcall(function() return root:GetChildren() end)
+    if not ok then return end
+    for _, c in ipairs(kids) do
+        local ok2, isSnd = pcall(function() return c:IsA("Sound") end)
+        if ok2 and isSnd then table.insert(out, c) end
+        scanSounds(c, out, depth + 1)
+    end
+end
+
+-- 找候选宿主：优先正在播放的，其次时长已加载的
+local function findHostCandidates()
+    local all = {}
+    scanSounds(SoundService, all, 2)
+    scanSounds(workspace, all, 3)
+    pcall(function() scanSounds(workspace.CurrentCamera, all, 2) end)
+
+    local playing, loaded = {}, {}
+    for _, s in ipairs(all) do
+        local ok, len = pcall(function() return s.TimeLength end)
+        if ok and len and len > 0 then
+            local okp, p = pcall(function() return s.IsPlaying end)
+            if okp and p then table.insert(playing, s) else table.insert(loaded, s) end
+        end
+    end
+    -- 正在播放的排前面
+    for _, s in ipairs(playing) do table.insert(loaded, 1, s) end
+    return loaded, #playing
+end
+
+local function grabHost()
+    local list = findHostCandidates()
+    if #list == 0 then return nil end
+    local s = list[1]
+    hostSound = s
+    hostOrigin = {
+        SoundId = s.SoundId,
+        Looped  = s.Looped,
+        Volume  = s.Volume,
+    }
+    print("[音乐] 借用宿主 Sound: " .. tostring(s:GetFullName()) .. " | 原时长 "
+        .. tostring(s.TimeLength))
+    return s
+end
+
+local function releaseHost()
+    if not hostSound or not hostOrigin then return end
+    pcall(function()
+        hostSound.SoundId = hostOrigin.SoundId
+        hostSound.Looped  = hostOrigin.Looped
+        hostSound.Volume  = hostOrigin.Volume
+        hostSound:Play()
+    end)
+    print("[音乐] 已还原宿主 Sound")
+    hostSound, hostOrigin = nil, nil
+end
+
 local function ensureSound()
     if sound and sound.Parent then return sound end
     local ok, s = pcall(function()
@@ -318,7 +386,7 @@ local function ensureSound()
     return sound
 end
 
--- 把文件注册成 rbxasset 并播放
+-- 把文件注册成 rbxasset 并播放（自适应：自建对象不行就借游戏的）
 local function playFile(fileName, info, onStatus)
     local asset
     for _, p in ipairs({ fileName, "./" .. fileName }) do
@@ -331,61 +399,69 @@ local function playFile(fileName, info, onStatus)
         return false
     end
 
-    local snd = ensureSound()
-    if not snd then
-        notify("播放失败", "无法创建 Sound 对象", "alert-triangle")
-        return false
-    end
-
-    snd.SoundId = asset
-    snd.Volume  = volume
-    snd.Looped  = loopOn
-    snd.TimePosition = 0
-
-    -- ① 等 IsLoaded 再 Play。
-    --    4~10MB 的 mp3 不是瞬间可播的，SoundId 刚赋值就 :Play()
-    --    在部分客户端上只是把 IsPlaying 置 true，实际不出声。
-    local waited = 0
-    while not snd.IsLoaded and waited < 8 do
-        task.wait(0.1)
-        waited = waited + 0.1
-    end
-
-    -- ② 双通道播放：先普通 Play，再补一发 PlayLocalSound（本地音频专用）
-    local okp = pcall(function() snd:Play() end)
-    pcall(function() SoundService:PlayLocalSound(snd) end)
-
-    -- ③ 记录状态，方便"听不见"时定位
-    task.delay(1.5, function()
-        local st = {
-            IsPlaying   = snd.IsPlaying,
-            IsLoaded    = snd.IsLoaded,
-            TimeLength  = snd.TimeLength,
-            TimePos     = snd.TimePosition,
-        }
-        print(("[音乐] 播放状态 %s | IsPlaying=%s IsLoaded=%s TimeLen=%.1f TimePos=%.1f Vol=%.2f SvcVol=%.2f")
-            :format(tostring(info.name), tostring(st.IsPlaying), tostring(st.IsLoaded),
-                st.TimeLength, st.TimePos, snd.Volume, SoundService.Volume))
-        LAST_STATUS = st
-    end)
-
     current     = info
     currentFile = fileName
 
-    if onStatus then
-        onStatus(("正在播放：%s - %s\n文件：%s\n资产：%s"):format(
-            tostring(info.name), tostring(info.singer), fileName, asset))
-    end
-    notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer), "play", 4)
+    -- ① 先试自建 Sound
+    local snd = ensureSound()
+    local usedHost = false
 
-    -- 加载失败兜底提示
-    task.delay(3, function()
-        if not snd or snd.SoundId ~= asset then return end
-        if snd.TimeLength <= 0 then
-            notify("没有出声？", "音频可能未被客户端解码，试试换一首或换码率", "alert-triangle", 7)
+    local function attempt(sound, tag)
+        sound.SoundId = asset
+        sound.Volume  = volume
+        sound.Looped  = loopOn
+        pcall(function() sound.TimePosition = 0 end)
+        pcall(function() sound:Play() end)
+        pcall(function() SoundService:PlayLocalSound(sound) end)
+
+        -- 等 1.2 秒看 TimePosition 是否推进
+        local t0 = 0
+        pcall(function() t0 = sound.TimePosition end)
+        task.wait(1.2)
+        local t1 = 0
+        pcall(function() t1 = sound.TimePosition end)
+        print(("[音乐] %s: TimePos %.2f → %.2f | IsPlaying=%s | TimeLen=%.1f")
+            :format(tag, t0, t1, tostring(sound.IsPlaying), sound.TimeLength or 0))
+        return t1 > t0
+    end
+
+    -- 自建对象能不能出声
+    if snd then
+        if attempt(snd, "自建 Sound") then
+            if onStatus then
+                onStatus(("正在播放：%s - %s\n方式：自建 Sound\n文件：%s")
+                    :format(tostring(info.name), tostring(info.singer), fileName))
+            end
+            notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer), "play", 4)
+            return true
         end
-    end)
-    return okp
+    end
+
+    -- ② 自建不行 → 借宿主
+    local host = grabHost()
+    if host then
+        usedHost = true
+        if attempt(host, "宿主 Sound(" .. tostring(host:GetFullName()) .. ")") then
+            if onStatus then
+                onStatus(("正在播放：%s - %s\n方式：借用游戏内的 Sound\n宿主：%s\n文件：%s")
+                    :format(tostring(info.name), tostring(info.singer), tostring(host:GetFullName()), fileName))
+            end
+            notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer)
+                .. "（借用游戏音源）", "play", 4)
+            return true
+        end
+        releaseHost()
+    end
+
+    -- ③ 都不行
+    if onStatus then
+        onStatus(("注册成功但播不出来：%s\n\n自建 Sound 和借用宿主都没有推进 TimePosition。\n"
+            .. "说明这个执行器环境不允许脚本播放音频。\n\n"
+            .. "可用的替代：点「控制 → 复制当前歌曲直链」拿去浏览器听。")
+            :format(fileName))
+    end
+    notify("播不出来", "自建 Sound 和借用宿主都无效，去「环境」页看诊断", "alert-triangle", 8)
+    return false
 end
 
 -- 主流程：搜到的歌 → 下载 → 播放
@@ -751,6 +827,55 @@ local dSec    = diagTab:Section({ Title = "执行器自检", Opened = true })
 local diagPara = dSec:Paragraph({
     Title = "点下面按钮检测",
     Desc  = READY and "关键函数都在，理论上能出声。" or "缺关键函数，播不了。",
+})
+
+dSec:Button({
+    Title    = "★ 扫描游戏内的 Sound（直接的办法）",
+    Desc     = "列出这个游戏里所有能出声的 Sound，播放器会借一个来用",
+    Callback = function()
+        local list, playing = findHostCandidates()
+        local L = {}
+        table.insert(L, ("扫到 %d 个已加载的 Sound（%d 个正在播放）"):format(#list, playing))
+        table.insert(L, "")
+        for i, s in ipairs(list) do
+            if i > 12 then
+                table.insert(L, ("  …还有 %d 个"):format(#list - 12))
+                break
+            end
+            table.insert(L, ("%d. %s"):format(i, tostring(s:GetFullName())))
+            table.insert(L, ("    时长 %.1f 秒 | 播放中 %s | 音量 %.2f | Id %s"):format(
+                s.TimeLength or 0, tostring(s.IsPlaying), s.Volume or 0,
+                tostring(s.SoundId):sub(1, 50)))
+        end
+        if #list == 0 then
+            table.insert(L, "")
+            table.insert(L, "一个都没有 —— 这个游戏没有任何已加载的 Sound，")
+            table.insert(L, "借宿主的办法也用不了。")
+        end
+
+        local txt = table.concat(L, "\n")
+        diagPara:SetDesc(txt)
+        print("[音乐] Sound 扫描:\n" .. txt)
+
+        if #list > 0 then
+            notify("找到宿主", ("%d 个候选，播放时会自动借用"):format(#list), "check", 4)
+        else
+            notify("没有宿主", "这个游戏没加载任何 Sound", "alert-triangle", 5)
+        end
+    end,
+})
+
+dSec:Button({
+    Title    = "还原宿主 Sound",
+    Desc     = "把借来的游戏音源换回去（退出前点一下）",
+    Callback = function()
+        if hostSound then
+            releaseHost()
+            notify("已还原", "游戏原音源已恢复", "rotate-ccw", 4)
+        else
+            notify("还原", "当前没有借用任何 Sound", "info", 3)
+        end
+    end,
 })
 
 dSec:Button({
