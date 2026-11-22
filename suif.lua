@@ -1,3 +1,4 @@
+--开源
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 【防护加固】远程脚本，加载脚本时自动下载并执行（不需要点任何按钮）
 -- 原 1-196 行（静默层 + 全局 print/warn 过滤 + 安全 task + 容器代名支持）
@@ -1070,6 +1071,11 @@ local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked =
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
 local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
+local dzTab = scriptSec:Tab({ Title = "锻造", Icon = "shell", Locked = false })
+local ycqydbpTab = scriptSec:Tab({ Title = "一场奇异的奔跑", Icon = "shell", Locked = false })
+local gwycTab = scriptSec:Tab({ Title = "国王遗产", Icon = "shell", Locked = false })
+local hcndxfTab = scriptSec:Tab({ Title = "活出你的想法", Icon = "shell", Locked = false })
+local tfmnqTab = scriptSec:Tab({ Title = "塔防模拟器", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1257,7 +1263,7 @@ local function updateCount()
             -- 缓存击穿：同一玩家+同一游戏时上面八个参数逐字相同，加时间戳让 URL 每次都不同
             .. "&_t=" .. tostring(os.time()) .. tostring(math.random(100000, 999999))
 
-        -- true = 不走 HttpGet 缓存（原来漏了这个参数，同 URL 第二次执行直接命中缓存、请求没发出去）
+        -- true = 不走 HttpGet 缓存（原来漏了，同 URL 第二次执行直接命中缓存、请求没发出去）
         return game:HttpGet(url, true)
     end)
 
@@ -2123,6 +2129,12 @@ byqTab:Button({
 end
 })
 
+byqTab:Button({
+    Title = "catsaken", Desc = "依旧国外大手子制作", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/tu/refs/heads/main/%E8%A2%AB%E9%81%97%E5%BC%83catsaken.lua", "被遗弃脚本03") 
+end
+})
+
 stgTab:Button({
     Title = "[🔑]叶子", Desc = "好长时间都没有更新了...", Icon = "shell",
     Callback = function() run("https://getnative.cc/script/loader", "死铁轨叶子") end
@@ -2760,6 +2772,13 @@ tykdTab:Button({
     end
 })
 
+tykdTab:Button({
+    Title = "[未汉化]VenyxHub", Desc = "网络寻找", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/tienkhanh1/Venyx/main/VenyxHub", "偷一颗蛋")
+    end
+})
+
 xzTab:Button({
     Title = "[🔑]小猪", Desc = "只找到这一个 功能很多 很齐全", Icon = "shell",
     Callback = function()
@@ -2788,6 +2807,51 @@ zqzcTab:Button({
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%87%AA%E5%8A%A8%E5%86%9C%E5%9C%BA.lua", "自动农场")
     end
 })
+
+zqzcTab:Button({
+    Title = "[🔑][未汉化]最强战场", Desc = "字面意思 可以挂机刷人头", Icon = "shell",
+    Callback = function()
+        run("https://api.jnkie.com/api/v1/luascripts/public/bd4d4dab8e75f0888883bcbd48246c23037639f756120d2fc14946d4169140c2/download", "最强战场")
+    end
+})
+
+dzTab:Button({
+    Title = "[🔑]mspaint", Desc = "好的脚本 使我游戏旋转", Icon = "shell",
+    Callback = function()
+        run("https://www.mspaint.cc/loader.luau", "锻造")
+    end
+})
+
+ycqydbpTab:Button({
+    Title = "[🔑][未汉化]一场奇艺的奔跑", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://www.sdaerht.cloud/loader/hub/dee2c68d-b398-42ee-b50a-690f0da3e5b5.lua", "一场奇艺的奔跑")
+    end
+})
+
+gwycTab:Button({
+    Title = "[🔑][未汉化]国王遗产", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://api.spectrumcheat.com/loader.lua", "国王遗产")
+    end
+})
+
+hcndxfTab:Button({
+    Title = "[🔑][未汉化]活出你的想法", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://cdn.luaprotect.dev/u/85355b/HMJryzsgzcVzM9JF", "活出你的想法")
+    end
+})
+
+tfmnqTab:Button({
+    Title = "[🔑][未汉化]Macro Hub", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/Ceepizz/rya/refs/heads/main/AutoProgress.lua"", "塔防模拟器")
+    end
+})
+
+
+
 
 
 -- UI设置
