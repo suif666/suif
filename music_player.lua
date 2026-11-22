@@ -408,14 +408,30 @@ local function ensureSound()
         snd.Name    = "SutureMusicPlayer"
         snd.Volume  = volume
         snd.Looped  = loopOn
-        snd.Parent  = SoundService
+        -- ★ 挂 workspace（3D 通道）而不是 SoundService（2D）。
+        --   SoundService 下的 Sound 在部分客户端/游戏组合里不推进播放，
+        --   workspace 下走空间音频通道，参考实现就是这么播出来的。
+        snd.RollOffMode      = Enum.RollOffMode.Inverse
+        snd.RollOffMinDistance = 10000    -- 衰减半径拉到极大 → 等效全局音量
+        snd.RollOffMaxDistance = 100000
+        snd.Parent  = workspace
         return snd
     end)
     if ok then sound = s end
     return sound
 end
 
--- 把文件注册成 rbxasset 并播放（自适应：自建对象不行就借游戏的）
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 把文件注册成 rbxasset 并播放
+--
+-- 关键流程（照抄 NeteaseCloudMusicForRoblox 验证过的做法）：
+--   ① 先建一个 Volume=0 的「预加载 Sound」，SoundId 指向本地资产，然后 Play
+--      —— Play 才会真正触发客户端解码，不 Play 等多久 IsLoaded 都不变
+--   ② 轮询 IsLoaded 且 TimeLength > 0，最长等 20 秒
+--      4~10MB 的 mp3 解码要好几秒，等 1 秒就判定失败是完全错的
+--   ③ 验证通过后，把资产赋给主 Sound（父级 workspace），再 Play
+--   ④ 主 Sound 也等 TimeLength > 0，最长 10 秒
+-- ═══════════════════════════════════════════════════════════════════════════
 local function playFile(fileName, info, onStatus)
     local asset
     for _, p in ipairs({ fileName, "./" .. fileName }) do
@@ -430,97 +446,86 @@ local function playFile(fileName, info, onStatus)
 
     current     = info
     currentFile = fileName
+    if onStatus then onStatus(("正在解码 %s…\n资产：%s"):format(fileName, asset:sub(1, 60))) end
 
-    -- ① 先试自建 Sound
+    -- ① 预加载验证
+    local loaded, watched = false, 0
+    local pre = nil
+    pcall(function()
+        pre = Instance.new("Sound")
+        pre.Name     = "SuturePreload"
+        pre.Volume   = 0
+        pre.Looped   = false
+        pre.SoundId  = asset
+        pre.Parent   = workspace
+        pre:Play()
+    end)
+
+    if pre then
+        local deadline = os.clock() + 20
+        while os.clock() < deadline do
+            local okL, isL = pcall(function() return pre.IsLoaded end)
+            local okT, tl  = pcall(function() return pre.TimeLength end)
+            if okL and okT and isL and tonumber(tl) and tl > 0 then
+                loaded = true
+                watched = math.floor((20 - (deadline - os.clock())) * 10) / 10
+                break
+            end
+            task.wait(0.1)
+        end
+        pcall(function() pre:Stop() end)
+        pcall(function() pre:Destroy() end)
+    end
+
+    print(("[音乐] 预加载验证：%s | IsLoaded=%s TimeLength=%.1f")
+        :format(loaded and "通过" or "失败", tostring(loaded), pre and (pre.TimeLength or 0) or 0))
+
+    if not loaded then
+        notify("解码失败", "本地资产 20 秒内没被客户端解码\n文件：" .. fileName
+            .. "\n→ 这个执行器的 getcustomasset 可能不支持音频", "alert-triangle", 10)
+        if onStatus then
+            onStatus(("解码失败：%s\n\n客户端能注册资产，但 20 秒内没解码出时长。\n"
+                .. "说明这个执行器把音频当成了不可解析资源。\n\n"
+                .. "替代方案：控制 → 用系统播放器打开 / 复制直链。"):format(fileName))
+        end
+        return false
+    end
+
+    -- ② 主播放
     local snd = ensureSound()
-    local usedHost = false
-
-    local function attempt(sound, tag)
-        sound.SoundId = asset
-        sound.Volume  = volume
-        sound.Looped  = loopOn
-        pcall(function() sound.TimePosition = 0 end)
-        pcall(function() sound:Play() end)
-        pcall(function() SoundService:PlayLocalSound(sound) end)
-
-        -- 等 1.2 秒看 TimePosition 是否推进
-        local t0 = 0
-        pcall(function() t0 = sound.TimePosition end)
-        task.wait(1.2)
-        local t1 = 0
-        pcall(function() t1 = sound.TimePosition end)
-        print(("[音乐] %s: TimePos %.2f → %.2f | IsPlaying=%s | TimeLen=%.1f")
-            :format(tag, t0, t1, tostring(sound.IsPlaying), sound.TimeLength or 0))
-        return t1 > t0
+    if not snd then
+        notify("播放失败", "无法创建 Sound 对象", "alert-triangle")
+        return false
     end
 
-    -- ①-a 自建 Sound，挂在 SoundService（2D 全局音效）
-    if snd then
-        if attempt(snd, "自建/SoundService") then
-            if onStatus then
-                onStatus(("正在播放：%s - %s\n方式：SoundService（2D）\n文件：%s")
-                    :format(tostring(info.name), tostring(info.singer), fileName))
-            end
-            notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer), "play", 4)
-            return true
-        end
-        pcall(function() snd:Stop() end)
+    pcall(function() snd:Stop() end)
+    snd.SoundId = asset
+    snd.Volume  = volume
+    snd.Looped  = loopOn
+    pcall(function() snd.TimePosition = 0 end)
+    pcall(function() snd:Play() end)
+
+    -- ③ 等主 Sound 拿到时长
+    local dl2 = os.clock() + 10
+    while os.clock() < dl2 and (snd.TimeLength or 0) <= 0 do task.wait(0.1) end
+
+    local tl = snd.TimeLength or 0
+    print(("[音乐] 主 Sound：TimeLength=%.1f | IsPlaying=%s | Parent=%s")
+        :format(tl, tostring(snd.IsPlaying), tostring(snd.Parent)))
+
+    if tl <= 0 then
+        notify("主播放失败", "预加载过了但主 Sound 没拿到时长", "alert-triangle", 8)
+        if onStatus then onStatus("主 Sound 没拿到时长，换首歌试试") end
+        return false
     end
 
-    -- ①-b 换挂到相机下，作为 3D 音效
-    --     SoundService 里是 2D 通道，workspace 下走 3D 空间音频通道。
-    --     两条路的混音链路不同，2D 被静音时 3D 常常还能出声。
-    local cam = workspace.CurrentCamera
-    if cam then
-        local ok3, s3 = pcall(function()
-            local s = Instance.new("Sound")
-            s.Name            = "SutureMusic3D"
-            s.RollOffMode     = Enum.RollOffMode.InverseTapered
-            s.RollOffMinDistance = 100000      -- 让衰减半径拉到极大 → 始终满音量
-            s.RollOffMaxDistance = 100000
-            s.Parent          = cam
-            return s
-        end)
-        if ok3 and s3 then
-            if attempt(s3, "自建/Camera 3D") then
-                snd = s3
-                if onStatus then
-                    onStatus(("正在播放：%s - %s\n方式：相机下 3D 音效\n文件：%s")
-                        :format(tostring(info.name), tostring(info.singer), fileName))
-                end
-                notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer)
-                    .. "（3D 通道）", "play", 4)
-                return true
-            end
-            pcall(function() s3:Destroy() end)
-        end
-    end
-
-    -- ② 自建不行 → 借宿主
-    local host = grabHost()
-    if host then
-        usedHost = true
-        if attempt(host, "宿主 Sound(" .. tostring(host:GetFullName()) .. ")") then
-            if onStatus then
-                onStatus(("正在播放：%s - %s\n方式：借用游戏内的 Sound\n宿主：%s\n文件：%s")
-                    :format(tostring(info.name), tostring(info.singer), tostring(host:GetFullName()), fileName))
-            end
-            notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer)
-                .. "（借用游戏音源）", "play", 4)
-            return true
-        end
-        releaseHost()
-    end
-
-    -- ③ 都不行
     if onStatus then
-        onStatus(("注册成功但播不出来：%s\n\n自建 Sound 和借用宿主都没有推进 TimePosition。\n"
-            .. "说明这个执行器环境不允许脚本播放音频。\n\n"
-            .. "可用的替代：点「控制 → 复制当前歌曲直链」拿去浏览器听。")
-            :format(fileName))
+        onStatus(("正在播放：%s - %s\n时长：%d:%02d\n方式：workspace 3D 通道\n文件：%s")
+            :format(tostring(info.name), tostring(info.singer),
+                math.floor(tl / 60), math.floor(tl) % 60, fileName))
     end
-    notify("播不出来", "自建 Sound 和借用宿主都无效，去「环境」页看诊断", "alert-triangle", 8)
-    return false
+    notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer), "play", 4)
+    return true
 end
 
 -- 主流程：搜到的歌 → 下载 → 播放
@@ -1136,9 +1141,13 @@ dSec:Button({
                     local snd = ensureSound()
                     snd.SoundId = asset
                     pcall(function() snd:Play() end)
-                    task.wait(3)
+                    -- 与真实播放一致：给 20 秒解码时间（4~10MB 的 mp3 要好几秒）
+                    local dl = os.clock() + 20
+                    while os.clock() < dl and (snd.TimeLength or 0) <= 0 do task.wait(0.1) end
                     if snd.TimeLength > 0 then
                         table.insert(L, ("  ✓ 客户端解码成功，时长 %.1f 秒"):format(snd.TimeLength))
+                        table.insert(L, "")
+                        table.insert(L, ("  Parent = %s（workspace = 3D 通道）"):format(tostring(snd.Parent)))
                         table.insert(L, "")
                         table.insert(L, "→ 全链路通过，直接去「搜索」页开始用。")
                     else
