@@ -2126,6 +2126,12 @@ byqTab:Button({
 end
 })
 
+byqTab:Button({
+    Title = "catsaken", Desc = "依旧国外大手子制作", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/tu/refs/heads/main/%E8%A2%AB%E9%81%97%E5%BC%83catsaken.lua", "被遗弃脚本03") 
+end
+})
+
 stgTab:Button({
     Title = "[🔑]叶子", Desc = "好长时间都没有更新了...", Icon = "shell",
     Callback = function() run("https://getnative.cc/script/loader", "死铁轨叶子") end
