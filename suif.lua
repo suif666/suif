@@ -1072,6 +1072,7 @@ local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
 local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
 local dzTab = scriptSec:Tab({ Title = "锻造", Icon = "shell", Locked = false })
 local ycqydbpTab = scriptSec:Tab({ Title = "一场奇异的奔跑", Icon = "shell", Locked = false })
+local gwycTab = scriptSec:Tab({ Title = "国王遗产", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2788,6 +2789,13 @@ zqzcTab:Button({
     end
 })
 
+zqzcTab:Button({
+    Title = "[🔑][未汉化]最强战场", Desc = "字面意思 可以挂机刷人头", Icon = "shell",
+    Callback = function()
+        run("https://api.jnkie.com/api/v1/luascripts/public/bd4d4dab8e75f0888883bcbd48246c23037639f756120d2fc14946d4169140c2/download", "最强战场")
+    end
+})
+
 dzTab:Button({
     Title = "[🔑]mspaint", Desc = "好的脚本 使我游戏旋转", Icon = "shell",
     Callback = function()
@@ -2799,6 +2807,13 @@ ycqydbpTab:Button({
     Title = "[🔑][未汉化]一场奇艺的奔跑", Desc = "外网挺火", Icon = "shell",
     Callback = function()
         run("https://www.sdaerht.cloud/loader/hub/dee2c68d-b398-42ee-b50a-690f0da3e5b5.lua", "一场奇艺的奔跑")
+    end
+})
+
+gwycTab:Button({
+    Title = "[🔑][未汉化]国王遗产", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://api.spectrumcheat.com/loader.lua", "国王遗产")
     end
 })
 
