@@ -104,6 +104,35 @@ do
         ENV.http = function(o) return request(o) end
         ENV.httpName = "request"
     end
+
+    -- 工作区绝对路径（用于交给系统播放器）
+    for _, fn in ipairs({ "getworkspace", "getWorkspace" }) do
+        local f = rawget(_G, fn) or (g and g[fn])
+        if type(f) == "function" then
+            local ok, p = pcall(f)
+            if ok and type(p) == "string" then ENV.workspace = p break end
+        end
+    end
+    if not ENV.workspace and type(syn) == "table" and type(syn.workspace) == "string" then
+        ENV.workspace = syn.workspace
+    end
+
+    -- 系统命令执行能力
+    ENV.exec = nil
+    for _, fn in ipairs({ "os.execute", "io.popen" }) do
+        local a, b = fn:match("^(%w+)%.(.+)$")
+        local holder = ({ os = os, io = io })[a]
+        if holder and type(holder[b]) == "function" then
+            ENV.exec = function(cmd)
+                if b == "execute" then return holder.execute(cmd) end
+                local p = holder.popen(cmd)
+                if p then pcall(function() p:close() end) end
+                return true
+            end
+            ENV.execName = fn
+            break
+        end
+    end
 end
 
 local READY = ENV.writefile and (ENV.asset ~= nil)
@@ -739,6 +768,59 @@ cSec:Button({
     Callback = function()
         if sound then pcall(function() sound:Stop() end) end
         if seekSlider then pcall(function() seekSlider:Set(0) end) end
+    end,
+})
+
+cSec:Button({
+    Title    = "★ 用系统播放器打开（绕过 Roblox 音频限制）",
+    Desc     = "把下好的 mp3 交给电脑上的播放器，声音从扬声器出，不经过 Roblox",
+    Callback = function()
+        if not currentFile or not current then
+            notify("打开", "先播放或下载一首", "alert-triangle")
+            return
+        end
+        local exists = false
+        pcall(function()
+            if ENV.isfile and isfile(currentFile) then exists = true end
+        end)
+        if not exists then
+            notify("打开", currentFile .. " 不存在，先下一首", "alert-triangle", 6)
+            return
+        end
+
+        local abs = (ENV.workspace and (ENV.workspace .. "/" .. currentFile)) or currentFile
+
+        if not ENV.exec then
+            notify("不支持系统命令", "这个执行器禁用了 os.execute / io.popen\n文件路径：" .. abs,
+                "alert-triangle", 10)
+            pcall(function() setclipboard(abs) end)
+            return
+        end
+
+        local tried = {}
+        local ok = false
+        for _, cmd in ipairs({
+            'start "" "' .. abs .. '"',                    -- Windows
+            'cmd /c start "" "' .. abs .. '"',
+            'xdg-open "' .. abs .. '"',                    -- Linux
+            'open "' .. abs .. '"',                        -- macOS
+            'am start -a android.intent.action.VIEW -d "file://' .. abs .. '"',  -- Android
+        }) do
+            local okc = pcall(ENV.exec, cmd)
+            table.insert(tried, (okc and "✓ " or "✗ ") .. cmd:sub(1, 60))
+            if okc then ok = true break end
+        end
+
+        local msg = ("路径：%s\n方式：%s\n\n尝试记录：\n%s"):format(
+            abs, tostring(ENV.execName), table.concat(tried, "\n"))
+        diagPara:SetDesc(msg)
+        print("[音乐] 系统播放:\n" .. msg)
+        if ok then
+            notify("已交给系统", "应该会在外部播放器打开", "external-link", 7)
+        else
+            pcall(function() setclipboard(abs) end)
+            notify("都失败了", "路径已复制到剪贴板，手动打开", "alert-triangle", 9)
+        end
     end,
 })
 
