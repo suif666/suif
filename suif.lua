@@ -1076,6 +1076,7 @@ local ycqydbpTab = scriptSec:Tab({ Title = "一场奇异的奔跑", Icon = "shel
 local gwycTab = scriptSec:Tab({ Title = "国王遗产", Icon = "shell", Locked = false })
 local hcndxfTab = scriptSec:Tab({ Title = "活出你的想法", Icon = "shell", Locked = false })
 local tfmnqTab = scriptSec:Tab({ Title = "塔防模拟器", Icon = "shell", Locked = false })
+local blqTab = scriptSec:Tab({ Title = "暴力区", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2852,6 +2853,13 @@ tfmnqTab:Button({
     Title = "[🔑][未汉化]Macro Hub", Desc = "外网挺火", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/Ceepizz/rya/refs/heads/main/AutoProgress.lua", "塔防模拟器")
+    end
+})
+
+blqTab:Button({
+    Title = "[🔑][未汉化]sho", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://api.luarmor.net/files/v4/loaders/0f7c6dde4990271bde995d70f8550780.lua", "暴力区")
     end
 })
 
