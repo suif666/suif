@@ -1076,7 +1076,6 @@ local ycqydbpTab = scriptSec:Tab({ Title = "一场奇异的奔跑", Icon = "shel
 local gwycTab = scriptSec:Tab({ Title = "国王遗产", Icon = "shell", Locked = false })
 local hcndxfTab = scriptSec:Tab({ Title = "活出你的想法", Icon = "shell", Locked = false })
 local tfmnqTab = scriptSec:Tab({ Title = "塔防模拟器", Icon = "shell", Locked = false })
-local blqTab = scriptSec:Tab({ Title = "暴力区", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2105,12 +2104,12 @@ doorsTab:Button({
 
 doorsTab:Button({
     Title = "Abysall[原版最新]", Desc = "不如msp 但胜在无卡密", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/therealcookiemonsterof1966/AbysallContinued/main/Games/Doors/Main.luau", "Abysall脚本") end
+    Callback = function() run("https://raw.githubusercontent.com/coolcookiebusiness/AbysallHubContinued/main/Games/Doors/Main.luau", "Abysall脚本") end
 })
 
 doorsTab:Button({
-    Title = "Abysall[汉化中文]", Desc = "和上面的Abysall是一样的 只不过是汉化版 功能可能不是最新", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/XxwanhexxX/doors-zh/refs/heads/main/Abysall.Hub", "Abysall脚本汉化") end
+    Title = "Abysall[汉化中文]", Desc = "和上面的Abysall是一样的 只不过是汉化版 已跟进最新上游", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Abysall%E6%B1%89%E5%8C%96.luau", "Abysall脚本汉化") end
 })
 
 doorsTab:Button({
@@ -2165,11 +2164,6 @@ slTab:Paragraph({
 slTab:Button({
     Title = "扫雷01", Desc = "无gui 带问号的方块谨慎踩踏", Icon = "shell",
     Callback = function() run("https://raw.githubusercontent.com/Nattalz/rblx/refs/heads/main/blockerman_full.lua?='", "扫雷") end
-})
-
-slTab:Button({
-    Title = "扫雷02", Desc = "功能最多最全面", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/tu/refs/heads/main/%E6%89%AB%E9%9B%B73.lua", "扫雷02") end
 })
 
  --扫雷远程
@@ -2853,13 +2847,6 @@ tfmnqTab:Button({
     Title = "[🔑][未汉化]Macro Hub", Desc = "外网挺火", Icon = "shell",
     Callback = function()
         run("https://raw.githubusercontent.com/Ceepizz/rya/refs/heads/main/AutoProgress.lua", "塔防模拟器")
-    end
-})
-
-blqTab:Button({
-    Title = "[🔑][未汉化]sho", Desc = "外网挺火", Icon = "shell",
-    Callback = function()
-        run("https://api.luarmor.net/files/v4/loaders/0f7c6dde4990271bde995d70f8550780.lua", "暴力区")
     end
 })
 
