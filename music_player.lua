@@ -297,6 +297,7 @@ end
 -- 播放器状态
 -- ─────────────────────────────────────────────────────────────────────────────
 local sound       = nil
+local LAST_STATUS = nil       -- 最近一次播放状态快照（诊断用）
 local current     = nil       -- 当前歌曲信息
 local currentFile = nil
 local loopOn      = false
@@ -340,7 +341,33 @@ local function playFile(fileName, info, onStatus)
     snd.Volume  = volume
     snd.Looped  = loopOn
     snd.TimePosition = 0
+
+    -- ① 等 IsLoaded 再 Play。
+    --    4~10MB 的 mp3 不是瞬间可播的，SoundId 刚赋值就 :Play()
+    --    在部分客户端上只是把 IsPlaying 置 true，实际不出声。
+    local waited = 0
+    while not snd.IsLoaded and waited < 8 do
+        task.wait(0.1)
+        waited = waited + 0.1
+    end
+
+    -- ② 双通道播放：先普通 Play，再补一发 PlayLocalSound（本地音频专用）
     local okp = pcall(function() snd:Play() end)
+    pcall(function() SoundService:PlayLocalSound(snd) end)
+
+    -- ③ 记录状态，方便"听不见"时定位
+    task.delay(1.5, function()
+        local st = {
+            IsPlaying   = snd.IsPlaying,
+            IsLoaded    = snd.IsLoaded,
+            TimeLength  = snd.TimeLength,
+            TimePos     = snd.TimePosition,
+        }
+        print(("[音乐] 播放状态 %s | IsPlaying=%s IsLoaded=%s TimeLen=%.1f TimePos=%.1f Vol=%.2f SvcVol=%.2f")
+            :format(tostring(info.name), tostring(st.IsPlaying), tostring(st.IsLoaded),
+                st.TimeLength, st.TimePos, snd.Volume, SoundService.Volume))
+        LAST_STATUS = st
+    end)
 
     current     = info
     currentFile = fileName
@@ -724,6 +751,107 @@ local dSec    = diagTab:Section({ Title = "执行器自检", Opened = true })
 local diagPara = dSec:Paragraph({
     Title = "点下面按钮检测",
     Desc  = READY and "关键函数都在，理论上能出声。" or "缺关键函数，播不了。",
+})
+
+dSec:Button({
+    Title    = "★ 对照测试（先跑这个定位问题）",
+    Desc     = "用 Roblox 官方音效做对照，判断是「客户端静音」还是「本地资产播不了」",
+    Callback = function()
+        local L = {}
+        local function add(s) table.insert(L, s) end
+        add("═══ 对照测试 ═══")
+        add(("SoundService.Volume = %.2f"):format(SoundService.Volume))
+        add(("SoundService.RolloffScale = %s"):format(tostring(SoundService.RolloffScale)))
+
+        -- 对照组：Roblox 官方 UI 音效（rbxassetid）
+        add("")
+        add("【对照组】rbxassetid://9118823101（官方 UI 音效，音量 5）")
+        local s1 = Instance.new("Sound")
+        s1.SoundId = "rbxassetid://9118823101"
+        s1.Volume  = 5
+        s1.Parent  = SoundService
+        pcall(function() SoundService:PlayLocalSound(s1) end)
+        task.wait(2.5)
+        add(("  IsPlaying=%s  IsLoaded=%s  TimeLen=%.2f  TimePos=%.2f")
+            :format(tostring(s1.IsPlaying), tostring(s1.IsLoaded),
+                s1.TimeLength or 0, s1.TimePosition or 0))
+        pcall(function() s1:Destroy() end)
+
+        local ctrlOk = (s1.TimeLength or 0) > 0
+        add(ctrlOk and "  → 官方音效可以加载" or "  → 官方音效都加载不了，客户端音频可能被禁")
+
+        -- 实验组：本地资产（如果有音频文件）
+        add("")
+        add("【实验组】本地 rbxasset 资产")
+        local testFile
+        for file in pairs(cacheMap) do testFile = file break end
+        if not testFile then
+            add("  没有已下载的文件，先去搜索页下 1 首")
+        else
+            local asset
+            for _, p in ipairs({ testFile, "./" .. testFile }) do
+                local ok, a = pcall(ENV.asset, p)
+                if ok and type(a) == "string" then asset = a break end
+            end
+            if not asset then
+                add("  " .. ENV.assetName .. " 失败")
+            else
+                add("  资产路径：" .. asset)
+                local s2 = Instance.new("Sound")
+                s2.SoundId = asset
+                s2.Volume  = 5
+                s2.Parent  = SoundService
+                local w = 0
+                while not s2.IsLoaded and w < 8 do task.wait(0.1) w = w + 0.1 end
+                add(("  等待加载 %.1f 秒后 IsLoaded=%s"):format(w, tostring(s2.IsLoaded)))
+                pcall(function() SoundService:PlayLocalSound(s2) end)
+                task.wait(2.5)
+                add(("  IsPlaying=%s  TimeLen=%.2f  TimePos=%.2f")
+                    :format(tostring(s2.IsPlaying), s2.TimeLength or 0, s2.TimePosition or 0))
+                pcall(function() s2:Destroy() end)
+            end
+        end
+
+        add("")
+        add("【结论怎么读】")
+        add("  对照组有声、实验组没声 → getcustomasset 的音频客户端不解码")
+        add("  两组都没声            → 客户端/设备静音，或游戏锁了 SoundService")
+        add("  两组都显示 IsPlaying 但没声 → 输出设备问题，检查系统音量")
+        local txt = table.concat(L, "\n")
+        diagPara:SetDesc(txt)
+        print("[音乐] 对照测试:\n" .. txt)
+    end,
+})
+
+dSec:Button({
+    Title    = "打印当前播放状态",
+    Desc     = "播放中卡住时点一下，看 TimePosition 有没有在走",
+    Callback = function()
+        if not sound then
+            notify("状态", "还没创建过 Sound", "info")
+            return
+        end
+        local t1 = sound.TimePosition or 0
+        task.wait(1.5)
+        local t2 = sound.TimePosition or 0
+        local L = {
+            ("SoundId    = %s"):format(tostring(sound.SoundId):sub(1, 80)),
+            ("IsLoaded   = %s"):format(tostring(sound.IsLoaded)),
+            ("IsPlaying  = %s"):format(tostring(sound.IsPlaying)),
+            ("TimeLength = %.2f"):format(sound.TimeLength or 0),
+            ("TimePos    = %.2f → %.2f（%s）"):format(t1, t2, (t2 > t1) and "在走 ✓" or "没走 ✗"),
+            ("Volume     = %.2f"):format(sound.Volume or 0),
+            ("SvcVol     = %.2f"):format(SoundService.Volume),
+            ("SoundGroup = %s"):format(tostring(sound.SoundGroup)),
+            ("Parent     = %s"):format(tostring(sound.Parent)),
+        }
+        local txt = table.concat(L, "\n")
+        diagPara:SetDesc(txt)
+        print("[音乐] 状态:\n" .. txt)
+        if t2 <= t1 then
+            notify("没有在推进", "TimePosition 不动 = 客户端没真正开始播", "alert-triangle", 6)
+        end
+    end,
 })
 
 dSec:Button({
