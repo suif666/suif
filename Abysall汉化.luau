@@ -16,11 +16,21 @@ getgenv().Abysall = {
 
 
 local BaseUrl = "https://raw.githubusercontent.com/coolcookiebusiness/AbysallHubContinued/main/"
-loadstring(game:HttpGet(BaseUrl .. "Components/Status.luau"))(BaseUrl)
-
-if shared.Runningnofine then
-    return 
-end
+-- ══════════════════════════════════════════════════════════════════════════
+--  ★ 已移除 Components/Status.luau（远程状态开关）
+--
+--  它做的事：从 Data/Status.json 拉一个 JSON，读 status 字段，
+--  然后 shared.Runningnofine = (status ~= "working")。
+--  而主文件紧接着就是 if shared.Runningnofine then return end ——
+--  也就是说 status 一旦不是 "working"，整个脚本连一行都不执行，静默退出。
+--
+--  这个开关握在作者手里，他随时可以把 Status.json 改成别的值，
+--  让所有第三方版本（包括汉化版）失效。表现出来的就是
+--  「一执行就没反应 / 被踢」。汉化版改过正文，作者更容易针对。
+--
+--  删掉之后：脚本不再咨询任何远程状态，本地永远正常启动。
+-- ══════════════════════════════════════════════════════════════════════════
+shared.Runningnofine = false
 
 -- ══════════════════════════════════════════════════════════════════════════
 --  多线路自愈取文件
@@ -170,9 +180,26 @@ Abysall.Interface = loadstring(MuFetch(
     BaseUrl .. "Components/Interface.luau"
 ))()
 
-Abysall.Analytics = loadstring(MuFetch(
-    BaseUrl .. "Components/Analytics.luau"
-))()
+-- ══════════════════════════════════════════════════════════════════════════
+--  ★ 已移除 Components/Analytics.luau（遥测上报）
+--
+--  它收集以下内容打包上报：
+--    username / user_id / display_name / account_age / executor /
+--    executor_version / hwid / game_name / place_id / job_id /
+--    platform / private_server / place_version
+--  用 HMAC-SHA256(X-Timestamp + X-Nonce) 签名，POST 到
+--    http://abysalltraintrackworker.wisp.uno/v1/execute
+--
+--  其中 hwid 是设备指纹。这段代码后续没有任何调用点（全文件只在这一行
+--  被赋值），删掉不影响任何功能，只是不再把设备信息发出去。
+-- ══════════════════════════════════════════════════════════════════════════
+Abysall.Analytics = {
+    Track = function() end,
+    Report = function() end,
+    Stop = function() end,
+    Enable = function() end,
+    Disable = function() end,
+}
 
 
 Abysall.SavePath = "Doors/Game"
