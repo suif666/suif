@@ -1070,6 +1070,8 @@ local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked =
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
 local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
+local dzTab = scriptSec:Tab({ Title = "锻造", Icon = "shell", Locked = false })
+local ycqydbpTab = scriptSec:Tab({ Title = "一场奇异的奔跑", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2785,6 +2787,22 @@ zqzcTab:Button({
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%87%AA%E5%8A%A8%E5%86%9C%E5%9C%BA.lua", "自动农场")
     end
 })
+
+dzTab:Button({
+    Title = "[🔑]mspaint", Desc = "好的脚本 使我游戏旋转", Icon = "shell",
+    Callback = function()
+        run("https://www.mspaint.cc/loader.luau", "锻造")
+    end
+})
+
+ycqydbpTab:Button({
+    Title = "[🔑][未汉化]一场奇艺的奔跑", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://www.sdaerht.cloud/loader/hub/dee2c68d-b398-42ee-b50a-690f0da3e5b5.lua", "一场奇艺的奔跑")
+    end
+})
+
+
 
 
 -- UI设置
