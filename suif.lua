@@ -1,3 +1,6 @@
+--我用的野鸡混淆 被开源迟早的事
+--脚本绝大部分由ai编写
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 【防护加固】远程脚本，加载脚本时自动下载并执行（不需要点任何按钮）
 -- 原 1-196 行（静默层 + 全局 print/warn 过滤 + 安全 task + 容器代名支持）
@@ -1070,6 +1073,10 @@ local tykdTab = scriptSec:Tab({ Title = "偷一颗蛋", Icon = "shell", Locked =
 local xzTab = scriptSec:Tab({ Title = "小猪", Icon = "shell", Locked = false })
 local gTab = scriptSec:Tab({ Title = "狗", Icon = "shell", Locked = false })
 local zqzcTab = scriptSec:Tab({ Title = "最强战场", Icon = "shell", Locked = false })
+local dzTab = scriptSec:Tab({ Title = "锻造", Icon = "shell", Locked = false })
+local ycqydbpTab = scriptSec:Tab({ Title = "一场奇异的奔跑", Icon = "shell", Locked = false })
+local gwycTab = scriptSec:Tab({ Title = "国王遗产", Icon = "shell", Locked = false })
+local hcndxfTab = scriptSec:Tab({ Title = "活出你的想法", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -1254,50 +1261,8 @@ local function updateCount()
             .. "&accountage="  .. HttpService:UrlEncode(accountAge)
             .. "&executor="    .. HttpService:UrlEncode(executor)
             .. "&maxplayers="  .. HttpService:UrlEncode(maxPlayers)
-            -- ★ 缓存击穿：八个参数在「同一玩家 + 同一游戏 + 同一执行器」时逐字相同，
-            --   加了时间戳+随机数后每次 URL 都不同，任何一层的缓存都不可能命中。
-            --   worker 的 /count 只读 player/game/... 这几个具名参数，多余参数直接忽略，
-            --   所以不会影响计数结果。
-            .. "&_t=" .. tostring(os.time()) .. tostring(math.random(100000, 999999))
 
-        -- ★ 第二参数 true = 不走 HttpGet 缓存。
-        --   原来这里是 game:HttpGet(url)（漏了 true），同 URL 第二次执行直接返回缓存，
-        --   请求压根没发出去 —— 这就是后台「不计数」的根因。
-        --   本文件其它远程请求（13 行 / 17 行 / 1158 行）都带了 true，只有这里漏了。
-        local okH, resH = pcall(function()
-            return game:HttpGet(url, true)
-        end)
-        if okH and type(resH) == "string" and resH ~= "" then
-            return resH
-        end
-
-        -- 兜底：执行器自带 request。它能设 UA、也天然不受 HttpGet 缓存影响。
-        for _, pair in ipairs({ { "syn", "request" }, { "http", "request" }, { "fluxus", "request" } }) do
-            local holder = rawget(_G, pair[1])
-            if type(holder) == "table" and type(holder[pair[2]]) == "function" then
-                local okR, rR = pcall(holder[pair[2]], {
-                    Url = url,
-                    Method = "GET",
-                    Headers = { ["User-Agent"] = "Roblox/WinInet" },
-                })
-                if okR and type(rR) == "table" and type(rR.Body) == "string" and rR.Body ~= "" then
-                    return rR.Body
-                end
-            end
-        end
-        if type(request) == "function" then
-            local okR2, rR2 = pcall(request, {
-                Url = url, Method = "GET",
-                Headers = { ["User-Agent"] = "Roblox/WinInet" },
-            })
-            if okR2 and type(rR2) == "table" and type(rR2.Body) == "string" and rR2.Body ~= "" then
-                return rR2.Body
-            end
-        end
-
-        -- 最后一搏：再试一次带 nocache 的 HttpGet
-        task.wait(0.4)
-        return game:HttpGet(url, true)
+        return game:HttpGet(url)
     end)
 
     if ok then
@@ -1308,16 +1273,13 @@ local function updateCount()
         notify("执行统计", "次数：" .. res, "activity", 2)
     else
         if countText.SetDesc then
-            countText:SetDesc("获取失败：" .. tostring(res):sub(1, 60))
+            countText:SetDesc("获取失败")
         end
-        warn("[执行统计] 获取失败:", res)
-        warn("[执行统计] 如果是网络问题可以忽略；反复失败说明 /count 走不通")
+        warn("全网执行次数获取失败:", res)
     end
 end
 
--- ★ 延迟 3 秒再统计：刚启动时 UI 构建 + 远程预载会占满网络，
---   这时候发请求最容易超时。等界面稳定了再打，成功率高得多。
-task.delay(3, updateCount)
+task.spawn(updateCount)
 
 mainTab:Select()
 
@@ -2165,6 +2127,12 @@ byqTab:Button({
 end
 })
 
+byqTab:Button({
+    Title = "catsaken", Desc = "依旧国外大手子制作", Icon = "shell",
+    Callback = function() run("https://raw.githubusercontent.com/suif666/tu/refs/heads/main/%E8%A2%AB%E9%81%97%E5%BC%83catsaken.lua", "被遗弃脚本03") 
+end
+})
+
 stgTab:Button({
     Title = "[🔑]叶子", Desc = "好长时间都没有更新了...", Icon = "shell",
     Callback = function() run("https://getnative.cc/script/loader", "死铁轨叶子") end
@@ -2830,6 +2798,43 @@ zqzcTab:Button({
         run("https://raw.githubusercontent.com/suif666/new/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%87%AA%E5%8A%A8%E5%86%9C%E5%9C%BA.lua", "自动农场")
     end
 })
+
+zqzcTab:Button({
+    Title = "[🔑][未汉化]最强战场", Desc = "字面意思 可以挂机刷人头", Icon = "shell",
+    Callback = function()
+        run("https://api.jnkie.com/api/v1/luascripts/public/bd4d4dab8e75f0888883bcbd48246c23037639f756120d2fc14946d4169140c2/download", "最强战场")
+    end
+})
+
+dzTab:Button({
+    Title = "[🔑]mspaint", Desc = "好的脚本 使我游戏旋转", Icon = "shell",
+    Callback = function()
+        run("https://www.mspaint.cc/loader.luau", "锻造")
+    end
+})
+
+ycqydbpTab:Button({
+    Title = "[🔑][未汉化]一场奇艺的奔跑", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://www.sdaerht.cloud/loader/hub/dee2c68d-b398-42ee-b50a-690f0da3e5b5.lua", "一场奇艺的奔跑")
+    end
+})
+
+gwycTab:Button({
+    Title = "[🔑][未汉化]国王遗产", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://api.spectrumcheat.com/loader.lua", "国王遗产")
+    end
+})
+
+hcndxfTab:Button({
+    Title = "[🔑][未汉化]活出你的想法", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://cdn.luaprotect.dev/u/85355b/HMJryzsgzcVzM9JF", "活出你的想法")
+    end
+})
+
+
 
 
 -- UI设置
