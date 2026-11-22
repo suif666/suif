@@ -1077,6 +1077,7 @@ local dzTab = scriptSec:Tab({ Title = "锻造", Icon = "shell", Locked = false }
 local ycqydbpTab = scriptSec:Tab({ Title = "一场奇异的奔跑", Icon = "shell", Locked = false })
 local gwycTab = scriptSec:Tab({ Title = "国王遗产", Icon = "shell", Locked = false })
 local hcndxfTab = scriptSec:Tab({ Title = "活出你的想法", Icon = "shell", Locked = false })
+local tfmnqTab = scriptSec:Tab({ Title = "塔防模拟器", Icon = "shell", Locked = false })
 
 local settingsTab = win:Tab({ Title = "设置", Icon = "user", Locked = false })
 
@@ -2840,6 +2841,14 @@ hcndxfTab:Button({
         run("https://cdn.luaprotect.dev/u/85355b/HMJryzsgzcVzM9JF", "活出你的想法")
     end
 })
+
+tfmnqTab:Button({
+    Title = "[🔑][未汉化]Macro Hub", Desc = "外网挺火", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/Ceepizz/rya/refs/heads/main/AutoProgress.lua"", "塔防模拟器")
+    end
+})
+
 
 
 
