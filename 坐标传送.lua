@@ -744,6 +744,193 @@ local function safe(what, fn)
     return ok
 end
 
+-- ══════════════════════════════════════════════════════════════════════════
+-- 二级确认框
+--
+--   删除坐标是不可撤销的，原来点一下就没了，列表条目又密，很容易点歪。
+--   这里用原生 Instance 自己画一个居中确认框，不依赖 WindUI 的对话框 API
+--   （Boreal 各版本 Dialog 名字不统一，自己画最稳）。
+--
+--   行为约定：
+--     · 点「删除」→ 执行 onYes
+--     · 点「取消」/ 点遮罩 / 按超时 → 什么都不做（安全侧默认）
+--     · 同一时刻只允许存在一个确认框，新的会顶掉旧的
+-- ══════════════════════════════════════════════════════════════════════════
+local activeConfirm = nil
+
+local function confirmAction(opts)
+    opts = opts or {}
+    local title    = tostring(opts.title or "确认操作")
+    local desc     = tostring(opts.desc or "")
+    local yesText  = tostring(opts.yesText or "确认")
+    local noText   = tostring(opts.noText or "取消")
+    local danger   = opts.danger ~= false
+    local timeout  = tonumber(opts.timeout) or 8
+    local onYes    = opts.onYes
+
+    if activeConfirm then
+        pcall(function() activeConfirm:Destroy() end)
+        activeConfirm = nil
+    end
+
+    -- 找挂载容器：gethui → CoreGui → PlayerGui
+    local parent = nil
+    pcall(function()
+        if type(gethui) == "function" then parent = gethui() end
+    end)
+    if not parent then
+        pcall(function() parent = game:GetService("CoreGui") end)
+    end
+    if not parent then
+        pcall(function()
+            parent = game:GetService("Players").LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        end)
+    end
+    if not parent then return false end
+
+    local okBuild = pcall(function()
+        local gui = Instance.new("ScreenGui")
+        gui.Name = "CoordTP_Confirm"
+        gui.ResetOnSpawn = false
+        gui.IgnoreGuiInset = true
+        gui.DisplayOrder = 9999
+        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        gui.Parent = parent
+        activeConfirm = gui
+
+        local overlay = Instance.new("Frame")
+        overlay.Size = UDim2.fromScale(1, 1)
+        overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        overlay.BackgroundTransparency = 0.4
+        overlay.BorderSizePixel = 0
+        overlay.Parent = gui
+
+        local box = Instance.new("Frame")
+        box.Size = UDim2.fromOffset(370, 186)
+        box.Position = UDim2.fromScale(0.5, 0.5)
+        box.AnchorPoint = Vector2.new(0.5, 0.5)
+        box.BackgroundColor3 = Color3.fromRGB(26, 28, 34)
+        box.BorderSizePixel = 0
+        box.Parent = gui
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 10)
+        corner.Parent = box
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 1
+        stroke.Color = danger and Color3.fromRGB(220, 70, 70) or Color3.fromRGB(70, 130, 255)
+        stroke.Parent = box
+
+        local titleLbl = Instance.new("TextLabel")
+        titleLbl.Size = UDim2.new(1, -40, 0, 30)
+        titleLbl.Position = UDim2.new(0, 20, 0, 16)
+        titleLbl.BackgroundTransparency = 1
+        titleLbl.Text = title
+        titleLbl.TextColor3 = Color3.fromRGB(245, 245, 245)
+        titleLbl.TextSize = 16
+        titleLbl.Font = Enum.Font.GothamBold
+        titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+        titleLbl.Parent = box
+
+        local descLbl = Instance.new("TextLabel")
+        descLbl.Size = UDim2.new(1, -40, 0, 82)
+        descLbl.Position = UDim2.new(0, 20, 0, 50)
+        descLbl.BackgroundTransparency = 1
+        descLbl.Text = desc
+        descLbl.TextColor3 = Color3.fromRGB(170, 175, 185)
+        descLbl.TextSize = 13
+        descLbl.Font = Enum.Font.Gotham
+        descLbl.TextWrapped = true
+        descLbl.TextXAlignment = Enum.TextXAlignment.Left
+        descLbl.TextYAlignment = Enum.TextYAlignment.Top
+        descLbl.Parent = box
+
+        local function makeBtn(text, x, w, bg, fg)
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.new(w, -30, 0, 36)
+            b.Position = UDim2.new(x, 20, 1, -52)
+            b.BackgroundColor3 = bg
+            b.Text = text
+            b.TextColor3 = fg
+            b.TextSize = 14
+            b.Font = Enum.Font.GothamBold
+            b.AutoButtonColor = true
+            b.BorderSizePixel = 0
+            b.Parent = box
+            local c = Instance.new("UICorner")
+            c.CornerRadius = UDim.new(0, 8)
+            c.Parent = b
+            return b
+        end
+
+        local yesBtn = makeBtn(yesText, 0, 0.5,
+            danger and Color3.fromRGB(200, 55, 55) or Color3.fromRGB(70, 130, 255),
+            Color3.fromRGB(255, 255, 255))
+        local noBtn = makeBtn(noText, 0.5, 0.5,
+            Color3.fromRGB(58, 62, 72),
+            Color3.fromRGB(230, 232, 238))
+
+        -- 倒计时提示（让人知道会超时取消）
+        local hint = Instance.new("TextLabel")
+        hint.Size = UDim2.new(1, -40, 0, 16)
+        hint.Position = UDim2.new(0, 20, 1, -66)
+        hint.BackgroundTransparency = 1
+        hint.Text = string.format("%d 秒后自动取消", timeout)
+        hint.TextColor3 = Color3.fromRGB(120, 126, 138)
+        hint.TextSize = 11
+        hint.Font = Enum.Font.Gotham
+        hint.TextXAlignment = Enum.TextXAlignment.Right
+        hint.Parent = box
+
+        local closed = false
+        local function close(confirmed)
+            if closed then return end
+            closed = true
+            pcall(function() gui:Destroy() end)
+            if activeConfirm == gui then activeConfirm = nil end
+            if confirmed and type(onYes) == "function" then
+                pcall(onYes)
+            end
+        end
+
+        yesBtn.MouseButton1Click:Connect(function() close(true) end)
+        noBtn.MouseButton1Click:Connect(function() close(false) end)
+
+        -- 点遮罩空白处也算取消
+        overlay.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                close(false)
+            end
+        end)
+
+        -- 超时自动取消，避免误触后框子一直挡着屏幕
+        task.spawn(function()
+            local left = timeout
+            while left > 0 and not closed do
+                task.wait(1)
+                left = left - 1
+                if not closed then
+                    pcall(function()
+                        hint.Text = string.format("%d 秒后自动取消", left)
+                    end)
+                end
+            end
+            if not closed then close(false) end
+        end)
+    end)
+
+    if not okBuild then
+        if activeConfirm then
+            pcall(function() activeConfirm:Destroy() end)
+            activeConfirm = nil
+        end
+        return false
+    end
+    return true
+end
+
 -- ==================== 分组1：当前坐标 ====================
 local mainSec = tab:Section({ Title = "当前坐标", Icon = "crosshair", Opened = true })
 
@@ -1146,10 +1333,28 @@ rebuildList = function()
                         Title = "删除",
                         Icon = "trash",
                         Callback = function()
-                            table.remove(Saves, idx)
-                            saveSavesToFile(Saves)
-                            notify("已删除", tostring(entry.name or ""), "x")
-                            rebuildList()
+                            -- ★ 二级确认：删除不可撤销，先问一句再动手
+                            local entryName = tostring(entry.name or ("坐标" .. idx))
+                            local opened = confirmAction({
+                                title = "删除这个坐标？",
+                                desc = "「" .. entryName .. "」\n"
+                                    .. fmtEntry(entry) .. "\n"
+                                    .. gameLabelFor(entry) .. "\n\n"
+                                    .. "删除后无法恢复。",
+                                yesText = "删除",
+                                noText = "取消",
+                                danger = true,
+                                timeout = 8,
+                                onYes = function()
+                                    table.remove(Saves, idx)
+                                    saveSavesToFile(Saves)
+                                    notify("已删除", entryName, "x")
+                                    rebuildList()
+                                end,
+                            })
+                            if not opened then
+                                notify("无法弹出确认框", "这次没有删除，坐标还在", "triangle-alert")
+                            end
                         end,
                     },
                 },
