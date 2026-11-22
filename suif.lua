@@ -2846,7 +2846,7 @@ hcndxfTab:Button({
 tfmnqTab:Button({
     Title = "[🔑][未汉化]Macro Hub", Desc = "外网挺火", Icon = "shell",
     Callback = function()
-        run("https://raw.githubusercontent.com/Ceepizz/rya/refs/heads/main/AutoProgress.lua"", "塔防模拟器")
+        run("https://raw.githubusercontent.com/Ceepizz/rya/refs/heads/main/AutoProgress.lua", "塔防模拟器")
     end
 })
 
