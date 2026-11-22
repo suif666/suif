@@ -425,15 +425,45 @@ local function playFile(fileName, info, onStatus)
         return t1 > t0
     end
 
-    -- 自建对象能不能出声
+    -- ①-a 自建 Sound，挂在 SoundService（2D 全局音效）
     if snd then
-        if attempt(snd, "自建 Sound") then
+        if attempt(snd, "自建/SoundService") then
             if onStatus then
-                onStatus(("正在播放：%s - %s\n方式：自建 Sound\n文件：%s")
+                onStatus(("正在播放：%s - %s\n方式：SoundService（2D）\n文件：%s")
                     :format(tostring(info.name), tostring(info.singer), fileName))
             end
             notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer), "play", 4)
             return true
+        end
+        pcall(function() snd:Stop() end)
+    end
+
+    -- ①-b 换挂到相机下，作为 3D 音效
+    --     SoundService 里是 2D 通道，workspace 下走 3D 空间音频通道。
+    --     两条路的混音链路不同，2D 被静音时 3D 常常还能出声。
+    local cam = workspace.CurrentCamera
+    if cam then
+        local ok3, s3 = pcall(function()
+            local s = Instance.new("Sound")
+            s.Name            = "SutureMusic3D"
+            s.RollOffMode     = Enum.RollOffMode.InverseTapered
+            s.RollOffMinDistance = 100000      -- 让衰减半径拉到极大 → 始终满音量
+            s.RollOffMaxDistance = 100000
+            s.Parent          = cam
+            return s
+        end)
+        if ok3 and s3 then
+            if attempt(s3, "自建/Camera 3D") then
+                snd = s3
+                if onStatus then
+                    onStatus(("正在播放：%s - %s\n方式：相机下 3D 音效\n文件：%s")
+                        :format(tostring(info.name), tostring(info.singer), fileName))
+                end
+                notify("正在播放", tostring(info.name) .. " - " .. tostring(info.singer)
+                    .. "（3D 通道）", "play", 4)
+                return true
+            end
+            pcall(function() s3:Destroy() end)
         end
     end
 
