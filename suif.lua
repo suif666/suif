@@ -2770,6 +2770,13 @@ tykdTab:Button({
     end
 })
 
+tykdTab:Button({
+    Title = "[未汉化]VenyxHub", Desc = "网络寻找", Icon = "shell",
+    Callback = function()
+        run("https://raw.githubusercontent.com/tienkhanh1/Venyx/main/VenyxHub", "偷一颗蛋")
+    end
+})
+
 xzTab:Button({
     Title = "[🔑]小猪", Desc = "只找到这一个 功能很多 很齐全", Icon = "shell",
     Callback = function()
