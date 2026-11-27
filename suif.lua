@@ -2109,7 +2109,7 @@ doorsTab:Button({
 
 doorsTab:Button({
     Title = "Abysall[汉化中文]", Desc = "和上面的Abysall是一样的 只不过是汉化版 已跟进最新上游", Icon = "shell",
-    Callback = function() run("https://raw.githubusercontent.com/suif666/suif/refs/heads/main/Abysall%E6%B1%89%E5%8C%96.luau", "Abysall脚本汉化") end
+    Callback = function() run("https://raw.githubusercontent.com/AbysallRevisedversion/Abysall/refs/heads/main/Abysall", "Abysall脚本汉化") end
 })
 
 doorsTab:Button({
